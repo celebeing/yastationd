@@ -44,7 +44,8 @@ type Config struct {
 	BrightnessCurve []CurvePoint
 	TZ              string
 
-	VolumeStep int // raw volume steps per key press
+	VolumeBeep bool // tick the board's volume sound on a volume key press
+	VolumeStep int  // volume curve steps (5 % each) per key press; a voice «громче»/«тише» is 2 presses
 
 	// Hardware overrides of the board profile (effective only if set in the file).
 	AmixerCard   string
@@ -146,7 +147,8 @@ func Default() Config {
 		BrightnessCurve: DefaultBrightnessCurve,
 		RingBrightness:  128,
 		TZ:              "Europe/Moscow",
-		VolumeStep:      8,
+		VolumeStep:      1,
+		VolumeBeep:      true,
 		WyomingPort:     10700,
 		WakeEnabled:     true,
 		SpotterBin:      cfw + "/bin/spotter-host",
@@ -259,8 +261,10 @@ func (c *Config) set(k, v string) error {
 		c.WyomingPort, err = atoiRange(v, 0, 65535)
 	case "aplay_device":
 		c.AplayDevice = v
+	case "volume_beep":
+		c.VolumeBeep, err = strconv.ParseBool(v)
 	case "volume_step":
-		c.VolumeStep, err = atoiRange(v, 1, 255)
+		c.VolumeStep, err = atoiRange(v, 1, 4)
 	case "unmute":
 		c.Unmute = append(c.Unmute, v)
 	case "time_sync":

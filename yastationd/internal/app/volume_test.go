@@ -8,14 +8,6 @@ import (
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
 )
 
-func TestVolumePercentRoundTrip(t *testing.T) {
-	for pct := 0; pct <= 100; pct++ {
-		if got := percentFromRaw(rawFromPercent(pct, 255), 255); got != pct {
-			t.Errorf("%d%% -> %d -> %d%%", pct, rawFromPercent(pct, 255), got)
-		}
-	}
-}
-
 func TestWantsFollowUp(t *testing.T) {
 	cases := []struct {
 		mode, reply string

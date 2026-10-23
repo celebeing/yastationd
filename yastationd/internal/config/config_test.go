@@ -11,7 +11,7 @@ func TestParseBasics(t *testing.T) {
 device_id = kitchen
 mqtt_host = broker.example
 mqtt_port = 1883
-volume_step = 10
+volume_step = 2
 unmute = name='SPK mute' 0
 unmute = name='AMP mute status' 0
 probe = broker=broker.example:1883@broker
@@ -25,7 +25,7 @@ auto_brightness = true
 	if c.DeviceID != "kitchen" || c.MQTTHost != "broker.example" || c.MQTTPort != 1883 {
 		t.Fatalf("basic fields: %+v", c)
 	}
-	if c.VolumeStep != 10 || !c.AutoBrightness {
+	if c.VolumeStep != 2 || !c.AutoBrightness {
 		t.Fatalf("typed fields: %+v", c)
 	}
 	if len(c.Unmute) != 2 || len(c.Probes) != 2 {

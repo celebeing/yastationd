@@ -40,6 +40,7 @@ stage: build
 	$(SSH) 'cat > $(DESTDIR)/bin/$(BIN).new' < $(OUT)
 	$(SSH) 'mv $(DESTDIR)/bin/$(BIN).new $(DESTDIR)/bin/$(BIN) && chmod +x $(DESTDIR)/bin/$(BIN)'
 	$(SSH) 'cat > $(DESTDIR)/init.d/S52zyastationd && chmod +x $(DESTDIR)/init.d/S52zyastationd' < init.d/S52zyastationd
+	$(SSH) 'cat > $(DESTDIR)/init.d/supervise.sh.new && mv $(DESTDIR)/init.d/supervise.sh.new $(DESTDIR)/init.d/supervise.sh' < init.d/supervise.sh
 	@echo "staged to $(DEVICE):$(DESTDIR) — not yet autostarted (see install-initd)"
 
 # Throwaway copy in tmpfs for manual on-device testing (gone on reboot). Written aside and
@@ -59,15 +60,16 @@ install-initd: stage
 	  chmod +x /etc/init.d/S52zyastationd && \
 	  sync && mount -o remount,ro /'
 
-# Vendor voice lines the daemon plays with aplay, which only does wav. The device copies are opus
-# (bergamot 0.369: no_power.opus; pickle and bergamot 0.6.x: an Ogg/Opus file *named* .wav), and
+# Vendor sounds the daemon plays with aplay, which only does wav. The device copies are opus or
+# mp3 (bergamot 0.369: ru-RU/no_power.opus; pickle and bergamot 0.6.x: an Ogg/Opus file *named*
+# .wav; the volume tick: common/volume_sound.mp3, or sounds/volume_sound.mp3 on 0.6.x), and
 # there's no decoder on board: pull, decode on the host, put a real wav under $(DESTDIR)/sounds/.
 # Vendor audio, so it's never stored in the repo. A failed decode leaves the old file alone.
-SOUNDS ?= no_power
+SOUNDS ?= no_power volume_sound
 sounds:
 	$(SSH) 'mkdir -p $(DESTDIR)/sounds'
 	set -e; for s in $(SOUNDS); do \
-	  $(SSH) "d=/system/vendor/quasar/sounds/ru-RU; cat \$$d/$$s.opus 2>/dev/null || cat \$$d/$$s.wav" > build/$$s.src; \
+	  $(SSH) "d=/system/vendor/quasar/sounds; for f in ru-RU/$$s.opus ru-RU/$$s.wav common/$$s.mp3 $$s.mp3; do [ -f \$$d/\$$f ] && exec cat \$$d/\$$f; done; exit 1" > build/$$s.src; \
 	  ffmpeg -v error -y -i build/$$s.src -ar 48000 -ac 2 build/$$s.wav; \
 	  $(SSH) "cat > $(DESTDIR)/sounds/$$s.wav.new && mv $(DESTDIR)/sounds/$$s.wav.new $(DESTDIR)/sounds/$$s.wav" < build/$$s.wav; \
 	  rm -f build/$$s.src build/$$s.wav; \
@@ -76,10 +78,13 @@ sounds:
 # Upgrade a running install in place: upload aside, then stop -> swap -> start. The swap runs as a
 # script on stdin (`sh -s`) so no process command line contains the binary's path — the init
 # hook's stop matches processes by path, and an ssh command mentioning it would be killed with them.
+# The running binary is kept as .prev: the supervisor swaps it back in if the new one crash-loops.
 deploy: build
 	$(SSH) 'cat > $(DESTDIR)/bin/$(BIN).upload' < $(OUT)
+	$(SSH) 'mkdir -p $(DESTDIR)/init.d && cat > $(DESTDIR)/init.d/supervise.sh.new && mv $(DESTDIR)/init.d/supervise.sh.new $(DESTDIR)/init.d/supervise.sh' < init.d/supervise.sh
 	printf '%s\n' 'set -e' 'D=$(DESTDIR)' 'chmod +x $$D/bin/$(BIN).upload' \
 	  '/etc/init.d/S52zyastationd stop >/dev/null 2>&1 || true' 'sleep 1' \
+	  '[ -f $$D/bin/$(BIN) ] && cp -p $$D/bin/$(BIN) $$D/bin/$(BIN).prev' \
 	  'mv $$D/bin/$(BIN).upload $$D/bin/$(BIN)' '/etc/init.d/S52zyastationd start' \
 	  'sleep 8' 'tail -5 /tmp/yastationd.log' | $(SSH) 'sh -s'
 

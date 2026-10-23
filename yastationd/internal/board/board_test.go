@@ -74,3 +74,35 @@ func TestAllBuiltinProfilesValid(t *testing.T) {
 		}
 	}
 }
+
+func TestVolumeCurve(t *testing.T) {
+	a := AudioSpec{VolumeMax: 255, VolumeMap: []VolumePoint{{0, 0}, {1, 33}, {20, 255}}}
+	for _, c := range []struct{ pct, raw int }{{0, 0}, {1, 33}, {5, 33}, {10, 45}, {50, 138}, {100, 255}} {
+		if got := a.RawFromPercent(c.pct); got != c.raw {
+			t.Errorf("RawFromPercent(%d) = %d, want %d", c.pct, got, c.raw)
+		}
+	}
+	for pct := 5; pct <= 100; pct++ { // 1..4 % land on the first step
+		if got := a.PercentFromRaw(a.RawFromPercent(pct)); got != pct {
+			t.Errorf("%d%% -> %d -> %d%%", pct, a.RawFromPercent(pct), got)
+		}
+	}
+	if a.PercentFromRaw(0) != 0 || a.PercentFromRaw(17) != 3 {
+		t.Error("below the first step")
+	}
+	// Keys walk the stock grid from anywhere, and stop at the ends.
+	for _, c := range []struct{ raw, n, want int }{
+		{0, 1, 33}, {33, -1, 0}, {33, 1, 45}, {97, 1, a.RawFromLevel(7)}, {255, 1, 255}, {0, -1, 0}, {255, -2, a.RawFromLevel(18)},
+	} {
+		if got := a.StepVolume(c.raw, c.n); got != c.want {
+			t.Errorf("StepVolume(%d, %d) = %d, want %d", c.raw, c.n, got, c.want)
+		}
+	}
+	// No map: a straight line, as before.
+	lin := AudioSpec{VolumeMax: 255}
+	for pct := 0; pct <= 100; pct++ {
+		if got := lin.PercentFromRaw(lin.RawFromPercent(pct)); got != pct {
+			t.Errorf("linear %d%% -> %d%%", pct, got)
+		}
+	}
+}

@@ -103,6 +103,27 @@ type Player struct {
 	mu     sync.Mutex
 	cancel context.CancelFunc
 	gen    int
+	blip   context.CancelFunc
+}
+
+// Blip plays a short sound beside whatever is playing (dmix mixes them), without touching the
+// playback state: no OnState, and Play/Stream/Stop don't cut it. A new Blip cuts the previous one,
+// so a burst of key presses gives one tick each instead of a pile-up.
+func (p *Player) Blip(path string) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	p.mu.Lock()
+	if p.blip != nil {
+		p.blip()
+	}
+	p.blip = cancel
+	p.mu.Unlock()
+	cmd := aplayCmd(ctx, "-q", "-D", p.Device, path)
+	if err := cmd.Start(); err != nil {
+		cancel()
+		return err
+	}
+	go func() { cmd.Wait(); cancel() }()
+	return nil
 }
 
 func (p *Player) Play(path string) error {

@@ -20,7 +20,7 @@ internal/mqtt         paho client (LWT, backoff), topics, HA MQTT-Discovery
 internal/health       liveness state machine (TCP probes + heartbeat)
 internal/app          wiring: render loop, command handlers, evdev reflexes
 configs/              yastationd.conf.example
-init.d/               S52zyastationd supervisor hook
+init.d/               S52zyastationd boot hook + supervise.sh (backoff, .prev rollback, log rotation)
 ```
 
 ## Board profiles (multi-model)
@@ -64,7 +64,20 @@ make sounds          # decode the vendor voice lines into $(DESTDIR)/sounds/*.wa
 ```
 
 Several speakers at once: `../tools/deploy.sh` (hosts list in `../tools/deploy.hosts`). The init
-hook runs a respawn supervisor; `touch <cfw>/yastationd_off` disables it without a rootfs write.
+hook runs `<cfw>/init.d/supervise.sh`: restarts with a backoff, rolls back to `bin/yastationd.prev`
+(kept by every deploy) after a crash loop, rotates the log at 1 MB. `touch <cfw>/yastationd_off`
+disables it without a rootfs write.
+
+## TTS playback (Wyoming)
+
+HA's audio chunks go through a jitter buffer before aplay (`internal/app/satellite.go`, `pump`).
+Playback starts once 0.5 s is queued, the stream ends, or 2 s pass. When the written audio runs out
+mid-stream, the pump holds again until 0.5 s is queued. A Wi-Fi stall or a TTS that pauses between
+sentences then gives one pause rather than a stutter (aplay underruns every few tens of ms
+otherwise, seen on-device). The ring follows what is actually heard: a green pulse while audio
+plays, the white "thinking" comet while it waits for audio, and nothing once aplay is gone (a
+«стоп», or a newer stream), even if HA is still sending. `wyoming: audio stop` logs `wall_secs`,
+`max_gap_ms` and `rebuffers` to tell slow delivery from a playback problem.
 
 ## Entities (HA MQTT Discovery)
 

@@ -1,8 +1,10 @@
 package app
 
 import (
+	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/celebeing/yastationd/yastationd/internal/display"
@@ -22,6 +24,16 @@ const (
 // real time; 8192 of them is ~6 min of 22050 Hz mono — far beyond any announcement.
 const sndQueueLen = 8192
 
+// Jitter buffer. HA normally sends TTS faster than real time, but over a congested Wi-Fi link (or
+// from a TTS engine that streams while it synthesizes) chunks can stall for seconds. Writing each
+// chunk as it comes then starves aplay every few tens of ms, and the reply stutters. Instead the
+// pump holds audio back until prebufferDur is queued (or the stream ends, or rebufferWait passes),
+// and goes back to holding when the audio written so far has run out, so a stall becomes one pause.
+const (
+	prebufferDur = 500 * time.Millisecond
+	rebufferWait = 2 * time.Second
+)
+
 // satellite is the Wyoming satellite role (playback only for now: HA's announce and TTS
 // replies). The read loop must never block on aplay: HA drops a peer that misses a ping for
 // 5 s, so audio chunks go through a queue drained by a writer goroutine.
@@ -38,11 +50,18 @@ type satellite struct {
 }
 
 type sndStream struct {
-	owner *wyoming.Conn // the connection that started it; only it can end it
-	rate  int
-	lvl   hw.LevelMeter // what HA sent (diagnostics: silence from HA vs a playback problem)
-	q     chan []byte
-	done  <-chan struct{} // aplay exited
+	owner    *wyoming.Conn // the connection that started it; only it can end it
+	rate     int
+	channels int
+	lvl      hw.LevelMeter // what HA sent (diagnostics: silence from HA vs a playback problem)
+	q        chan []byte
+	done     <-chan struct{} // aplay exited
+
+	// Delivery diagnostics (read loop only): wall time of the stream, the longest gap between
+	// chunks, and how often the pump had to wait for audio after it started playing.
+	start, last time.Time
+	maxGap      time.Duration
+	rebuffers   atomic.Int32
 }
 
 func (s *satellite) OnConnect(c *wyoming.Conn) {}
@@ -133,6 +152,11 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 			st = s.startStream(c, ev.Int("rate", 22050), ev.Int("width", 2), ev.Int("channels", 1))
 		}
 		if st != nil && len(ev.Payload) > 0 {
+			now := time.Now()
+			if !st.last.IsZero() && now.Sub(st.last) > st.maxGap {
+				st.maxGap = now.Sub(st.last)
+			}
+			st.last = now
 			st.lvl.Add(ev.Payload)
 			select {
 			case st.q <- ev.Payload:
@@ -168,23 +192,117 @@ func (s *satellite) startStream(c *wyoming.Conn, rate, width, channels int) *snd
 		a.log.Warn("wyoming: start aplay", "err", err)
 		return nil
 	}
-	st := &sndStream{owner: c, rate: rate, q: make(chan []byte, sndQueueLen), done: done}
-	go func() {
-		defer w.Close()
-		for b := range st.q {
-			if _, err := w.Write(b); err != nil {
-				for range st.q { // aplay is gone (interrupted); drain so nobody blocks
-				}
-				return
-			}
-		}
-	}()
+	st := &sndStream{owner: c, rate: rate, channels: channels, q: make(chan []byte, sndQueueLen),
+		done: done, start: time.Now()}
 	s.mu.Lock()
 	s.cur = st
 	s.mu.Unlock()
-	a.ringStack.Push("voice", display.PrioVoice, 0, effect("speaking"))
+	go s.pump(st, w)
 	a.log.Info("wyoming: audio start", "rate", rate, "channels", channels, "peer", c.RemoteAddr())
 	return st
+}
+
+// pump feeds st's queue to aplay through the jitter buffer, and keeps the ring honest: green
+// pulse while audio actually plays, the "thinking" comet while it waits for more, nothing once
+// aplay is gone (a «стоп», or a newer stream) even if HA is still sending.
+func (s *satellite) pump(st *sndStream, w io.WriteCloser) {
+	defer w.Close()
+	bps := st.rate * st.channels * 2
+	if bps <= 0 {
+		bps = 2 * 22050
+	}
+	want := int(prebufferDur.Seconds() * float64(bps))
+	var (
+		pending   [][]byte
+		pendingN  int
+		buffering = true
+		t0        time.Time // when the audio written since the last resume started playing
+		written   int       // bytes written since then
+	)
+	wait := time.NewTimer(rebufferWait) // buffering: give up waiting for `want` bytes
+	defer wait.Stop()
+	dry := time.NewTimer(time.Hour) // playing: the audio written so far has run out
+	dry.Stop()
+	defer dry.Stop()
+	playedOut := func() time.Duration {
+		return time.Duration(written)*time.Second/time.Duration(bps) - time.Since(t0)
+	}
+	ring := func(name string) {
+		s.mu.Lock()
+		cur := s.cur == st
+		s.mu.Unlock()
+		if cur {
+			s.a.ringStack.Push("voice", display.PrioVoice, 0, effect(name))
+		}
+	}
+	gone := func() { // aplay exited under us: drop the rest so the read loop never blocks
+		s.mu.Lock()
+		cur := s.cur == st
+		s.mu.Unlock()
+		if cur {
+			s.a.ringStack.Remove("voice")
+		}
+		for range st.q {
+		}
+	}
+	resume := func() bool {
+		wait.Stop()
+		t0, written = time.Now(), 0
+		for _, b := range pending {
+			if _, err := w.Write(b); err != nil {
+				return false
+			}
+			written += len(b)
+		}
+		pending, pendingN, buffering = nil, 0, false
+		dry.Reset(playedOut())
+		ring("speaking")
+		return true
+	}
+	ring("thinking")
+	for {
+		select {
+		case b, ok := <-st.q:
+			if !ok { // audio-stop (or superseded): play out whatever is held back
+				if buffering && pendingN > 0 {
+					resume()
+				}
+				return
+			}
+			if buffering {
+				pending, pendingN = append(pending, b), pendingN+len(b)
+				if pendingN >= want && !resume() {
+					gone()
+					return
+				}
+				continue
+			}
+			if _, err := w.Write(b); err != nil {
+				gone()
+				return
+			}
+			written += len(b)
+			dry.Reset(playedOut())
+		case <-dry.C:
+			if !buffering && playedOut() <= 0 {
+				buffering = true
+				st.rebuffers.Add(1)
+				wait.Reset(rebufferWait)
+				ring("thinking")
+			}
+		case <-wait.C:
+			if buffering && pendingN > 0 && !resume() {
+				gone()
+				return
+			}
+			if buffering {
+				wait.Reset(rebufferWait)
+			}
+		case <-st.done:
+			gone()
+			return
+		}
+	}
 }
 
 // endStream closes the current stream's queue if c owns it. With played set (a real
@@ -202,6 +320,8 @@ func (s *satellite) endStream(c *wyoming.Conn, played bool) {
 	ls := st.lvl.Stats()
 	s.a.log.Info("wyoming: audio stop", "played", played,
 		"secs", float64(int(ls.Seconds*float64(hw.MicOutRate)/float64(st.rate)*10))/10,
+		"wall_secs", time.Since(st.start).Round(100*time.Millisecond).Seconds(),
+		"max_gap_ms", st.maxGap.Milliseconds(), "rebuffers", st.rebuffers.Load(),
 		"peak_dbfs", ls.PeakDBFS, "loud_rms_dbfs", ls.LoudDBFS)
 	go func() {
 		select {

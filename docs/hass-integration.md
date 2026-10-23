@@ -306,10 +306,11 @@ router, `voice-server`/Wyoming, or power misbehave — and **signals a broken st
 **and** by a spoken pre-rendered clip. This is its own subsystem of `yastationd` (plus a tiny
 external supervisor).
 
-- **Process supervision (keep the agent alive).** Init hook `/etc/init.d/S52zyastationd` starts the
-  agent; a **minimal busybox-sh supervisor** (`while :; do yastationd; sleep 2; done` under `setsid`,
-  or a separate `S53zyastationwd` respawn script) restarts it on crash. The supervisor is tiny and
-  has nothing to crash. **Hang detection:** the agent touches a heartbeat file every N s; a watchdog
+- **Process supervision (keep the agent alive).** Init hook `/etc/init.d/S52zyastationd` starts
+  a busybox-sh supervisor, `<cfw>/init.d/supervise.sh`, under `setsid`. It restarts the agent with
+  a backoff, swaps in the previous binary (`yastationd.prev`) after a crash loop, and rotates the
+  log (contract in its header and in `deploying.md`). It lives in `<cfw>`, so changing it needs no
+  rootfs write. **Hang detection:** the agent touches a heartbeat file every N s; a watchdog
   checks staleness and `kill`s + restarts a wedged agent. Coexists with the existing `S50clockd`
   (retired — the agent owns the clock) and `hardvold` (left running).
 - **Kernel watchdog:** `/dev/watchdog` is already fed by the stock busybox `watchdog`. **Leave it to

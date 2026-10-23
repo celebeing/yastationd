@@ -67,9 +67,11 @@ func (a *App) onInputEvent(f *os.File, hasSwitch bool, ev hw.InputEvent) {
 		switch action {
 		case "volume_up":
 			a.nudgeVolume(+a.cfg.VolumeStep)
+			a.volumeBeep()
 			a.publishButton("volume_up")
 		case "volume_down":
 			a.nudgeVolume(-a.cfg.VolumeStep)
+			a.volumeBeep()
 			a.publishButton("volume_down")
 		case "voice":
 			a.publishButton("voice_command")
@@ -123,18 +125,36 @@ func (a *App) publishButton(kind string) {
 
 // ---- volume ----
 
-// nudgeVolume changes Master by delta (in Master units) and shows the local volume bubble.
-func (a *App) nudgeVolume(delta int) {
+// nudgeVolume moves Master by n steps of the board's volume curve (5 % each) and shows the local
+// volume bubble.
+func (a *App) nudgeVolume(n int) {
 	cur, err := a.mixer.Get(a.prof.Audio.Volume)
 	if err != nil {
 		a.log.Warn("volume get", "err", err)
 		return
 	}
-	a.applyVolume(clamp(cur+delta, 0, a.prof.Audio.VolumeMax))
+	a.applyVolume(a.prof.Audio.StepVolume(cur, n))
+}
+
+// volumeBeep ticks the stock volume sound at the new level, so the level is heard as it is set.
+// Keys only: a voice «громче» comes while something plays, and HA's slider is not at the speaker.
+func (a *App) volumeBeep() {
+	snd := a.prof.Audio.VolumeSound
+	if !a.cfg.VolumeBeep || snd == "" {
+		return
+	}
+	path := a.cfg.Path(snd)
+	if _, err := os.Stat(path); err != nil { // not decoded onto this unit (make sounds)
+		return
+	}
+	a.unmute()
+	if err := a.player.Blip(path); err != nil {
+		a.log.Warn("volume beep", "err", err)
+	}
 }
 
 func (a *App) setVolumePercent(pct int) {
-	a.applyVolume(rawFromPercent(pct, a.prof.Audio.VolumeMax))
+	a.applyVolume(a.prof.Audio.RawFromPercent(pct))
 }
 
 func (a *App) applyVolume(v int) {
@@ -143,7 +163,7 @@ func (a *App) applyVolume(v int) {
 		return
 	}
 	a.store.update(func(s *persistState) { s.Volume = v })
-	pct := percentFromRaw(v, a.prof.Audio.VolumeMax)
+	pct := a.prof.Audio.PercentFromRaw(v)
 	if a.mqtt != nil {
 		a.mqtt.Publish(a.topics.State("volume"), strconv.Itoa(pct))
 	}

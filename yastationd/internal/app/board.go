@@ -47,8 +47,3 @@ func resolveBoard(cfg config.Config) (board.Profile, error) {
 	}
 	return p, p.Validate()
 }
-
-// Volume helpers: raw mixer value <-> percent for the board's volume range, rounded so a
-// percentage set from HA reads back unchanged.
-func rawFromPercent(pct, max int) int { return (pct*max + 50) / 100 }
-func percentFromRaw(v, max int) int   { return (v*100 + max/2) / max }

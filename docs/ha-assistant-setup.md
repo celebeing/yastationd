@@ -181,6 +181,7 @@ failure.
 | Recognised text is garbled | STT model/language; try a bigger or language-specific model |
 | Long pause before the answer | STT/LLM speed (§8); a reasoning model; the first request after a prompt change |
 | A simple command goes to the LLM (slow) | the wake word in the transcript (§8): custom sentences with an optional wake-word prefix |
+| The answer pauses mid-sentence, the ring shows the white comet while it waits | audio arrives slower than it plays. The `wyoming: audio stop` log line has `secs` (audio length) vs `wall_secs` (delivery time), `max_gap_ms` and `rebuffers`. Big gaps on a short answer mean Wi-Fi, or a TTS that stalls between sentences. The speaker holds 0.5 s of audio before playing and again after a stall, so a stall gives one pause rather than a stutter |
 | Satellite stuck: new runs end instantly | a run was cancelled mid-answer; reload the Wyoming integration entry |
 | Two speakers answer at once | both heard the wake word; areas help commands target the right room, and moving the speakers apart helps detection |
 | HA API calls fail with an empty reply | HA may serve HTTPS on port 8123; use `https://` |

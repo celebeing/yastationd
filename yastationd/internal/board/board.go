@@ -13,6 +13,7 @@ import (
 	"embed"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -71,14 +72,86 @@ type InputSpec struct {
 
 // AudioSpec: playback and mixer controls (ALSA card Card).
 type AudioSpec struct {
-	Playback      string   // aplay device, e.g. "default"
-	Card          string   // amixer card
-	Volume        string   // full control name of the master volume
-	VolumeMax     int      // its maximum raw value
-	VolumeDefault int      // raw volume set on first start, before the user ever set one (0 = leave the boot value)
-	Unmute        []string // amixer cset lines run before playback
-	MicGain       string   // hardware mic gain control ("" = none)
-	MicGainValue  int      // applied at startup (-1 = leave alone)
+	Playback      string        // aplay device, e.g. "default"
+	Card          string        // amixer card
+	Volume        string        // full control name of the master volume
+	VolumeMax     int           // its maximum raw value
+	VolumeDefault int           // raw volume set on first start, before the user ever set one (0 = leave the boot value)
+	VolumeMap     []VolumePoint // stock volume curve; nil = a straight line over 20 levels
+	VolumeSound   string        // wav ticked on a volume key press ("" = none; absent file = none)
+	Unmute        []string      // amixer cset lines run before playback
+	MicGain       string        // hardware mic gain control ("" = none)
+	MicGainValue  int           // applied at startup (-1 = leave alone)
+}
+
+// VolumePoint is one point of the stock volume curve: platform level -> raw mixer value, linear in
+// between. The stock firmware steps the level by 5 % (quasar.cfg volume_capability:
+// changeStepPercent 5, volume_manager_settings.platformToAlsaMap), so the last point's level is
+// the top (20 = 100 %) and percent p is level p/5.
+type VolumePoint struct{ Level, Raw int }
+
+// volumeCurve is the map in use: the profile's, or a straight 0..VolumeMax line over 20 levels.
+func (a AudioSpec) volumeCurve() []VolumePoint {
+	if len(a.VolumeMap) >= 2 {
+		return a.VolumeMap
+	}
+	return []VolumePoint{{0, 0}, {20, a.VolumeMax}}
+}
+
+// VolumeLevels is the number of steps from silence to the top (20 = 5 % each).
+func (a AudioSpec) VolumeLevels() int { m := a.volumeCurve(); return m[len(m)-1].Level }
+
+// RawFromLevel maps a (fractional) platform level onto the mixer. Like the stock firmware, a map
+// with a first step (bergamot's 0:0 1:33 20:255) never sets the raw values between 0 and that
+// step: below it the amp is inaudible, so any level above 0 is at least the first step.
+func (a AudioSpec) RawFromLevel(l float64) int {
+	m := a.volumeCurve()
+	if l <= 0 {
+		return m[0].Raw
+	}
+	if len(m) > 2 && l <= float64(m[1].Level) {
+		return m[1].Raw
+	}
+	for i := 1; i < len(m); i++ {
+		if l <= float64(m[i].Level) {
+			lo, hi := m[i-1], m[i]
+			return lo.Raw + int(math.Round((l-float64(lo.Level))*float64(hi.Raw-lo.Raw)/float64(hi.Level-lo.Level)))
+		}
+	}
+	return m[len(m)-1].Raw
+}
+
+// LevelFromRaw is the inverse of RawFromLevel (fractional; raw values off the curve land between
+// levels).
+func (a AudioSpec) LevelFromRaw(raw int) float64 {
+	m := a.volumeCurve()
+	if raw <= m[0].Raw {
+		return float64(m[0].Level)
+	}
+	for i := 1; i < len(m); i++ {
+		if raw <= m[i].Raw {
+			lo, hi := m[i-1], m[i]
+			return float64(lo.Level) + float64(raw-lo.Raw)*float64(hi.Level-lo.Level)/float64(hi.Raw-lo.Raw)
+		}
+	}
+	return float64(m[len(m)-1].Level)
+}
+
+// RawFromPercent / PercentFromRaw: HA's 0..100 % on the same curve, rounded so a percentage set
+// from HA reads back unchanged (except 1..4 %, which land on the first step = 5 %).
+func (a AudioSpec) RawFromPercent(pct int) int {
+	return a.RawFromLevel(float64(pct) * float64(a.VolumeLevels()) / 100)
+}
+
+func (a AudioSpec) PercentFromRaw(raw int) int {
+	return int(math.Round(a.LevelFromRaw(raw) * 100 / float64(a.VolumeLevels())))
+}
+
+// StepVolume moves raw by n whole levels (negative = down), snapping to the level grid first, so
+// keys always land on the stock steps.
+func (a AudioSpec) StepVolume(raw, n int) int {
+	l := int(math.Round(a.LevelFromRaw(raw))) + n
+	return a.RawFromLevel(float64(max(0, min(l, a.VolumeLevels()))))
 }
 
 // MicSpec: the raw mic-array capture device as one interleaved stream.
@@ -195,6 +268,10 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Audio.VolumeMax, err = strconv.Atoi(v)
 	case k == "audio.volume_default":
 		p.Audio.VolumeDefault, err = strconv.Atoi(v)
+	case k == "audio.volume_map":
+		p.Audio.VolumeMap, err = parseVolumeMap(v)
+	case k == "audio.volume_sound":
+		p.Audio.VolumeSound = v
 	case k == "audio.unmute":
 		list(&p.Audio.Unmute)
 	case k == "audio.mic_gain":
@@ -277,6 +354,21 @@ func splitInts(v string) ([]int, error) {
 	return out, nil
 }
 
+// parseVolumeMap reads "level:raw, level:raw, ...".
+func parseVolumeMap(v string) ([]VolumePoint, error) {
+	var out []VolumePoint
+	for _, s := range splitList(v) {
+		l, r, ok := strings.Cut(s, ":")
+		lv, err1 := strconv.Atoi(strings.TrimSpace(l))
+		rv, err2 := strconv.Atoi(strings.TrimSpace(r))
+		if !ok || err1 != nil || err2 != nil {
+			return nil, fmt.Errorf("%q: want level:raw", s)
+		}
+		out = append(out, VolumePoint{lv, rv})
+	}
+	return out, nil
+}
+
 // Validate checks what the daemon relies on.
 func (p Profile) Validate() error {
 	switch p.Ring.Kind {
@@ -305,6 +397,16 @@ func (p Profile) Validate() error {
 	}
 	if p.Audio.VolumeDefault < 0 || p.Audio.VolumeDefault > p.Audio.VolumeMax {
 		return fmt.Errorf("audio: volume_default must be 0..volume_max")
+	}
+	if m := p.Audio.VolumeMap; m != nil {
+		if len(m) < 2 || m[0] != (VolumePoint{0, 0}) || m[len(m)-1].Raw > p.Audio.VolumeMax {
+			return fmt.Errorf("audio: volume_map needs >= 2 points, starting at 0:0, raw <= volume_max")
+		}
+		for i := 1; i < len(m); i++ {
+			if m[i].Level <= m[i-1].Level || m[i].Raw <= m[i-1].Raw {
+				return fmt.Errorf("audio: volume_map must increase")
+			}
+		}
 	}
 	if p.Mic.Device != "" && (p.Mic.Channels <= 0 || p.Mic.Rate != 48000 || p.Mic.Voice >= p.Mic.Channels) {
 		return fmt.Errorf("mic: need channels > voice and rate 48000 (decimated 3x to 16 kHz)")

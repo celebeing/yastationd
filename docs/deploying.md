@@ -18,11 +18,22 @@ create `/bkupgrade` on a model that lacks it — stock scripts branch on it.
 | `<cfw>/board.conf` | optional per-unit overrides of board-profile keys |
 | `<cfw>/yastationd.state` | persisted UI state (ring, display, volume, brightness…), written by the daemon |
 | `<cfw>/sounds/*.wav` | decoded vendor voice lines (`make sounds`) |
+| `<cfw>/bin/yastationd.prev` | the previous agent, kept by every update; the supervisor swaps it back in if the new one crash-loops (the bad one is then kept as `.bad`) |
 | `<cfw>/yastationd_off` | kill switch: the supervisor stops respawning while it exists |
-| `/etc/init.d/S52zyastationd` | the only rootfs file: boot hook + respawn supervisor (copy kept in `<cfw>/init.d/`) |
-| `/tmp/yastationd.log` | log (tmpfs — gone on reboot) |
+| `/etc/init.d/S52zyastationd` | the only rootfs file: boot hook that starts the supervisor (copy kept in `<cfw>/init.d/`) |
+| `<cfw>/init.d/supervise.sh` | the supervisor (see below); without it the hook falls back to a plain 2 s respawn loop |
+| `/tmp/yastationd.log` | log (tmpfs — gone on reboot), copy-truncated at 1 MB with one `.1` kept |
 
 The vendor's own files stay untouched, except the two reversible guards below.
+
+**Supervisor** (`yastationd/init.d/supervise.sh`; the header has the full contract). An agent exit
+with status 0 (SIGTERM/SIGINT) is deliberate and restarted after 1 s. Anything else is a crash:
+restart after 2 s, doubling up to 60 s. After 5 crashes in a row, each within 5 min of the start, it
+swaps in `yastationd.prev`. If that crash-loops too, it keeps retrying every 5 min. There is no
+fallback to the vendor stack: the speaker stays without an agent rather than wake the vendor code.
+The log shows `=== start`, `=== exit <rc> after <n>s` and `=== supervise: …` lines. Manual rollback:
+`/etc/init.d/S52zyastationd stop; mv <cfw>/bin/yastationd.prev <cfw>/bin/yastationd;
+/etc/init.d/S52zyastationd start` (as a script on stdin, see §4).
 
 ## 0. Keep the vendor offline and asleep (once per speaker)
 
@@ -91,7 +102,11 @@ ssh root@<speaker> /etc/init.d/S52zyastationd start
 ```
 
 Reboot once (with the user's OK) and check that it all comes back on its own. On pickle, the first
-start after boot fails once (the ring LEDs appear late) and the supervisor restarts it 2 s later.
+start after boot fails once (the ring LEDs appear late) and the supervisor restarts it 2 s later
+(one crash, far below the rollback threshold).
+
+The hook in `/etc/init.d` changes rarely (the supervisor logic lives in `<cfw>/init.d/`), but when
+it does, run `make install-initd` again: `make deploy` updates only `<cfw>`.
 
 ## 3. Home Assistant side
 
@@ -108,7 +123,8 @@ First-time voice setup (STT/TTS servers, agent, pipeline): [ha-assistant-setup.m
 
 ## 4. Updating
 
-One speaker: `make deploy` (build, upload aside, stop → swap → start, tail the log). Several:
+One speaker: `make deploy` (build, upload aside along with `supervise.sh`, stop → keep the old
+binary as `.prev` → swap → start, tail the log). Several:
 `tools/deploy.sh` with a `tools/deploy.hosts` list (see `tools/deploy.hosts.example`). It also
 rolls out `spotter-host` per arch and stops at the first failing speaker.
 

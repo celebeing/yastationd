@@ -21,8 +21,9 @@ the egress lock already in place; maind not running.
   and switch work. Input device names: `aw933xx`, `mute`.
 - **Audio out**: `name='speaker Acm8625 AMP mute status' 0` + `aplay -D default` → **audible**. As on
   bergamot, `cget` of the mute flag keeps reading `1`; dmesg shows `acm8625_spk_onoff_work: mute=0` while
-  playing. `Master` boots at 255 (+5 dB) — the profile sets `audio.volume_default = 90` (35 %) until the
-  user picks a volume.
+  playing. `Master` boots at 255 (+5 dB) — the profile sets `audio.volume_default = 90` (~30 % on the
+  curve) until the user picks a volume. `quasar.cfg` has no `platformToAlsaMap`; the profile uses
+  bergamot's (same amp and hardvold curve, `volumeDbLevels` 22.3 … 75.7 dB vs 21.9 … 73.9).
 - **Mic switch is a hardware cut**: with it on, every capture channel on `hw:0,1` and `hw:0,2` reads exact
   `0` at any gain, while no software is listening to the switch (maind off; the GPIO is only a
   `gpio-keys` input). Off: floor ≈ −59 dBFS on `hw:0,1` at `PDM Gain` 24, ≈ −47 dBFS on `hw:0,2`

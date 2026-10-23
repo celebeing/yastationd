@@ -34,7 +34,11 @@ Profile: `yastationd/internal/board/profiles/bergamot.conf` · Survey: `dumps/su
   `plughw:0,0` played mono 48 kHz at ~2x speed.
 - Volume: `Master Playback Volume` 0..255 is **hardvold's** user control (recreated at boot with its
   default — the daemon restores the saved value), mapped onto `main Acm8625 AMP ChL/ChR Volume` along
-  -55 dB (0) … +5 dB (255). 35 % is comfortable in a room.
+  -55 dB (0) … +5 dB (255), linear in dB. The stock curve (`platformToAlsaMap` `0:0, 1:33, 20:255`)
+  is the profile's `audio.volume_map`: 5 % steps, the first jumps to raw 33 (-47 dB, everything
+  below is inaudible), then ~2.75 dB per step. `volumeDbLevels` in `quasar.cfg` (the stock loudness
+  per Alice level 0..10: 21.9 … 73.9 dB) matches that: ~5.3 dB per Alice level = 2 of our steps.
+  Raw 0 is -55 dB, not a hardware mute.
 - Unmute: `name='main Acm8625 AMP mute status' 0`. The ACM8625 driver ORs this sticky flag into its
   per-stream speaker on/off (dmesg `acm8625_spk_onoff_work`: start → `mute=flag`, stop →
   `mute=2|flag`). **cget readback does not reflect writes**; `SPK mute` has no audible effect.

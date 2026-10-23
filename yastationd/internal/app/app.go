@@ -268,9 +268,9 @@ func (a *App) restoreVolume() {
 	}
 	for i := 0; i < 20; i++ {
 		if err := a.mixer.Set(a.prof.Audio.Volume, v); err == nil {
-			a.log.Info("volume restored", "master", v, "pct", percentFromRaw(v, a.prof.Audio.VolumeMax))
+			a.log.Info("volume restored", "master", v, "pct", a.prof.Audio.PercentFromRaw(v))
 			if a.mqtt != nil {
-				a.mqtt.Publish(a.topics.State("volume"), strconv.Itoa(percentFromRaw(v, a.prof.Audio.VolumeMax)))
+				a.mqtt.Publish(a.topics.State("volume"), strconv.Itoa(a.prof.Audio.PercentFromRaw(v)))
 			}
 			return
 		}
@@ -320,7 +320,7 @@ func (a *App) publishAllState() {
 	a.mqtt.Publish(a.topics.State("health"), a.hmon.State().String())
 	a.mqtt.Publish(a.topics.State("pipeline_ok"), onOff(a.hmon.State() == health.Online))
 	if v, err := a.mixer.Get(a.prof.Audio.Volume); err == nil {
-		a.mqtt.Publish(a.topics.State("volume"), strconv.Itoa(percentFromRaw(v, a.prof.Audio.VolumeMax)))
+		a.mqtt.Publish(a.topics.State("volume"), strconv.Itoa(a.prof.Audio.PercentFromRaw(v)))
 	}
 	a.publishMicMute()
 }
