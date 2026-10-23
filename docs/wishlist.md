@@ -65,7 +65,8 @@ Ideas from pulsar:
 
 ## Music
 
-**Status:** to be done eventually; constraints first.
+**Status:** the Sendspin player is built — see [music-sendspin.md](music-sendspin.md). What
+remains here is the wider picture.
 
 - The speaker has no internet access, so only LAN sources qualify: Music Assistant or HA serving the
   stream, never a cloud URL fetched by the speaker.

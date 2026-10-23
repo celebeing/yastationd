@@ -18,6 +18,7 @@ internal/hw           sysfs LEDs (ring, matrix), evdev input, amixer/aplay, IIO 
 internal/display      per-surface priority layer stack + clock/text/ring effects
 internal/mqtt         paho client (LWT, backoff), topics, HA MQTT-Discovery
 internal/health       liveness state machine (TCP probes + heartbeat)
+internal/sendspin     supervises sendspin-host (Music Assistant player) and relays its events
 internal/app          wiring: render loop, command handlers, evdev reflexes
 configs/              yastationd.conf.example
 init.d/               S52zyastationd boot hook + supervise.sh (backoff, .prev rollback, log rotation)
@@ -112,6 +113,15 @@ concurrent and a stream belongs to the connection that started it. Raw `yastatio
 One-shot overlays go to `yastation/<id>/display/cmd` as JSON
 `{surface:"matrix"|"ring", op, args, ttl_ms, priority}` — e.g. `{"surface":"ring","op":"effect","args":{"name":"success"},"ttl_ms":800}`
 or `{"surface":"matrix","op":"countdown","args":{"seconds":300}}`.
+
+## Music Assistant player
+
+With `sendspin = true`, the daemon runs `../sendspin-host` (`internal/sendspin`, `internal/app/music.go`):
+it restarts it with backoff, ducks the music by `music_duck_db` while the assistant is busy (a
+voice session, a reply pending, HA audio, our own playback, a ringing timer; back 1.5 s after),
+and with `sendspin_volume = linked` maps the player volume in MA onto the speaker's volume and
+reports local changes back. Volume key ticks are skipped while music plays. Design and findings:
+[`../docs/music-sendspin.md`](../docs/music-sendspin.md).
 
 ## Local reflexes (work with the broker down)
 

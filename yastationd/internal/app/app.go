@@ -44,6 +44,7 @@ type App struct {
 	player  *hw.Player
 	mic     *hw.Mic
 	spot    *wake.Spotter // nil when the wake word is off
+	music   musicState    // Music Assistant player; music.host nil when off
 	playing atomic.Bool   // our aplay is running
 	sat     *satellite
 	muted   atomic.Bool      // mic-mute switch latch
@@ -118,6 +119,7 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 		Channel: prof.Mic.Voice, Log: log}
 	a.sat = &satellite{a: a}
 	a.spot = a.newSpotter()
+	a.music.host = a.newMusic()
 
 	if cfg.TimeSync {
 		a.clock = &timesync.Syncer{Servers: cfg.NTPServers, ChronyConf: cfg.Path(cfg.ChronyConf),
@@ -225,6 +227,10 @@ func (a *App) Run(ctx context.Context) error {
 	go a.luxLoop(stop)
 	if a.clock != nil {
 		go a.clock.Run(stop)
+	}
+	if a.music.host != nil {
+		go a.music.host.Run(stop)
+		go a.duckLoop(stop)
 	}
 	if a.spot != nil {
 		go a.spot.Run(stop)

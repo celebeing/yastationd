@@ -44,8 +44,9 @@ type Config struct {
 	BrightnessCurve []CurvePoint
 	TZ              string
 
-	VolumeBeep bool // tick the board's volume sound on a volume key press
-	VolumeStep int  // volume curve steps (5 % each) per key press; a voice «громче»/«тише» is 2 presses
+	VolumeBeep    bool // tick the board's volume sound on a volume key press
+	AnnounceChime bool // chime before an announcement (audio from HA with no dialog going on)
+	VolumeStep    int  // volume curve steps (5 % each) per key press; a voice «громче»/«тише» is 2 presses
 
 	// Hardware overrides of the board profile (effective only if set in the file).
 	AmixerCard   string
@@ -67,6 +68,19 @@ type Config struct {
 
 	// Wyoming satellite server port for HA's Wyoming integration (10700 is the convention); 0 = off.
 	WyomingPort int
+
+	// Music Assistant player: sendspin-host as a child process (off unless enabled and present).
+	Sendspin         bool
+	SendspinBin      string
+	SendspinName     string // shown in Music Assistant; "" = device_name
+	SendspinPort     int    // it listens here for the server (ws://<speaker>:<port>/sendspin)
+	SendspinServer   string // optional ws:// URL it also dials itself
+	SendspinUnpaired bool   // an unpaired server may play
+	SendspinState    string // its identity (stable client_id) and pairing records
+	// linked: the player volume in Music Assistant is the speaker's volume (keys, HA, assistant);
+	// separate: it is a music-only gain under the speaker's volume.
+	SendspinVolume string
+	MusicDuckDB    int // music level while the assistant listens/talks/rings, dB below normal
 
 	// Clock: SNTP sync when no chronyd/ntpd runs (internal/timesync). ntp_server entries are tried
 	// first, then the servers in chrony_conf, then the default gateway.
@@ -135,29 +149,36 @@ func parseCurve(v string) ([]CurvePoint, error) {
 func Default() Config {
 	cfw := CFWRoot()
 	return Config{
-		DeviceID:        "mini3",
-		DeviceName:      "Yandex Station Mini 3",
-		MQTTPort:        1883,
-		TopicPrefix:     "yastation",
-		DiscoveryPrefix: "homeassistant",
-		Board:           "auto",
-		BoardFile:       cfw + "/board.conf",
-		ClockBrightness: 128,
-		AutoBrightness:  true,
-		BrightnessCurve: DefaultBrightnessCurve,
-		RingBrightness:  128,
-		TZ:              "Europe/Moscow",
-		VolumeStep:      1,
-		VolumeBeep:      true,
-		WyomingPort:     10700,
-		WakeEnabled:     true,
-		SpotterBin:      cfw + "/bin/spotter-host",
-		PrerollMs:       300,
-		TimeSync:        true,
-		ChronyConf:      "/etc/chrony.conf",
-		HeartbeatFile:   "/tmp/yastationd.heartbeat",
-		StateFile:       cfw + "/yastationd.state",
-		LogLevel:        "info",
+		DeviceID:         "mini3",
+		DeviceName:       "Yandex Station Mini 3",
+		MQTTPort:         1883,
+		TopicPrefix:      "yastation",
+		DiscoveryPrefix:  "homeassistant",
+		Board:            "auto",
+		BoardFile:        cfw + "/board.conf",
+		ClockBrightness:  128,
+		AutoBrightness:   true,
+		BrightnessCurve:  DefaultBrightnessCurve,
+		RingBrightness:   128,
+		TZ:               "Europe/Moscow",
+		VolumeStep:       1,
+		VolumeBeep:       true,
+		AnnounceChime:    true,
+		WyomingPort:      10700,
+		SendspinBin:      cfw + "/bin/sendspin-host",
+		SendspinPort:     8928,
+		SendspinUnpaired: true,
+		SendspinState:    cfw + "/sendspin/state.json",
+		SendspinVolume:   "linked",
+		MusicDuckDB:      -26,
+		WakeEnabled:      true,
+		SpotterBin:       cfw + "/bin/spotter-host",
+		PrerollMs:        300,
+		TimeSync:         true,
+		ChronyConf:       "/etc/chrony.conf",
+		HeartbeatFile:    "/tmp/yastationd.heartbeat",
+		StateFile:        cfw + "/yastationd.state",
+		LogLevel:         "info",
 	}
 }
 
@@ -259,8 +280,31 @@ func (c *Config) set(k, v string) error {
 		c.MicChannel, err = atoiRange(v, 0, 15)
 	case "wyoming_port":
 		c.WyomingPort, err = atoiRange(v, 0, 65535)
+	case "sendspin":
+		c.Sendspin, err = strconv.ParseBool(v)
+	case "sendspin_bin":
+		c.SendspinBin = v
+	case "sendspin_name":
+		c.SendspinName = v
+	case "sendspin_port":
+		c.SendspinPort, err = atoiRange(v, 1, 65535)
+	case "sendspin_server":
+		c.SendspinServer = v
+	case "sendspin_unpaired":
+		c.SendspinUnpaired, err = strconv.ParseBool(v)
+	case "sendspin_state":
+		c.SendspinState = v
+	case "sendspin_volume":
+		if v != "linked" && v != "separate" {
+			return fmt.Errorf("want linked or separate")
+		}
+		c.SendspinVolume = v
+	case "music_duck_db":
+		c.MusicDuckDB, err = atoiRange(v, -60, 0)
 	case "aplay_device":
 		c.AplayDevice = v
+	case "announce_chime":
+		c.AnnounceChime, err = strconv.ParseBool(v)
 	case "volume_beep":
 		c.VolumeBeep, err = strconv.ParseBool(v)
 	case "volume_step":

@@ -23,6 +23,7 @@ type persistState struct {
 	Volume      int    `json:"volume"`       // Master 0..255; -1 = never set (leave the boot value)
 	ClockAuto   bool   `json:"clock_auto"`   // clock brightness follows the light sensor
 	ClockBright int    `json:"clock_bright"` // manual clock brightness 1..255
+	MusicVolume int    `json:"music_volume"` // Music Assistant player volume 0..100 (volume "separate")
 }
 
 func defaultState(ringBright, clockBright int, clockAuto bool) persistState {
@@ -35,6 +36,7 @@ func defaultState(ringBright, clockBright int, clockAuto bool) persistState {
 		AnimSecs:    10,
 		FollowUp:    "question",
 		Volume:      -1,
+		MusicVolume: 100,
 		ClockAuto:   clockAuto,
 		ClockBright: max(clockBright, 1),
 	}

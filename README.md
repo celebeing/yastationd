@@ -32,6 +32,12 @@ helper process, `spotter-host`, so the vendor code never runs inside the agent.
 - Power self-check: USB-C PD contract voltage and a problem flag. On an unsuitable power supply the
   speaker says so once per boot.
 
+**Music (Music Assistant player)**
+- A Sendspin player for Music Assistant (`sendspin-host`): lossless music over the LAN, mixed with
+  the assistant on the same speaker. Music ducks while the assistant listens, talks or rings a
+  timer; the wake word works over the music; the player volume in MA is the speaker's volume.
+  Details: [docs/music-sendspin.md](docs/music-sendspin.md).
+
 **Keeps working without HA**
 - Clock, volume keys, mute and the display run locally. If the broker or HA goes away, the ring
   shows a dim "degraded" dot, and everything reconnects and re-publishes by itself.
@@ -82,6 +88,7 @@ Per-board notes: [docs/boards/](docs/boards/README.md).
 |---|---|
 | [`yastationd/`](yastationd/README.md) | The on-device agent: entities, config, build. Board profiles: `internal/board/profiles/` |
 | [`spotter-host/`](spotter-host/README.md) | Voice front-end host (wake word, echo cancellation), per-arch build |
+| [`sendspin-host/`](sendspin-host/README.md) | Music Assistant (Sendspin) player, a native helper on sendspin-cpp, per-arch build (zig) |
 | [`hass/`](hass/) | HA-side scripts the Assist agent can call (ring animation, show text) |
 | [`tools/`](tools/) | Read-only board survey, multi-speaker `deploy.sh`, firmware-dump helpers |
 | [`docs/`](docs/index.md) | Design docs, hardware notes, reverse-engineering findings — start at the index |

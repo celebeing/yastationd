@@ -6,8 +6,9 @@
 # hosts-file: one speaker per line, "<ssh-target> <cfw-root> [spotter-arch]", '#' comments:
 #   root@<speaker-a>  /bkupgrade/cfw  armhf
 #   root@<speaker-b>  /data/cfw       aarch64
-# spotter-arch (optional) also installs spotter-host built for that arch from
-# spotter-host/build/<arch>/spotter-host (see spotter-host/build.sh).
+# spotter-arch (optional) also installs the native helpers built for that arch:
+# spotter-host/build/<arch>/spotter-host (spotter-host/build.sh) and, when built,
+# sendspin-host/build/<arch>/sendspin-host (`make -C sendspin-host`).
 #
 # Env: SSHKEY (default ~/.ssh/id_yastation). Speakers are updated one at a time; the script stops
 # at the first failure so a broken build never reaches the rest.
@@ -40,6 +41,8 @@ grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target cfw arch; do
 		sp=$here/spotter-host/build/$arch/spotter-host
 		[ -x "$sp" ] || { echo "  no $sp — build it with spotter-host/build.sh ARCH=$arch" >&2; exit 1; }
 		ssh_ "$target" "cat > $cfw/bin/spotter-host.upload" < "$sp"
+		ss=$here/sendspin-host/build/$arch/sendspin-host
+		[ -x "$ss" ] && ssh_ "$target" "cat > $cfw/bin/sendspin-host.upload" < "$ss"
 	fi
 
 	# The swap runs from stdin; it restarts the daemon, which restarts spotter-host with it.
@@ -47,13 +50,13 @@ grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target cfw arch; do
 set -e
 D=$cfw
 chmod +x \$D/bin/yastationd.upload
-[ -f \$D/bin/spotter-host.upload ] && chmod +x \$D/bin/spotter-host.upload
+for h in spotter-host sendspin-host; do [ -f \$D/bin/\$h.upload ] && chmod +x \$D/bin/\$h.upload; done
 /etc/init.d/S52zyastationd stop >/dev/null 2>&1 || true
 sleep 1
 l0=\$(cat /tmp/yastationd.log 2>/dev/null | wc -l)
 [ -f \$D/bin/yastationd ] && cp -p \$D/bin/yastationd \$D/bin/yastationd.prev
 mv \$D/bin/yastationd.upload \$D/bin/yastationd
-[ -f \$D/bin/spotter-host.upload ] && mv \$D/bin/spotter-host.upload \$D/bin/spotter-host
+for h in spotter-host sendspin-host; do [ -f \$D/bin/\$h.upload ] && mv \$D/bin/\$h.upload \$D/bin/\$h; done
 /etc/init.d/S52zyastationd start >/dev/null
 sleep 8
 n=\$(ps w | awk -v b="\$D/bin/yastationd" '\$3 == b' | wc -l)

@@ -14,6 +14,8 @@ create `/bkupgrade` on a model that lacks it — stock scripts branch on it.
 |---|---|
 | `<cfw>/bin/yastationd` | the agent (static armv7, same binary for every board) |
 | `<cfw>/bin/spotter-host` | the voice front-end host, built for the device's userland arch |
+| `<cfw>/bin/sendspin-host` | the Music Assistant player (optional, `sendspin = true`), built for the userland arch |
+| `<cfw>/sendspin/state.json` | its identity (stable client_id) and pairing records, 0600 |
 | `<cfw>/yastationd.conf` | config (from `yastationd/configs/yastationd.conf.example`) |
 | `<cfw>/board.conf` | optional per-unit overrides of board-profile keys |
 | `<cfw>/yastationd.state` | persisted UI state (ring, display, volume, brightness…), written by the daemon |
@@ -72,6 +74,9 @@ ARCH=aarch64 SYSROOT=dumps/sysroot-<board> OUT=spotter-host/build/aarch64/spotte
 
 `ARCH` = `armhf` (bergamot) or `aarch64` (pickle) — `file /system/vendor/quasar/maind` tells you.
 
+`sendspin-host` (the music player, optional) needs no device files: `make -C sendspin-host` builds
+both arches with zig 0.14.1 (see its README).
+
 ## 2. First install
 
 ```sh
@@ -79,7 +84,8 @@ cd yastationd
 # local.mk (gitignored): DEVICE = root@<speaker>, SSHKEY = <key>, DESTDIR = <cfw>
 make stage                                         # binary + init hook copy into <cfw> (no autostart)
 make deploy-spotter SPOTTER=../spotter-host/build/<arch>/spotter-host
-make sounds                                        # vendor voice lines -> <cfw>/sounds/*.wav
+make deploy-sendspin SENDSPIN=../sendspin-host/build/<arch>/sendspin-host   # optional: music
+make sounds                                        # vendor sounds -> <cfw>/sounds/*.wav
 ```
 
 Config: copy `configs/yastationd.conf.example` to `<cfw>/yastationd.conf` and set at least
@@ -126,7 +132,8 @@ First-time voice setup (STT/TTS servers, agent, pipeline): [ha-assistant-setup.m
 One speaker: `make deploy` (build, upload aside along with `supervise.sh`, stop → keep the old
 binary as `.prev` → swap → start, tail the log). Several:
 `tools/deploy.sh` with a `tools/deploy.hosts` list (see `tools/deploy.hosts.example`). It also
-rolls out `spotter-host` per arch and stops at the first failing speaker.
+rolls out `spotter-host` (and `sendspin-host`, when built) per arch and stops at the first failing
+speaker.
 
 **Don't** improvise the swap as one ssh command line that contains the binary's path. The init
 hook's `stop` kills processes by that path and takes your ssh session down with it, leaving the

@@ -62,6 +62,8 @@ type sndStream struct {
 	start, last time.Time
 	maxGap      time.Duration
 	rebuffers   atomic.Int32
+
+	holdUntil time.Time // the pump starts no earlier (the announce chime is playing)
 }
 
 func (s *satellite) OnConnect(c *wyoming.Conn) {}
@@ -185,6 +187,11 @@ func (s *satellite) startStream(c *wyoming.Conn, rate, width, channels int) *snd
 		a.log.Warn("wyoming: unsupported sample width", "width", width)
 		return nil
 	}
+	// Audio from HA with no dialog going on is an announcement. Wyoming carries no preannounce
+	// sound, so we chime first and the pump holds the stream until the chime has played.
+	s.mu.Lock()
+	announce := s.listen == nil && !time.Now().Before(s.awaitUntil)
+	s.mu.Unlock()
 	s.setAwaiting(false) // the reply (or an announcement) is here
 	a.unmute()
 	w, done, err := a.player.Stream(rate, channels)
@@ -194,6 +201,9 @@ func (s *satellite) startStream(c *wyoming.Conn, rate, width, channels int) *snd
 	}
 	st := &sndStream{owner: c, rate: rate, channels: channels, q: make(chan []byte, sndQueueLen),
 		done: done, start: time.Now()}
+	if announce {
+		st.holdUntil = st.start.Add(a.announceChime())
+	}
 	s.mu.Lock()
 	s.cur = st
 	s.mu.Unlock()
@@ -260,6 +270,14 @@ func (s *satellite) pump(st *sndStream, w io.WriteCloser) {
 		return true
 	}
 	ring("thinking")
+	if d := time.Until(st.holdUntil); d > 0 {
+		select {
+		case <-time.After(d):
+		case <-st.done:
+			gone()
+			return
+		}
+	}
 	for {
 		select {
 		case b, ok := <-st.q:

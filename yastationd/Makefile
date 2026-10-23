@@ -13,7 +13,7 @@ DESTDIR  ?= /bkupgrade/cfw
 GOFLAGS  := -trimpath -ldflags="-s -w"
 GOENV    := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: all build test vet clean stage stage-tmp redeploy-tmp install-initd sounds deploy deploy-spotter
+.PHONY: all build test vet clean stage stage-tmp redeploy-tmp install-initd sounds deploy deploy-spotter deploy-sendspin
 
 all: test build
 
@@ -65,12 +65,15 @@ install-initd: stage
 # .wav; the volume tick: common/volume_sound.mp3, or sounds/volume_sound.mp3 on 0.6.x), and
 # there's no decoder on board: pull, decode on the host, put a real wav under $(DESTDIR)/sounds/.
 # Vendor audio, so it's never stored in the repo. A failed decode leaves the old file alone.
-SOUNDS ?= no_power volume_sound
+SOUNDS ?= no_power volume_sound notification_sound
+# Per-sound ffmpeg filters: the announce chime is the stock notification sound, made quieter.
+AF_notification_sound := -af volume=-8dB
 sounds:
 	$(SSH) 'mkdir -p $(DESTDIR)/sounds'
 	set -e; for s in $(SOUNDS); do \
 	  $(SSH) "d=/system/vendor/quasar/sounds; for f in ru-RU/$$s.opus ru-RU/$$s.wav common/$$s.mp3 $$s.mp3; do [ -f \$$d/\$$f ] && exec cat \$$d/\$$f; done; exit 1" > build/$$s.src; \
-	  ffmpeg -v error -y -i build/$$s.src -ar 48000 -ac 2 build/$$s.wav; \
+	  case $$s in notification_sound) af="$(AF_notification_sound)";; *) af=;; esac; \
+	  ffmpeg -v error -y -i build/$$s.src $$af -ar 48000 -ac 2 build/$$s.wav; \
 	  $(SSH) "cat > $(DESTDIR)/sounds/$$s.wav.new && mv $(DESTDIR)/sounds/$$s.wav.new $(DESTDIR)/sounds/$$s.wav" < build/$$s.wav; \
 	  rm -f build/$$s.src build/$$s.wav; \
 	done
@@ -87,6 +90,12 @@ deploy: build
 	  '[ -f $$D/bin/$(BIN) ] && cp -p $$D/bin/$(BIN) $$D/bin/$(BIN).prev' \
 	  'mv $$D/bin/$(BIN).upload $$D/bin/$(BIN)' '/etc/init.d/S52zyastationd start' \
 	  'sleep 8' 'tail -5 /tmp/yastationd.log' | $(SSH) 'sh -s'
+
+# Install a sendspin-host build (../sendspin-host, `make ARCH=<arch>` there, matching the device's
+# userland). Like spotter-host it takes effect when yastationd next starts it.
+SENDSPIN ?= ../sendspin-host/build/armhf/sendspin-host
+deploy-sendspin:
+	$(SSH) 'cat > $(DESTDIR)/bin/sendspin-host.upload && chmod +x $(DESTDIR)/bin/sendspin-host.upload && mv $(DESTDIR)/bin/sendspin-host.upload $(DESTDIR)/bin/sendspin-host' < $(SENDSPIN)
 
 # Install a spotter-host build (spotter-host/build.sh, ARCH matching the device's userland). The
 # running child keeps the old file; it takes effect when yastationd next starts it — restart the

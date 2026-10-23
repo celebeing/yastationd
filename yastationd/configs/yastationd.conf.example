@@ -40,6 +40,15 @@ volume_step  = 1
 # Tick the stock volume sound on each volume key press (needs `make sounds`).
 volume_beep  = true
 
+# --- Music Assistant player (sendspin-host child; docs/music-sendspin.md). Off by default.
+# sendspin        = true
+# sendspin_name   = <speaker name in HA>              (default: device_name)
+# sendspin_server = ws://<ma-host>:8927/sendspin      (optional: dial MA instead of waiting for it)
+# sendspin_volume = linked                            (linked: MA volume = speaker volume; separate)
+# music_duck_db   = -26                               (music level under the assistant, -60..0)
+# Chime before an HA announcement (needs `make sounds`).
+# announce_chime  = true
+
 # --- Wyoming satellite (HA: Settings → Integrations → Wyoming → host = this device, port below).
 # Playback only for now: HA announcements (assist_satellite.announce) and TTS replies. 0 = off.
 wyoming_port = 10700

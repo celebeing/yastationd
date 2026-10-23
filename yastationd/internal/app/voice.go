@@ -136,6 +136,14 @@ func (s *satellite) awaitingReply() bool {
 	return time.Now().Before(s.awaitUntil)
 }
 
+// inDialog: a voice session, a reply being computed, or HA audio streaming to us (including
+// while the jitter buffer waits, when nothing plays yet).
+func (s *satellite) inDialog() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.listen != nil || s.cur != nil || time.Now().Before(s.awaitUntil)
+}
+
 // stopListening ends v (idempotent): mic off, audio-stop to HA.
 func (s *satellite) stopListening(v *voiceSession, why string) {
 	v.once.Do(func() {

@@ -79,6 +79,7 @@ type AudioSpec struct {
 	VolumeDefault int           // raw volume set on first start, before the user ever set one (0 = leave the boot value)
 	VolumeMap     []VolumePoint // stock volume curve; nil = a straight line over 20 levels
 	VolumeSound   string        // wav ticked on a volume key press ("" = none; absent file = none)
+	AnnounceSound string        // wav chimed before an announcement ("" = none; absent file = none)
 	Unmute        []string      // amixer cset lines run before playback
 	MicGain       string        // hardware mic gain control ("" = none)
 	MicGainValue  int           // applied at startup (-1 = leave alone)
@@ -272,6 +273,8 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Audio.VolumeMap, err = parseVolumeMap(v)
 	case k == "audio.volume_sound":
 		p.Audio.VolumeSound = v
+	case k == "audio.announce_sound":
+		p.Audio.AnnounceSound = v
 	case k == "audio.unmute":
 		list(&p.Audio.Unmute)
 	case k == "audio.mic_gain":

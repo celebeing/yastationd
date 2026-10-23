@@ -1,6 +1,9 @@
 package app
 
 import (
+	"encoding/binary"
+	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"time"
@@ -138,9 +141,10 @@ func (a *App) nudgeVolume(n int) {
 
 // volumeBeep ticks the stock volume sound at the new level, so the level is heard as it is set.
 // Keys only: a voice «громче» comes while something plays, and HA's slider is not at the speaker.
+// Not over music either: the music's own level is the feedback, and a tick on top of it sounds off.
 func (a *App) volumeBeep() {
 	snd := a.prof.Audio.VolumeSound
-	if !a.cfg.VolumeBeep || snd == "" {
+	if !a.cfg.VolumeBeep || snd == "" || a.music.streaming.Load() {
 		return
 	}
 	path := a.cfg.Path(snd)
@@ -151,6 +155,47 @@ func (a *App) volumeBeep() {
 	if err := a.player.Blip(path); err != nil {
 		a.log.Warn("volume beep", "err", err)
 	}
+}
+
+// announceChime plays the board's announce sound and returns how long it lasts (0 = none).
+func (a *App) announceChime() time.Duration {
+	snd := a.prof.Audio.AnnounceSound
+	if !a.cfg.AnnounceChime || snd == "" {
+		return 0
+	}
+	path := a.cfg.Path(snd)
+	d, err := wavDuration(path)
+	if err != nil { // not decoded onto this unit (make sounds)
+		return 0
+	}
+	if err := a.player.Blip(path); err != nil {
+		a.log.Warn("announce chime", "err", err)
+		return 0
+	}
+	return d
+}
+
+// wavDuration estimates a PCM wav's length from its byte rate and file size (ffmpeg's few extra
+// header bytes add microseconds).
+func wavDuration(path string) (time.Duration, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	h := make([]byte, 44)
+	if _, err := io.ReadFull(f, h); err != nil {
+		return 0, err
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		return 0, err
+	}
+	byteRate := binary.LittleEndian.Uint32(h[28:32])
+	if string(h[:4]) != "RIFF" || byteRate == 0 {
+		return 0, fmt.Errorf("%s: not a PCM wav", path)
+	}
+	return time.Duration(fi.Size()-44) * time.Second / time.Duration(byteRate), nil
 }
 
 func (a *App) setVolumePercent(pct int) {
@@ -164,6 +209,7 @@ func (a *App) applyVolume(v int) {
 	}
 	a.store.update(func(s *persistState) { s.Volume = v })
 	pct := a.prof.Audio.PercentFromRaw(v)
+	a.reportMusicVolume(pct)
 	if a.mqtt != nil {
 		a.mqtt.Publish(a.topics.State("volume"), strconv.Itoa(pct))
 	}

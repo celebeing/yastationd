@@ -1,0 +1,15 @@
+# Cross toolchain: zig cc/c++ for the target in $ZIG_TARGET (set by ../../Makefile per ARCH).
+# Adapted from pulsar (MIT, (c) 2026 pulsar contributors).
+set(CMAKE_SYSTEM_NAME Linux)
+if("$ENV{ZIG_TARGET}" MATCHES "^arm-")
+  set(CMAKE_SYSTEM_PROCESSOR arm)
+else()
+  set(CMAKE_SYSTEM_PROCESSOR aarch64)
+endif()
+set(CMAKE_C_COMPILER ${CMAKE_CURRENT_LIST_DIR}/zig-cc)
+set(CMAKE_CXX_COMPILER ${CMAKE_CURRENT_LIST_DIR}/zig-c++)
+set(CMAKE_AR ${CMAKE_CURRENT_LIST_DIR}/zig-ar CACHE FILEPATH "" FORCE)
+set(CMAKE_RANLIB ${CMAKE_CURRENT_LIST_DIR}/zig-ranlib CACHE FILEPATH "" FORCE)
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
