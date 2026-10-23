@@ -17,6 +17,7 @@ This is the index of project documentation. Read the relevant doc here **before*
 | [deploying.md](deploying.md) | **Agent guide:** install, update (`make deploy`, `tools/deploy.sh`), HA side, disable/remove, keeping the vendor offline, verification checklist |
 | [porting-a-speaker.md](porting-a-speaker.md) | **Agent guide:** researching a new speaker and adding CFW support (inputs, profile mapping, audio path, voice front-end contract, definition of done) |
 | [boards/README.md](boards/README.md) | Multi-model support: board profiles, bringing up a new station, per-model reversing checklist; per-board notes ([bergamot](boards/bergamot.md), [midi](boards/midi.md), [pickle](boards/pickle.md) — incl. the Mini 3 Pro connectivity/Wi-Fi-hop logic and running without maind) |
+| [wishlist.md](wishlist.md) | Ideas under consideration, not planned: nearest-speaker arbitration, ESPHome API instead of MQTT+Wyoming, pipeline robustness, music; notes from reviewing pulsar |
 | [speaker-id.md](speaker-id.md) | Speaker identification design (who is talking) for the HA voice pipeline, with a status log |
 
 Also: [`../yastationd/README.md`](../yastationd/README.md) (daemon usage, entities, open items) and
