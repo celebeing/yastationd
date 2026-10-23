@@ -127,6 +127,56 @@ Boot-time detail: the ring/logo bus (`i2c@68000`) starts **owned by the always-o
 animation). `S93i2ctop` applies `/boot/yandex-pickle-i2ctop-overlay.dtb` (`yandex-apply-dtb-overlay`) to
 hand it to Linux, then waits for `/dev/fb0` [O].
 
+## Bottom pogo pads — the "cradle" module connector (research 2026-10-23)
+The spring-contact pads on the outside of the bottom are the connector for Yandex's snap-on
+expansion modules, which replace the stock bottom cover (latches + magnets). Public sources
+(reviews, vendor help pages): a **battery module** (YNDX-00651, 2500 mAh) and a **climate module**
+(YNDX-00652: CO₂, temperature, humidity). With a module attached the power cable goes into the
+**module**, so the pads carry power *into* the speaker as well as data. The pinout below is
+inferred, not measured.
+
+What the firmware says:
+- **USB host with nothing on it** [O]: two USB 2.0 controllers — `crg21drd`/`crgudc2` (phy1,
+  `crg_force_device_mode=1`, the gadget used by `yandex-debugctl`) and `crg2drd` → `xhci-hcd` (phy0,
+  host only, bus 1, root hub with **2 ports**, both empty). The case has no USB-A, and the kernel has
+  `cdc_acm`, `cp210x`, `usb-storage`, `usbhid`, `snd-usb-audio` built in.
+- **Separate bottom board** [O]: `pcba_ids` lists EEPROMs `main` / `bottom` (board_code 2) / `clock`.
+- **maind `cradle` subsystem** [O] (`smart_devices/libs/cradle/…`): protobuf request/response
+  (`cradle/protos/request.proto`, `response.proto`) — `SyncEndpoint` (device_id, pcba_id),
+  `FwVersion`, module firmware OTA (`StartWriteFirmware` / `WriteFimwareChunk` / `ApplyFirmware`,
+  `/tmp/cradle_ota/`), button events, animation, brightness, and capabilities `Co2Data` (+ calibration,
+  forced value), `TemperatureData` (+ correction), `HumidityData`, plus not-yet-shipped `VocData`,
+  `NoxData`, `ParticulatesData` (PM1.0/2.5…), `PowerDeliveryData` (`selected_pdo_current`).
+- **`riesling`** = the battery module platform [O]: fuel gauge **CW2217**, charger **IP2366**,
+  battery type/temperature limits, even raw `ChargerI2CRead/WriteByte` passthrough.
+- **Transport** [O/I]: `HdlcManager` (`smart_devices/libs/hdlc/hdlc_manager.cpp`) — HDLC-framed
+  protobuf over a tty (`Hdlc created on port=`, `exception from tty`, `Unknown hdlc response,
+  port=`, followed by `ttyACM`). `quasar.cfg` names only `/dev/ttyS2`, which is the Zigbee NCP (with
+  `zb-reset`/`zb-boot` on GPIOT_18/19). → The module's MCU most likely enumerates on the xHCI port as a
+  **USB CDC-ACM** device (`/dev/ttyACM*`) [I].
+- Other UARTs, for completeness: ttyS0 (`fe07a000`, AO debug UART, pins set by the bootloader,
+  `console=` empty, no users), ttyS1 (Bluetooth `hciattach`), ttyS2 (Zigbee). Many GPIOs are
+  unclaimed (GPIOD_0/1/5–9, GPIOX_7–10/15, GPIOT_12/14/16/20–22, GPIOE_0/1, AO_1, AO_5,
+  `GPIO_TEST_N`), but the DT doesn't mark any of them as external.
+
+Likely pads [I]: GND, VIN (the module negotiates PD on its own; the speaker itself takes **12 V**
+on USB-C — expect up to 12 V, don't short anything), USB D+/D−, perhaps a detect pin. Unknown whether
+the speaker supplies 5 V to the pads by itself (whether a bare USB device would get power from it).
+
+Uses for the CFW:
+1. **Climate module → HA**: yastationd opens `/dev/ttyACM*`, speaks the cradle protocol and publishes
+   CO₂/temperature/humidity over MQTT. The `.proto` descriptors are compiled into maind and should be
+   extractable; the HDLC framing details (escaping, CRC, baud for CDC is irrelevant) still need reversing.
+2. **Battery module → HA**: charge level / charging state the same way.
+3. **Generic USB host**: a pogo→USB-A adapter would give USB audio, a Zigbee/Thread dongle,
+   storage, or a DIY sensor board (any MCU acting as a CDC device).
+
+To verify: attach a module and watch `dmesg` / `lsusb` (bus 1, VID:PID, `/dev/ttyACM*`) over SSH,
+with the vendor stack still gated. Without a module: map the pads with a multimeter (GND, VIN, a
+D+/D− pair at ~0 V with ~15 kΩ to GND from the host pull-downs). Don't export/drive unclaimed
+GPIOs blindly: a pin the bootloader muxed for UART or boot mode could be broken, and pickle has no
+physical fallback access.
+
 ## Audio
 - `/etc/asound.conf`: `default` = asym, playback `speakers` (plug → dmix `ipc_key 1024` → `hw:0,0`, 2ch),
   capture **`loopback`** (`hw:0,2`: mics + speaker reference); `mics` = plug → `hw:0,1` 4ch; there is
@@ -274,3 +324,5 @@ services, launcher "apply quasar.cfg patch" reboot, "suicide request") disappear
   VQE `pickle` preset resolution, an aarch64 spotter-host build; ring pixel order around the circle.
 - What triggers the sysrecovery restore; whether an OTA also rewrites `aml_sysrecovery`.
 - Accelerometer probe failure (`-11`) — hardware or timing.
+- Bottom pogo pads: confirm the pinout and the CDC-ACM enumeration of a cradle module; extract the
+  cradle `.proto` descriptors and the HDLC framing from maind (see "Bottom pogo pads").
