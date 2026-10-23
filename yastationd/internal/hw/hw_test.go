@@ -130,25 +130,34 @@ func TestMixerArgs(t *testing.T) {
 	}
 }
 
-// The decimator passes speech-band tones and suppresses what would alias above 8 kHz.
-func TestDecimator3(t *testing.T) {
-	rms := func(hz float64) float64 {
-		d := NewDecimator3()
+// The decimator passes speech-band tones, suppresses what would alias above 8 kHz, and works
+// for both capture rates in use (bergamot/pickle 48 kHz, orion 96 kHz through mroute).
+func TestDecimator(t *testing.T) {
+	rms := func(rate int, hz float64) float64 {
+		d, err := NewDecimator(rate)
+		if err != nil {
+			t.Fatal(err)
+		}
 		var sum float64
 		n := 0
-		for i := 0; i < 48000; i++ {
-			if v, ok := d.Push(int16(10000 * math.Sin(2*math.Pi*hz*float64(i)/48000))); ok && i > 4800 {
+		for i := range rate {
+			if v, ok := d.Push(int16(10000 * math.Sin(2*math.Pi*hz*float64(i)/float64(rate)))); ok && i > rate/10 {
 				sum += float64(v) * float64(v)
 				n++
 			}
 		}
 		return math.Sqrt(sum / float64(n))
 	}
-	if pass := rms(1000); pass < 6500 || pass > 7600 { // 10000/sqrt2 ≈ 7071
-		t.Fatalf("1 kHz rms = %.0f", pass)
-	}
-	if stop := rms(12000); stop > 300 {
-		t.Fatalf("12 kHz rms = %.0f, want strongly attenuated", stop)
+	for _, rate := range []int{48000, 96000} {
+		if pass := rms(rate, 1000); pass < 6500 || pass > 7600 { // 10000/sqrt2 ≈ 7071
+			t.Errorf("%d: 1 kHz rms = %.0f", rate, pass)
+		}
+		// A tone just under the input Nyquist is stopband for the FIR, and decimation folds
+		// it in-band (48000: 22 kHz -> 6 kHz; 96000: 46 kHz -> 2 kHz) — it must be killed.
+		alias := float64(rate)/2 - 2000
+		if stop := rms(rate, alias); stop > 300 {
+			t.Errorf("%d: alias %.0f Hz rms = %.0f, want strongly attenuated", rate, alias, stop)
+		}
 	}
 }
 

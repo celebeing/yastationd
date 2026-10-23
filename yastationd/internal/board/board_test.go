@@ -20,6 +20,40 @@ func TestBergamotBuiltin(t *testing.T) {
 	}
 }
 
+// Orion's odd bits: 13ch capture at 96 kHz through the stock plug chain, three amp unmutes,
+// display off (its dot-matrix framebuffer is future work) — and the vendor wake: 6 mics +
+// 7 speaker refs (multi-ref, passed to spotter-host as -Q).
+func TestOrionBuiltin(t *testing.T) {
+	p, err := Builtin("orion")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if p.Mic.Channels != 13 || p.Mic.Rate != 96000 || p.Mic.Voice != 0 {
+		t.Errorf("mic = %+v", p.Mic)
+	}
+	if len(p.Audio.Unmute) != 3 {
+		t.Errorf("unmute = %q", p.Audio.Unmute)
+	}
+	if p.Matrix.Kind != "none" || p.Ring.Pixels != 36 {
+		t.Errorf("matrix %q / ring %d", p.Matrix.Kind, p.Ring.Pixels)
+	}
+	if p.Wake.VQEPreset != "orion" || len(p.Wake.Mics) != 6 {
+		t.Errorf("wake mics/preset = %+v", p.Wake)
+	}
+	wantRefs := []int{6, 7, 8, 9, 10, 11, 12}
+	if len(p.Wake.Refs) != len(wantRefs) {
+		t.Fatalf("wake.refs = %v, want %v", p.Wake.Refs, wantRefs)
+	}
+	for i, r := range p.Wake.Refs {
+		if r != wantRefs[i] {
+			t.Errorf("wake.refs[%d] = %d, want %d", i, r, wantRefs[i])
+		}
+	}
+}
+
 func TestDetectAndOverride(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "proc/device-tree"), 0o755)

@@ -64,6 +64,14 @@ static int report(const char *what, spotter_error **err)
 {
     if (!*err)
         return 0;
+    if (!spotter_error_get_message) {
+        /* 3.21 blob: no error helpers, and the slot holds the library's WARN-log buffer (a plain
+         * C string, owned by the library), not an error object. The call's NULL return is the
+         * real failure signal; the buffered warnings help diagnose it. */
+        fprintf(stderr, "%s: error: %s\n", what, (const char *)*err);
+        *err = NULL;
+        return 1;
+    }
     fprintf(stderr, "%s: error type=%d func=%s: %s\n", what, spotter_error_get_type(*err),
             spotter_error_get_func_name(*err), spotter_error_get_message(*err));
     spotter_error_free(err);
@@ -210,13 +218,18 @@ out:
 /* ---------------------------------------------------------------- VQE front-end */
 
 /* Capture layout + VQE preset: the defaults are bergamot's (hw:0,1 = 8 channels, mics 0-2,
- * amp feedback on 6); other boards pass -P/-N/-M/-R (yastationd takes them from its board profile). */
+ * amp feedback on 6); other boards pass -P/-N/-M/-R/-Q (yastationd takes them from its board
+ * profile). -R is the single speaker-feedback channel (presets with nspk == 1); -Q is the
+ * full list for multi-ref presets (nspk > 1, e.g. orion's 7), in VQE speaker order. */
 #define MAX_MICS 8
+#define MAX_SPK 8
 static const char *vqe_preset = "bergamot";
 static int HW_CH = 8;      /* interleaved channels in the capture */
 static int HW_SPK_CH = 6;  /* speaker feedback (AEC reference); -1 = none (zeros) */
 static int hw_mic_ch[MAX_MICS] = {0, 1, 2};
 static int hw_nmic = 3;
+static int hw_spk_ch[MAX_SPK] = {-1, -1, -1, -1, -1, -1, -1, -1}; /* -Q list; [0] mirrors -R */
+static int hw_nspk = 0;    /* 0 = use HW_SPK_CH (legacy single-ref) */
 
 struct fe {
     YandexVqeC_Config *conf;
@@ -255,11 +268,23 @@ static int fe_open(struct fe *f, float scale, int asr_mode, int comm_mode)
         if (!vqe_err("GetOutputChannelCount", YandexVqeC_Config_GetOutputChannelCount(f->conf, t, &n)))
             fprintf(stderr, "vqe: out_channels(%d) %zu\n", t, n);
     }
-    if (f->nmic != hw_nmic || f->nmic > MAX_MICS || f->nspk != 1 || f->chunk <= 0) {
+    if (f->nmic != hw_nmic || f->nmic > MAX_MICS || f->nspk < 1 || f->nspk > MAX_SPK || f->chunk <= 0) {
         fprintf(stderr, "vqe: preset %s wants %d mics/%d spk, -M gives %d mics\n", vqe_preset, f->nmic, f->nspk,
                 hw_nmic);
         return 1;
     }
+    if (f->nspk == 1) { /* single-ref presets resolve from -R (legacy) */
+        hw_spk_ch[0] = HW_SPK_CH;
+        hw_nspk = 1;
+    } else if (hw_nspk != f->nspk) {
+        fprintf(stderr, "vqe: preset %s wants %d spk refs (-Q must give exactly that)\n", vqe_preset, f->nspk);
+        return 1;
+    }
+    for (int i = 0; i < hw_nspk; i++)
+        if (hw_spk_ch[i] < -1 || hw_spk_ch[i] >= HW_CH) {
+            fprintf(stderr, "vqe: -Q ref channel %d out of range\n", hw_spk_ch[i]);
+            return 1;
+        }
     if (vqe_err("Create", YandexVqeC_Create(f->conf, "/system/vendor/quasar/vqe_models", 0, NULL, &f->vqe)))
         return 1;
     if (asr_mode >= 0)
@@ -286,7 +311,7 @@ static size_t read_full(void *buf, size_t n)
     return got;
 }
 
-/* Read one chunk of hw:0,1 capture and run it through the VQE. 0 = ok, 1 = EOF/error. */
+/* Read one chunk of interleaved capture and run it through the VQE. 0 = ok, 1 = EOF/error. */
 static int fe_step(struct fe *f)
 {
     size_t need = sizeof(short) * HW_CH * f->chunk;
@@ -296,7 +321,8 @@ static int fe_step(struct fe *f)
         const short *fr = f->in + i * HW_CH;
         for (int m = 0; m < f->nmic; m++)
             f->mic[i * f->nmic + m] = fr[hw_mic_ch[m]] * f->scale;
-        f->spk[i] = HW_SPK_CH >= 0 ? fr[HW_SPK_CH] * f->scale : 0.f;
+        for (int s = 0; s < f->nspk; s++) /* -Q uses -1 to feed silence for a ref */
+            f->spk[i * f->nspk + s] = hw_spk_ch[s] >= 0 ? fr[hw_spk_ch[s]] * f->scale : 0.f;
     }
     return vqe_err("Process", YandexVqeC_Process(f->vqe, f->mic, (size_t)f->chunk * f->nmic, f->spk,
                                                  (size_t)f->chunk * f->nspk));
@@ -600,11 +626,17 @@ static void usage(void)
 {
     fprintf(stderr, "usage: spotter-host probe <model_dir>\n"
                     "       spotter-host run [-t TYPES] [-r RATE] [-c CHUNK_MS] <model_dir> < pcm\n"
-                    "       spotter-host vqe [-s SCALE] [-A MODE] [-C MODE] < hw01_8ch_48k > pcm16k_4ch\n"
-                    "       spotter-host listen [-s SCALE] [-A MODE] [-C MODE] [-x MAP] [-v] [-b] [-g] -a MODEL [-k MODEL]"
-                    " < hw01_8ch_48k\n"
-                    "       spotter-host serve [-s SCALE] [-A MODE] [-C MODE] [-v] [-b] [-g] -a MODEL [-k MODEL]"
-                    " < hw01_8ch_48k [3> vqe0_16k_mono]\n");
+                    "       spotter-host vqe [-s SCALE] [-A MODE] [-C MODE] [-P PRESET] [-N CH] [-M MICS] [-R CH | -Q CHLIST]"
+                    " < capture > pcm16k_4ch\n"
+                    "       spotter-host listen [-s SCALE] [-A MODE] [-C MODE] [-P PRESET] [-N CH] [-M MICS] [-R CH | -Q CHLIST]"
+                    " [-x MAP] [-v] [-b] [-g] -a MODEL [-k MODEL] < capture\n"
+                    "       spotter-host serve [...] -a MODEL [-k MODEL] < capture [3> vqe0_16k_mono]\n"
+                    "   -P preset   vendor VQE preset (default bergamot; orion takes the raw 13ch 96 kHz mroute stream)\n"
+                    "   -N CH       interleaved channels in the capture (default 8)\n"
+                    "   -M MICS     capture channels of the VQE mics, comma list in preset order (default 0,1,2)\n"
+                    "   -R CH       single speaker-ref channel (presets with 1 ref; default 6; -1 = silence)\n"
+                    "   -Q CHLIST   all speaker-ref channels in VQE order (presets with >1 ref, e.g. orion's 7;"
+                    " count must match the preset; -1 entries feed silence)\n");
     exit(2);
 }
 
@@ -620,7 +652,7 @@ int main(int argc, char **argv)
         return cmd_probe(argv[2]);
     optind = 2;
     if (strcmp(argv[1], "vqe") == 0 || strcmp(argv[1], "listen") == 0 || strcmp(argv[1], "serve") == 0) {
-        while ((opt = getopt(argc, argv, "s:A:C:a:k:x:vbgP:N:M:R:")) != -1) {
+        while ((opt = getopt(argc, argv, "s:A:C:a:k:x:vbgP:N:M:R:Q:")) != -1) {
             switch (opt) {
             case 's': scale = (float)atof(optarg); break;
             case 'A': asr = atoi(optarg); break;
@@ -635,6 +667,7 @@ int main(int argc, char **argv)
             case 'N': HW_CH = atoi(optarg); break;
             case 'M': hw_nmic = parse_types(optarg, hw_mic_ch, MAX_MICS); break;
             case 'R': HW_SPK_CH = atoi(optarg); break;
+            case 'Q': hw_nspk = parse_types(optarg, hw_spk_ch, MAX_SPK); break;
             default: usage();
             }
         }

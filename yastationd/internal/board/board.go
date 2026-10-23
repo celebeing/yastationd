@@ -168,6 +168,7 @@ type WakeSpec struct {
 	VQEPreset    string // vendor preset name, e.g. "bergamot"
 	Mics         []int  // capture channels that are the VQE's mics, in preset order
 	Ref          int    // capture channel carrying the speaker feedback (AEC reference), -1 = none
+	Refs         []int  // multi-ref presets (nspk > 1, e.g. orion's 7): all speaker-ref channels in VQE order
 	Model        string // activation («Алиса») model dir
 	CommandModel string // command model dir ("" = none)
 	Libs         string // vendor libs dir (LD_LIBRARY_PATH)
@@ -295,6 +296,8 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Wake.Mics, err = splitInts(v)
 	case k == "wake.ref":
 		p.Wake.Ref, err = strconv.Atoi(v)
+	case k == "wake.refs":
+		p.Wake.Refs, err = splitInts(v)
 	case k == "wake.model":
 		p.Wake.Model = v
 	case k == "wake.command_model":
@@ -411,8 +414,16 @@ func (p Profile) Validate() error {
 			}
 		}
 	}
-	if p.Mic.Device != "" && (p.Mic.Channels <= 0 || p.Mic.Rate != 48000 || p.Mic.Voice >= p.Mic.Channels) {
-		return fmt.Errorf("mic: need channels > voice and rate 48000 (decimated 3x to 16 kHz)")
+	if p.Mic.Device != "" && (p.Mic.Channels <= 0 || p.Mic.Rate < 16000 || p.Mic.Rate%16000 != 0 ||
+		p.Mic.Rate/16000 > 6 || p.Mic.Voice >= p.Mic.Channels) {
+		return fmt.Errorf("mic: need channels > voice and rate a 1..6 multiple of 16 kHz (decimated to 16 kHz)")
+	}
+	if len(p.Wake.Refs) > 0 && p.Mic.Channels > 0 {
+		for _, r := range p.Wake.Refs {
+			if r < -1 || r >= p.Mic.Channels {
+				return fmt.Errorf("wake.refs: channel %d out of capture range 0..%d", r, p.Mic.Channels-1)
+			}
+		}
 	}
 	return nil
 }

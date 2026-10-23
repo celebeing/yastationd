@@ -15,6 +15,9 @@ ACCESS.local.md
 # Per-machine build settings (device address, ssh key)
 local.mk
 
+# Local build outputs (e.g. spotter-host cross-builds into build-*/)
+build-*/
+
 # Local Claude state that should never be committed
 .claude/settings.local.json
 

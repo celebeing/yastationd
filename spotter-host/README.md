@@ -11,7 +11,11 @@ Real-voice recall is **not measured yet**. See "On-device results" below and
 [`docs/voice-phase2-plan.md`](../docs/voice-phase2-plan.md) for the channel map, the VQE verdict and the yastationd plan.
 
 **Multi-model:** the capture layout and VQE preset are flags — `-P <preset>` (default `bergamot`),
-`-N <channels>` (8), `-M <mic channels>` (`0,1,2`), `-R <speaker-feedback channel>` (6, `-1` = none).
+`-N <channels>` (8), `-M <mic channels>` (`0,1,2`), `-R <speaker-feedback channel>` (6, `-1` = none);
+presets with several speaker references (orion: 7) take them all as `-Q <ref channels>` in VQE order.
+One source links against both the 0.369 library (bergamot, pickle) and the 3.21 one (orion), which
+dropped the `spotter_error_*` helpers: they are weak references, and without them an error prints
+the library's warning buffer that 3.21 leaves in the error slot.
 yastationd passes them from its board profile; see [`../docs/boards/README.md`](../docs/boards/README.md).
 
 ## Files

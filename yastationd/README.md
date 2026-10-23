@@ -32,7 +32,7 @@ profile** (`internal/board/profiles/<codename>.conf`, embedded). The device is m
 device-tree `compatible` (`yandex,<codename>`); `board = <codename>` forces one, and
 `<cfw>/board.conf` overrides single keys without a rebuild. Effects size themselves from
 the ring's pixel count. Bringing up a new station: [`../docs/boards/README.md`](../docs/boards/README.md)
-(survey tool, procedure, reversing checklist). Supported: `bergamot` (Station Mini 3), `pickle` (Station Mini 3 Pro).
+(survey tool, procedure, reversing checklist). Supported: `bergamot` (Station Mini 3), `pickle` (Station Mini 3 Pro), `orion` (Station 3, sound bring-up).
 
 `<cfw>` is the CFW root on the device: `/bkupgrade/cfw` where `/bkupgrade` exists, else `/data/cfw`
 (pickle has no `/bkupgrade` and must not get one — its `S40wifi` would then look for the Wi-Fi config

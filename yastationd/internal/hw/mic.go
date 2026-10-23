@@ -3,6 +3,7 @@ package hw
 import (
 	"bufio"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"log/slog"
 	"math"
@@ -12,14 +13,15 @@ import (
 	"syscall"
 )
 
-// Mic owns the mic-array capture: one arecord on the 8-channel PDM device (hw:0,1 is exclusive
-// and has no dsnoop), picking one channel and decimating 48 kHz -> 16 kHz mono S16 for the
-// consumers (Wyoming streaming now, the wake-word spotter later). arecord runs only while at
-// least one consumer is subscribed.
+// Mic owns the mic-array capture: one arecord on the interleaved capture device (bergamot and
+// pickle open the exclusive raw device; orion the stock 96 kHz "mroute" plug, at its native rate),
+// picking one channel and decimating Rate -> 16 kHz mono S16 for the consumers (Wyoming
+// streaming now, the wake-word spotter later). arecord runs only while at least one consumer
+// is subscribed.
 type Mic struct {
-	Device   string // e.g. "hw:0,1"
-	Channels int    // interleaved channels the device delivers (8)
-	Rate     int    // capture rate; must be 3x OutRate (48000)
+	Device   string // capture device, e.g. "hw:0,1" or orion's stock "mroute"
+	Channels int    // interleaved channels the device delivers
+	Rate     int    // capture rate; must be a multiple of MicOutRate
 	Channel  int    // which channel to use
 	Log      *slog.Logger
 
@@ -33,8 +35,10 @@ type Mic struct {
 const (
 	MicOutRate    = 16000
 	micChunkFrame = 1024 // output samples per delivered chunk (64 ms)
-	micReadFrames = 960  // device frames per read (20 ms at 48 kHz)
 )
+
+// micReadFrames: device frames per read — 20 ms of audio, whatever the capture rate.
+func micReadFrames(rate int) int { return rate / 50 }
 
 // Subscribe registers fn for 16 kHz mono S16LE chunks (called from the capture goroutine; must
 // not block) and starts capture if needed. The returned func unsubscribes.
@@ -92,8 +96,12 @@ func (m *Mic) read(cmd *exec.Cmd, out io.Reader) {
 	defer cmd.Wait()
 	r := bufio.NewReaderSize(out, 64<<10)
 	fsz := 2 * m.Channels
-	block := make([]byte, micReadFrames*fsz)
-	dec := NewDecimator3()
+	block := make([]byte, micReadFrames(m.Rate)*fsz)
+	dec, decErr := NewDecimator(m.Rate)
+	if decErr != nil {
+		m.Log.Warn("mic: decimator", "err", decErr)
+		return
+	}
 	hpf := NewHighpass(150, float64(m.Rate)) // the PDM channels open with a big DC/LF transient
 	chunk := make([]byte, 0, 2*micChunkFrame)
 	for {
@@ -132,18 +140,28 @@ func (m *Mic) read(cmd *exec.Cmd, out io.Reader) {
 	}
 }
 
-// Decimator3 low-pass filters and keeps every 3rd sample (48 kHz -> 16 kHz): a windowed-sinc
-// FIR with its cutoff at 7 kHz, below the new 8 kHz Nyquist.
-type Decimator3 struct {
+// Decimator low-pass filters and keeps every Mth sample (inRate -> 16 kHz): a windowed-sinc
+// FIR with its cutoff at 7 kHz, below the new 8 kHz Nyquist. bergamot and pickle capture at
+// 48 kHz (3x), orion at 96 kHz (6x).
+type Decimator struct {
 	taps  []float64
 	hist  []float64
 	pos   int
 	phase int
+	ratio int
 }
 
-func NewDecimator3() *Decimator3 {
-	const n = 63
-	const fc = 7000.0 / 48000.0 // normalised cutoff
+// NewDecimator builds one for inRate, which must be an integral multiple of MicOutRate
+// (96 kHz -> 6, 48 kHz -> 3).
+func NewDecimator(inRate int) (*Decimator, error) {
+	ratio := inRate / MicOutRate
+	if ratio < 1 || inRate != MicOutRate*ratio {
+		return nil, fmt.Errorf("rate %d is not an integral multiple of %d", inRate, MicOutRate)
+	}
+	// Odd length that scales with the ratio, so the transition band stays the same: 63 taps at
+	// 48 kHz, 127 at 96 kHz.
+	n := 21*ratio | 1
+	fc := 7000.0 / float64(inRate) // normalised cutoff
 	taps := make([]float64, n)
 	sum := 0.0
 	for i := range taps {
@@ -159,15 +177,15 @@ func NewDecimator3() *Decimator3 {
 	for i := range taps {
 		taps[i] /= sum // unity DC gain
 	}
-	return &Decimator3{taps: taps, hist: make([]float64, n)}
+	return &Decimator{taps: taps, hist: make([]float64, n), ratio: ratio}, nil
 }
 
-// Push feeds one input sample; every third call returns an output sample.
-func (d *Decimator3) Push(s int16) (int16, bool) {
+// Push feeds one input sample; every ratio-th call returns one output sample.
+func (d *Decimator) Push(s int16) (int16, bool) {
 	d.hist[d.pos] = float64(s)
 	d.pos = (d.pos + 1) % len(d.hist)
 	d.phase++
-	if d.phase < 3 {
+	if d.phase < d.ratio {
 		return 0, false
 	}
 	d.phase = 0

@@ -31,8 +31,12 @@ clock_brightness = 128
 # aplay_device = default                          (override: playback device)
 # amixer_card  = 0                                (override)
 # unmute = name='main Acm8625 AMP mute status' 0  (override: replaces the profile's unmute list)
-# mic_device / mic_channels / mic_rate / mic_channel / mic_pdm_gain   (override: mic array)
+# mic_device / mic_channels / mic_rate / mic_channel / mic_pdm_gain   (mic array; mic_rate
+# is the device rate, decimated to 16 kHz — any 1..6 multiple of 16000)
 # wake_model / command_model / spotter_libs       (override: spotter models, vendor libs)
+#                                               (multi-ref boards like orion use wake.refs in
+#                                                the board profile; wake.ref is the single-ref
+#                                                legacy key — no daemon-side override needed)
 
 # --- audio ---
 # Volume steps per key press, 1..4 (one step = 5 % on the board's stock curve); «громче»/«тише» = 2 presses.

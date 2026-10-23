@@ -85,10 +85,12 @@ Code paths that are profile-agnostic but have bitten new boards:
 How the CFW uses audio (independent of the model):
 - **Out:** `aplay -D <audio.playback>` per sound (local files, the alarm, Wyoming TTS streams). The
   unmute lines run before each playback.
-- **In:** exactly one `arecord -D <mic.device> -c <mic.channels> -r 48000 -f S16_LE` while anyone
-  needs audio. It runs with a large buffer (1 s buffer / 20 ms periods; smaller ones overran). Its
-  raw frames are fanned out to the voice host (§4) and to the raw-voice fallback (`mic.voice`
-  channel, decimated to 16 kHz).
+- **In:** exactly one `arecord -D <mic.device> -c <mic.channels> -r <mic.rate> -f S16_LE`
+  while anyone needs audio. It runs with a large buffer (1 s buffer / 20 ms periods; smaller
+  ones overran). Its raw frames are fanned out to the voice host (§4) and to the raw-voice
+  fallback (`mic.voice` channel, decimated to 16 kHz). `mic.rate` is per board — any
+  1..6 multiple of 16 kHz (48 kHz on bergamot/pickle; 96 kHz on orion via the stock 13ch
+  `mroute`), decimated in-process by `hw.Decimator`.
 
 Finding the capture layout for a new model:
 1. Read the vendor audio config: the capture device name, `micChannels`, `spkChannels`, rates,
@@ -118,10 +120,10 @@ and runs:
 
 | Channel | Content |
 |---|---|
-| stdin | raw interleaved S16LE device frames at 48 kHz (`-N` channels) |
+| stdin | raw interleaved S16LE device frames at the preset's input rate (`-N` channels; 48 kHz, orion 96 kHz) |
 | stdout | lines `READY`; `WAKE <ms> <phrase>`; `CMD <ms> <phrase>`; `SUBHIT <WAKE\|CMD> <ms> <phrase>` (near miss); optional `LEVEL …` |
 | fd 3 | the clean voice stream, 16 kHz mono S16LE, streamed to HA's STT during a session (with pre-roll) |
-| args | `serve -P <preset> -N <channels> -M <mic channels> -R <ref channel> -a <activation model> [-k <command model>]`, built from the profile's `wake.*` + `mic.channels` |
+| args | `serve -P <preset> -N <channels> -M <mic channels> -R <ref channel> \| -Q <ref channels> -a <activation model> [-k <command model>]`, built from the profile's `wake.*` + `mic.channels` |
 
 So **plugging in a different audio stack** (another model's front-end library, or an open one such
 as webrtc AEC3 + an open wake-word engine) means a new host binary that speaks this contract. Point
@@ -143,7 +145,8 @@ as webrtc AEC3 + an open wake-word engine) means a new host binary that speaks t
 3. **Preset.** Find how the vendor resolves the preset name from its audio config. On pickle it is
    compiled in (built from immediates, so `strings` misses it) and shares the bergamot factory. A
    name containing `@` goes through `CreateFromJsonPreset` instead. Get mic count, speaker count,
-   rates and frame size from the preset and make `wake.mics`/`wake.ref` match.
+   rates and frame size from the preset and make `wake.mics`/`wake.ref` match — multi-ref
+   presets (speakers > 1, e.g. orion) take `wake.refs`, all channels in VQE order.
 4. **Models.** Use the device's own models: downloaded ones under `/data/quasar/data/spotter_model/`
    or built-in ones under `system/vendor/quasar/spotter_models/`. `spotter-host probe <dir>` prints
    the channel layout each model needs (e.g. activation `0,3,4` = VQE omni, VQE BNR, raw mic;

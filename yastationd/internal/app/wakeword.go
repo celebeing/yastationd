@@ -26,12 +26,13 @@ func (a *App) newSpotter() *wake.Spotter {
 		a.log.Warn("wake word disabled: board profile has no wake.vqe_preset/model/mics", "board", a.prof.Name)
 		return nil
 	}
-	mics := make([]string, len(w.Mics))
-	for i, m := range w.Mics {
-		mics[i] = strconv.Itoa(m)
+	args := []string{"serve", "-P", w.VQEPreset, "-N", strconv.Itoa(a.prof.Mic.Channels), "-M", joinInts(w.Mics)}
+	if len(w.Refs) > 0 { // multi-ref preset (orion's 7 speaker refs), in VQE order
+		args = append(args, "-Q", joinInts(w.Refs))
+	} else {
+		args = append(args, "-R", strconv.Itoa(w.Ref))
 	}
-	args := []string{"serve", "-P", w.VQEPreset, "-N", strconv.Itoa(a.prof.Mic.Channels),
-		"-M", strings.Join(mics, ","), "-R", strconv.Itoa(w.Ref), "-a", w.Model}
+	args = append(args, "-a", w.Model)
 	if w.CommandModel != "" {
 		args = append(args, "-k", w.CommandModel)
 	}
@@ -42,6 +43,14 @@ func (a *App) newSpotter() *wake.Spotter {
 		Log:     a.log,
 		OnEvent: a.onWakeEvent,
 	}
+}
+
+func joinInts(v []int) string {
+	s := make([]string, len(v))
+	for i, n := range v {
+		s[i] = strconv.Itoa(n)
+	}
+	return strings.Join(s, ",")
 }
 
 func (a *App) onWakeEvent(ev wake.Event) {

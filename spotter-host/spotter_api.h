@@ -27,11 +27,12 @@ enum spotter_event {
     SPOTTER_NEED_MORE_DATA_FOR_SEAM_VAD = 9,
 };
 
-/* Errors. */
-const char *spotter_error_get_message(const spotter_error *e);
-const char *spotter_error_get_func_name(const spotter_error *e);
-int spotter_error_get_type(const spotter_error *e);
-void spotter_error_free(spotter_error **e); /* takes the slot, not the object (observed) */
+/* Errors. Present in the 0.369 blob (bergamot/pickle), dropped from the 3.21 one (orion), so they
+ * are weak references: NULL where the library lacks them (see report() in spotter_host.c). */
+__attribute__((weak)) const char *spotter_error_get_message(const spotter_error *e);
+__attribute__((weak)) const char *spotter_error_get_func_name(const spotter_error *e);
+__attribute__((weak)) int spotter_error_get_type(const spotter_error *e);
+__attribute__((weak)) void spotter_error_free(spotter_error **e); /* takes the slot, not the object (observed) */
 
 /* Model configuration: a model directory with flags.txt, words.txt, acoustic_model.nnet. */
 spotter_conf *spotter_conf_read(const char *dir, spotter_error **err);

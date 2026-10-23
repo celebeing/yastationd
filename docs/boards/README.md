@@ -11,14 +11,16 @@ from the device-tree `compatible` list (`yandex,<codename>`); `board = <codename
 |---|---|---|
 | [bergamot](bergamot.md) | Station Mini 3 | supported, verified on-device |
 | [midi (`yandexmidi`)](midi.md) | Station Midi | profiled from firmware `0.369.1.50` (no device yet) |
-| [pickle](pickle.md) | Station Mini 3 Pro | supported, verified on-device 2026-10-23 (incl. wake word; aarch64 spotter-host) |
+| [orion](orion.md) | Station 3 | sound bring-up 2026-10-23 (playback/mic/volume profile; wake + LEDs pending) |
 
-Known vendor codenames (the VQE presets compiled into `libyandex_evil.so`):
-`bergamot`, `cucumber`, `plum`, `yandexmini`, `yandexmini_2`, `yandexmidi` (the last confirmed in
-the Station Midi firmware too — the preset list is shared across the family). A model whose codename is in that list
-very likely needs **no audio-front-end reversing** — just `wake.vqe_preset = <codename>` and its own
-channel layout. (bergamot's sysfs also has a `cucumber:sync:clock-0` LED, i.e. the kernel/DT is
-shared across models.)
+Known vendor codenames (the VQE presets compiled into `libyandex_evil.so`) — from the
+0.369 armhf lib via `strings`, **plus** the 3.21 aarch64 lib where the names are built from
+immediates (`mov`/`movk`) and invisible to `strings`: `bergamot`, `cucumber`, `plum`,
+`yandexmini`/`mini43`/`mini50`/`mini55`/`mini65`, `yandexmidi`, `pickle`, `orion`, `nebula`,
+`potato`, `mango` (+ `rev1..rev5` and 16/48 kHz variants). A model whose codename is in that
+list very likely needs **no audio-front-end reversing** — just `wake.vqe_preset = <codename>` and
+its own channel layout. (bergamot's sysfs also has a `cucumber:sync:clock-0` LED, i.e. the
+kernel/DT is shared across models.)
 
 ## Procedure for a new station
 
