@@ -20,3 +20,5 @@ local.mk
 
 # Python bytecode
 __pycache__/
+tools/deploy.hosts
+spotter-host/build/

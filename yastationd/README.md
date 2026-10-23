@@ -50,18 +50,21 @@ make vet
 
 ## Deploy
 
-Device address, ssh key and `DESTDIR` (the device's `<cfw>`): copy `local.mk.example` to `local.mk`
-(gitignored) and fill them in, or pass them on the command line (`make stage DEVICE=… DESTDIR=/data/cfw`).
+Full guide (first install, HA side, updates, removal, checks): [`../docs/deploying.md`](../docs/deploying.md).
+Device address, ssh key and `DESTDIR` (the device's `<cfw>`) come from `local.mk` (gitignored, see
+`local.mk.example`) or the command line.
 
 ```
-cp configs/yastationd.conf.example <cfw>/yastationd.conf   # on the device, then edit
-make stage-tmp     # throwaway binary in /tmp for manual testing (gone on reboot)
-make stage         # binary + init hook -> $(DEVICE):$(DESTDIR) (streamed over ssh; no scp on device)
-make install-initd # copy the init hook into /etc/init.d (remounts / rw then ro)
+make stage-tmp       # throwaway binary in /tmp for manual testing (gone on reboot)
+make stage           # first install: binary + init hook copy -> $(DEVICE):$(DESTDIR), no autostart
+make install-initd   # copy the init hook into /etc/init.d (remounts / rw then ro)
+make deploy          # update a running install: upload aside, stop -> swap -> start, tail the log
+make deploy-spotter  # install a spotter-host build (SPOTTER=path)
+make sounds          # decode the vendor voice lines into $(DESTDIR)/sounds/*.wav
 ```
 
-The init hook runs a respawn supervisor. `touch <cfw>/yastationd_off` disables it without a
-rootfs write (the supervisor exits after the current run; `stop` kills it now).
+Several speakers at once: `../tools/deploy.sh` (hosts list in `../tools/deploy.hosts`). The init
+hook runs a respawn supervisor; `touch <cfw>/yastationd_off` disables it without a rootfs write.
 
 ## Entities (HA MQTT Discovery)
 

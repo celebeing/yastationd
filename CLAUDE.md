@@ -3,7 +3,7 @@
 Custom firmware layer (CFW) that turns owned smart speakers (`bergamot` = Station Mini 3,
 `pickle` = Station Mini 3 Pro, …) into offline Home Assistant speakers: the on-device agent
 `yastationd` + the voice front-end host `spotter-host`. What it does: `README.md`. Porting it to a
-new model: `docs/porting-a-speaker.md`. **Connection details: `ACCESS.local.md` (gitignored).**
+new model: `docs/porting-a-speaker.md`. Installing/updating it on a speaker: `docs/deploying.md`. **Connection details: `ACCESS.local.md` (gitignored).**
 
 **Scope.** The CFW's functionality, researching new speakers and adapting the CFW to them, and
 keeping the vendor's code from running or talking to the internet. **Out of scope:** how shell access

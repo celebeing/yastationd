@@ -1,0 +1,4 @@
+# Copy to tools/deploy.hosts (gitignored) and list your speakers:
+# <ssh-target>        <cfw-root>       [spotter-arch: armhf|aarch64]
+root@<speaker-a>      /bkupgrade/cfw   armhf
+root@<speaker-b>      /data/cfw        aarch64

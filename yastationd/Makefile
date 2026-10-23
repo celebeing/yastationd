@@ -1,5 +1,5 @@
-# yastationd — build & stage. The device is armv7 hard-float userland on a 64-bit kernel;
-# a CGO-free static binary sidesteps the glibc-2.30 coupling (see docs/yastationd-design.md §1).
+# yastationd — build, stage and deploy (guide: docs/deploying.md). A CGO-free static armv7 binary
+# runs on every supported userland (armhf, and aarch64 kernels with 32-bit EL0 support).
 
 BIN      := yastationd
 OUT      := build/$(BIN)
@@ -13,7 +13,7 @@ DESTDIR  ?= /bkupgrade/cfw
 GOFLAGS  := -trimpath -ldflags="-s -w"
 GOENV    := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: all build test vet clean stage stage-tmp redeploy-tmp install-initd sounds
+.PHONY: all build test vet clean stage stage-tmp redeploy-tmp install-initd sounds deploy deploy-spotter
 
 all: test build
 
@@ -72,3 +72,20 @@ sounds:
 	  $(SSH) "cat > $(DESTDIR)/sounds/$$s.wav.new && mv $(DESTDIR)/sounds/$$s.wav.new $(DESTDIR)/sounds/$$s.wav" < build/$$s.wav; \
 	  rm -f build/$$s.src build/$$s.wav; \
 	done
+
+# Upgrade a running install in place: upload aside, then stop -> swap -> start. The swap runs as a
+# script on stdin (`sh -s`) so no process command line contains the binary's path — the init
+# hook's stop matches processes by path, and an ssh command mentioning it would be killed with them.
+deploy: build
+	$(SSH) 'cat > $(DESTDIR)/bin/$(BIN).upload' < $(OUT)
+	printf '%s\n' 'set -e' 'D=$(DESTDIR)' 'chmod +x $$D/bin/$(BIN).upload' \
+	  '/etc/init.d/S52zyastationd stop >/dev/null 2>&1 || true' 'sleep 1' \
+	  'mv $$D/bin/$(BIN).upload $$D/bin/$(BIN)' '/etc/init.d/S52zyastationd start' \
+	  'sleep 8' 'tail -5 /tmp/yastationd.log' | $(SSH) 'sh -s'
+
+# Install a spotter-host build (spotter-host/build.sh, ARCH matching the device's userland). The
+# running child keeps the old file; it takes effect when yastationd next starts it — restart the
+# daemon (make deploy, or the init hook's restart).
+SPOTTER ?= ../spotter-host/spotter-host
+deploy-spotter:
+	$(SSH) 'cat > $(DESTDIR)/bin/spotter-host.upload && chmod +x $(DESTDIR)/bin/spotter-host.upload && mv $(DESTDIR)/bin/spotter-host.upload $(DESTDIR)/bin/spotter-host' < $(SPOTTER)

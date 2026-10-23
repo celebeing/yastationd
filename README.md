@@ -83,8 +83,9 @@ Per-board notes: [docs/boards/](docs/boards/README.md).
 | [`yastationd/`](yastationd/README.md) | The on-device agent: entities, config, build. Board profiles: `internal/board/profiles/` |
 | [`spotter-host/`](spotter-host/README.md) | Voice front-end host (wake word, echo cancellation), per-arch build |
 | [`hass/`](hass/) | HA-side scripts the Assist agent can call (ring animation, show text) |
-| [`tools/`](tools/) | Read-only board survey, firmware-dump helpers |
+| [`tools/`](tools/) | Read-only board survey, multi-speaker `deploy.sh`, firmware-dump helpers |
 | [`docs/`](docs/index.md) | Design docs, hardware notes, reverse-engineering findings — start at the index |
+| [`docs/deploying.md`](docs/deploying.md) | **For agents:** installing, updating and removing the CFW on a speaker |
 | [`docs/porting-a-speaker.md`](docs/porting-a-speaker.md) | **For agents:** how to research a new speaker and add support for it |
 
 ## Repo hygiene
