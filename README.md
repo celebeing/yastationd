@@ -85,6 +85,7 @@ Per-board notes: [docs/boards/](docs/boards/README.md).
 | [`hass/`](hass/) | HA-side scripts the Assist agent can call (ring animation, show text) |
 | [`tools/`](tools/) | Read-only board survey, multi-speaker `deploy.sh`, firmware-dump helpers |
 | [`docs/`](docs/index.md) | Design docs, hardware notes, reverse-engineering findings — start at the index |
+| [`docs/ha-assistant-setup.md`](docs/ha-assistant-setup.md) | Setting up the voice assistant in Home Assistant (STT, TTS, agent, pipeline) |
 | [`docs/deploying.md`](docs/deploying.md) | **For agents:** installing, updating and removing the CFW on a speaker |
 | [`docs/porting-a-speaker.md`](docs/porting-a-speaker.md) | **For agents:** how to research a new speaker and add support for it |
 

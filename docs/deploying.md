@@ -95,6 +95,8 @@ start after boot fails once (the ring LEDs appear late) and the supervisor resta
 
 ## 3. Home Assistant side
 
+First-time voice setup (STT/TTS servers, agent, pipeline): [ha-assistant-setup.md](ha-assistant-setup.md).
+
 - **MQTT:** nothing to do. Entities appear through MQTT Discovery under one device per
   `device_id`.
 - **Voice:** add a Wyoming integration for `<speaker-ip>:10700` (UI, or the config-flow API:

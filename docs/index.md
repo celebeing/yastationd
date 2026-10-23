@@ -13,6 +13,7 @@ This is the index of project documentation. Read the relevant doc here **before*
 | [stt-decompile.md](stt-decompile.md) | How the stock speech-to-text path works (client side) |
 | [tts-decompile.md](tts-decompile.md) | What TTS runs on the device and what can be reused |
 | [voice-phase2-plan.md](voice-phase2-plan.md) | On-device results of the vendor spotter + VQE and the yastationd wake-word integration plan |
+| [ha-assistant-setup.md](ha-assistant-setup.md) | Reference: setting up the voice assistant in HA — STT/TTS servers, conversation agent, Assist pipeline, adding the speaker, troubleshooting |
 | [deploying.md](deploying.md) | **Agent guide:** install, update (`make deploy`, `tools/deploy.sh`), HA side, disable/remove, keeping the vendor offline, verification checklist |
 | [porting-a-speaker.md](porting-a-speaker.md) | **Agent guide:** researching a new speaker and adding CFW support (inputs, profile mapping, audio path, voice front-end contract, definition of done) |
 | [boards/README.md](boards/README.md) | Multi-model support: board profiles, bringing up a new station, per-model reversing checklist; per-board notes ([bergamot](boards/bergamot.md), [midi](boards/midi.md), [pickle](boards/pickle.md) — incl. the Mini 3 Pro connectivity/Wi-Fi-hop logic and running without maind) |
