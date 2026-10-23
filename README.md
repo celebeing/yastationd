@@ -10,6 +10,21 @@ next to it and drives the hardware directly. The one vendor piece it reuses is t
 library (echo cancellation, noise reduction and the wake-word engine), which it loads in a separate
 helper process, `spotter-host`, so the vendor code never runs inside the agent.
 
+## Highlights
+
+**Made for Home Assistant power users.** Everything on the speaker is an HA entity you can
+automate: the ring, the display, volume, the keys as events, the light sensor, power health. Voice
+goes into your own Assist pipeline, so you choose the STT, the TTS and the conversation agent, a
+local LLM included. The speaker is also a Music Assistant player for whole-home audio. Settings
+live in plain config files on the device, with per-unit overrides, and the docs cover the HA side
+as well: pipeline setup, entity exposure, prompting.
+
+**The stock wake word, tuned for this hardware.** «Алиса», «стоп», «громче» and the other local
+commands run on the speaker's own spotter and voice front-end: the models, echo cancellation,
+noise reduction and mic-array processing that the manufacturer tuned for this exact device. It
+works phenomenally well and hears the wake word even over the speaker's own music. Open-source
+wake word engines don't come close.
+
 ## What the speaker does with the CFW
 
 **Voice (Wyoming satellite in HA's Assist pipeline)**
