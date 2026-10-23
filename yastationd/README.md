@@ -144,5 +144,11 @@ or `{"surface":"matrix","op":"countdown","args":{"seconds":300}}`.
     stepped right away instead of waiting for chronyd's slew, seen taking ~11 min on bergamot),
     or, with no server answering, while the kernel's `STA_UNSYNC` is clear. Until then the colon
     blinks. The display re-renders every frame, so the step shows at once.
+11. **The wake word lands in the STT transcript** («Алиса, …»): the session streams `preroll_ms`
+    (300 ms) of VQE audio from before the detection, and the detection fires late enough that the
+    word is still in it. HA's built-in matcher then misses plain commands and they go to the slower
+    LLM (see `docs/ha-assistant-setup.md` §8 for the HA-side workarounds). Fix here: start the stream
+    at the spotter's end-of-phrase position (the event carries a stream offset) instead of
+    `now - preroll`, keeping only a few tens of ms before it.
 
 Installed and autostarting on the device since 2026-10-22 (see the top-level README).
