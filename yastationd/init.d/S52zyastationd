@@ -1,0 +1,43 @@
+#!/bin/sh
+# yastationd — HASS agent for the de-Yandexed Station Mini 3. A respawn supervisor restarts it on crash.
+# Install to /etc/init.d/ (rootfs is read-only: remount rw to copy, see the Makefile).
+# Kill switch without touching rootfs: touch <cfw>/yastationd_off (like maind_off).
+# <cfw> = /bkupgrade/cfw if present (bergamot), else /data/cfw (pickle) — same rule as the run.sh gate.
+# The device has no pkill/pgrep, so processes are found by their command line via ps.
+
+CFW=/bkupgrade/cfw; [ -d "$CFW" ] || CFW=/data/cfw
+BIN=$CFW/bin/yastationd
+CONF=$CFW/yastationd.conf
+OFF=$CFW/yastationd_off
+LOG=/tmp/yastationd.log
+PIDFILE=/tmp/yastationd-sup.pid
+
+start() {
+	if [ -f "$OFF" ]; then echo "yastationd: disabled by $OFF"; exit 0; fi
+	[ -x "$BIN" ] || { echo "yastationd: $BIN missing"; exit 0; }
+	[ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null && { echo "yastationd: already running"; exit 0; }
+	echo "yastationd: starting supervisor"
+	setsid sh -c '
+		while [ ! -f '"$OFF"' ]; do
+			'"$BIN"' -config '"$CONF"' >> '"$LOG"' 2>&1
+			echo "yastationd exited $? — respawning in 2s" >> '"$LOG"'
+			sleep 2
+		done
+	' >/dev/null 2>&1 &
+	echo $! > "$PIDFILE"
+}
+
+stop() {
+	[ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null
+	# Match argv[0] exactly ($3 of busybox `ps w`): a substring match also hit unrelated command
+	# lines that merely mention the path (e.g. an ssh session uploading the binary) and killed them.
+	for p in $(ps w | awk -v b="$BIN" '$3 == b {print $1}'); do kill "$p" 2>/dev/null; done
+	rm -f "$PIDFILE"
+}
+
+case "$1" in
+	start) start ;;
+	stop) stop ;;
+	restart) stop; sleep 1; start ;;
+	*) echo "usage: $0 {start|stop|restart}"; exit 1 ;;
+esac

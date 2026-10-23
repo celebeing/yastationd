@@ -1,0 +1,5 @@
+# Copy to local.mk (gitignored) and fill in your device.
+DEVICE = root@192.0.2.10
+SSHKEY = $(HOME)/.ssh/id_yastation
+# CFW root on the device: /bkupgrade/cfw (bergamot, default) or /data/cfw (pickle).
+# DESTDIR = /data/cfw

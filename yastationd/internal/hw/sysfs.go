@@ -1,0 +1,201 @@
+// Package hw talks to the Station's hardware: LED sysfs nodes, evdev, ALSA tools, IIO.
+package hw
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+)
+
+// ledNode writes a sysfs LED brightness only when the value changes. The first write reads the
+// current value so a restart does not blink everything (the "flicker-free rule").
+type ledNode struct {
+	path  string
+	known bool
+	cur   int
+}
+
+func (n *ledNode) set(v int) error {
+	if !n.known {
+		if b, err := os.ReadFile(n.path); err == nil {
+			if x, err := strconv.Atoi(strings.TrimSpace(string(b))); err == nil {
+				n.cur, n.known = x, true
+			}
+		}
+	}
+	if n.known && n.cur == v {
+		return nil
+	}
+	if err := os.WriteFile(n.path, []byte(strconv.Itoa(v)), 0o644); err != nil {
+		n.known = false
+		return err
+	}
+	n.cur, n.known = v, true
+	return nil
+}
+
+const ledBase = "/sys/class/leds"
+
+func ledPath(root, name string) string {
+	return filepath.Join(root+ledBase, name, "brightness")
+}
+
+// setTriggerNone takes an LED away from its kernel trigger (the ring defaults to ledfb-logo).
+func setTriggerNone(root, name string) error {
+	p := filepath.Join(root+ledBase, name, "trigger")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return err
+	}
+	if strings.Contains(string(b), "[none]") {
+		return nil
+	}
+	return os.WriteFile(p, []byte("none"), 0o644)
+}
+
+type RGB struct{ R, G, B uint8 }
+
+func (c RGB) Scale(k int) RGB {
+	return RGB{uint8(int(c.R) * k / 255), uint8(int(c.G) * k / 255), uint8(int(c.B) * k / 255)}
+}
+
+func (c RGB) Hex() string { return fmt.Sprintf("%02x%02x%02x", c.R, c.G, c.B) }
+
+// Ring is an RGB LED ring of n pixels, one sysfs LED per pixel per colour. Names come from a
+// pattern with {color} and {i}, e.g. "bergamot:{color}:logo{i}"; colors are the sysfs colour
+// names in R,G,B order. A nil *Ring (no ring on this board) shows nothing.
+type Ring struct {
+	px [][3]ledNode
+}
+
+func NewRing(root string, pixels int, pattern string, colors []string) (*Ring, error) {
+	if len(colors) != 3 {
+		return nil, fmt.Errorf("ring: need 3 colours, got %d", len(colors))
+	}
+	r := &Ring{px: make([][3]ledNode, pixels)}
+	for i := 0; i < pixels; i++ {
+		for c, col := range colors {
+			name := strings.NewReplacer("{color}", col, "{i}", strconv.Itoa(i)).Replace(pattern)
+			if err := setTriggerNone(root, name); err != nil {
+				return nil, fmt.Errorf("ring %s: %w", name, err)
+			}
+			r.px[i][c].path = ledPath(root, name)
+		}
+	}
+	return r, nil
+}
+
+// Pixels is the ring size (0 for no ring).
+func (r *Ring) Pixels() int {
+	if r == nil {
+		return 0
+	}
+	return len(r.px)
+}
+
+func (r *Ring) Show(f []RGB) error {
+	if r == nil {
+		return nil
+	}
+	var first error
+	for i, c := range f {
+		if i >= len(r.px) {
+			break
+		}
+		for ch, v := range []uint8{c.R, c.G, c.B} {
+			if err := r.px[i][ch].set(int(v)); err != nil && first == nil {
+				first = err
+			}
+		}
+	}
+	return first
+}
+
+// 7-segment bits: A=top, B=top-right, C=bottom-right, D=bottom, E=bottom-left, F=top-left, G=middle.
+const (
+	SegA = 1 << iota
+	SegB
+	SegC
+	SegD
+	SegE
+	SegF
+	SegG
+)
+
+const Digits = 4
+
+// MatrixFrame is one picture of the front clock: 4 seven-segment digits (0 = leftmost) plus the
+// colon (DH+DL), the DM dot and the degree mark.
+type MatrixFrame struct {
+	Seg        [Digits]uint8
+	Colon      bool
+	DM, Degree bool
+	Brightness int
+}
+
+// Matrix is a 4-digit 7-segment front display, one sysfs LED per segment. Segment LED names
+// come from a pattern with {seg} (A..G) and {digit} (0..3), e.g.
+// "bergamot:white:clock{seg}{digit}"; the colon may be several LEDs; dot/degree may be empty.
+// A nil *Matrix (no display on this board) shows nothing.
+type Matrix struct {
+	seg       [Digits][7]ledNode
+	colon     []ledNode
+	dot, degr ledNode
+	hasDot    bool
+	hasDegree bool
+}
+
+func NewMatrix(root, segment string, colon []string, dot, degree string) *Matrix {
+	m := &Matrix{}
+	for p := 0; p < Digits; p++ {
+		for s := 0; s < 7; s++ {
+			name := strings.NewReplacer("{seg}", string(rune('A'+s)), "{digit}", strconv.Itoa(p)).Replace(segment)
+			m.seg[p][s].path = ledPath(root, name)
+		}
+	}
+	for _, c := range colon {
+		m.colon = append(m.colon, ledNode{path: ledPath(root, c)})
+	}
+	if dot != "" {
+		m.dot.path, m.hasDot = ledPath(root, dot), true
+	}
+	if degree != "" {
+		m.degr.path, m.hasDegree = ledPath(root, degree), true
+	}
+	return m
+}
+
+func (m *Matrix) Show(f MatrixFrame) error {
+	if m == nil {
+		return nil
+	}
+	var first error
+	keep := func(err error) {
+		if err != nil && first == nil {
+			first = err
+		}
+	}
+	on := func(b bool) int {
+		if b {
+			return f.Brightness
+		}
+		return 0
+	}
+	for p := 0; p < Digits; p++ {
+		for s := 0; s < 7; s++ {
+			keep(m.seg[p][s].set(on(f.Seg[p]&(1<<s) != 0)))
+		}
+	}
+	for i := range m.colon {
+		keep(m.colon[i].set(on(f.Colon)))
+	}
+	if m.hasDot {
+		keep(m.dot.set(on(f.DM)))
+	}
+	if m.hasDegree {
+		keep(m.degr.set(on(f.Degree)))
+	}
+	return first
+}

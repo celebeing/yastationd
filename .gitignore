@@ -1,0 +1,22 @@
+# Raw device dumps: large and contain per-device secrets (wifi creds, tokens, TEE/keymaster material)
+dumps/
+
+# Secrets, wherever they appear
+*.key
+wpa_supplicant.conf
+
+# Windows / WSL zone-identifier cruft
+*:Zone.Identifier
+
+# Local access/connection info (IPs, keys paths, recovery) — never commit
+ACCESS.local.md
+*.local.md
+
+# Per-machine build settings (device address, ssh key)
+local.mk
+
+# Local Claude state that should never be committed
+.claude/settings.local.json
+
+# Python bytecode
+__pycache__/

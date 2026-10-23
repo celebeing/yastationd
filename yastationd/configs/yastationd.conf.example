@@ -1,0 +1,66 @@
+# yastationd configuration — copy to /bkupgrade/cfw/yastationd.conf and edit.
+# Format: key = value, one per line, '#' comments. Repeated keys (unmute, probe) accumulate.
+
+device_id   = mini3
+device_name = Yandex Station Mini 3
+
+# --- MQTT broker (Home Assistant). Leave mqtt_host empty to run local-only (no broker). ---
+mqtt_host = homeassistant.local
+mqtt_port = 1883
+# mqtt_user = yastation
+# mqtt_pass = changeme
+topic_prefix     = yastation
+discovery_prefix = homeassistant
+
+# --- display ---
+tz               = Europe/Moscow
+ring_brightness  = 128
+clock_brightness = 128
+# Clock brightness from the light sensor (also an HA switch; this is only the first-start value).
+# auto_brightness = true
+# Sensor reading -> brightness, interpolated on log(lux); readings are the sensor's own scale
+# (it sits behind the grille). Calibrate per unit from the HA "Illuminance" history.
+# auto_brightness_curve = 0.04:4, 0.55:128, 10:255
+
+# --- board (hardware profile, see docs/boards/) ---
+# auto = detect from the device tree; or a codename (bergamot, ...). Single profile keys can be
+# overridden in board_file without a rebuild.
+# board      = auto
+# board_file = /bkupgrade/cfw/board.conf
+# The keys below marked "override" replace the profile's value only when set here:
+# aplay_device = default                          (override: playback device)
+# amixer_card  = 0                                (override)
+# unmute = name='main Acm8625 AMP mute status' 0  (override: replaces the profile's unmute list)
+# mic_device / mic_channels / mic_rate / mic_channel / mic_pdm_gain   (override: mic array)
+# wake_model / command_model / spotter_libs       (override: spotter models, vendor libs)
+
+# --- audio ---
+volume_step  = 8
+
+# --- Wyoming satellite (HA: Settings → Integrations → Wyoming → host = this device, port below).
+# Playback only for now: HA announcements (assist_satellite.announce) and TTS replies. 0 = off.
+wyoming_port = 10700
+# Push-to-talk: the voice key starts an Assist pipeline and streams the mic.
+# Wake word «Алиса»: the vendor spotter + VQE (spotter-host serve) as a child process; the mic then
+# stays open. Session audio to HA is the VQE output with a pre-roll. Commands (стоп/хватит/пауза,
+# громче/тише) act locally, only while the speaker is playing. wake_enabled = false -> push-to-talk only.
+# wake_enabled = true
+# spotter_bin = /bkupgrade/cfw/bin/spotter-host
+# preroll_ms = 300
+
+# --- clock: SNTP sync when no chronyd/ntpd runs (e.g. fw 0.6.x). Tried in order: ntp_server
+# entries, the servers in chrony_conf, then the default gateway. Unsynced clock blinks its colon.
+# time_sync   = true
+# ntp_server  = router.lan
+# chrony_conf = /etc/chrony.conf
+
+# --- health probes: name=host:port@role, role in broker|pipeline|lan ---
+probe = broker=homeassistant.local:1883@broker
+probe = hass=homeassistant.local:8123@lan
+# probe = pipeline=voice-server:24117@pipeline
+
+# --- paths (defaults are correct for the device; override for testing) ---
+# sysroot =
+# heartbeat_file = /tmp/yastationd.heartbeat
+# state_file     = /bkupgrade/cfw/yastationd.state
+log_level = info

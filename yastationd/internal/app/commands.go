@@ -1,0 +1,319 @@
+package app
+
+import (
+	"encoding/json"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/celebeing/yastationd/yastationd/internal/display"
+	"github.com/celebeing/yastationd/yastationd/internal/hw"
+)
+
+func (a *App) subscribe() {
+	t := a.topics
+	a.mqtt.Subscribe(t.Command("ring"), a.cmdRing)
+	a.mqtt.Subscribe(t.Command("display_mode"), a.cmdDisplayMode)
+	a.mqtt.Subscribe(t.Command("display_message"), a.cmdDisplayMessage)
+	a.mqtt.Subscribe(t.Command("volume"), a.cmdVolume)
+	a.mqtt.Subscribe(t.Command("speaker"), a.cmdSpeaker)
+	a.mqtt.Subscribe(t.Command("show_text"), a.cmdShowText)
+	a.mqtt.Subscribe(t.Command("text_duration"), a.cmdDuration("text_duration", func(s *persistState) *int { return &s.TextSecs }))
+	a.mqtt.Subscribe(t.Command("ring_animation"), a.cmdRingAnimation)
+	a.mqtt.Subscribe(t.Command("follow_up"), a.cmdFollowUp)
+	a.mqtt.Subscribe(t.Command("animation_duration"), a.cmdDuration("animation_duration", func(s *persistState) *int { return &s.AnimSecs }))
+	a.mqtt.Subscribe(t.Command("auto_brightness"), a.cmdAutoBrightness)
+	a.mqtt.Subscribe(t.Command("clock_brightness"), a.cmdClockBrightness)
+	a.mqtt.Subscribe(t.DisplayCmd(), a.cmdDisplay)
+}
+
+// ring: HA JSON light schema {state, brightness, color:{r,g,b}, effect}.
+func (a *App) cmdRing(payload []byte) {
+	var m struct {
+		State      string                   `json:"state"`
+		Brightness *int                     `json:"brightness"`
+		Color      *struct{ R, G, B uint8 } `json:"color"`
+		Effect     *string                  `json:"effect"`
+	}
+	if err := json.Unmarshal(payload, &m); err != nil {
+		a.log.Warn("bad ring command", "err", err)
+		return
+	}
+	s := a.store.update(func(s *persistState) {
+		if m.State != "" {
+			s.RingOn = strings.EqualFold(m.State, "ON")
+		}
+		if m.Brightness != nil {
+			s.RingBright = clamp(*m.Brightness, 0, 255)
+		}
+		if m.Color != nil {
+			s.RingRGB = hw.RGB{R: m.Color.R, G: m.Color.G, B: m.Color.B}
+		}
+		if m.Effect != nil {
+			if validRingEffect(*m.Effect) {
+				s.RingEffect = *m.Effect
+			} else {
+				a.log.Warn("unknown ring effect", "effect", *m.Effect)
+			}
+		}
+	})
+	a.mqtt.Publish(a.topics.State("ring"), ringStateJSON(s))
+}
+
+func (a *App) cmdDisplayMode(payload []byte) {
+	mode := strings.TrimSpace(string(payload))
+	switch mode {
+	case "clock", "off", "message":
+	default:
+		a.log.Warn("unknown display_mode", "mode", mode)
+		return
+	}
+	a.store.update(func(s *persistState) { s.Mode = mode })
+	a.mqtt.Publish(a.topics.State("display_mode"), mode)
+}
+
+func (a *App) cmdDisplayMessage(payload []byte) {
+	msg := string(payload)
+	a.store.update(func(s *persistState) {
+		s.Message = msg
+		s.Mode = "message"
+	})
+	a.mqtt.Publish(a.topics.State("display_message"), msg)
+	a.mqtt.Publish(a.topics.State("display_mode"), "message")
+}
+
+func (a *App) cmdVolume(payload []byte) {
+	pct, err := strconv.Atoi(strings.TrimSpace(string(payload)))
+	if err != nil {
+		return
+	}
+	a.setVolumePercent(clamp(pct, 0, 100))
+}
+
+// speaker: a bare file path or URL to play. file:// and plain paths are played directly; a
+// remote URL is rejected for now (no downloader wired yet) — announcements come from the bank.
+func (a *App) cmdSpeaker(payload []byte) {
+	s := strings.TrimSpace(string(payload))
+	switch {
+	case s == "" || s == "STOP":
+		a.player.Stop()
+	case strings.HasPrefix(s, "/"), strings.HasPrefix(s, "file://"):
+		a.announce(strings.TrimPrefix(s, "file://"))
+	default:
+		a.log.Warn("speaker: only local paths are supported for now", "arg", s)
+	}
+}
+
+// display/cmd one-shot overlay: {surface, op, args, ttl_ms, priority}.
+func (a *App) cmdDisplay(payload []byte) {
+	var c struct {
+		Surface  string          `json:"surface"`
+		Op       string          `json:"op"`
+		Args     json.RawMessage `json:"args"`
+		TTLms    int             `json:"ttl_ms"`
+		Priority int             `json:"priority"`
+	}
+	if err := json.Unmarshal(payload, &c); err != nil {
+		a.log.Warn("bad display/cmd", "err", err)
+		return
+	}
+	ttl := time.Duration(c.TTLms) * time.Millisecond
+	prio := c.Priority
+	if prio == 0 {
+		prio = display.PrioScenario
+	}
+	switch c.Surface {
+	case "matrix":
+		a.matrixOverlay(c.Op, c.Args, prio, ttl)
+	case "ring":
+		a.ringOverlay(c.Op, c.Args, prio, ttl)
+	default:
+		a.log.Warn("display/cmd: unknown surface", "surface", c.Surface)
+	}
+}
+
+func (a *App) matrixOverlay(op string, args json.RawMessage, prio int, ttl time.Duration) {
+	name := "ov_matrix"
+	switch op {
+	case "text", "message":
+		var v struct {
+			Text string `json:"text"`
+		}
+		json.Unmarshal(args, &v)
+		a.matrixStack.Push(name, prio, ttl, display.Marquee(v.Text, marqueeStep, a.brightness))
+	case "number":
+		var v struct {
+			N int `json:"n"`
+		}
+		json.Unmarshal(args, &v)
+		a.matrixStack.Push(name, prio, ttl, func(time.Time, display.MatrixFrame) (display.MatrixFrame, bool) {
+			return display.Number(v.N, a.brightness()), false
+		})
+	case "countdown":
+		var v struct {
+			Seconds  int    `json:"seconds"`
+			Deadline string `json:"deadline"`
+		}
+		json.Unmarshal(args, &v)
+		deadline := time.Now().Add(time.Duration(v.Seconds) * time.Second)
+		if v.Deadline != "" {
+			if dl, err := time.Parse(time.RFC3339, v.Deadline); err == nil {
+				deadline = dl
+			}
+		}
+		a.matrixStack.Push("countdown", prio, 0, display.Countdown(deadline, a.brightness))
+	case "clear":
+		a.matrixStack.Remove(name)
+		a.matrixStack.Remove("countdown")
+	default:
+		a.log.Warn("matrix op unknown", "op", op)
+	}
+}
+
+func (a *App) ringOverlay(op string, args json.RawMessage, prio int, ttl time.Duration) {
+	name := "ov_ring"
+	switch op {
+	case "effect":
+		// {name, color?: [r,g,b] | {r,g,b}, brightness?}: any ring effect (the light's effect_list)
+		// as a timed overlay. Colour and brightness default to the ring light's own. One overlay
+		// slot: a new animation replaces the running one.
+		var v struct {
+			Name       string          `json:"name"`
+			Color      json.RawMessage `json:"color"`
+			Brightness *int            `json:"brightness"`
+		}
+		json.Unmarshal(args, &v)
+		var color *hw.RGB
+		if rgb, ok := parseRGB(v.Color); ok {
+			color = &rgb
+		}
+		a.playRingEffect(v.Name, color, v.Brightness, prio, ttl)
+	case "solid":
+		var v struct {
+			R uint8 `json:"r"`
+			G uint8 `json:"g"`
+			B uint8 `json:"b"`
+		}
+		if json.Unmarshal(args, &v) == nil {
+			c := hw.RGB{R: v.R, G: v.G, B: v.B}
+			a.ringStack.Push(name, prio, ttl, func(_ time.Time, below display.RingFrame) (display.RingFrame, bool) {
+				return display.Solid(len(below), c), false
+			})
+		}
+	case "clear":
+		a.ringStack.Remove(name)
+	default:
+		a.log.Warn("ring op unknown", "op", op)
+	}
+}
+
+func clamp(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
+}
+
+// parseRGB accepts [r,g,b] (HA's color_rgb selector) or {"r":..,"g":..,"b":..}.
+func parseRGB(raw json.RawMessage) (hw.RGB, bool) {
+	var arr []int
+	if json.Unmarshal(raw, &arr) == nil && len(arr) == 3 {
+		return hw.RGB{R: uint8(clamp(arr[0], 0, 255)), G: uint8(clamp(arr[1], 0, 255)), B: uint8(clamp(arr[2], 0, 255))}, true
+	}
+	var obj struct{ R, G, B *int }
+	if json.Unmarshal(raw, &obj) == nil && obj.R != nil && obj.G != nil && obj.B != nil {
+		return hw.RGB{R: uint8(clamp(*obj.R, 0, 255)), G: uint8(clamp(*obj.G, 0, 255)), B: uint8(clamp(*obj.B, 0, 255))}, true
+	}
+	return hw.RGB{}, false
+}
+
+// playRingEffect runs a ring effect as the timed overlay (slot "ov_ring"). It lights the ring
+// even when the HA light is off and doesn't touch the light's state: when the TTL ends the ring
+// falls back to whatever the daemon shows underneath. Colour/brightness default to the light's.
+func (a *App) playRingEffect(name string, color *hw.RGB, brightness *int, prio int, ttl time.Duration) bool {
+	s := a.store.get()
+	c, bright := s.RingRGB, s.RingBright
+	if color != nil {
+		c = *color
+	}
+	if brightness != nil {
+		bright = clamp(*brightness, 0, 255)
+	}
+	if bright == 0 {
+		bright = 255
+	}
+	r := baseEffect(name, c.Scale(bright), bright)
+	if name == "solid" {
+		sc := c.Scale(bright)
+		r = func(_ time.Time, below display.RingFrame) (display.RingFrame, bool) {
+			return display.Solid(len(below), sc), false
+		}
+	}
+	if r == nil {
+		a.log.Warn("ring effect unknown", "name", name)
+		return false
+	}
+	if sp, ok := effectPrio[name]; ok && sp > prio {
+		prio = sp
+	}
+	a.ringStack.Push("ov_ring", prio, ttl, r)
+	return true
+}
+
+// show_text (notify): the message on the matrix for TextSecs, scrolling if long.
+func (a *App) cmdShowText(payload []byte) {
+	secs := a.store.get().TextSecs
+	a.matrixStack.Push("ov_matrix", display.PrioScenario, time.Duration(secs)*time.Second,
+		display.Marquee(string(payload), marqueeStep, a.brightness))
+}
+
+// ring_animation (select): play the chosen effect for AnimSecs, then report "off" again.
+func (a *App) cmdRingAnimation(payload []byte) {
+	name := strings.TrimSpace(string(payload))
+	topic := a.topics.State("ring_animation")
+	if name == animOff {
+		a.ringStack.Remove("ov_ring")
+		a.mqtt.Publish(topic, animOff)
+		return
+	}
+	secs := a.store.get().AnimSecs
+	if !a.playRingEffect(name, nil, nil, display.PrioScenario, time.Duration(secs)*time.Second) {
+		return
+	}
+	a.mqtt.Publish(topic, name)
+	a.animGen.Add(1)
+	gen := a.animGen.Load()
+	time.AfterFunc(time.Duration(secs)*time.Second, func() {
+		if a.animGen.Load() == gen { // not superseded by a newer selection
+			a.mqtt.Publish(topic, animOff)
+		}
+	})
+}
+
+// cmdDuration handles a persisted 1..600 s duration number.
+func (a *App) cmdDuration(obj string, field func(*persistState) *int) func([]byte) {
+	return func(payload []byte) {
+		f, err := strconv.ParseFloat(strings.TrimSpace(string(payload)), 64)
+		if err != nil {
+			return
+		}
+		v := clamp(int(f), 1, 600)
+		a.store.update(func(s *persistState) { *field(s) = v })
+		a.mqtt.Publish(a.topics.State(obj), strconv.Itoa(v))
+	}
+}
+
+func (a *App) cmdFollowUp(payload []byte) {
+	mode := strings.TrimSpace(string(payload))
+	for _, m := range followModes {
+		if m == mode {
+			a.store.update(func(s *persistState) { s.FollowUp = mode })
+			a.mqtt.Publish(a.topics.State("follow_up"), mode)
+			return
+		}
+	}
+	a.log.Warn("unknown follow_up mode", "mode", mode)
+}

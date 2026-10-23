@@ -1,0 +1,51 @@
+{
+  "yastation_play_animation": {
+    "alias": "Станция: анимация на кольце",
+    "description": "Проигрывает анимацию на световом кольце колонки Yandex Station Mini 3 заданное число секунд (по умолчанию 10). На это время кольцо загорается, даже если выключено, затем возвращается в прежнее состояние.",
+    "icon": "mdi:led-strip-variant",
+    "mode": "restart",
+    "fields": {
+      "effect": {
+        "name": "Анимация",
+        "description": "pulse — пульсация, comet — бегущая комета, blink — мигание, solid — ровный свет (эти четыре в выбранном цвете); rainbow — радуга; listening, thinking, speaking, error, boot — фирменные голосовые эффекты.",
+        "required": true,
+        "example": "rainbow",
+        "selector": {"select": {"options": ["pulse", "comet", "blink", "solid", "rainbow", "listening", "thinking", "speaking", "error", "boot"]}}
+      },
+      "seconds": {
+        "name": "Длительность, с",
+        "description": "Сколько секунд показывать анимацию. По умолчанию 10.",
+        "default": 10,
+        "selector": {"number": {"min": 1, "max": 600, "unit_of_measurement": "s"}}
+      },
+      "color": {
+        "name": "Цвет",
+        "description": "Цвет [R, G, B] для pulse/comet/blink/solid. По умолчанию — цвет кольца из его настроек.",
+        "selector": {"color_rgb": null}
+      }
+    },
+    "sequence": [
+      {"action": "mqtt.publish", "data": {"topic": "yastation/mini3/display/cmd",
+        "payload": "{% set args = {'name': effect} %}{% if color is defined and color %}{% set args = dict(args, color=color) %}{% endif %}{{ {'surface': 'ring', 'op': 'effect', 'args': args, 'ttl_ms': ((seconds | default(10)) | float * 1000) | int} | to_json }}"}}
+    ]
+  },
+  "yastation_show_text": {
+    "alias": "Станция: текст на дисплее",
+    "description": "Выводит текст на 4-символьный 7-сегментный дисплей колонки Yandex Station Mini 3 на заданное число секунд (по умолчанию 10). Длинный текст прокручивается бегущей строкой. Цифры и большинство латинских и русских букв отображаются; Ж, М, Ф, Ц, Ш, Щ, Ы, Ю — нет.",
+    "icon": "mdi:clock-digital",
+    "mode": "restart",
+    "fields": {
+      "text": {"name": "Текст", "required": true, "example": "привет", "selector": {"text": null}},
+      "seconds": {
+        "name": "Длительность, с",
+        "description": "Сколько секунд показывать текст. По умолчанию 10.",
+        "default": 10,
+        "selector": {"number": {"min": 1, "max": 600, "unit_of_measurement": "s"}}
+      }
+    },
+    "sequence": [
+      {"action": "mqtt.publish", "data": {"topic": "yastation/mini3/display/cmd",
+        "payload": "{{ {'surface': 'matrix', 'op': 'text', 'args': {'text': text}, 'ttl_ms': ((seconds | default(10)) | float * 1000) | int} | to_json }}"}}
+    ]
+  }
+}
