@@ -24,6 +24,7 @@ const (
 
 type musicState struct {
 	host      *sendspin.Host
+	version   atomic.Value // string: sendspin-host's version, from its READY line
 	streaming atomic.Bool
 	duck      atomic.Uint32 // math.Float32bits of the level last sent
 }
@@ -85,7 +86,13 @@ func (a *App) musicVolume() int {
 func (a *App) onMusicEvent(ev sendspin.Event) {
 	switch ev.Kind {
 	case "READY":
-		a.log.Info("music: player ready", "client_id", firstField(ev))
+		v := "unknown" // a host older than the version field
+		if len(ev.Fields) > 1 {
+			v = ev.Fields[1]
+		}
+		a.music.version.Store(v)
+		a.log.Info("music: player ready", "client_id", firstField(ev), "version", v)
+		a.publishVersion()
 	case "CONNECTED":
 		a.log.Info("music: server", "connected", ev.Int(0, 0) == 1)
 	case "STREAM":

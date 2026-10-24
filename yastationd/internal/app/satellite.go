@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
+	"github.com/celebeing/yastationd/yastationd/internal/version"
 	"github.com/celebeing/yastationd/yastationd/internal/wyoming"
 )
 
@@ -98,7 +99,7 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 		c.Send(wyoming.Info(wyoming.SatelliteInfo{
 			Name:        a.cfg.DeviceName,
 			Description: "yastationd on a de-Yandexed Station Mini 3",
-			Version:     version,
+			Version:     version.Version,
 		}))
 	case wyoming.TypePing:
 		pong := wyoming.Event{Type: wyoming.TypePong}

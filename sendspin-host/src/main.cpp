@@ -21,7 +21,7 @@
 //   volume <0..100>  the speaker's volume changed locally: report it to the server (linked mode)
 // EOF on stdin ends the process.
 // stdout, one event per line (to yastationd):
-//   READY <client_id>
+//   READY <client_id> <version>
 //   CONNECTED 0|1          a Sendspin server is connected
 //   STREAM start <rate> <channels> <bits> | STREAM end
 //   VOLUME <0..100> <muted 0|1>   the server's player volume
@@ -220,7 +220,7 @@ int main(int argc, char **argv) {
   sink.set_volume(volume_gain ? player.get_volume() : 100, player.get_muted());
   LOGI("listening on :%u/sendspin as \"%s\", unpaired access %s", unsigned(port), name.c_str(),
        unpaired ? "on" : "off");
-  emit("READY %s", client.client_id().c_str());
+  emit("READY %s %s", client.client_id().c_str(), SENDSPIN_HOST_VERSION);
   // connect_to() is one attempt: the library does not redial. Redial while disconnected (no
   // network yet at boot, the server restarting, a Wi-Fi drop), backing off 5 s -> 60 s.
   constexpr int64_t kRedialMinUs = 5000000, kRedialMaxUs = 60000000;

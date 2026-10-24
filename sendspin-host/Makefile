@@ -65,7 +65,7 @@ SS_LIBS  := $(SS_BUILD)/sendspin/libsendspin.a \
             $(SS_BUILD)/_deps/ixwebsocket-build/libixwebsocket.a \
             $(SS_BUILD)/sendspin/libnoise_c.a
 
-VERSION  := $(shell git describe --always --dirty 2>/dev/null || echo unknown)
+VERSION  := $(shell git describe --tags --match 'v*' --dirty --always 2>/dev/null || echo dev)
 CXXFLAGS := -std=c++20 -O2 -Wall -Wextra -Wno-unused-parameter -Isrc -I$(SYSROOT)/include \
             -isystem $(SS_SRC)/sendspin-cpp/include -isystem $(SS_SRC)/sendspin-cpp/examples/common \
             -isystem $(SS_SRC)/ArduinoJson/src $(SS_DEFS) -DSENDSPIN_HOST_VERSION='"$(VERSION)"' -g1

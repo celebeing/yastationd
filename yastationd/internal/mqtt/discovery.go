@@ -134,6 +134,13 @@ func (b *builder) Entities() []Entity {
 			"entity_category":     "config",
 			"icon":                "mdi:timer-outline",
 		}},
+		{"sensor", "version", map[string]any{
+			"name":                  "Version",
+			"state_topic":           t.State("version"),
+			"json_attributes_topic": t.State("version_info"),
+			"entity_category":       "diagnostic",
+			"icon":                  "mdi:tag-outline",
+		}},
 		{"select", "expression", map[string]any{
 			"name":                  "Expression",
 			"state_topic":           t.State("expression"),

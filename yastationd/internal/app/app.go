@@ -19,12 +19,10 @@ import (
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
 	"github.com/celebeing/yastationd/yastationd/internal/mqtt"
 	"github.com/celebeing/yastationd/yastationd/internal/timesync"
+	"github.com/celebeing/yastationd/yastationd/internal/version"
 	"github.com/celebeing/yastationd/yastationd/internal/wake"
 	"github.com/celebeing/yastationd/yastationd/internal/wyoming"
 )
-
-// version is reported to HA (Wyoming info); bump with notable changes.
-const version = "0.2.0"
 
 const (
 	frameInterval   = 66 * time.Millisecond // ~15 Hz render loop
@@ -243,6 +241,7 @@ func (a *App) Run(ctx context.Context) error {
 		Name:         a.cfg.DeviceName,
 		Model:        a.prof.Model + " (" + a.prof.Name + ")",
 		Manufacturer: "Yandex (de-Yandexed)",
+		SWVersion:    version.Version,
 	}
 	b := mqtt.NewBuilder(a.topics, dev)
 	b.RingEffects = ringEffects
@@ -446,6 +445,7 @@ func (a *App) publishAllState() {
 	a.mqtt.Publish(a.topics.State("ring_animation"), animOff)
 	a.mqtt.Publish(a.topics.State("expression"), animOff)
 	a.mqtt.Publish(a.topics.State("display_caps"), a.displayCaps())
+	a.publishVersion()
 	if a.frontClipsPossible() {
 		a.mqtt.Publish(a.topics.State("display_faces"), onOff(s.Faces))
 	}
@@ -528,6 +528,21 @@ func onOff(b bool) string {
 		return "ON"
 	}
 	return "OFF"
+}
+
+// publishVersion: the daemon's version as the Version sensor, the helpers' and the board as its
+// attributes.
+func (a *App) publishVersion() {
+	if a.mqtt == nil {
+		return
+	}
+	info := map[string]string{"yastationd": version.Version, "board": a.prof.Name}
+	if v, ok := a.music.version.Load().(string); ok {
+		info["sendspin_host"] = v
+	}
+	b, _ := json.Marshal(info)
+	a.mqtt.Publish(a.topics.State("version_info"), string(b))
+	a.mqtt.Publish(a.topics.State("version"), version.Version)
 }
 
 func ringStateJSON(s persistState) string {

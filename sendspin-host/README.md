@@ -31,7 +31,7 @@ sendspin-host -n NAME -s STATE_FILE [-p PORT] [-D PCM] [-u URL] [-a] [-V VOL] [-
 ```
 
 Options are documented at the top of `src/main.cpp`. stdin: `duck <0..1>`, `volume <0..100>`;
-EOF ends it. stdout: `READY <client_id>`, `CONNECTED 0|1`, `STREAM start <rate> <ch> <bits>` /
+EOF ends it. stdout: `READY <client_id> <version>`, `CONNECTED 0|1`, `STREAM start <rate> <ch> <bits>` /
 `STREAM end`, `VOLUME <0..100> <muted>`. Logs on stderr.
 
 ## Files

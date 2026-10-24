@@ -1,0 +1,37 @@
+# Changelog
+
+Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
+patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
+
+## v0.3.0 — 2026-10-24
+
+The first tagged release; it covers everything up to now.
+
+**Voice**
+- Wake word «Алиса» on the speaker's own front-end and spotter, a Wyoming satellite in HA's
+  Assist pipeline; push-to-talk, dialog follow-up, announcements and TTS, HA voice timers, local
+  «стоп» / «громче» / «тише».
+- TTS jitter buffer: a slow link or a TTS pausing between sentences gives one pause, not a stutter.
+- Slow replies: our own reply deadline (HA has none), «стоп» cancels a pending reply, a wake word
+  interrupts one without wedging HA's satellite, a wedge watchdog.
+
+**Display and ring**
+- The speaker's own clock animations plus our faces; expressions mapped onto the ring and the front
+  display; timed scenarios; smooth per-segment transitions.
+- Status indication: boot, first connection (and its failure), degraded; no clock digits before
+  the first time sync; a red pulse and a spoken error when the voice finds no HA.
+
+**Music**
+- A Music Assistant (Sendspin) player (`sendspin-host`): music mixed with the assistant on the
+  same speaker, ducking under the assistant, linked volume, the wake word over the music.
+
+**Hardware and HA**
+- Board profiles: bergamot (Station Mini 3), pickle (Station Mini 3 Pro), orion (Station 3:
+  ring, 21×12 screen, rear ambilight, circular controls; contributed).
+- HA MQTT Discovery: ring and ambilight lights, display, volume on the stock curve with a key tick,
+  auto-brightness, power self-check, buttons, health; the build version in the device card and a
+  Version sensor.
+
+**Operations**
+- A crash-loop supervisor with rollback to the previous binary and log rotation; per-platform
+  deployment (`make deploy`, `tools/deploy.sh`).

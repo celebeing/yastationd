@@ -21,7 +21,9 @@ profile_key = $(shell sed -n 's/^[[:space:]]*$(1)[[:space:]]*=[[:space:]]*//p' $
 DESTDIR     ?= $(call profile_key,platform\.cfw_root)
 HELPER_ARCH ?= $(call profile_key,platform\.userland_arch)
 
-GOFLAGS  := -trimpath -ldflags="-s -w"
+# The version comes from the latest v* tag (docs/releasing.md); see internal/version.
+VERSION  := $(shell git describe --tags --match 'v*' --dirty --always 2>/dev/null || echo dev)
+GOFLAGS  := -trimpath -ldflags="-s -w -X github.com/celebeing/yastationd/yastationd/internal/version.Version=$(VERSION)"
 GOENV    := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
 .PHONY: all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds deploy deploy-spotter deploy-sendspin clips
@@ -35,6 +37,7 @@ platform-info:
 build:
 	$(GOENV) go build $(GOFLAGS) -o $(OUT) $(PKG)
 	@file $(OUT)
+	@echo "version $(VERSION)"
 
 test:
 	go test ./...

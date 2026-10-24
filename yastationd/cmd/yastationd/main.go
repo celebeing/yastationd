@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -14,11 +15,17 @@ import (
 
 	"github.com/celebeing/yastationd/yastationd/internal/app"
 	"github.com/celebeing/yastationd/yastationd/internal/config"
+	"github.com/celebeing/yastationd/yastationd/internal/version"
 )
 
 func main() {
 	confPath := flag.String("config", config.CFWRoot()+"/yastationd.conf", "config file path")
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
+	if *showVersion {
+		fmt.Println("yastationd", version.Version)
+		return
+	}
 
 	cfg, err := config.Load(*confPath)
 	if err != nil {
@@ -43,7 +50,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	log.Info("yastationd starting", "device", cfg.DeviceID, "broker", cfg.MQTTHost)
+	log.Info("yastationd starting", "version", version.Version, "device", cfg.DeviceID, "broker", cfg.MQTTHost)
 	if err := a.Run(ctx); err != nil {
 		log.Error("run", "err", err)
 		os.Exit(1)

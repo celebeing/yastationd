@@ -136,6 +136,11 @@ Per-board notes: [docs/boards/](docs/boards/README.md).
 details. They are gitignored and must never be committed or shared. Committed files use placeholders
 (`<speaker-ip>`, `<ha-host>`, …) instead of deployment values.
 
+## Versions
+
+Releases are `vX.Y.Z` tags; see [CHANGELOG.md](CHANGELOG.md). The running version shows in HA
+(device card and the Version sensor). How to cut one: [docs/releasing.md](docs/releasing.md).
+
 ## License
 
 MIT — see [LICENSE](LICENSE). Vendor software, firmware and models are not part of this repository
