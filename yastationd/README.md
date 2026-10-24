@@ -96,7 +96,7 @@ plays, the white "thinking" comet while it waits for audio, and nothing once apl
 (clock/off/message; long messages scroll) · `text` display_message · `number` volume ·
 `notify` show_text + `number` text_duration (s) · `select` ring_animation + `number`
 animation_duration (s) · `binary_sensor` mic_mute · `sensor` lux/health/uptime ·
-`binary_sensor` pipeline_ok · `event` button (volume_up/down, voice_command).
+`binary_sensor` pipeline_ok · `event` button (volume_up/down, voice_command, panel_gesture).
 
 Timed overlays (show_text, ring_animation, display/cmd) light the ring/matrix over whatever is
 underneath — even with the ring light off — and fall back when the time is up, without touching the

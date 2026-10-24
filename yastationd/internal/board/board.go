@@ -89,6 +89,7 @@ type InputSpec struct {
 	Devices  []string       // device names to read, e.g. aw933xx, gpio-keys
 	Keys     map[int]string // EV_KEY code -> action
 	Switches map[int]string // EV_SW code -> action
+	Absolute map[int]string // EV_ABS code -> action
 }
 
 // AudioSpec: playback and mixer controls (ALSA card Card).
@@ -297,6 +298,8 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		err = setCode(&p.Input.Keys, strings.TrimPrefix(k, "key."), v)
 	case strings.HasPrefix(k, "switch."):
 		err = setCode(&p.Input.Switches, strings.TrimPrefix(k, "switch."), v)
+	case strings.HasPrefix(k, "abs."):
+		err = setCode(&p.Input.Absolute, strings.TrimPrefix(k, "abs."), v)
 	case k == "audio.playback":
 		p.Audio.Playback = v
 	case k == "audio.card":

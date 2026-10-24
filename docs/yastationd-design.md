@@ -48,13 +48,13 @@ an independent persisted HA MQTT `light` with brightness and `rgbw` color mode; 
 not participate in ring voice/status overlays.
 
 ### Buttons
-`/dev/input/event0` = `gpio-keys`: `KEY_MUTE`(113) + `EV_SW SW_MUTE_DEVICE`(14) — the mic-mute.
-`/dev/input/event1` = `aw933xx` touch: `KEY_VOLUMEUP`(115), `KEY_VOLUMEDOWN`(114), `KEY_VOICECOMMAND`(582).
-Records were **empirically 24 bytes** (`sec8,usec8,type2,code2,value4`) when read via `od` — but the
-userland is 32-bit, so confirm `sizeof(input_event)` at runtime (may be 16 with a 32-bit `timeval`);
-simplest robust reader: detect record size by locating known `type/code` patterns, or just `read()`
-and parse both layouts. `hardvold` already applies mute to the ALSA mixer — do NOT fight it; just
-reflect state.
+Profiles map stable kernel input-device names and event codes rather than probe-order `eventN`
+paths. Bergamot's `gpio-keys`/`aw933xx` expose ordinary mute, volume and voice keys. Orion's
+`aw933xx` is a circular capacitive panel: the center emits `KEY_VOICECOMMAND`, motion inside it
+emits a user-assignable `panel_gesture`, and the outer groove emits a wrapped `ABS_X` angle that
+the daemon converts to stock 5% volume levels. The physical mic-mute switch remains authoritative.
+`input_event` records may have 16- or 24-byte timeval layouts; the reader detects either.
+
 ### Audio
 Playback: `aplay -D default` — the stock `/etc/asound.conf` chain plug→dmix→`hw:0,0` (48 kHz stereo).
 **Not `plughw:0,0`**: on-device it played a mono 48 kHz WAV at ~2x speed. Mixer `amixer -c0`:

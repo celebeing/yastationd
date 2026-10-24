@@ -45,6 +45,10 @@ func TestOrionBuiltin(t *testing.T) {
 		t.Errorf("matrix %q / ring %d / ambilight %+v / platform %+v",
 			p.Matrix.Kind, p.Ring.Pixels, p.Ambilight, p.Platform)
 	}
+	if p.Input.Keys[581] != "panel_gesture" || p.Input.Keys[582] != "voice" ||
+		p.Input.Absolute[0] != "volume_ring" {
+		t.Errorf("input = %+v", p.Input)
+	}
 	if p.Wake.VQEPreset != "orion" || len(p.Wake.Mics) != 6 {
 		t.Errorf("wake mics/preset = %+v", p.Wake)
 	}

@@ -7,15 +7,16 @@ import (
 	"os"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
 // Linux input constants used by the Station.
 const (
-	EvSyn = 0x00
-	EvKey = 0x01
-	EvSw  = 0x05
-
+	EvSyn           = 0x00
+	EvKey           = 0x01
+	EvAbs           = 0x03
+	EvSw            = 0x05
 	KeyMute         = 113
 	KeyVolumeDown   = 114
 	KeyVolumeUp     = 115
@@ -125,4 +126,78 @@ func SwitchState(f *os.File, code int) (bool, error) {
 		return false, errno
 	}
 	return bits[code/8]&(1<<(code%8)) != 0, nil
+}
+
+// AbsInfo is the kernel's input_absinfo for one EV_ABS axis.
+type AbsInfo struct {
+	Value      int32
+	Minimum    int32
+	Maximum    int32
+	Fuzz       int32
+	Flat       int32
+	Resolution int32
+}
+
+// AbsoluteInfo returns EVIOCGABS(code). Querying the axis at runtime avoids baking a controller's
+// coordinate range into the board profile.
+func AbsoluteInfo(f *os.File, code uint16) (AbsInfo, error) {
+	var info AbsInfo
+	const (
+		iocRead      uint32 = 2
+		absInfoBytes        = uint32(unsafe.Sizeof(info))
+	)
+	req := uintptr(iocRead<<30 | absInfoBytes<<16 | 'E'<<8 | uint32(0x40+code))
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, f.Fd(), req, uintptr(unsafe.Pointer(&info)))
+	if errno != 0 {
+		return AbsInfo{}, errno
+	}
+	if info.Maximum <= info.Minimum {
+		return AbsInfo{}, fmt.Errorf("ABS %d invalid range %d..%d", code, info.Minimum, info.Maximum)
+	}
+	return info, nil
+}
+
+// CircularAxis converts a wrapped EV_ABS angle into evenly spaced directional steps.
+type CircularAxis struct {
+	min, max     int32
+	last         int32
+	accum        int64
+	stepsPerTurn int64
+	gap          time.Duration
+	lastAt       time.Time
+	haveLast     bool
+}
+
+func NewCircularAxis(info AbsInfo, stepsPerTurn int, gestureGap time.Duration) *CircularAxis {
+	return &CircularAxis{
+		min:          info.Minimum,
+		max:          info.Maximum,
+		stepsPerTurn: int64(stepsPerTurn),
+		gap:          gestureGap,
+	}
+}
+
+// Move returns signed steps since the previous sample. The first sample of a gesture establishes
+// its baseline, and crossing the maximum/minimum boundary preserves direction.
+func (c *CircularAxis) Move(value int32, now time.Time) int {
+	if value < c.min || value > c.max || c.stepsPerTurn <= 0 {
+		return 0
+	}
+	if !c.haveLast || now.Sub(c.lastAt) > c.gap {
+		c.last, c.lastAt, c.haveLast, c.accum = value, now, true, 0
+		return 0
+	}
+	span := int64(c.max) - int64(c.min) + 1
+	delta := int64(value) - int64(c.last)
+	if delta > span/2 {
+		delta -= span
+	} else if delta < -span/2 {
+		delta += span
+	}
+	c.last, c.lastAt = value, now
+	c.accum += delta
+	threshold := max(int64(1), span/c.stepsPerTurn)
+	steps := c.accum / threshold
+	c.accum -= steps * threshold
+	return int(steps)
 }

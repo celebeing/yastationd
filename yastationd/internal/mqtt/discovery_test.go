@@ -28,3 +28,23 @@ func TestAmbilightDiscoveryIsConditionalRGBW(t *testing.T) {
 	}
 	t.Fatal("ambilight entity missing")
 }
+
+func TestButtonDiscoveryIncludesPanelGesture(t *testing.T) {
+	builder := NewBuilder(NewTopics("yastation", "homeassistant", "test"), Device{})
+	for _, entity := range builder.Entities() {
+		if entity.Object != "button" {
+			continue
+		}
+		types, ok := entity.Config["event_types"].([]string)
+		if !ok {
+			t.Fatalf("button event types = %#v", entity.Config["event_types"])
+		}
+		for _, eventType := range types {
+			if eventType == "panel_gesture" {
+				return
+			}
+		}
+		t.Fatalf("panel_gesture missing from %v", types)
+	}
+	t.Fatal("button event entity missing")
+}

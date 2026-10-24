@@ -197,7 +197,7 @@ func (b *builder) Entities() []Entity {
 		{"event", "button", map[string]any{
 			"name":        "Button",
 			"state_topic": t.State("button"),
-			"event_types": []string{"volume_up", "volume_down", "voice_command", "wake_word"},
+			"event_types": []string{"volume_up", "volume_down", "voice_command", "panel_gesture", "wake_word"},
 			"icon":        "mdi:gesture-tap-button",
 		}},
 	}

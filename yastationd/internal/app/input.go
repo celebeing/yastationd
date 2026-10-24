@@ -15,6 +15,24 @@ import (
 // Input: one reader per board input device (found by kernel name); the board profile maps key
 // and switch codes to actions, so the handlers below are model-independent.
 
+const (
+	circularGestureGap   = 750 * time.Millisecond
+	panelGestureDebounce = 2 * time.Second
+)
+
+type inputDeviceState struct {
+	circular         map[uint16]*hw.CircularAxis
+	absFailed        map[uint16]bool
+	lastPanelGesture time.Time
+}
+
+func newInputDeviceState() *inputDeviceState {
+	return &inputDeviceState{
+		circular:  make(map[uint16]*hw.CircularAxis),
+		absFailed: make(map[uint16]bool),
+	}
+}
+
 // inputLoop reads one evdev device, re-resolving and reopening it with backoff if it fails.
 func (a *App) inputLoop(stop <-chan struct{}, name string) {
 	for {
@@ -38,7 +56,8 @@ func (a *App) inputLoop(stop <-chan struct{}, name string) {
 		if hasSwitch {
 			a.readSwitches(f) // publish the initial latch state
 		}
-		err = hw.ReadEvents(f, func(ev hw.InputEvent) { a.onInputEvent(f, hasSwitch, ev) })
+		state := newInputDeviceState()
+		err = hw.ReadEvents(f, func(ev hw.InputEvent) { a.onInputEvent(f, hasSwitch, state, ev) })
 		f.Close()
 		a.log.Warn("input reader ended", "device", name, "err", err)
 		if !sleepOrStop(stop, 1*time.Second) {
@@ -47,12 +66,14 @@ func (a *App) inputLoop(stop <-chan struct{}, name string) {
 	}
 }
 
-func (a *App) onInputEvent(f *os.File, hasSwitch bool, ev hw.InputEvent) {
+func (a *App) onInputEvent(f *os.File, hasSwitch bool, state *inputDeviceState, ev hw.InputEvent) {
 	switch ev.Type {
 	case hw.EvSw:
 		if a.prof.Input.Switches[int(ev.Code)] == "mic_mute" {
 			a.setMute(ev.Value != 0)
 		}
+	case hw.EvAbs:
+		a.onAbsoluteInput(f, state, ev)
 	case hw.EvKey:
 		if ev.Value != 1 { // key down only
 			return
@@ -81,7 +102,43 @@ func (a *App) onInputEvent(f *os.File, hasSwitch bool, ev hw.InputEvent) {
 			if a.cfg.WyomingPort > 0 {
 				a.sat.startListening(srcKey)
 			}
+		case "panel_gesture":
+			now := time.Now()
+			if now.Sub(state.lastPanelGesture) >= panelGestureDebounce {
+				state.lastPanelGesture = now
+				a.publishButton("panel_gesture")
+			}
 		}
+	}
+}
+
+func (a *App) onAbsoluteInput(f *os.File, state *inputDeviceState, ev hw.InputEvent) {
+	if a.prof.Input.Absolute[int(ev.Code)] != "volume_ring" || state.absFailed[ev.Code] {
+		return
+	}
+	axis := state.circular[ev.Code]
+	if axis == nil {
+		info, err := hw.AbsoluteInfo(f, ev.Code)
+		if err != nil {
+			state.absFailed[ev.Code] = true
+			a.log.Warn("read absolute input range", "code", ev.Code, "err", err)
+			return
+		}
+		axis = hw.NewCircularAxis(info, 20, circularGestureGap)
+		a.log.Info("absolute input ready", "code", ev.Code, "min", info.Minimum, "max", info.Maximum)
+		state.circular[ev.Code] = axis
+	}
+	steps := axis.Move(ev.Value, time.Now())
+	a.log.Debug("circular input", "code", ev.Code, "value", ev.Value, "steps", steps)
+	if steps == 0 || a.stopAlarm() {
+		return
+	}
+	a.nudgeVolume(steps * a.cfg.VolumeStep)
+	a.volumeBeep()
+	if steps > 0 {
+		a.publishButton("volume_up")
+	} else {
+		a.publishButton("volume_down")
 	}
 }
 

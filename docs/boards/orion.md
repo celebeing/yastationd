@@ -124,11 +124,19 @@ on-device. Wake is verified offline; on-device spotter remains open.
 
 ## Inputs
 
-- `mute` (gpio-keys, event2): KEY 113 + SW 14 (mic-mute hardware switch — cuts the mics).
-- `aw933xx` touch controller (event3): KEY 582 (Alice) + 581; **no 114/115** — the volume
-  strip is ABS-only, so hardware volume is restricted to the app's MQTT/API … and the
-  Bluetooth remote (`input_btrcu`: KEY 116 + 133).
-- `vad_keypad`: Amlogic VAD engine, vendor-internal; ignore.
+- The top surface has two concentric capacitive areas driven by `aw933xx` (event3); only the
+  separate mic-mute control is a physical switch.
+- Central glyph tap: KEY 582 (`KEY_VOICECOMMAND`) → local voice turn / HA `voice_command`.
+- Circular motion **inside** the panel: KEY 581 (`KEY_SCREENSAVER`), in either direction. It is
+  exposed as the debounced HA `panel_gesture` event; no ambilight or other action is hardcoded.
+- Deeper outer groove: `ABS_X` wrapped angular position. Clockwise values increase and
+  counterclockwise values decrease, crossing the axis maximum at zero. yastationd queries the
+  kernel's actual range with `EVIOCGABS`, accumulates wrapped deltas, and maps each 1/20 turn to
+  one stock 5% volume level. This gives a full rotation the full 0–100% range without assuming
+  where the finger first lands.
+- `mute` (event2): KEY 113 + SW 14; the hardware switch cuts the microphones and remains
+  authoritative.
+- `input_btrcu`: Bluetooth remote KEY 116 + 133. `vad_keypad` is vendor-internal and ignored.
 
 ## Lux / power
 
