@@ -63,6 +63,35 @@ Ideas from pulsar:
 - With several API clients, the voice pipeline goes back to the previous subscriber when the latest
   one leaves, so a test client never strands HA.
 
+### Slow replies (seen 2026-10-23)
+
+**Status:** idea, under consideration.
+
+A request whose tool call took ~46 s in HA («включи Металлику»: MA searched, then started the
+music, then the reply was spoken) exposed two timeouts on our side that are shorter than a real
+wait:
+
+- The "thinking" comet has the 15 s safety TTL of every voice stage, so the ring went dark while
+  HA was still working.
+- `awaitReplyMax` (20 s) expired before the reply came. The reply then looked like an
+  announcement: it got the announce chime. The music, which HA started ~1.5 s before the spoken
+  reply, also came in at full level, because nothing was ducking it any more. The result was music,
+  chime and reply almost at once.
+
+Proposal:
+1. Separate "a reply is expected" from the wake-word guard. Set it at the transcript, and clear it
+   at HA's first audio, a pipeline error or a new session (with a safety expiry of a few minutes).
+   Audio from HA while it is set is the reply: no chime.
+2. Keep the comet on as long as a reply is expected.
+3. Keep the music ducked as long as a reply is expected. Music that HA starts before the reply then
+   starts quietly, lets the reply through, and comes up after it (falls out of 1).
+
+Open question: the wake word during a long wait. Today it is ignored inside the `awaitReplyMax`
+window, because a new run would make HA cancel the one still computing (and wedge the satellite).
+(a) Keep that 20 s window and run 1–3 on the separate flag: the voice stays usable, and a wake
+word after 20 s cancels the slow request. (b) Ignore the wake word for the whole wait and
+interrupt with the key only.
+
 ## Music
 
 **Status:** the Sendspin player is built — see [music-sendspin.md](music-sendspin.md). What
