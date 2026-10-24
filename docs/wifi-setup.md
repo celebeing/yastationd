@@ -7,7 +7,8 @@ Status (2026-10-24): implemented and checked on a bergamot unit:
 - over SSH: the captive DNS/HTTP answered, and after `kill -9` of the daemon in setup mode the
   Wi-Fi client came back.
 
-pickle is not tried yet.
+On pickle, over SSH (no phone): the access point came up, the page's API, DNS and the captive
+redirect answered, and the Wi-Fi client was back 10 s after leaving.
 
 ## Why
 
@@ -136,7 +137,7 @@ Init runs `S40wifi` → `S41dhcpcd` → … → `S52zyastationd` in order:
 ## Boards
 
 - **bergamot:** working (keys `volume_down`, `voice`, `mute_key` in the profile).
-- **pickle:** the same keys and the same driver family; not yet tried on the device.
+- **pickle:** working (same keys, same driver family; kernel 5.4, the 32-bit hostapd runs fine).
 - **orion:** has no volume keys (a volume ring), so the combo can't be pressed there yet.
 
 ## Not done
