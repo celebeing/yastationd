@@ -16,7 +16,7 @@ don't touch Wi-Fi/boot without a fallback, and make sound only on the unit the u
 | `<cfw>/bin/spotter-host` | the voice front-end host, built for the device's userland arch |
 | `<cfw>/bin/sendspin-host` | the Music Assistant player (optional, `sendspin = true`), built for the userland arch |
 | `<cfw>/sendspin/state.json` | its identity (stable client_id) and pairing records, 0600 |
-| `<cfw>/yastationd.conf` | config (from `yastationd/configs/yastationd.conf.example`) |
+| `<cfw>/yastationd.conf` | config (generic `yastationd/configs/yastationd.conf.example`; Orion bring-up `orion.conf.example`) |
 | `<cfw>/board.conf` | optional per-unit overrides of board-profile keys |
 | `<cfw>/yastationd.state` | persisted UI state (ring, display, volume, brightness…), written by the daemon |
 | `<cfw>/sounds/*.wav` | decoded vendor voice lines (`make sounds`) |
@@ -89,10 +89,11 @@ make deploy-sendspin                               # optional; profile selects h
 make sounds                                        # vendor sounds -> <cfw>/sounds/*.wav
 ```
 
-Config: copy `configs/yastationd.conf.example` to `<cfw>/yastationd.conf` and set at least
-`device_id` (unique per speaker: it names the MQTT topics and the HA device), `device_name`,
-`mqtt_host`, the `probe` lines (broker + HA, for the health state), `wake_enabled`. `board` stays
-`auto` (detected from the device tree).
+Config: copy `configs/yastationd.conf.example` to `<cfw>/yastationd.conf`; for Orion, start from
+`configs/orion.conf.example`. Set at least `device_id` (unique per speaker: it names the MQTT
+topics and HA device), `device_name`, `mqtt_host`, the `probe` lines (broker + HA, for the health
+state), and `wake_enabled`. The Orion example pins `board = orion` during bring-up and keeps
+on-device wake disabled until its NPU verifier is physically tested.
 
 Dry run in the foreground before autostart. Ring and clock will light up:
 

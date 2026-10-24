@@ -3,6 +3,7 @@ package board
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -46,7 +47,8 @@ func TestOrionBuiltin(t *testing.T) {
 			p.Matrix.Kind, p.Ring.Pixels, p.Ambilight, p.Platform)
 	}
 	if p.Input.Keys[581] != "panel_gesture" || p.Input.Keys[582] != "voice" ||
-		p.Input.Absolute[0] != "volume_ring" {
+		p.Input.Absolute[0] != "volume_ring" ||
+		p.Input.AbsoluteRange[0] != (AbsoluteRange{Minimum: 0, Maximum: 1000}) {
 		t.Errorf("input = %+v", p.Input)
 	}
 	if p.Wake.VQEPreset != "orion" || len(p.Wake.Mics) != 6 {
@@ -163,5 +165,11 @@ func TestVolumeCurve(t *testing.T) {
 		if got := lin.PercentFromRaw(lin.RawFromPercent(pct)); got != pct {
 			t.Errorf("linear %d%% -> %d%%", pct, got)
 		}
+	}
+}
+
+func TestAbsoluteRangeValidation(t *testing.T) {
+	if _, err := Parse(strings.NewReader("abs_range.0 = 3,0\n")); err == nil {
+		t.Fatal("reversed abs_range accepted")
 	}
 }

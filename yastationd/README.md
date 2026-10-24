@@ -21,7 +21,7 @@ internal/mqtt         paho client (LWT, backoff), topics, HA MQTT-Discovery
 internal/health       liveness state machine (TCP probes + heartbeat)
 internal/sendspin     supervises sendspin-host (Music Assistant player) and relays its events
 internal/app          wiring: render loop, command handlers, evdev reflexes
-configs/              yastationd.conf.example
+configs/              generic and Orion-specific yastationd.conf examples
 init.d/               S52zyastationd boot hook + supervise.sh (backoff, .prev rollback, log rotation)
 ```
 
@@ -58,6 +58,8 @@ Full guide (first install, HA side, updates, removal, checks):
 [`../docs/deploying.md`](../docs/deploying.md). Device address, SSH key and `PLATFORM` come from
 `local.mk` (gitignored; see `local.mk.example`) or the command line. The platform profile supplies
 `DESTDIR` and `HELPER_ARCH`; either can still be overridden explicitly.
+For Orion bring-up, copy `configs/orion.conf.example` to a gitignored local file, replace its
+placeholders, and install it as `/data/cfw/yastationd.conf`.
 
 ```
 make platform-info   # show selected platform, CFW root and native helper architecture

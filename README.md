@@ -94,7 +94,7 @@ wake word engines don't come close.
 | `bergamot` | Station Mini 3 | full support, two units in daily use |
 | `pickle` | Station Mini 3 Pro | full support (16-pixel ring, aarch64 userland) |
 | `yandexmidi` | Station Midi | profiled from firmware only, no unit yet |
-| `orion` | Station 3 | playback, volume, mic capture, ring and 21×12 front display verified; ambilight daemon smoke + on-device wake pending |
+| `orion` | Station 3 | playback, volume, mic capture, circular controls, ring and 21×12 front display verified; ambilight daemon smoke + on-device wake pending |
 
 Per-board notes: [docs/boards/](docs/boards/README.md).
 

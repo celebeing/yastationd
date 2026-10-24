@@ -81,3 +81,14 @@ func TestBrightnessCurve(t *testing.T) {
 		}
 	}
 }
+
+func TestOrionExample(t *testing.T) {
+	c, err := Load("../../configs/orion.conf.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Board != "orion" || c.DeviceName != "Yandex Station 3" || c.WakeEnabled ||
+		c.WyomingPort != 10700 || c.VolumeBeep {
+		t.Fatalf("unexpected Orion example: %+v", c)
+	}
+}

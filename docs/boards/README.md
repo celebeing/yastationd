@@ -13,7 +13,7 @@ without a rebuild. Host-side per-unit deployment overrides stay in `local.mk` or
 |---|---|---|
 | [bergamot](bergamot.md) | Station Mini 3 | supported, verified on-device |
 | [midi (`yandexmidi`)](midi.md) | Station Midi | profiled from firmware `0.369.1.50` (no device yet) |
-| [orion](orion.md) | Station 3 | sound + ring + 21×12 front-screen verified on-device; rear RGBW ambilight entity implemented, daemon smoke pending; wake pending |
+| [orion](orion.md) | Station 3 | sound + circular controls + ring + 21×12 front-screen verified on-device; rear RGBW ambilight entity implemented, daemon smoke pending; wake pending |
 
 Known vendor codenames (the VQE presets compiled into `libyandex_evil.so`) — from the
 0.369 armhf lib via `strings`, **plus** the 3.21 aarch64 lib where the names are built from

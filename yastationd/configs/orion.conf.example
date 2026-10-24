@@ -1,0 +1,49 @@
+# Orion (Yandex Station 3) example configuration.
+# Copy to /data/cfw/yastationd.conf and replace the placeholder values before starting yastationd.
+
+# Unique MQTT/HA identity for this speaker. Use lowercase letters, digits, '_' or '-'.
+device_id   = orion
+device_name = Yandex Station 3
+
+# --- MQTT broker / Home Assistant ---
+# Leave mqtt_host empty for local-only operation.
+mqtt_host = <mqtt-host>
+mqtt_port = 1883
+# mqtt_user = <mqtt-user>
+# mqtt_pass = <mqtt-password>
+topic_prefix     = yastation
+discovery_prefix = homeassistant
+
+# Pin the hardware profile during bring-up. "auto" is also supported after verification.
+board = orion
+
+# --- lights / 21x12 front display ---
+tz                   = Europe/Moscow
+ring_brightness      = 128
+ambilight_brightness = 64
+clock_brightness     = 128
+auto_brightness      = true
+# Sensor reading -> front-display brightness. Calibrate from HA Illuminance history per unit.
+auto_brightness_curve = 0.04:4, 0.55:128, 10:255
+
+# --- physical controls / audio ---
+# One step is one stock 5% level. The outer circular groove accumulates 20 steps per revolution.
+volume_step = 1
+# Orion has no verified volume-tick asset yet.
+volume_beep = false
+
+# --- Wyoming satellite ---
+# Push-to-talk from the center glyph remains available. Keep on-device wake disabled until the
+# Orion NPU-backed activation verifier has passed its on-device test.
+wyoming_port = 10700
+wake_enabled = false
+preroll_ms   = 300
+
+# --- clock / health ---
+time_sync   = true
+chrony_conf = /etc/chrony.conf
+probe = broker=<mqtt-host>:1883@broker
+probe = hass=<ha-host>:8123@lan
+
+# Use debug while validating the circular panel; change to info afterwards.
+log_level = debug

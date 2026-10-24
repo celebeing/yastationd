@@ -86,10 +86,16 @@ type MatrixSpec struct {
 // key/switch codes mean. Actions: volume_up, volume_down, voice, mute_key (re-read the mute
 // switch); switch actions: mic_mute.
 type InputSpec struct {
-	Devices  []string       // device names to read, e.g. aw933xx, gpio-keys
-	Keys     map[int]string // EV_KEY code -> action
-	Switches map[int]string // EV_SW code -> action
-	Absolute map[int]string // EV_ABS code -> action
+	Devices       []string              // device names to read, e.g. aw933xx, gpio-keys
+	Keys          map[int]string        // EV_KEY code -> action
+	Switches      map[int]string        // EV_SW code -> action
+	Absolute      map[int]string        // EV_ABS code -> action
+	AbsoluteRange map[int]AbsoluteRange // EV_ABS code -> trusted min/max when EVIOCGABS lies
+}
+
+type AbsoluteRange struct {
+	Minimum int32
+	Maximum int32
 }
 
 // AudioSpec: playback and mixer controls (ALSA card Card).
@@ -300,6 +306,8 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		err = setCode(&p.Input.Switches, strings.TrimPrefix(k, "switch."), v)
 	case strings.HasPrefix(k, "abs."):
 		err = setCode(&p.Input.Absolute, strings.TrimPrefix(k, "abs."), v)
+	case strings.HasPrefix(k, "abs_range."):
+		err = setAbsoluteRange(&p.Input.AbsoluteRange, strings.TrimPrefix(k, "abs_range."), v)
 	case k == "audio.playback":
 		p.Audio.Playback = v
 	case k == "audio.card":
@@ -378,6 +386,33 @@ func setCode(m *map[int]string, code, action string) error {
 	return nil
 }
 
+func setAbsoluteRange(m *map[int]AbsoluteRange, code, value string) error {
+	n, err := strconv.Atoi(code)
+	if err != nil {
+		return err
+	}
+	parts := splitList(value)
+	if len(parts) != 2 {
+		return fmt.Errorf("%q: want min,max", value)
+	}
+	minimum, err := strconv.ParseInt(parts[0], 10, 32)
+	if err != nil {
+		return err
+	}
+	maximum, err := strconv.ParseInt(parts[1], 10, 32)
+	if err != nil {
+		return err
+	}
+	if maximum <= minimum {
+		return fmt.Errorf("%q: max must exceed min", value)
+	}
+	if *m == nil {
+		*m = map[int]AbsoluteRange{}
+	}
+	(*m)[n] = AbsoluteRange{Minimum: int32(minimum), Maximum: int32(maximum)}
+	return nil
+}
+
 func splitList(v string) []string {
 	var out []string
 	for _, s := range strings.Split(v, ",") {
@@ -424,6 +459,11 @@ func (p Profile) Validate() error {
 	case "armhf", "aarch64":
 	default:
 		return fmt.Errorf("platform.userland_arch %q unknown", p.Platform.UserlandArch)
+	}
+	for code, axis := range p.Input.AbsoluteRange {
+		if axis.Maximum <= axis.Minimum {
+			return fmt.Errorf("abs_range.%d: max must exceed min", code)
+		}
 	}
 	switch p.Ring.Kind {
 	case "none":

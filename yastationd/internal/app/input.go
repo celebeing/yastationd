@@ -118,14 +118,23 @@ func (a *App) onAbsoluteInput(f *os.File, state *inputDeviceState, ev hw.InputEv
 	}
 	axis := state.circular[ev.Code]
 	if axis == nil {
-		info, err := hw.AbsoluteInfo(f, ev.Code)
-		if err != nil {
-			state.absFailed[ev.Code] = true
-			a.log.Warn("read absolute input range", "code", ev.Code, "err", err)
-			return
+		info := hw.AbsInfo{}
+		source := "kernel"
+		if configured, ok := a.prof.Input.AbsoluteRange[int(ev.Code)]; ok {
+			info.Minimum, info.Maximum = configured.Minimum, configured.Maximum
+			source = "profile"
+		} else {
+			var err error
+			info, err = hw.AbsoluteInfo(f, ev.Code)
+			if err != nil {
+				state.absFailed[ev.Code] = true
+				a.log.Warn("read absolute input range", "code", ev.Code, "err", err)
+				return
+			}
 		}
 		axis = hw.NewCircularAxis(info, 20, circularGestureGap)
-		a.log.Info("absolute input ready", "code", ev.Code, "min", info.Minimum, "max", info.Maximum)
+		a.log.Info("absolute input ready", "code", ev.Code, "min", info.Minimum,
+			"max", info.Maximum, "source", source)
 		state.circular[ev.Code] = axis
 	}
 	steps := axis.Move(ev.Value, time.Now())
