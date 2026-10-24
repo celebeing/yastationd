@@ -139,6 +139,57 @@ truncated, and it would not fit next to the other package items.
   lands in the golden CFW. On bergamot the reset lands in stock, and on the 0.6.x-layout unit what it
   lands in is unknown.
 
+## Hardening rootfs work: layers, snapshots, boot counting
+
+Kernel facts (read on the units 2026-10-24):
+
+| | pickle | bergamot |
+|---|---|---|
+| overlayfs | **yes** | **no** |
+| squashfs, loop | yes | yes |
+| fuse | no | yes |
+| `kernel.panic` | 5 (reboot 5 s after a panic) | 5 |
+| free on the rw partition | `/data` ~139 MB | `/bkupgrade` ~169 MB |
+
+UBIFS has no snapshots, and both UBI devices have no free LEBs for a second volume, so all of the
+below works at the file level.
+
+1. **Overlay root (pickle).** Change one rootfs file, once: `/sbin/init` becomes a tiny busybox-only
+   wrapper (the original is kept as `init.orig`). The wrapper mounts `ubi1:data`, mounts overlayfs
+   with lower = the read-only stock rootfs and upper = `/data/overlay/upper`, runs `pivot_root`, and
+   then `exec`s the real init. From then on every change, including deleting `maind` or assets, is
+   a write or a whiteout in the upper layer, and **the stock rootfs is never modified again**. On any
+   error the wrapper `exec`s `init.orig` without the overlay. Rollback = drop the upper dir. This does
+   not free space in the lower layer, and it does not need to: our files live in `/data`.
+   `S00rw-partitions` skips `/data` when it is already mounted.
+2. **Snapshots = copies of the upper layer.** It is small: `/data/overlay/snap-<date>` plus a copy on
+   the host. Rolling back to one means telling the wrapper "use snap-X as upper on the next boot".
+3. **Boot counter with automatic rollback.** The wrapper increments a counter in `/data` on every
+   boot. The CFW clears it once the system is healthy (yastationd up, network up, N minutes
+   uptime). After 3 failed boots in a row the wrapper boots **without** the overlay (stock plus the
+   SSH hook) or with the last good snapshot. Kernel panics reboot by themselves (`panic=5`), so boot
+   loops count too. Side effect: "pull the power 3 times in a row" becomes a manual rollback
+   gesture that works with any broken userland, as long as the wrapper itself is intact.
+4. **bergamot: hide, don't delete.** No overlayfs, so vendor files are hidden by a hook on every boot
+   (`mount --bind <empty-dir> <dir>`), which lasts only until the next reboot. The same init wrapper
+   and boot counter decide whether our hooks apply. Space is not an issue (88 MB free in the
+   rootfs).
+5. **Smaller aids.** Remote syslog (busybox `syslogd -R <log-host>`) or netconsole shows where a boot
+   died without SSH. Test a new tree in a `chroot` on `/data` before booting it. UART is the last
+   resort for debugging (needs opening the case).
+
+**What stays vulnerable.** The init wrapper is the single rootfs edit. Break it and the kernel finds
+no init and boot-loops, which only the hard reset cures (stock on pickle unless the takeover is
+done). Keep it tiny, busybox-only, with the `init.orig` fallback, and install it once. The reset
+wipes `/data`, snapshots included, so keep copies on the host.
+
+**Recommendation.** pickle: init wrapper + overlay + boot counter + host-side snapshots. That covers
+"we deleted maind and bricked it" without touching `aml_sysrecovery`. The `aml_sysrecovery` takeover
+becomes an optional later stage whose only gain is that a hard reset lands in the CFW instead of
+stock. bergamot: bind-mount hiding + the same wrapper with the boot counter.
+
+None of this is implemented or tried on a device yet.
+
 ## Design: three layers
 
 | Layer | Where | What gets you there |
