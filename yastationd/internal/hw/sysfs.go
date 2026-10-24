@@ -204,12 +204,23 @@ const (
 const Digits = 4
 
 // MatrixFrame is one picture of the front clock: 4 seven-segment digits (0 = leftmost) plus the
-// colon (DH+DL), the DM dot and the degree mark.
+// colon (DH+DL), the DM dot and the degree mark. Plain frames are on/off masks at one
+// Brightness. A Graded frame (animation clips) carries a level 0..255 per element instead, scaled
+// by Brightness, and the masks are ignored.
 type MatrixFrame struct {
 	Seg        [Digits]uint8
 	Colon      bool
 	DM, Degree bool
 	Brightness int
+
+	Graded bool
+	Level  SegLevels
+}
+
+// SegLevels is a level 0..255 per segment (A..G of digits 0..3) and per extra LED.
+type SegLevels struct {
+	Seg               [Digits][7]uint8
+	Colon, DM, Degree uint8
 }
 
 // Matrix is a 4-digit 7-segment front display, one sysfs LED per segment. Segment LED names
@@ -259,6 +270,24 @@ func (m *Matrix) Show(f MatrixFrame) error {
 			return f.Brightness
 		}
 		return 0
+	}
+	if f.Graded {
+		lv := func(l uint8) int { return int(l) * f.Brightness / 255 }
+		for p := 0; p < Digits; p++ {
+			for s := 0; s < 7; s++ {
+				keep(m.seg[p][s].set(lv(f.Level.Seg[p][s])))
+			}
+		}
+		for i := range m.colon {
+			keep(m.colon[i].set(lv(f.Level.Colon)))
+		}
+		if m.hasDot {
+			keep(m.dot.set(lv(f.Level.DM)))
+		}
+		if m.hasDegree {
+			keep(m.degr.set(lv(f.Level.Degree)))
+		}
+		return first
 	}
 	for p := 0; p < Digits; p++ {
 		for s := 0; s < 7; s++ {

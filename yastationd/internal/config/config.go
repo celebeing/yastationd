@@ -45,9 +45,12 @@ type Config struct {
 	BrightnessCurve []CurvePoint
 	TZ              string
 
-	VolumeBeep    bool // tick the board's volume sound on a volume key press
-	AnnounceChime bool // chime before an announcement (audio from HA with no dialog going on)
-	VolumeStep    int  // volume curve steps (5 % each) per key press; a voice «громче»/«тише» is 2 presses
+	VolumeBeep    bool   // tick the board's volume sound on a volume key press
+	AnnounceChime bool   // chime before an announcement (audio from HA with no dialog going on)
+	DisplayFaces  bool   // voice expressions (faces, clips) on the front display at first start (later: HA switch)
+	ClipsDir      string // our converted stock clips (`make clips`), searched before the firmware's
+	ScenariosDir  string // the user's scenarios (*.json), next to the built-in ones
+	VolumeStep    int    // volume curve steps (5 % each) per key press; a voice «громче»/«тише» is 2 presses
 
 	// Hardware overrides of the board profile (effective only if set in the file).
 	AmixerCard   string
@@ -166,6 +169,9 @@ func Default() Config {
 		VolumeStep:          1,
 		VolumeBeep:          true,
 		AnnounceChime:       true,
+		DisplayFaces:        true,
+		ClipsDir:            cfw + "/clips",
+		ScenariosDir:        cfw + "/scenarios",
 		WyomingPort:         10700,
 		SendspinBin:         cfw + "/bin/sendspin-host",
 		SendspinPort:        8928,
@@ -307,6 +313,12 @@ func (c *Config) set(k, v string) error {
 		c.MusicDuckDB, err = atoiRange(v, -60, 0)
 	case "aplay_device":
 		c.AplayDevice = v
+	case "display_faces":
+		c.DisplayFaces, err = strconv.ParseBool(v)
+	case "clips_dir":
+		c.ClipsDir = v
+	case "scenarios_dir":
+		c.ScenariosDir = v
 	case "announce_chime":
 		c.AnnounceChime, err = strconv.ParseBool(v)
 	case "volume_beep":

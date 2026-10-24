@@ -1,0 +1,4 @@
+{"steps": [
+  {"matrix": "blink", "ms": 800},
+  {"express": "sleep", "ms": 6000}
+]}

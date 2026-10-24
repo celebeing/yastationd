@@ -28,6 +28,12 @@ func (a *App) subscribe() {
 	a.mqtt.Subscribe(t.Command("auto_brightness"), a.cmdAutoBrightness)
 	a.mqtt.Subscribe(t.Command("clock_brightness"), a.cmdClockBrightness)
 	a.mqtt.Subscribe(t.DisplayCmd(), a.cmdDisplay)
+	a.mqtt.Subscribe(t.Command("expression"), a.cmdExpressionSelect)
+	a.mqtt.Subscribe(t.Command("express"), a.cmdExpress)
+	a.mqtt.Subscribe(t.Command("scenario"), a.cmdScenario)
+	if a.frontClipsPossible() {
+		a.mqtt.Subscribe(t.Command("display_faces"), a.cmdFaces)
+	}
 }
 
 // ring: HA JSON light schema {state, brightness, color:{r,g,b}, effect}.
@@ -208,6 +214,39 @@ func (a *App) matrixOverlay(op string, args json.RawMessage, prio int, ttl time.
 	case "clear":
 		a.matrixStack.Remove(name)
 		a.matrixStack.Remove("countdown")
+	case "clip", "frames":
+		if !a.frontClipsPossible() {
+			a.log.Info("display/cmd: this front display takes no clips", "op", op)
+			return
+		}
+		var v struct {
+			Name   string             `json:"name"`
+			Loop   *bool              `json:"loop"`
+			Frames []display.RawFrame `json:"frames"`
+		}
+		if err := json.Unmarshal(args, &v); err != nil {
+			a.log.Warn("display/cmd: bad clip args", "err", err)
+			return
+		}
+		var c display.Clip
+		if op == "clip" {
+			var ok bool
+			if c, ok = a.clips.Load(v.Name); !ok {
+				a.log.Info("display/cmd: no such clip", "name", v.Name)
+				return
+			}
+		} else {
+			var err error
+			if c, err = display.ClipFromRaw(v.Frames); err != nil {
+				a.log.Warn("display/cmd: bad frames", "err", err)
+				return
+			}
+		}
+		loop := c.Loop
+		if v.Loop != nil {
+			loop = *v.Loop
+		}
+		a.matrixStack.Push(name, prio, ttl, display.PlayClip(c, loop, a.brightness))
 	default:
 		a.log.Warn("matrix op unknown", "op", op)
 	}

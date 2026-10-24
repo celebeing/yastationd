@@ -24,7 +24,7 @@ HELPER_ARCH ?= $(call profile_key,platform\.userland_arch)
 GOFLAGS  := -trimpath -ldflags="-s -w"
 GOENV    := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds deploy deploy-spotter deploy-sendspin
+.PHONY: all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds deploy deploy-spotter deploy-sendspin clips
 
 
 all: test build
@@ -110,6 +110,25 @@ sounds:
 	  $(SSH) "cat > $(DESTDIR)/sounds/$$s.wav.new && mv $(DESTDIR)/sounds/$$s.wav.new $(DESTDIR)/sounds/$$s.wav" < build/$$s.wav; \
 	  rm -f build/$$s.src build/$$s.wav; \
 	done
+
+# Stock clock animation clips (docs/display-expressions.md). Firmware 0.369 ships them as
+# zstd-compressed binary .binscled, and the device has no zstd: pull, decompress and convert to the
+# text .scled on the host (cmd/clipconv), put them under $(DESTDIR)/clips/. Firmware that already
+# ships text .scled needs nothing (the daemon reads the firmware's directory too). Vendor data, so
+# never stored in the repo.
+CLIPS_SRC ?= /system/vendor/quasar/ledpatterns/clock
+clips:
+	go build -o build/clipconv ./cmd/clipconv
+	@mkdir -p build/clips
+	set -e; names=$$($(SSH) 'cd $(CLIPS_SRC) 2>/dev/null && ls *.binscled.zst 2>/dev/null' | sed 's/\.binscled\.zst$$//'); \
+	if [ -z "$$names" ]; then echo "no binary clips on $(DEVICE): nothing to convert"; exit 0; fi; \
+	$(SSH) 'mkdir -p $(DESTDIR)/clips'; \
+	for n in $$names; do \
+	  $(SSH) "cat $(CLIPS_SRC)/$$n.binscled.zst" | zstd -q -d -c > build/clips/$$n.binscled; \
+	  build/clipconv build/clips/$$n.binscled > build/clips/$$n.scled; \
+	  $(SSH) "cat > $(DESTDIR)/clips/$$n.scled.new && mv $(DESTDIR)/clips/$$n.scled.new $(DESTDIR)/clips/$$n.scled" < build/clips/$$n.scled; \
+	  echo "  $$n"; \
+	done; rm -rf build/clips
 
 # Upgrade a running install in place: upload aside, then stop -> swap -> start. The swap runs as a
 # script on stdin (`sh -s`) so no process command line contains the binary's path — the init

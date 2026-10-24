@@ -31,7 +31,8 @@ func (f *fakeAplay) Close() error { close(f.closed); return nil }
 func (f *fakeAplay) bytes() int { f.mu.Lock(); defer f.mu.Unlock(); return f.n }
 
 func TestPumpJitterBuffer(t *testing.T) {
-	a := &App{ringStack: display.NewStack(func(time.Time) display.RingFrame { return nil })}
+	a := &App{ringStack: display.NewStack(func(time.Time) display.RingFrame { return nil }),
+		matrixStack: display.NewStack(func(time.Time) display.MatrixFrame { return display.MatrixFrame{} })}
 	s := &satellite{a: a}
 	// 8 kHz mono: 16000 B/s, so the 0.5 s prebuffer is 8000 B and a 1600 B chunk is 0.1 s.
 	st := &sndStream{rate: 8000, channels: 1, q: make(chan []byte, 64), done: make(chan struct{}), start: time.Now()}
@@ -73,7 +74,8 @@ func TestPumpJitterBuffer(t *testing.T) {
 }
 
 func TestPumpTrickleStillPlays(t *testing.T) {
-	a := &App{ringStack: display.NewStack(func(time.Time) display.RingFrame { return nil })}
+	a := &App{ringStack: display.NewStack(func(time.Time) display.RingFrame { return nil }),
+		matrixStack: display.NewStack(func(time.Time) display.MatrixFrame { return display.MatrixFrame{} })}
 	s := &satellite{a: a}
 	st := &sndStream{rate: 8000, channels: 1, q: make(chan []byte, 64), done: make(chan struct{}), start: time.Now()}
 	s.cur = st

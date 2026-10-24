@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/celebeing/yastationd/yastationd/internal/config"
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
 )
 
@@ -27,6 +28,7 @@ type persistState struct {
 	ClockAuto       bool    `json:"clock_auto"`   // clock brightness follows the light sensor
 	ClockBright     int     `json:"clock_bright"` // manual clock brightness 1..255
 	MusicVolume     int     `json:"music_volume"` // Music Assistant player volume 0..100 (volume "separate")
+	Faces           bool    `json:"faces"`        // voice expressions on the front display
 }
 
 func defaultState(ringBright, ambilightBright, clockBright int, clockAuto bool) persistState {
@@ -46,6 +48,13 @@ func defaultState(ringBright, ambilightBright, clockBright int, clockAuto bool) 
 		ClockAuto:       clockAuto,
 		ClockBright:     max(clockBright, 1),
 	}
+}
+
+// initialState is the first-start state from the config's initial values.
+func initialState(cfg config.Config) persistState {
+	s := defaultState(cfg.RingBrightness, cfg.AmbilightBrightness, cfg.ClockBrightness, cfg.AutoBrightness)
+	s.Faces = cfg.DisplayFaces
+	return s
 }
 
 // stateFlushDelay coalesces bursts (volume key repeats, slider drags) into one flash write.

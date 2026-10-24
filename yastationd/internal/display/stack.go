@@ -13,9 +13,13 @@ const (
 	PrioBase     = 0
 	PrioDegraded = 5 // subtle persistent indicator; sits just above the base
 	PrioScenario = 20
-	PrioLocal    = 30
-	PrioVoice    = 40
-	PrioError    = 50
+	// Expressions on the front display (faces, clips): above HA overlays, below the local
+	// reflexes (volume bubble, timer ring), which must stay readable. The ring's voice stages
+	// keep PrioVoice.
+	PrioExpression = 25
+	PrioLocal      = 30
+	PrioVoice      = 40
+	PrioError      = 50
 )
 
 // RenderFunc draws a frame at time now. `below` is what the layers underneath would show, so

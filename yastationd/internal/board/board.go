@@ -40,6 +40,13 @@ type Profile struct {
 	Wake      WakeSpec
 	Lux       LuxSpec
 	Power     PowerSpec
+	Clips     ClipsSpec
+}
+
+// ClipsSpec: where the firmware keeps its clock animation clips (text .scled; see
+// docs/display-expressions.md). "" = none; the CFW's converted clips and our own still work.
+type ClipsSpec struct {
+	Dir string
 }
 
 // PlatformSpec contains host-side deployment facts shared by every unit of this board.
@@ -284,6 +291,8 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Ambilight.Colors = splitList(v)
 	case k == "ambilight.dies":
 		p.Ambilight.Dies = splitList(v)
+	case k == "clips.dir":
+		p.Clips.Dir = v
 	case k == "matrix.kind":
 		p.Matrix.Kind = v
 	case k == "matrix.dev":

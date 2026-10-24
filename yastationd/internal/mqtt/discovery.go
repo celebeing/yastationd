@@ -28,6 +28,10 @@ type builder struct {
 	Animations   []string
 	FollowModes  []string
 	HasAmbilight bool
+	// Expressions are the Expression select's options; HasFaces adds the Display faces switch
+	// (a front display that takes expression clips).
+	Expressions []string
+	HasFaces    bool
 }
 
 func NewBuilder(t Topics, dev Device) *builder { return &builder{t: t, dev: dev} }
@@ -130,6 +134,14 @@ func (b *builder) Entities() []Entity {
 			"entity_category":     "config",
 			"icon":                "mdi:timer-outline",
 		}},
+		{"select", "expression", map[string]any{
+			"name":                  "Expression",
+			"state_topic":           t.State("expression"),
+			"command_topic":         t.Command("expression"),
+			"options":               b.Expressions,
+			"json_attributes_topic": t.State("display_caps"),
+			"icon":                  "mdi:emoticon-outline",
+		}},
 		{"select", "follow_up", map[string]any{
 			"name":            "Dialog follow-up",
 			"state_topic":     t.State("follow_up"),
@@ -200,6 +212,17 @@ func (b *builder) Entities() []Entity {
 			"event_types": []string{"volume_up", "volume_down", "voice_command", "panel_gesture", "wake_word"},
 			"icon":        "mdi:gesture-tap-button",
 		}},
+	}
+	if b.HasFaces {
+		entities = append(entities, Entity{"switch", "display_faces", map[string]any{
+			"name":            "Display faces",
+			"state_topic":     t.State("display_faces"),
+			"command_topic":   t.Command("display_faces"),
+			"payload_on":      "ON",
+			"payload_off":     "OFF",
+			"entity_category": "config",
+			"icon":            "mdi:emoticon-happy-outline",
+		}})
 	}
 	if b.HasAmbilight {
 		entities = append(entities, Entity{"light", "ambilight", map[string]any{

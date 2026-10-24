@@ -47,8 +47,10 @@ type App struct {
 	player    *hw.Player
 	mic       *hw.Mic
 	spot      *wake.Spotter // nil when the wake word is off
-	music     musicState    // Music Assistant player; music.host nil when off
-	playing   atomic.Bool   // our aplay is running
+	clips     *display.ClipLibrary
+	scen      scenarioRunner
+	music     musicState  // Music Assistant player; music.host nil when off
+	playing   atomic.Bool // our aplay is running
 	sat       *satellite
 	muted     atomic.Bool      // mic-mute switch latch
 	clock     *timesync.Syncer // nil when time_sync is off
@@ -142,7 +144,7 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 		screen:    screen,
 		mixer:     hw.NewMixer(prof.Audio.Card),
 		topics:    mqtt.NewTopics(cfg.TopicPrefix, cfg.DiscoveryPrefix, cfg.DeviceID),
-		store:     newStateStore(cfg.Path(cfg.StateFile), defaultState(cfg.RingBrightness, cfg.AmbilightBrightness, cfg.ClockBrightness, cfg.AutoBrightness)),
+		store:     newStateStore(cfg.Path(cfg.StateFile), initialState(cfg)),
 		luxPath:   cfg.LuxPath,
 	}
 	if a.luxPath == "" {
@@ -158,6 +160,7 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 	a.mic = &hw.Mic{Device: prof.Mic.Device, Channels: prof.Mic.Channels, Rate: prof.Mic.Rate,
 		Channel: prof.Mic.Voice, Log: log}
 	a.sat = &satellite{a: a}
+	a.clips = a.newClipLibrary()
 	a.spot = a.newSpotter()
 	a.music.host = a.newMusic()
 
@@ -245,6 +248,8 @@ func (a *App) Run(ctx context.Context) error {
 	b.Animations = ringAnimations()
 	b.FollowModes = followModes
 	b.HasAmbilight = a.ambilight != nil
+	b.Expressions = a.expressionOptions()
+	b.HasFaces = a.frontClipsPossible()
 	a.builder = b
 
 	a.hmon = health.New(a.cfg.Path(a.cfg.HeartbeatFile), a.onHealthChange)
@@ -284,6 +289,7 @@ func (a *App) Run(ctx context.Context) error {
 	for _, dev := range a.prof.Input.Devices {
 		go a.inputLoop(stop, dev)
 	}
+	a.expressBoot()
 	go a.hmon.Run(stop, 10*time.Second, 2*time.Second)
 	go a.telemetryLoop(stop)
 	go a.powerLoop(stop)
@@ -421,6 +427,11 @@ func (a *App) publishAllState() {
 	a.mqtt.Publish(a.topics.State("display_mode"), s.Mode)
 	a.mqtt.Publish(a.topics.State("display_message"), s.Message)
 	a.mqtt.Publish(a.topics.State("ring_animation"), animOff)
+	a.mqtt.Publish(a.topics.State("expression"), animOff)
+	a.mqtt.Publish(a.topics.State("display_caps"), a.displayCaps())
+	if a.frontClipsPossible() {
+		a.mqtt.Publish(a.topics.State("display_faces"), onOff(s.Faces))
+	}
 	a.mqtt.Publish(a.topics.State("follow_up"), s.FollowUp)
 	a.mqtt.Publish(a.topics.State("text_duration"), strconv.Itoa(s.TextSecs))
 	a.mqtt.Publish(a.topics.State("animation_duration"), strconv.Itoa(s.AnimSecs))

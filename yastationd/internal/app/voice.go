@@ -4,7 +4,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/celebeing/yastationd/yastationd/internal/display"
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
 	"github.com/celebeing/yastationd/yastationd/internal/wyoming"
 )
@@ -58,12 +57,12 @@ func (s *satellite) startListening(src string) {
 	s.mu.Unlock()
 
 	if a.micMuted() {
-		a.ringStack.Push("voice", display.PrioVoice, errorTTL, effect("mute"))
+		a.express("voice", "mute", errorTTL)
 		return
 	}
 	if c == nil {
 		a.log.Warn("voice: no HA satellite connection")
-		a.ringStack.Push("voice", display.PrioVoice, errorTTL, effect("error"))
+		a.express("voice", "error", errorTTL)
 		return
 	}
 	v := &voiceSession{conn: c, done: make(chan struct{}), started: make(chan struct{})}
@@ -72,7 +71,7 @@ func (s *satellite) startListening(src string) {
 	s.mu.Unlock()
 
 	a.log.Info("voice: listening", "src", src)
-	a.ringStack.Push("voice", display.PrioVoice, stageTTL, effect("listening"))
+	a.express("voice", "listening", stageTTL)
 	if src == srcWake { // lets HA show which wake word started the run
 		c.Send(wyoming.Event{Type: wyoming.TypeDetection, Data: map[string]any{"name": "alisa"}})
 	}
@@ -97,7 +96,7 @@ func (s *satellite) startListening(src string) {
 		case <-v.started:
 		case <-time.After(sttStartWait):
 			s.stopListening(v, "HA did not start STT")
-			a.ringStack.Push("voice", display.PrioVoice, errorTTL, effect("error"))
+			a.express("voice", "error", errorTTL)
 			return
 		}
 		select {

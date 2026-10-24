@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/celebeing/yastationd/yastationd/internal/display"
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
 	"github.com/celebeing/yastationd/yastationd/internal/wyoming"
 )
@@ -111,7 +110,7 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 			s.main = nil
 		}
 		s.mu.Unlock()
-		a.ringStack.Remove("voice")
+		a.unexpress("voice")
 	case wyoming.TypeDetection, wyoming.TypeTranscribe, wyoming.TypeVoiceStarted:
 		if ev.Type != wyoming.TypeDetection {
 			s.sttStarted(c)
@@ -137,11 +136,11 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 		s.setAwaiting(false)
 		if ev.String("code") == "stt-no-text-recognized" { // silence (e.g. an unused follow-up): no alarm
 			a.log.Info("wyoming: nothing heard")
-			a.ringStack.Remove("voice")
+			a.unexpress("voice")
 			break
 		}
 		a.log.Warn("wyoming: pipeline error", "code", ev.String("code"), "text", ev.String("text"))
-		a.ringStack.Push("voice", display.PrioVoice, errorTTL, effect("error"))
+		a.express("voice", "error", errorTTL)
 	case wyoming.TypeTimerStarted, wyoming.TypeTimerUpdated, wyoming.TypeTimerCancelled, wyoming.TypeTimerFinished:
 		a.onTimerEvent(ev)
 	case wyoming.TypeAudioStart:
@@ -242,7 +241,7 @@ func (s *satellite) pump(st *sndStream, w io.WriteCloser) {
 		cur := s.cur == st
 		s.mu.Unlock()
 		if cur {
-			s.a.ringStack.Push("voice", display.PrioVoice, 0, effect(name))
+			s.a.express("voice", name, 0)
 		}
 	}
 	gone := func() { // aplay exited under us: drop the rest so the read loop never blocks
@@ -250,7 +249,7 @@ func (s *satellite) pump(st *sndStream, w io.WriteCloser) {
 		cur := s.cur == st
 		s.mu.Unlock()
 		if cur {
-			s.a.ringStack.Remove("voice")
+			s.a.unexpress("voice")
 		}
 		for range st.q {
 		}
@@ -350,7 +349,7 @@ func (s *satellite) endStream(c *wyoming.Conn, played bool) {
 		idle := s.cur == nil
 		s.mu.Unlock()
 		if idle {
-			s.a.ringStack.Remove("voice")
+			s.a.unexpress("voice")
 		}
 		if played {
 			c.Send(wyoming.Event{Type: wyoming.TypePlayed})
@@ -366,13 +365,13 @@ func (s *satellite) endStream(c *wyoming.Conn, played bool) {
 	}()
 }
 
-// voiceStage shows a pipeline stage on the ring unless audio is already playing (speaking wins).
+// voiceStage shows a pipeline stage (ring, front display) unless audio is already playing (speaking wins).
 func (s *satellite) voiceStage(name string) {
 	s.mu.Lock()
 	playing := s.cur != nil
 	s.mu.Unlock()
 	if !playing {
-		s.a.ringStack.Push("voice", display.PrioVoice, stageTTL, effect(name))
+		s.a.express("voice", name, stageTTL)
 	}
 }
 
