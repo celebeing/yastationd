@@ -7,8 +7,8 @@ don't touch Wi-Fi/boot without a fallback, and make sound only on the unit the u
 
 ## What ends up on the device
 
-`<cfw>` = `/bkupgrade/cfw` if `/bkupgrade` exists (bergamot), else `/data/cfw` (pickle). Never
-create `/bkupgrade` on a model that lacks it — stock scripts branch on it.
+`<cfw>` = `/bkupgrade/cfw` on bergamot and `/data/cfw` on pickle/orion. Never create
+`/bkupgrade` on a model that lacks it — stock scripts branch on its existence.
 
 | Path | What |
 |---|---|
@@ -16,7 +16,7 @@ create `/bkupgrade` on a model that lacks it — stock scripts branch on it.
 | `<cfw>/bin/spotter-host` | the voice front-end host, built for the device's userland arch |
 | `<cfw>/bin/sendspin-host` | the Music Assistant player (optional, `sendspin = true`), built for the userland arch |
 | `<cfw>/sendspin/state.json` | its identity (stable client_id) and pairing records, 0600 |
-| `<cfw>/yastationd.conf` | config (from `yastationd/configs/yastationd.conf.example`) |
+| `<cfw>/yastationd.conf` | config (generic `yastationd/configs/yastationd.conf.example`; Orion bring-up `orion.conf.example`) |
 | `<cfw>/board.conf` | optional per-unit overrides of board-profile keys |
 | `<cfw>/yastationd.state` | persisted UI state (ring, display, volume, brightness…), written by the daemon |
 | `<cfw>/sounds/*.wav` | decoded vendor voice lines (`make sounds`) |
@@ -81,17 +81,19 @@ both arches with zig 0.14.1 (see its README).
 
 ```sh
 cd yastationd
-# local.mk (gitignored): DEVICE = root@<speaker>, SSHKEY = <key>, DESTDIR = <cfw>
+# local.mk (gitignored): DEVICE = root@<speaker>, SSHKEY = <key>, PLATFORM = <codename>
+make platform-info                                 # confirms derived <cfw> and helper arch
 make stage                                         # binary + init hook copy into <cfw> (no autostart)
-make deploy-spotter SPOTTER=../spotter-host/build/<arch>/spotter-host
-make deploy-sendspin SENDSPIN=../sendspin-host/build/<arch>/sendspin-host   # optional: music
+make deploy-spotter                                # profile selects build/<helper-arch>/spotter-host
+make deploy-sendspin                               # optional; profile selects helper architecture
 make sounds                                        # vendor sounds -> <cfw>/sounds/*.wav
 ```
 
-Config: copy `configs/yastationd.conf.example` to `<cfw>/yastationd.conf` and set at least
-`device_id` (unique per speaker: it names the MQTT topics and the HA device), `device_name`,
-`mqtt_host`, the `probe` lines (broker + HA, for the health state), `wake_enabled`. `board` stays
-`auto` (detected from the device tree).
+Config: copy `configs/yastationd.conf.example` to `<cfw>/yastationd.conf`; for Orion, start from
+`configs/orion.conf.example`. Set at least `device_id` (unique per speaker: it names the MQTT
+topics and HA device), `device_name`, `mqtt_host`, the `probe` lines (broker + HA, for the health
+state), and `wake_enabled`. The Orion example pins `board = orion` during bring-up and keeps
+on-device wake disabled until its NPU verifier is physically tested.
 
 Dry run in the foreground before autostart. Ring and clock will light up:
 
@@ -130,10 +132,11 @@ First-time voice setup (STT/TTS servers, agent, pipeline): [ha-assistant-setup.m
 ## 4. Updating
 
 One speaker: `make deploy` (build, upload aside along with `supervise.sh`, stop → keep the old
-binary as `.prev` → swap → start, tail the log). Several:
-`tools/deploy.sh` with a `tools/deploy.hosts` list (see `tools/deploy.hosts.example`). It also
-rolls out `spotter-host` (and `sendspin-host`, when built) per arch and stops at the first failing
-speaker.
+binary as `.prev` → swap → start, tail the log). Several: `tools/deploy.sh` with a
+`tools/deploy.hosts` list (see `tools/deploy.hosts.example`). Each line is `<ssh-target>
+<platform> [cfw-root override] [helper-arch override]`; the board profile supplies omitted
+values. The script also rolls out `spotter-host` (and `sendspin-host`, when built) and stops at
+the first failing speaker.
 
 **Don't** improvise the swap as one ssh command line that contains the binary's path. The init
 hook's `stop` kills processes by that path and takes your ssh session down with it, leaving the

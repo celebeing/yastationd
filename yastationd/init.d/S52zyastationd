@@ -4,7 +4,7 @@
 # The supervisor itself is <cfw>/init.d/supervise.sh (backoff, rollback to .prev, log rotation), so
 # changing it needs no rootfs write; without it a plain respawn loop runs instead.
 # Kill switch without touching rootfs: touch <cfw>/yastationd_off (like maind_off).
-# <cfw> = /bkupgrade/cfw if present (bergamot), else /data/cfw (pickle) — same rule as the run.sh gate.
+# <cfw> = /bkupgrade/cfw on bergamot, /data/cfw on pickle/orion — same fallback as the daemon.
 # The device has no pkill/pgrep, so processes are found by their command line via ps.
 
 CFW=/bkupgrade/cfw; [ -d "$CFW" ] || CFW=/data/cfw

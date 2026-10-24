@@ -3,6 +3,7 @@ package board
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -15,14 +16,15 @@ func TestBergamotBuiltin(t *testing.T) {
 		t.Fatal(err)
 	}
 	if p.Ring.Pixels != 6 || p.Input.Keys[582] != "voice" || p.Input.Switches[14] != "mic_mute" ||
-		len(p.Wake.Mics) != 3 || p.Wake.Ref != 6 || len(p.Audio.Unmute) != 1 {
+		len(p.Wake.Mics) != 3 || p.Wake.Ref != 6 || len(p.Audio.Unmute) != 1 ||
+		p.Platform.CFWRoot != "/bkupgrade/cfw" || p.Platform.UserlandArch != "armhf" {
 		t.Fatalf("unexpected profile: %+v", p)
 	}
 }
 
-// Orion's odd bits: 13ch capture at 96 kHz through the stock plug chain, three amp unmutes,
-// display off (its dot-matrix framebuffer is future work) — and the vendor wake: 6 mics +
-// 7 speaker refs (multi-ref, passed to spotter-host as -Q).
+// Orion's odd bits: 13ch capture at 96 kHz through the stock plug chain, dot-matrix fb
+// screen, three amp unmutes — and the vendor wake: 6 mics + 7 speaker refs (multi-ref,
+// passed to spotter-host as -Q).
 func TestOrionBuiltin(t *testing.T) {
 	p, err := Builtin("orion")
 	if err != nil {
@@ -37,8 +39,17 @@ func TestOrionBuiltin(t *testing.T) {
 	if len(p.Audio.Unmute) != 3 {
 		t.Errorf("unmute = %q", p.Audio.Unmute)
 	}
-	if p.Matrix.Kind != "none" || p.Ring.Pixels != 36 {
-		t.Errorf("matrix %q / ring %d", p.Matrix.Kind, p.Ring.Pixels)
+	if p.Matrix.Kind != "dotmatrix-fb" || p.Ring.Pixels != 36 ||
+		p.Ambilight.Kind != "sysfs-rgbw" || p.Ambilight.Pixels != 12 ||
+		len(p.Ambilight.Colors) != 4 || len(p.Ambilight.Dies) != 2 ||
+		p.Platform.CFWRoot != "/data/cfw" || p.Platform.UserlandArch != "aarch64" {
+		t.Errorf("matrix %q / ring %d / ambilight %+v / platform %+v",
+			p.Matrix.Kind, p.Ring.Pixels, p.Ambilight, p.Platform)
+	}
+	if p.Input.Keys[581] != "panel_gesture" || p.Input.Keys[582] != "voice" ||
+		p.Input.Absolute[0] != "volume_ring" ||
+		p.Input.AbsoluteRange[0] != (AbsoluteRange{Minimum: 0, Maximum: 1000}) {
+		t.Errorf("input = %+v", p.Input)
 	}
 	if p.Wake.VQEPreset != "orion" || len(p.Wake.Mics) != 6 {
 		t.Errorf("wake mics/preset = %+v", p.Wake)
@@ -109,6 +120,22 @@ func TestAllBuiltinProfilesValid(t *testing.T) {
 	}
 }
 
+func TestPlatformMetadataValidation(t *testing.T) {
+	p, err := Builtin("bergamot")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Platform.CFWRoot = "relative/cfw"
+	if err := p.Validate(); err == nil {
+		t.Fatal("relative platform.cfw_root accepted")
+	}
+	p.Platform.CFWRoot = "/bkupgrade/cfw"
+	p.Platform.UserlandArch = "arm64"
+	if err := p.Validate(); err == nil {
+		t.Fatal("unknown platform.userland_arch accepted")
+	}
+}
+
 func TestVolumeCurve(t *testing.T) {
 	a := AudioSpec{VolumeMax: 255, VolumeMap: []VolumePoint{{0, 0}, {1, 33}, {20, 255}}}
 	for _, c := range []struct{ pct, raw int }{{0, 0}, {1, 33}, {5, 33}, {10, 45}, {50, 138}, {100, 255}} {
@@ -138,5 +165,11 @@ func TestVolumeCurve(t *testing.T) {
 		if got := lin.PercentFromRaw(lin.RawFromPercent(pct)); got != pct {
 			t.Errorf("linear %d%% -> %d%%", pct, got)
 		}
+	}
+}
+
+func TestAbsoluteRangeValidation(t *testing.T) {
+	if _, err := Parse(strings.NewReader("abs_range.0 = 3,0\n")); err == nil {
+		t.Fatal("reversed abs_range accepted")
 	}
 }

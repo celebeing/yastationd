@@ -1,5 +1,5 @@
-// ringdemo cycles the daemon's ring effects on the real LEDs, showing the effect number on the
-// matrix first. Dev tool: stop yastationd while it runs (both would write the same LEDs).
+// ringdemo cycles the daemon's ring effects on the real LEDs. Dev tool: stop yastationd while
+// it runs, because both processes would write the same LEDs.
 package main
 
 import (

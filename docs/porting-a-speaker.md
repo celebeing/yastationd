@@ -52,9 +52,11 @@ then fold them into the profile.
 | Section / keys | Where the answer comes from | Watch out for |
 |---|---|---|
 | `name`, `model`, `match` | `/proc/device-tree/compatible` | `match` is one compatible string (`yandex,<codename>`), used for auto-detection |
+| `platform.cfw_root`, `platform.userland_arch` | writable persistent mounts; `file` on a vendor executable | CFW root is `/bkupgrade/cfw` or `/data/cfw`; never create a missing `/bkupgrade`. Helper arch is the userland ABI (`armhf` or `aarch64`), not necessarily the kernel architecture |
 | `ring.kind/pixels/led/colors` | `/sys/class/leds` names, DT `led-controller` nodes and their labels | `{color}`/`{i}` pattern. Pixel index = DT label number; physical order around the ring may differ (check visually). A model may have a second small "logo" ring; pick the main one. Only `sysfs-rgb` exists today (see §5 for new kinds) |
-| `matrix.*` | `/sys/class/leds/*clock*` | `seg7` = 4 digits × segments A–G (`{seg}{digit}`), colon LEDs, dot, degree. Extra segments (pickle has an `H`) can stay unused |
-| `input.device`, `key.N`, `switch.N` | `/proc/bus/input/devices` (`N: Name=`, `B: KEY=`/`SW=` bitmaps) | Names are matched **exactly**: the mute device is `gpio-keys` on bergamot but `mute` on pickle. Decode the `KEY=` bitmap (64-bit words, highest first) to get codes without pressing anything. Actions: `volume_up`, `volume_down`, `voice`, `mute_key`; switch: `mic_mute` |
+| `ambilight.kind/pixels/led/colors/dies` | `/sys/class/leds` names and a visual index probe | Optional rear RGBW strip. `sysfs-rgbw` expands `{color}`/`{i}`/`{die}`; all listed dies at one logical position receive the same value. Verify physical index direction and whether dies are co-located |
+| `matrix.*` | `/sys/class/leds/*clock*` or `/sys/class/graphics/fb*/name` | `seg7` = 4 digits × segments A–G (`{seg}{digit}`), colon LEDs, dot, degree. `dotmatrix-fb` = framebuffer whose name contains `LED screen`; geometry/stride/RGB offsets come from fbdev ioctls, and a board-specific renderer maps `MatrixFrame` to pixels. `matrix.dev` optionally pins `/dev/fbN`. Extra seg7 segments (pickle has an `H`) can stay unused |
+| `input.device`, `key.N`, `switch.N`, `abs.N`, `abs_range.N` | `/proc/bus/input/devices` (`N: Name=`, `B: KEY=`/`SW=`/`ABS=` bitmaps), `EVIOCGABS`, and isolated evdev captures | Names are matched **exactly**. Decode bitmaps without pressing anything, then capture each physical control with the vendor stack stopped. Key actions: `volume_up`, `volume_down`, `voice`, `mute_key`, `panel_gesture`; switch: `mic_mute`; absolute action: `volume_ring`. `volume_ring` normally obtains its range with `EVIOCGABS`; if captured values prove that metadata wrong (Orion reports 0..3 but emits 0..1000), pin the verified `min,max` with `abs_range.N` |
 | `audio.playback/card/volume/volume_max` | `asound.conf`, `amixer contents`, `/etc/hardvold.config` | Prefer the stock dmix `default`. The master control is often created by a vendor volume daemon from its own config |
 | `audio.unmute` | codec controls, `dmesg` of the amp driver while playing | **`cget` readback can lie** (it does on the ACM8625: it reads `1` while the driver logs `mute=0`). Verify by ear, with the user's OK |
 | `audio.volume_map` | `quasar.cfg` `volume_capability.volume_manager_settings.platformToAlsaMap` | Stock curve, `level:raw` points, 20 levels = 100 % (`changeStepPercent` 5). HA's percent, the keys (one level each) and the display all follow it. Without it the curve is a straight line over the raw range, which leaves the inaudible bottom as a dead zone. No map in the config: compare `volumeDbLevels` with a model that has one |
@@ -65,9 +67,10 @@ then fold them into the profile.
 | `power.pd/min_mv/alert_sound` | `/sys/class/power_supply/*` | Each PD read makes the driver re-query (and log), so poll rarely. Vendor sounds may be opus even when named `.wav`; `make sounds` decodes them |
 | `lux.iio_prefix/gain/integration_time` | `/sys/bus/iio/devices/*/name`, `*_available` | Behind a grille the stock gain gives a couple of counts; raise gain/integration. Readings are not lux; calibrate per unit (`auto_brightness_curve`) |
 
-Verify in this order (each step depends on the previous one): display & ring
-(`cmd/ringdemo -board <codename>`), keys (the daemon log at `log_level = debug`), audio out, volume
-mapping, mic levels, then the wake word.
+Verify in this order (each step depends on the previous one): display
+(`cmd/fbleddemo -clock` or `-uwu`, when framebuffer-backed), ring
+(`cmd/ringdemo -board <codename>`), keys (the daemon log at `log_level = debug`), audio out,
+volume mapping, mic levels, then the wake word.
 
 Code paths that are profile-agnostic but have bitten new boards:
 - **LEDs appearing late.** pickle's ring bus is handed from a co-processor to Linux by a late init

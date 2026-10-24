@@ -4,6 +4,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"math"
 	"strconv"
@@ -38,17 +39,19 @@ type App struct {
 	loc   *time.Location
 	start time.Time
 
-	ring    *hw.Ring
-	matrix  *hw.Matrix
-	mixer   *hw.Mixer
-	player  *hw.Player
-	mic     *hw.Mic
-	spot    *wake.Spotter // nil when the wake word is off
-	music   musicState    // Music Assistant player; music.host nil when off
-	playing atomic.Bool   // our aplay is running
-	sat     *satellite
-	muted   atomic.Bool      // mic-mute switch latch
-	clock   *timesync.Syncer // nil when time_sync is off
+	ring      *hw.Ring
+	ambilight *hw.Ambilight
+	matrix    *hw.Matrix    // seg7 sysfs display
+	screen    *hw.DotMatrix // fbdev pixel display
+	mixer     *hw.Mixer
+	player    *hw.Player
+	mic       *hw.Mic
+	spot      *wake.Spotter // nil when the wake word is off
+	music     musicState    // Music Assistant player; music.host nil when off
+	playing   atomic.Bool   // our aplay is running
+	sat       *satellite
+	muted     atomic.Bool      // mic-mute switch latch
+	clock     *timesync.Syncer // nil when time_sync is off
 
 	ringStack   *display.Stack[display.RingFrame]
 	matrixStack *display.Stack[display.MatrixFrame]
@@ -69,11 +72,20 @@ type App struct {
 	baseFx    display.RenderFunc[display.RingFrame] // ring effect layer; render goroutine only
 	baseFxKey string
 
-	timers  timers
-	animGen atomic.Int64 // ring_animation selections, to reset the select only for the latest
+	ambilightFrame      []hw.RGBW // cached solid frame; rebuilt only when the HA state changes
+	ambilightFrameKey   ambilightVisual
+	ambilightFrameKnown bool
+	timers              timers
+	animGen             atomic.Int64 // ring_animation selections, to reset the select only for the latest
 
 	marquee     display.RenderFunc[display.MatrixFrame] // message-mode layer; render goroutine only
 	marqueeText string
+}
+
+type ambilightVisual struct {
+	On         bool
+	Color      hw.RGBW
+	Brightness int
 }
 
 func New(cfg config.Config, log *slog.Logger) (*App, error) {
@@ -88,22 +100,49 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 			return nil, err
 		}
 	}
+	var ambilight *hw.Ambilight
+	if p := prof.Ambilight; p.Kind == "sysfs-rgbw" {
+		if ambilight, err = hw.NewAmbilight(cfg.SysRoot, p.Pixels, p.LED, p.Colors, p.Dies); err != nil {
+			return nil, err
+		}
+	}
 	var matrix *hw.Matrix
-	if m := prof.Matrix; m.Kind == "seg7" {
+	var screen *hw.DotMatrix
+	switch m := prof.Matrix; m.Kind {
+	case "seg7":
 		matrix = hw.NewMatrix(cfg.SysRoot, m.Segment, m.Colon, m.Dot, m.Degree)
+	case "dotmatrix-fb":
+		dev := m.Dev
+		if dev == "" {
+			dev = hw.FindDotMatrix(cfg.SysRoot)
+		} else if cfg.SysRoot != "" {
+			dev = cfg.SysRoot + dev
+		}
+		if dev == "" {
+			return nil, fmt.Errorf("board %s: dot-matrix framebuffer not found", prof.Name)
+		}
+		if screen, err = hw.OpenDotMatrix(dev); err != nil {
+			return nil, err
+		}
+		w, h := screen.Size()
+		if display.Seg7ToPixels(hw.MatrixFrame{}, w, h, hw.RGB{}) == nil {
+			screen.Close()
+			return nil, fmt.Errorf("board %s: dot-matrix %dx%d is too small for clock renderer", prof.Name, w, h)
+		}
 	}
 	a := &App{
-		cfg:     cfg,
-		prof:    prof,
-		log:     log,
-		loc:     cfg.Location(),
-		start:   time.Now(),
-		ring:    ring,
-		matrix:  matrix,
-		mixer:   hw.NewMixer(prof.Audio.Card),
-		topics:  mqtt.NewTopics(cfg.TopicPrefix, cfg.DiscoveryPrefix, cfg.DeviceID),
-		store:   newStateStore(cfg.Path(cfg.StateFile), defaultState(cfg.RingBrightness, cfg.ClockBrightness, cfg.AutoBrightness)),
-		luxPath: cfg.LuxPath,
+		cfg:       cfg,
+		prof:      prof,
+		log:       log,
+		loc:       cfg.Location(),
+		ring:      ring,
+		ambilight: ambilight,
+		matrix:    matrix,
+		screen:    screen,
+		mixer:     hw.NewMixer(prof.Audio.Card),
+		topics:    mqtt.NewTopics(cfg.TopicPrefix, cfg.DiscoveryPrefix, cfg.DeviceID),
+		store:     newStateStore(cfg.Path(cfg.StateFile), defaultState(cfg.RingBrightness, cfg.AmbilightBrightness, cfg.ClockBrightness, cfg.AutoBrightness)),
+		luxPath:   cfg.LuxPath,
 	}
 	if a.luxPath == "" {
 		a.luxPath = hw.FindLux(cfg.SysRoot, prof.Lux.IIOPrefix)
@@ -174,6 +213,24 @@ func (a *App) ringBase(now time.Time) display.RingFrame {
 	return display.Solid(n, c)
 }
 
+func (a *App) ambilightBase() []hw.RGBW {
+	s := a.store.get()
+	key := ambilightVisual{On: s.AmbilightOn, Color: s.AmbilightRGBW, Brightness: s.AmbilightBright}
+	if a.ambilightFrameKnown && key == a.ambilightFrameKey {
+		return a.ambilightFrame
+	}
+	a.ambilightFrameKnown = true
+	a.ambilightFrameKey = key
+	a.ambilightFrame = make([]hw.RGBW, a.ambilight.Pixels())
+	if key.On {
+		color := key.Color.Scale(key.Brightness)
+		for i := range a.ambilightFrame {
+			a.ambilightFrame[i] = color
+		}
+	}
+	return a.ambilightFrame
+}
+
 // Run owns the daemon until ctx is cancelled.
 func (a *App) Run(ctx context.Context) error {
 	dev := mqtt.Device{
@@ -186,6 +243,7 @@ func (a *App) Run(ctx context.Context) error {
 	b.RingEffects = ringEffects
 	b.Animations = ringAnimations()
 	b.FollowModes = followModes
+	b.HasAmbilight = a.ambilight != nil
 	a.builder = b
 
 	a.hmon = health.New(a.cfg.Path(a.cfg.HeartbeatFile), a.onHealthChange)
@@ -217,7 +275,11 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	stop := make(chan struct{})
-	go a.renderLoop(stop)
+	renderDone := make(chan struct{})
+	go func() {
+		a.renderLoop(stop)
+		close(renderDone)
+	}()
 	for _, dev := range a.prof.Input.Devices {
 		go a.inputLoop(stop, dev)
 	}
@@ -250,6 +312,19 @@ func (a *App) Run(ctx context.Context) error {
 
 	<-ctx.Done()
 	close(stop)
+	<-renderDone // no final clock frame may race with the screen blank below
+	var screenErr error
+	keepScreenErr := func(op string, err error) {
+		if err != nil && screenErr == nil {
+			screenErr = fmt.Errorf("dot-matrix shutdown %s: %w", op, err)
+		}
+	}
+	if a.screen != nil {
+		w, h := a.screen.Size()
+		keepScreenErr("blank", a.screen.Show(make([]hw.RGB, w*h)))
+		keepScreenErr("flush", a.screen.Flush()) // glass is one write behind
+		keepScreenErr("close", a.screen.Close())
+	}
 	if wy != nil {
 		wy.Close()
 	}
@@ -258,7 +333,7 @@ func (a *App) Run(ctx context.Context) error {
 	}
 	a.player.Stop()
 	a.store.flush()
-	return nil
+	return screenErr
 }
 
 // restoreVolume puts back the last volume after boot. hardvold creates the Master control
@@ -296,11 +371,29 @@ func (a *App) renderLoop(stop <-chan struct{}) {
 			if err := a.ring.Show(a.ringStack.Frame(now)); err != nil {
 				a.log.Debug("ring show", "err", err)
 			}
-			if err := a.matrix.Show(a.matrixStack.Frame(now)); err != nil {
+			if a.ambilight != nil {
+				if err := a.ambilight.Show(a.ambilightBase()); err != nil {
+					a.log.Debug("ambilight show", "err", err)
+				}
+			}
+			frame := a.matrixStack.Frame(now)
+			if err := a.showMatrix(frame); err != nil {
 				a.log.Debug("matrix show", "err", err)
 			}
 		}
 	}
+}
+
+func (a *App) showMatrix(frame hw.MatrixFrame) error {
+	if a.screen == nil {
+		return a.matrix.Show(frame)
+	}
+	w, h := a.screen.Size()
+	px := display.Seg7ToPixels(frame, w, h, hw.RGB{R: 255, G: 255, B: 255})
+	if px == nil {
+		return fmt.Errorf("dot-matrix %dx%d is too small for display font", w, h)
+	}
+	return a.screen.Show(px)
 }
 
 // onMQTTConnect re-publishes discovery and the current state on every (re)connect.
@@ -316,6 +409,9 @@ func (a *App) publishAllState() {
 	}
 	s := a.store.get()
 	a.mqtt.Publish(a.topics.State("ring"), ringStateJSON(s))
+	if a.ambilight != nil {
+		a.mqtt.Publish(a.topics.State("ambilight"), ambilightStateJSON(s))
+	}
 	a.mqtt.Publish(a.topics.State("display_mode"), s.Mode)
 	a.mqtt.Publish(a.topics.State("display_message"), s.Message)
 	a.mqtt.Publish(a.topics.State("ring_animation"), animOff)
@@ -417,6 +513,23 @@ func ringStateJSON(s persistState) string {
 	if s.RingEffect != "" {
 		m["effect"] = s.RingEffect
 	}
+	b, _ := json.Marshal(m)
+	return string(b)
+}
+
+func ambilightStateJSON(s persistState) string {
+	m := map[string]any{"state": "OFF"}
+	if s.AmbilightOn {
+		m["state"] = "ON"
+	}
+	m["brightness"] = s.AmbilightBright
+	m["color"] = map[string]int{
+		"r": int(s.AmbilightRGBW.R),
+		"g": int(s.AmbilightRGBW.G),
+		"b": int(s.AmbilightRGBW.B),
+		"w": int(s.AmbilightRGBW.W),
+	}
+	m["color_mode"] = "rgbw"
 	b, _ := json.Marshal(m)
 	return string(b)
 }

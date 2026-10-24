@@ -17,6 +17,7 @@ unmute = name='AMP mute status' 0
 probe = broker=broker.example:1883@broker
 probe = pipeline=voice-server:24117@pipeline
 auto_brightness = true
+ambilight_brightness = 96
 `
 	c, err := Parse(strings.NewReader(in))
 	if err != nil {
@@ -25,7 +26,7 @@ auto_brightness = true
 	if c.DeviceID != "kitchen" || c.MQTTHost != "broker.example" || c.MQTTPort != 1883 {
 		t.Fatalf("basic fields: %+v", c)
 	}
-	if c.VolumeStep != 2 || !c.AutoBrightness {
+	if c.VolumeStep != 2 || !c.AutoBrightness || c.AmbilightBrightness != 96 {
 		t.Fatalf("typed fields: %+v", c)
 	}
 	if len(c.Unmute) != 2 || len(c.Probes) != 2 {
@@ -78,5 +79,16 @@ func TestBrightnessCurve(t *testing.T) {
 		if _, err := parseCurve(bad); err == nil {
 			t.Errorf("parseCurve(%q) accepted", bad)
 		}
+	}
+}
+
+func TestOrionExample(t *testing.T) {
+	c, err := Load("../../configs/orion.conf.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Board != "orion" || c.DeviceName != "Yandex Station 3" || c.WakeEnabled ||
+		c.WyomingPort != 10700 || c.VolumeBeep {
+		t.Fatalf("unexpected Orion example: %+v", c)
 	}
 }

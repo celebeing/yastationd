@@ -2,16 +2,18 @@
 
 yastationd is model-independent; everything model-specific is a **board profile**
 (`yastationd/internal/board/profiles/<codename>.conf`, embedded in the binary) plus this folder's
-per-board notes (`<codename>.md`, from [`_template.md`](_template.md)). The device picks its profile
-from the device-tree `compatible` list (`yandex,<codename>`); `board = <codename>` in
-`yastationd.conf` forces one, and `<cfw>/board.conf` on the device (`/bkupgrade/cfw` or `/data/cfw`) overrides single keys
-(handy while reversing a new model — no rebuild).
+per-board notes (`<codename>.md`, from [`_template.md`](_template.md)). Profiles also provide the
+host deployment defaults (`platform.cfw_root`, `platform.userland_arch`). The device picks its
+runtime profile from the device-tree `compatible` list (`yandex,<codename>`); `board =
+<codename>` in `yastationd.conf` forces one, and `<cfw>/board.conf` overrides runtime keys
+without a rebuild. Host-side per-unit deployment overrides stay in `local.mk` or
+`tools/deploy.hosts`.
 
 | Board | Model | Status |
 |---|---|---|
 | [bergamot](bergamot.md) | Station Mini 3 | supported, verified on-device |
 | [midi (`yandexmidi`)](midi.md) | Station Midi | profiled from firmware `0.369.1.50` (no device yet) |
-| [orion](orion.md) | Station 3 | sound bring-up 2026-10-23 (playback/mic/volume profile; wake + LEDs pending) |
+| [orion](orion.md) | Station 3 | sound + circular controls + ring + 21×12 front-screen verified on-device; rear RGBW ambilight entity implemented, daemon smoke pending; wake pending |
 
 Known vendor codenames (the VQE presets compiled into `libyandex_evil.so`) — from the
 0.369 armhf lib via `strings`, **plus** the 3.21 aarch64 lib where the names are built from
@@ -34,9 +36,10 @@ The full agent-oriented guide is [`../porting-a-speaker.md`](../porting-a-speake
 2. **Write the profile** from the survey (copy `bergamot.conf`), section by section — see the
    checklist below. Start with `wake_enabled = false` in the config and the ring/matrix/inputs.
 3. **Verify each subsystem on the device** (in this order — each later one depends on the earlier):
-   ring & display (`ringdemo -board <codename>`), inputs (log lines on key press), audio (the
-   unmute recipe — readback can lie, verify by ear), volume mapping, mic levels (PTT session stats),
-   then the wake word.
+   display (`fbleddemo -clock` or `-uwu` for framebuffer screens), ring
+   (`ringdemo -board <codename>`), inputs (log lines on key press), audio (the unmute recipe —
+   readback can lie, verify by ear), volume mapping, mic levels (PTT session stats), then the wake
+   word.
 4. **Record findings** in `docs/boards/<codename>.md` and commit the profile.
 
 ## Reversing checklist (per model)
