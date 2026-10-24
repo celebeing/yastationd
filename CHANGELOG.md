@@ -3,7 +3,7 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.5.0 — 2026-10-24
 
 **Operations**
 - Setup page: "Home settings" for the network-dependent config (broker, health probes, time servers
