@@ -1,7 +1,6 @@
 package app
 
 import (
-	"os"
 	"time"
 
 	"github.com/celebeing/yastationd/yastationd/internal/display"
@@ -115,21 +114,6 @@ func (a *App) express(slot, name string, ttl time.Duration) bool {
 func (a *App) unexpress(slot string) {
 	a.ringStack.Remove(slot)
 	a.matrixStack.Remove(slot)
-}
-
-// bootMarker plays the startup greeting once per device boot, not on every daemon restart. The
-// stock "boot" clip is not used: it is made to go with a boot jingle and runs ~10 s.
-const bootMarker = "/tmp/yastationd.boot-shown"
-
-func (a *App) expressBoot() {
-	marker := a.cfg.Path(bootMarker)
-	if _, err := os.Stat(marker); err == nil {
-		return
-	}
-	os.WriteFile(marker, nil, 0o644)
-	if s, err := a.loadScenario("startup"); err == nil {
-		a.runScenario(s)
-	}
 }
 
 // newClipLibrary searches the CFW's converted clips, then the firmware's own, then ours.

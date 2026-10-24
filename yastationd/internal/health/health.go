@@ -71,11 +71,22 @@ func (m *Monitor) SetBrokerConnected(up bool) {
 	m.mu.Unlock()
 }
 
+// BrokerConnected reports what the MQTT client last said about its connection.
+func (m *Monitor) BrokerConnected() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.brokerConnected
+}
+
 func (m *Monitor) State() State {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.state
 }
+
+// Recheck probes now, off the ticker (a state change elsewhere, e.g. the broker connecting, must
+// not wait up to one interval to show).
+func (m *Monitor) Recheck(dialTimeout time.Duration) { go m.tick(dialTimeout) }
 
 // Run probes on a ticker until ctx is done. dialTimeout bounds each TCP attempt.
 func (m *Monitor) Run(stop <-chan struct{}, interval, dialTimeout time.Duration) {

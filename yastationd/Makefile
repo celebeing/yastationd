@@ -98,14 +98,19 @@ install-initd: stage
 # .wav; the volume tick: common/volume_sound.mp3, or sounds/volume_sound.mp3 on 0.6.x), and
 # there's no decoder on board: pull, decode on the host, put a real wav under $(DESTDIR)/sounds/.
 # Vendor audio, so it's never stored in the repo. A failed decode leaves the old file alone.
-SOUNDS ?= no_power volume_sound notification_sound
-# Per-sound ffmpeg filters: the announce chime is the stock notification sound, made quieter.
+SOUNDS ?= no_power volume_sound notification_sound something_went_wrong backend_unavailable
+# Per-sound ffmpeg filters: the announce chime is the stock notification sound, made quieter; the
+# error phrase is cut after «К сожалению, что-то пошло не так.» (its second sentence asks to redo
+# the setup; the file is the same on every firmware we have, the pause is at 2.41-3.15 s).
 AF_notification_sound := -af volume=-8dB
+AF_something_went_wrong := -af atrim=0:2.6,afade=t=out:st=2.45:d=0.15
 sounds:
 	$(SSH) 'mkdir -p $(DESTDIR)/sounds'
 	set -e; for s in $(SOUNDS); do \
-	  $(SSH) "d=/system/vendor/quasar/sounds; for f in ru-RU/$$s.opus ru-RU/$$s.wav common/$$s.mp3 $$s.mp3; do [ -f \$$d/\$$f ] && exec cat \$$d/\$$f; done; exit 1" > build/$$s.src; \
-	  case $$s in notification_sound) af="$(AF_notification_sound)";; *) af=;; esac; \
+	  if ! $(SSH) "d=/system/vendor/quasar/sounds; for f in ru-RU/$$s.opus ru-RU/$$s.wav ru-RU/$$s.mp3 common/$$s.mp3 $$s.mp3; do [ -f \$$d/\$$f ] && exec cat \$$d/\$$f; done; exit 1" > build/$$s.src; then \
+	    echo "  $$s: not on this firmware, skipped"; rm -f build/$$s.src; continue; \
+	  fi; \
+	  case $$s in notification_sound) af="$(AF_notification_sound)";; something_went_wrong) af="$(AF_something_went_wrong)";; *) af=;; esac; \
 	  ffmpeg -v error -y -i build/$$s.src $$af -ar 48000 -ac 2 build/$$s.wav; \
 	  $(SSH) "cat > $(DESTDIR)/sounds/$$s.wav.new && mv $(DESTDIR)/sounds/$$s.wav.new $(DESTDIR)/sounds/$$s.wav" < build/$$s.wav; \
 	  rm -f build/$$s.src build/$$s.wav; \

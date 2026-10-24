@@ -36,6 +36,7 @@ func Fill(n, k int, c hw.RGB) RingFrame {
 
 var (
 	Cyan  = hw.RGB{R: 0, G: 180, B: 255}
+	Blue  = hw.RGB{R: 0, G: 40, B: 255}
 	Amber = hw.RGB{R: 255, G: 140, B: 0}
 	Red   = hw.RGB{R: 255, G: 0, B: 0}
 	Green = hw.RGB{R: 0, G: 220, B: 0}
@@ -96,18 +97,6 @@ func Flash(c hw.RGB, d time.Duration) RenderFunc[RingFrame] {
 	start := time.Now()
 	return func(now time.Time, below RingFrame) (RingFrame, bool) {
 		return Solid(len(below), c), now.Sub(start) > d
-	}
-}
-
-// DegradedDot draws a single dim-red pixel (the last one) on top of whatever is below: the
-// persistent broker-down indicator.
-func DegradedDot() RenderFunc[RingFrame] {
-	return func(_ time.Time, below RingFrame) (RingFrame, bool) {
-		f := append(RingFrame(nil), below...)
-		if len(f) > 0 {
-			f[len(f)-1] = hw.RGB{R: 40}
-		}
-		return f, false
 	}
 }
 

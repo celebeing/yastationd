@@ -110,7 +110,7 @@ func (s *satellite) startListeningWith(src string, held *heldWake) {
 	}
 	if c == nil {
 		a.log.Warn("voice: no HA satellite connection")
-		a.express("voice", "error", errorTTL)
+		a.voiceUnavailable()
 		return
 	}
 	v := &voiceSession{conn: c, done: make(chan struct{}), started: make(chan struct{}), speech: make(chan struct{})}

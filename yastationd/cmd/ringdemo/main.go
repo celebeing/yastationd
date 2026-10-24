@@ -64,10 +64,10 @@ func main() {
 		}},
 		{"error: blink red 0.3s", func() display.RenderFunc[display.RingFrame] { return display.Blink(display.Red, 300*time.Millisecond) }},
 		{"mute: solid amber", solid(display.Amber)},
-		{"degraded: dim red dot", func() display.RenderFunc[display.RingFrame] {
-			return func(now time.Time, _ display.RingFrame) (display.RingFrame, bool) {
-				return display.DegradedDot()(now, blank)
-			}
+		{"booting: blue pulse 2s", func() display.RenderFunc[display.RingFrame] { return display.Pulse(display.Blue, 2*time.Second) }},
+		{"first connection failed: red pulse 2s", func() display.RenderFunc[display.RingFrame] { return display.Pulse(display.Red, 2*time.Second) }},
+		{"degraded: dim red pulse 3s", func() display.RenderFunc[display.RingFrame] {
+			return display.Pulse(display.Red.Scale(40), 3*time.Second)
 		}},
 		{"rainbow: hue wheel rotating 3s", func() display.RenderFunc[display.RingFrame] { return display.Rainbow(3*time.Second, 255) }},
 	}

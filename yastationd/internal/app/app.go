@@ -47,6 +47,7 @@ type App struct {
 	player    *hw.Player
 	mic       *hw.Mic
 	spot      *wake.Spotter // nil when the wake word is off
+	lifeState atomic.Int32  // lifecycle (lifecycle.go)
 	clips     *display.ClipLibrary
 	scen      scenarioRunner
 	music     musicState  // Music Assistant player; music.host nil when off
@@ -189,12 +190,12 @@ func (a *App) matrixBase(now time.Time) display.MatrixFrame {
 		f, _ := a.marquee(now, display.MatrixFrame{})
 		return f
 	default:
-		f := display.Clock(now, a.loc, a.brightness())
-		// An unsynced clock blinks its colon, so a wrong time is visibly suspect.
-		if a.clock != nil && !a.clock.Synced() && now.Second()%2 == 1 {
-			f.Colon = false
+		// Until the first sync the time is nonsense (a stale or zero clock): no digits, only a
+		// blinking colon. The digits appear once the time is confirmed.
+		if a.clock != nil && !a.clock.Synced() {
+			return display.MatrixFrame{Colon: now.Second()%2 == 0, Brightness: a.brightness()}
 		}
-		return f
+		return display.Clock(now, a.loc, a.brightness())
 	}
 }
 
@@ -289,7 +290,7 @@ func (a *App) Run(ctx context.Context) error {
 	for _, dev := range a.prof.Input.Devices {
 		go a.inputLoop(stop, dev)
 	}
-	a.expressBoot()
+	go a.statusLoop(stop)
 	go a.hmon.Run(stop, 10*time.Second, 2*time.Second)
 	go a.telemetryLoop(stop)
 	go a.powerLoop(stop)
@@ -425,6 +426,7 @@ func (a *App) showMatrix(frame hw.MatrixFrame) error {
 
 // onMQTTConnect re-publishes discovery and the current state on every (re)connect.
 func (a *App) onMQTTConnect() {
+	a.hmon.Recheck(2 * time.Second)
 	a.builder.Publish(a.mqtt)
 	a.subscribe()
 	a.publishAllState()
@@ -481,12 +483,7 @@ func (a *App) telemetryLoop(stop <-chan struct{}) {
 }
 
 func (a *App) onHealthChange(s health.State) {
-	a.log.Info("health", "state", s)
-	if s == health.Online {
-		a.ringStack.Remove("degraded")
-	} else {
-		a.ringStack.Push("degraded", display.PrioDegraded, 0, display.DegradedDot())
-	}
+	a.log.Info("health", "state", s) // the ring indication follows in statusLoop
 	if a.mqtt != nil {
 		a.mqtt.Publish(a.topics.State("health"), s.String())
 		a.mqtt.Publish(a.topics.State("pipeline_ok"), onOff(s == health.Online))

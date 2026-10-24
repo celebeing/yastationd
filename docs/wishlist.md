@@ -93,3 +93,15 @@ pulsar's `AGENTS.md` has hardware notes for the Midi (`cucumber`: aarch64, glibc
 (`plum`) and the Mini 2. Their Midi does not match our firmware-only Midi profile (`yandexmidi`:
 armhf, glibc 2.30), so there may be two Midi revisions. We don't port models without a unit in
 hand: ports are for contributors who have the speaker.
+
+## The supervisor draws a dead daemon
+
+**Status:** idea, to do separately (higher durability bar than the daemon itself).
+
+When the daemon is down for good (the supervisor's crash loop with no other binary to try, or no
+binary at all), nothing on the speaker says so. The supervisor is a busybox shell script and must
+stay one, so it would draw a fixed "x_X" face on the clock and a dim red ring straight through
+sysfs, board-agnostic: trigger `none` and a low brightness on every `/sys/class/leds/*:red:*`,
+the face's segments on `*clock*` (the clip LED order, docs/display-expressions.md). It must never
+fight a running daemon over the LEDs, and must keep working when the daemon binary is broken.
+

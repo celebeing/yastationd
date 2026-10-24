@@ -66,6 +66,9 @@ wyoming_port = 10700
 # Waiting for HA's reply (HA has no timeout): our deadline in s, and what a wake word does meanwhile
 # (interrupt = start the new request once HA is back; ignore = blink "busy"). docs/voice-slow-replies.md
 # reply_timeout      = 90
+# Boot: the first connection (broker + HA's satellite link) may take this long before the speaker
+# shows "first connection failed" (red pulse). docs/status-indication.md
+# boot_connect_timeout = 40
 # wake_while_waiting = interrupt
 # spotter_bin defaults to <cfw>/bin/spotter-host
 # preroll_ms = 300
