@@ -54,6 +54,7 @@ paths. Bergamot's `gpio-keys`/`aw933xx` expose ordinary mute, volume and voice k
 emits a user-assignable `panel_gesture`, and the outer groove emits a wrapped `ABS_X` angle that
 the daemon converts to stock 5% volume levels. The physical mic-mute switch remains authoritative.
 `input_event` records may have 16- or 24-byte timeval layouts; the reader detects either.
+`hardvold` already applies the mute to the ALSA mixer — do NOT fight it; just reflect the state.
 
 ### Audio
 Playback: `aplay -D default` — the stock `/etc/asound.conf` chain plug→dmix→`hw:0,0` (48 kHz stereo).

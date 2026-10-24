@@ -10,15 +10,16 @@ FBLEDDEMOBIN := build/fbleddemo
 DEVICE   ?= root@yastation.local
 PLATFORM ?= bergamot
 
-# Board profiles are deliberately Make-compatible key/value files. Deployment defaults come
-# from the selected platform; command-line/local.mk overrides remain authoritative.
+# Deployment defaults come from the selected board profile; command-line/local.mk overrides
+# remain authoritative. Only the two platform keys are read: a profile is the daemon's config
+# format, not a makefile (a `$`, a leading tab or a Make keyword in it must not break the build).
 PLATFORM_PROFILE := internal/board/profiles/$(PLATFORM).conf
 ifeq ($(wildcard $(PLATFORM_PROFILE)),)
 $(error unknown PLATFORM "$(PLATFORM)" (no $(PLATFORM_PROFILE)))
 endif
-include $(PLATFORM_PROFILE)
-DESTDIR    ?= $(platform.cfw_root)
-HELPER_ARCH ?= $(platform.userland_arch)
+profile_key = $(shell sed -n 's/^[[:space:]]*$(1)[[:space:]]*=[[:space:]]*//p' $(PLATFORM_PROFILE) | sed 's/[[:space:]]*$$//' | head -1)
+DESTDIR     ?= $(call profile_key,platform\.cfw_root)
+HELPER_ARCH ?= $(call profile_key,platform\.userland_arch)
 
 GOFLAGS  := -trimpath -ldflags="-s -w"
 GOENV    := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7

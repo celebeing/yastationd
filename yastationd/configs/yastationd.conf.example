@@ -1,5 +1,6 @@
 # yastationd configuration — copy to <cfw>/yastationd.conf and edit. The board profile supplies
 # <cfw> for deployment (/bkupgrade/cfw on bergamot, /data/cfw on pickle/orion).
+# Format: key = value, one per line, '#' comments. Repeated keys (unmute, probe) accumulate.
 
 device_id   = mini3
 device_name = Yandex Station Mini 3
@@ -27,6 +28,7 @@ clock_brightness      = 128
 # auto = detect from the device tree; or a codename (bergamot, ...). Single runtime profile keys
 # can be overridden in the default <cfw>/board.conf without a rebuild.
 # board = auto
+# board_file defaults to <cfw>/board.conf
 # The keys below marked "override" replace the profile's value only when set here:
 # aplay_device = default                          (override: playback device)
 # amixer_card  = 0                                (override)

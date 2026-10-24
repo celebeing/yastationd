@@ -135,6 +135,7 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 		prof:      prof,
 		log:       log,
 		loc:       cfg.Location(),
+		start:     time.Now(),
 		ring:      ring,
 		ambilight: ambilight,
 		matrix:    matrix,
@@ -313,17 +314,22 @@ func (a *App) Run(ctx context.Context) error {
 	<-ctx.Done()
 	close(stop)
 	<-renderDone // no final clock frame may race with the screen blank below
-	var screenErr error
-	keepScreenErr := func(op string, err error) {
-		if err != nil && screenErr == nil {
-			screenErr = fmt.Errorf("dot-matrix shutdown %s: %w", op, err)
-		}
-	}
+	// A failed blank is only logged: an error from Run means exit 1, which the supervisor
+	// counts as a crash, and this is a deliberate stop.
 	if a.screen != nil {
 		w, h := a.screen.Size()
-		keepScreenErr("blank", a.screen.Show(make([]hw.RGB, w*h)))
-		keepScreenErr("flush", a.screen.Flush()) // glass is one write behind
-		keepScreenErr("close", a.screen.Close())
+		for _, step := range []struct {
+			op  string
+			err error
+		}{
+			{"blank", a.screen.Show(make([]hw.RGB, w*h))},
+			{"flush", a.screen.Flush()}, // glass is one write behind
+			{"close", a.screen.Close()},
+		} {
+			if step.err != nil {
+				a.log.Warn("dot-matrix shutdown", "op", step.op, "err", step.err)
+			}
+		}
 	}
 	if wy != nil {
 		wy.Close()
@@ -333,7 +339,7 @@ func (a *App) Run(ctx context.Context) error {
 	}
 	a.player.Stop()
 	a.store.flush()
-	return screenErr
+	return nil
 }
 
 // restoreVolume puts back the last volume after boot. hardvold creates the Master control

@@ -24,6 +24,10 @@ type inputDeviceState struct {
 	circular         map[uint16]*hw.CircularAxis
 	absFailed        map[uint16]bool
 	lastPanelGesture time.Time
+	// Volume ring: one HA event per gesture (a turn is 20 steps), a new one after a pause or a
+	// change of direction.
+	lastRingStep time.Time
+	lastRingDir  int
 }
 
 func newInputDeviceState() *inputDeviceState {
@@ -144,11 +148,18 @@ func (a *App) onAbsoluteInput(f *os.File, state *inputDeviceState, ev hw.InputEv
 	}
 	a.nudgeVolume(steps * a.cfg.VolumeStep)
 	a.volumeBeep()
-	if steps > 0 {
-		a.publishButton("volume_up")
-	} else {
-		a.publishButton("volume_down")
+	dir, now := 1, time.Now()
+	if steps < 0 {
+		dir = -1
 	}
+	if dir != state.lastRingDir || now.Sub(state.lastRingStep) > circularGestureGap {
+		if dir > 0 {
+			a.publishButton("volume_up")
+		} else {
+			a.publishButton("volume_down")
+		}
+	}
+	state.lastRingStep, state.lastRingDir = now, dir
 }
 
 // readSwitches reads the latched state of the profile's switches (EVIOCGSW) on f.
