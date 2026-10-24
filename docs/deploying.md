@@ -81,10 +81,11 @@ both arches with zig 0.14.1 (see its README).
 
 ```sh
 cd yastationd
-# local.mk (gitignored): DEVICE = root@<speaker>, SSHKEY = <key>, DESTDIR = <cfw>
+# local.mk (gitignored): DEVICE = root@<speaker>, SSHKEY = <key>, PLATFORM = <codename>
+make platform-info                                 # confirms derived <cfw> and helper arch
 make stage                                         # binary + init hook copy into <cfw> (no autostart)
-make deploy-spotter SPOTTER=../spotter-host/build/<arch>/spotter-host
-make deploy-sendspin SENDSPIN=../sendspin-host/build/<arch>/sendspin-host   # optional: music
+make deploy-spotter                                # profile selects build/<helper-arch>/spotter-host
+make deploy-sendspin                               # optional; profile selects helper architecture
 make sounds                                        # vendor sounds -> <cfw>/sounds/*.wav
 ```
 
@@ -130,10 +131,11 @@ First-time voice setup (STT/TTS servers, agent, pipeline): [ha-assistant-setup.m
 ## 4. Updating
 
 One speaker: `make deploy` (build, upload aside along with `supervise.sh`, stop → keep the old
-binary as `.prev` → swap → start, tail the log). Several:
-`tools/deploy.sh` with a `tools/deploy.hosts` list (see `tools/deploy.hosts.example`). It also
-rolls out `spotter-host` (and `sendspin-host`, when built) per arch and stops at the first failing
-speaker.
+binary as `.prev` → swap → start, tail the log). Several: `tools/deploy.sh` with a
+`tools/deploy.hosts` list (see `tools/deploy.hosts.example`). Each line is `<ssh-target>
+<platform> [cfw-root override] [helper-arch override]`; the board profile supplies omitted
+values. The script also rolls out `spotter-host` (and `sendspin-host`, when built) and stops at
+the first failing speaker.
 
 **Don't** improvise the swap as one ssh command line that contains the binary's path. The init
 hook's `stop` kills processes by that path and takes your ssh session down with it, leaving the

@@ -1,5 +1,5 @@
-# yastationd configuration — copy to /bkupgrade/cfw/yastationd.conf and edit.
-# Format: key = value, one per line, '#' comments. Repeated keys (unmute, probe) accumulate.
+# yastationd configuration — copy to <cfw>/yastationd.conf and edit. The board profile supplies
+# <cfw> for deployment (/bkupgrade/cfw on bergamot, /data/cfw on pickle/orion).
 
 device_id   = mini3
 device_name = Yandex Station Mini 3
@@ -24,10 +24,9 @@ clock_brightness      = 128
 # auto_brightness_curve = 0.04:4, 0.55:128, 10:255
 
 # --- board (hardware profile, see docs/boards/) ---
-# auto = detect from the device tree; or a codename (bergamot, ...). Single profile keys can be
-# overridden in board_file without a rebuild.
-# board      = auto
-# board_file = /bkupgrade/cfw/board.conf
+# auto = detect from the device tree; or a codename (bergamot, ...). Single runtime profile keys
+# can be overridden in the default <cfw>/board.conf without a rebuild.
+# board = auto
 # The keys below marked "override" replace the profile's value only when set here:
 # aplay_device = default                          (override: playback device)
 # amixer_card  = 0                                (override)
@@ -62,7 +61,7 @@ wyoming_port = 10700
 # stays open. Session audio to HA is the VQE output with a pre-roll. Commands (стоп/хватит/пауза,
 # громче/тише) act locally, only while the speaker is playing. wake_enabled = false -> push-to-talk only.
 # wake_enabled = true
-# spotter_bin = /bkupgrade/cfw/bin/spotter-host
+# spotter_bin defaults to <cfw>/bin/spotter-host
 # preroll_ms = 300
 
 # --- clock: SNTP sync when no chronyd/ntpd runs (e.g. fw 0.6.x). Tried in order: ntp_server
@@ -76,8 +75,8 @@ probe = broker=homeassistant.local:1883@broker
 probe = hass=homeassistant.local:8123@lan
 # probe = pipeline=voice-server:24117@pipeline
 
-# --- paths (defaults are correct for the device; override for testing) ---
+# --- paths (defaults are rooted under the detected <cfw>; override only for testing) ---
 # sysroot =
 # heartbeat_file = /tmp/yastationd.heartbeat
-# state_file     = /bkupgrade/cfw/yastationd.state
+# state_file defaults to <cfw>/yastationd.state
 log_level = info

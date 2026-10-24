@@ -13,8 +13,8 @@ satellite, beamforming and the on-device command recogniser are later phases.
 cmd/yastationd        main: flags, config, signal handling, tzdata embed
 cmd/ringdemo          dev tool: real ring effects (make build-ringdemo / make stage-ringdemo; stop yastationd first)
 cmd/fbleddemo         dev tool: front-screen `-clock`/`-uwu` smoke modes (make build-fbleddemo / make stage-fbleddemo; stop yastationd first)
-internal/board        board profiles: per-model hardware description + device-tree detection
-internal/config       <cfw>/yastationd.conf parser (<cfw> = /bkupgrade/cfw, or /data/cfw on pickle)
+internal/board        board profiles: hardware, CFW root, helper architecture, device-tree detection
+internal/config       <cfw>/yastationd.conf parser (<cfw> = /bkupgrade/cfw on bergamot, /data/cfw on pickle/orion)
 internal/hw           sysfs LEDs (ring, matrix), evdev input, amixer/aplay, IIO lux
 internal/display      per-surface priority layer stack + clock/text/ring effects
 internal/mqtt         paho client (LWT, backoff), topics, HA MQTT-Discovery
@@ -27,17 +27,19 @@ init.d/               S52zyastationd boot hook + supervise.sh (backoff, .prev ro
 
 ## Board profiles (multi-model)
 
-All model-specific hardware — LED ring (pixel count, LED names), front display, input devices and
-key codes, mixer controls, mic-array layout, vendor VQE preset and spotter models — is a **board
-profile** (`internal/board/profiles/<codename>.conf`, embedded). The device is matched by its
-device-tree `compatible` (`yandex,<codename>`); `board = <codename>` forces one, and
-`<cfw>/board.conf` overrides single keys without a rebuild. Effects size themselves from
-the ring's pixel count. Bringing up a new station: [`../docs/boards/README.md`](../docs/boards/README.md)
-(survey tool, procedure, reversing checklist). Supported: `bergamot` (Station Mini 3), `pickle` (Station Mini 3 Pro), `orion` (Station 3 — sound, ring and 21×12 front screen verified on-device).
+All model-specific hardware and deployment facts — CFW root, native helper architecture, LED
+ring, front display, input devices and key codes, mixer controls, mic-array layout, vendor VQE
+preset and spotter models — live in a **board profile**
+(`internal/board/profiles/<codename>.conf`, embedded). The device is matched by its device-tree
+`compatible` (`yandex,<codename>`); `board = <codename>` forces one, and `<cfw>/board.conf`
+overrides runtime keys without a rebuild. Effects size themselves from the ring's pixel count.
+Bringing up a new station: [`../docs/boards/README.md`](../docs/boards/README.md) (survey tool,
+procedure, reversing checklist). Supported: `bergamot` (Station Mini 3), `pickle` (Station Mini 3
+Pro), `orion` (Station 3 — sound, ring and 21×12 front screen verified on-device).
 
-`<cfw>` is the CFW root on the device: `/bkupgrade/cfw` where `/bkupgrade` exists, else `/data/cfw`
-(pickle has no `/bkupgrade` and must not get one — its `S40wifi` would then look for the Wi-Fi config
-under `/bkupgrade/data`). The daemon, the init hook and the `run.sh` gate all use that rule.
+`<cfw>` is `/bkupgrade/cfw` on bergamot and `/data/cfw` on pickle/orion. The profile records this
+for host deployment; the daemon and init hook retain filesystem detection as their bootstrap
+fallback.
 
 ## Build
 
@@ -52,11 +54,13 @@ make vet
 
 ## Deploy
 
-Full guide (first install, HA side, updates, removal, checks): [`../docs/deploying.md`](../docs/deploying.md).
-Device address, ssh key and `DESTDIR` (the device's `<cfw>`) come from `local.mk` (gitignored, see
-`local.mk.example`) or the command line.
+Full guide (first install, HA side, updates, removal, checks):
+[`../docs/deploying.md`](../docs/deploying.md). Device address, SSH key and `PLATFORM` come from
+`local.mk` (gitignored; see `local.mk.example`) or the command line. The platform profile supplies
+`DESTDIR` and `HELPER_ARCH`; either can still be overridden explicitly.
 
 ```
+make platform-info   # show selected platform, CFW root and native helper architecture
 make stage-tmp       # throwaway yastationd in /tmp for manual testing (gone on reboot)
 make build-ringdemo  # -> build/ringdemo (ring dev tool; not part of stage/deploy)
 make stage-ringdemo  # throwaway ringdemo in /tmp — cycles the ring effects on the real LEDs

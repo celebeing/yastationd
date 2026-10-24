@@ -26,9 +26,10 @@ var builtin embed.FS
 
 // Profile is one board's hardware description.
 type Profile struct {
-	Name  string   // codename, e.g. "bergamot"
-	Model string   // human name for HA, e.g. "Station Mini 3"
-	Match []string // device-tree compatible strings that select this profile
+	Name     string   // codename, e.g. "bergamot"
+	Model    string   // human name for HA, e.g. "Station Mini 3"
+	Match    []string // device-tree compatible strings that select this profile
+	Platform PlatformSpec
 
 	Ring      RingSpec
 	Ambilight AmbilightSpec
@@ -39,6 +40,13 @@ type Profile struct {
 	Wake      WakeSpec
 	Lux       LuxSpec
 	Power     PowerSpec
+}
+
+// PlatformSpec contains host-side deployment facts shared by every unit of this board.
+// CFWRoot is the persistent installation root; UserlandArch selects native helper binaries.
+type PlatformSpec struct {
+	CFWRoot      string // e.g. "/bkupgrade/cfw" or "/data/cfw"
+	UserlandArch string // "armhf" | "aarch64"
 }
 
 // RingSpec: an RGB ring of Pixels, each pixel = one sysfs LED per colour. LED names come from
@@ -247,6 +255,10 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Model = v
 	case k == "match":
 		list(&p.Match)
+	case k == "platform.cfw_root":
+		p.Platform.CFWRoot = v
+	case k == "platform.userland_arch":
+		p.Platform.UserlandArch = v
 	case k == "ring.kind":
 		p.Ring.Kind = v
 	case k == "ring.pixels":
@@ -402,6 +414,14 @@ func parseVolumeMap(v string) ([]VolumePoint, error) {
 
 // Validate checks what the daemon relies on.
 func (p Profile) Validate() error {
+	if !filepath.IsAbs(p.Platform.CFWRoot) || filepath.Clean(p.Platform.CFWRoot) != p.Platform.CFWRoot {
+		return fmt.Errorf("platform.cfw_root must be a clean absolute path")
+	}
+	switch p.Platform.UserlandArch {
+	case "armhf", "aarch64":
+	default:
+		return fmt.Errorf("platform.userland_arch %q unknown", p.Platform.UserlandArch)
+	}
 	switch p.Ring.Kind {
 	case "none":
 	case "sysfs-rgb":

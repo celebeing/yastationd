@@ -6,6 +6,8 @@ Profile: `yastationd/internal/board/profiles/<codename>.conf` · Survey: `dumps/
 ## Identity
 - device-tree compatible: `yandex,<codename>` …
 - SoC / userland ABI / RAM:
+- persistent writable mount / CFW root / free space:
+- native helper architecture (`armhf` or `aarch64`):
 - quasar `deviceType`:
 
 ## LED ring

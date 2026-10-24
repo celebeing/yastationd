@@ -15,7 +15,8 @@ func TestBergamotBuiltin(t *testing.T) {
 		t.Fatal(err)
 	}
 	if p.Ring.Pixels != 6 || p.Input.Keys[582] != "voice" || p.Input.Switches[14] != "mic_mute" ||
-		len(p.Wake.Mics) != 3 || p.Wake.Ref != 6 || len(p.Audio.Unmute) != 1 {
+		len(p.Wake.Mics) != 3 || p.Wake.Ref != 6 || len(p.Audio.Unmute) != 1 ||
+		p.Platform.CFWRoot != "/bkupgrade/cfw" || p.Platform.UserlandArch != "armhf" {
 		t.Fatalf("unexpected profile: %+v", p)
 	}
 }
@@ -39,8 +40,10 @@ func TestOrionBuiltin(t *testing.T) {
 	}
 	if p.Matrix.Kind != "dotmatrix-fb" || p.Ring.Pixels != 36 ||
 		p.Ambilight.Kind != "sysfs-rgbw" || p.Ambilight.Pixels != 12 ||
-		len(p.Ambilight.Colors) != 4 || len(p.Ambilight.Dies) != 2 {
-		t.Errorf("matrix %q / ring %d / ambilight %+v", p.Matrix.Kind, p.Ring.Pixels, p.Ambilight)
+		len(p.Ambilight.Colors) != 4 || len(p.Ambilight.Dies) != 2 ||
+		p.Platform.CFWRoot != "/data/cfw" || p.Platform.UserlandArch != "aarch64" {
+		t.Errorf("matrix %q / ring %d / ambilight %+v / platform %+v",
+			p.Matrix.Kind, p.Ring.Pixels, p.Ambilight, p.Platform)
 	}
 	if p.Wake.VQEPreset != "orion" || len(p.Wake.Mics) != 6 {
 		t.Errorf("wake mics/preset = %+v", p.Wake)
@@ -108,6 +111,22 @@ func TestAllBuiltinProfilesValid(t *testing.T) {
 		if p.Name != n || len(p.Match) == 0 {
 			t.Errorf("%s: name %q / match %v — name must equal the file name and match must be set", n, p.Name, p.Match)
 		}
+	}
+}
+
+func TestPlatformMetadataValidation(t *testing.T) {
+	p, err := Builtin("bergamot")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Platform.CFWRoot = "relative/cfw"
+	if err := p.Validate(); err == nil {
+		t.Fatal("relative platform.cfw_root accepted")
+	}
+	p.Platform.CFWRoot = "/bkupgrade/cfw"
+	p.Platform.UserlandArch = "arm64"
+	if err := p.Validate(); err == nil {
+		t.Fatal("unknown platform.userland_arch accepted")
 	}
 }
 

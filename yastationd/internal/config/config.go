@@ -100,9 +100,9 @@ type Config struct {
 // Has reports whether key appeared in the parsed config (used for profile overrides).
 func (c Config) Has(key string) bool { return c.present[key] }
 
-// CFWRoot is where our files live on the device: /bkupgrade/cfw where /bkupgrade exists
-// (bergamot), else /data/cfw (pickle has no /bkupgrade — and must not get one: its S40wifi
-// would then look for wpa_supplicant.conf under /bkupgrade/data). Same rule as the run.sh gate.
+// CFWRoot is where our files live on the device: /bkupgrade/cfw on bergamot, /data/cfw on
+// pickle/orion. Deployment derives the authoritative root from the board profile; this
+// filesystem check is the runtime bootstrap fallback before that profile can be loaded.
 func CFWRoot() string {
 	if st, err := os.Stat("/bkupgrade/cfw"); err == nil && st.IsDir() {
 		return "/bkupgrade/cfw"

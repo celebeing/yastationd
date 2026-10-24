@@ -2,10 +2,12 @@
 
 yastationd is model-independent; everything model-specific is a **board profile**
 (`yastationd/internal/board/profiles/<codename>.conf`, embedded in the binary) plus this folder's
-per-board notes (`<codename>.md`, from [`_template.md`](_template.md)). The device picks its profile
-from the device-tree `compatible` list (`yandex,<codename>`); `board = <codename>` in
-`yastationd.conf` forces one, and `<cfw>/board.conf` on the device (`/bkupgrade/cfw` or `/data/cfw`) overrides single keys
-(handy while reversing a new model — no rebuild).
+per-board notes (`<codename>.md`, from [`_template.md`](_template.md)). Profiles also provide the
+host deployment defaults (`platform.cfw_root`, `platform.userland_arch`). The device picks its
+runtime profile from the device-tree `compatible` list (`yandex,<codename>`); `board =
+<codename>` in `yastationd.conf` forces one, and `<cfw>/board.conf` overrides runtime keys
+without a rebuild. Host-side per-unit deployment overrides stay in `local.mk` or
+`tools/deploy.hosts`.
 
 | Board | Model | Status |
 |---|---|---|

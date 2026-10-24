@@ -5,19 +5,31 @@ OUT      := build/$(BIN)
 PKG      := ./cmd/yastationd
 RINGDEMOBIN := build/ringdemo
 FBLEDDEMOBIN := build/fbleddemo
-# Device address and ssh key come from local.mk (gitignored; see local.mk.example).
+# Device address, SSH key and platform come from local.mk (gitignored; see local.mk.example).
 -include local.mk
 DEVICE   ?= root@yastation.local
-# CFW root on the device: bergamot /bkupgrade/cfw, pickle /data/cfw (set in local.mk).
-DESTDIR  ?= /bkupgrade/cfw
+PLATFORM ?= bergamot
+
+# Board profiles are deliberately Make-compatible key/value files. Deployment defaults come
+# from the selected platform; command-line/local.mk overrides remain authoritative.
+PLATFORM_PROFILE := internal/board/profiles/$(PLATFORM).conf
+ifeq ($(wildcard $(PLATFORM_PROFILE)),)
+$(error unknown PLATFORM "$(PLATFORM)" (no $(PLATFORM_PROFILE)))
+endif
+include $(PLATFORM_PROFILE)
+DESTDIR    ?= $(platform.cfw_root)
+HELPER_ARCH ?= $(platform.userland_arch)
 
 GOFLAGS  := -trimpath -ldflags="-s -w"
 GOENV    := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: all build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds deploy deploy-spotter deploy-sendspin
+.PHONY: all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds deploy deploy-spotter deploy-sendspin
 
 
 all: test build
+
+platform-info:
+	@printf 'platform=%s cfw_root=%s userland_arch=%s\n' '$(PLATFORM)' '$(DESTDIR)' '$(HELPER_ARCH)'
 
 build:
 	$(GOENV) go build $(GOFLAGS) -o $(OUT) $(PKG)
@@ -113,13 +125,13 @@ deploy: build
 
 # Install a sendspin-host build (../sendspin-host, `make ARCH=<arch>` there, matching the device's
 # userland). Like spotter-host it takes effect when yastationd next starts it.
-SENDSPIN ?= ../sendspin-host/build/armhf/sendspin-host
+SENDSPIN ?= ../sendspin-host/build/$(HELPER_ARCH)/sendspin-host
 deploy-sendspin:
 	$(SSH) 'cat > $(DESTDIR)/bin/sendspin-host.upload && chmod +x $(DESTDIR)/bin/sendspin-host.upload && mv $(DESTDIR)/bin/sendspin-host.upload $(DESTDIR)/bin/sendspin-host' < $(SENDSPIN)
 
 # Install a spotter-host build (spotter-host/build.sh, ARCH matching the device's userland). The
 # running child keeps the old file; it takes effect when yastationd next starts it — restart the
 # daemon (make deploy, or the init hook's restart).
-SPOTTER ?= ../spotter-host/spotter-host
+SPOTTER ?= ../spotter-host/build/$(HELPER_ARCH)/spotter-host
 deploy-spotter:
 	$(SSH) 'cat > $(DESTDIR)/bin/spotter-host.upload && chmod +x $(DESTDIR)/bin/spotter-host.upload && mv $(DESTDIR)/bin/spotter-host.upload $(DESTDIR)/bin/spotter-host' < $(SPOTTER)

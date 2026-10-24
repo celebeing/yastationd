@@ -3,12 +3,14 @@
 #
 #   tools/deploy.sh [hosts-file]          # default: tools/deploy.hosts (gitignored)
 #
-# hosts-file: one speaker per line, "<ssh-target> <cfw-root> [spotter-arch]", '#' comments:
-#   root@<speaker-a>  /bkupgrade/cfw  armhf
-#   root@<speaker-b>  /data/cfw       aarch64
-# spotter-arch (optional) also installs the native helpers built for that arch:
-# spotter-host/build/<arch>/spotter-host (spotter-host/build.sh) and, when built,
-# sendspin-host/build/<arch>/sendspin-host (`make -C sendspin-host`).
+# hosts-file: one speaker per line, "<ssh-target> <platform> [cfw-root] [helper-arch]",
+# '#' comments. Root and native helper architecture default from the board profile:
+#   root@<speaker-a>  bergamot
+#   root@<speaker-b>  orion
+# Per-unit overrides remain available; use "-" to keep the profile root while overriding arch:
+#   root@<speaker-c>  pickle  -  aarch64
+# Native helpers are loaded from spotter-host/build/<arch>/spotter-host and, when built,
+# sendspin-host/build/<arch>/sendspin-host.
 #
 # Env: SSHKEY (default ~/.ssh/id_yastation). Speakers are updated one at a time; the script stops
 # at the first failure so a broken build never reaches the rest.
@@ -23,26 +25,86 @@ set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
 hosts=${1:-$here/tools/deploy.hosts}
 key=${SSHKEY:-$HOME/.ssh/id_yastation}
-[ -f "$hosts" ] || { echo "no hosts file: $hosts (see the header)" >&2; exit 1; }
+[ -f "$hosts" ] || {
+	echo "no hosts file: $hosts (see the header)" >&2
+	exit 1
+}
 
 ssh_() { ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=5 "$@"; }
+
+profile_value() {
+	awk -F= -v wanted="$2" '
+		{
+			key = $1
+			gsub(/^[ \t]+|[ \t]+$/, "", key)
+			if (key == wanted) {
+				value = substr($0, index($0, "=") + 1)
+				gsub(/^[ \t]+|[ \t]+$/, "", value)
+				print value
+				exit
+			}
+		}
+	' "$1"
+}
 
 echo "== build"
 (cd "$here/yastationd" && make -s test build)
 bin=$here/yastationd/build/yastationd
 
-grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target cfw arch; do
-	echo "== $target ($cfw)"
-	ssh_ "$target" "test -d $cfw/bin" </dev/null || { echo "  $cfw/bin missing — not installed here?" >&2; exit 1; }
+grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target platform cfw arch; do
+	case "$platform" in
+	"" | *[!A-Za-z0-9_-]*)
+		echo "invalid platform '$platform' for $target" >&2
+		exit 1
+		;;
+	esac
+	profile=$here/yastationd/internal/board/profiles/$platform.conf
+	[ -f "$profile" ] || {
+		echo "unknown platform '$platform': $profile missing" >&2
+		exit 1
+	}
+	default_cfw=$(profile_value "$profile" platform.cfw_root)
+	default_arch=$(profile_value "$profile" platform.userland_arch)
+	[ -n "${cfw:-}" ] && [ "$cfw" != "-" ] || cfw=$default_cfw
+	[ -n "${arch:-}" ] && [ "$arch" != "-" ] || arch=$default_arch
+	case "$cfw" in
+	/*) ;;
+	*)
+		echo "invalid CFW root '$cfw' for $platform" >&2
+		exit 1
+		;;
+	esac
+	case "$cfw" in
+	*[!A-Za-z0-9_./-]*)
+		echo "unsafe CFW root '$cfw' for $platform" >&2
+		exit 1
+		;;
+	esac
+	case "$arch" in
+	armhf | aarch64) ;;
+	*)
+		echo "invalid helper architecture '$arch' for $platform" >&2
+		exit 1
+		;;
+	esac
 
-	ssh_ "$target" "cat > $cfw/bin/yastationd.upload" < "$bin"
-	ssh_ "$target" "mkdir -p $cfw/init.d && cat > $cfw/init.d/supervise.sh.new && mv $cfw/init.d/supervise.sh.new $cfw/init.d/supervise.sh" < "$here/yastationd/init.d/supervise.sh"
+	echo "== $target ($platform: $cfw, $arch)"
+	ssh_ "$target" "test -d $cfw/bin" </dev/null || {
+		echo "  $cfw/bin missing — not installed here?" >&2
+		exit 1
+	}
+
+	ssh_ "$target" "cat > $cfw/bin/yastationd.upload" <"$bin"
+	ssh_ "$target" "mkdir -p $cfw/init.d && cat > $cfw/init.d/supervise.sh.new && mv $cfw/init.d/supervise.sh.new $cfw/init.d/supervise.sh" <"$here/yastationd/init.d/supervise.sh"
 	if [ -n "${arch:-}" ]; then
 		sp=$here/spotter-host/build/$arch/spotter-host
-		[ -x "$sp" ] || { echo "  no $sp — build it with spotter-host/build.sh ARCH=$arch" >&2; exit 1; }
-		ssh_ "$target" "cat > $cfw/bin/spotter-host.upload" < "$sp"
+		[ -x "$sp" ] || {
+			echo "  no $sp — build it with spotter-host/build.sh ARCH=$arch" >&2
+			exit 1
+		}
+		ssh_ "$target" "cat > $cfw/bin/spotter-host.upload" <"$sp"
 		ss=$here/sendspin-host/build/$arch/sendspin-host
-		[ -x "$ss" ] && ssh_ "$target" "cat > $cfw/bin/sendspin-host.upload" < "$ss"
+		[ -x "$ss" ] && ssh_ "$target" "cat > $cfw/bin/sendspin-host.upload" <"$ss"
 	fi
 
 	# The swap runs from stdin; it restarts the daemon, which restarts spotter-host with it.
