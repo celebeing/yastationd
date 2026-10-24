@@ -92,3 +92,29 @@ func TestOrionExample(t *testing.T) {
 		t.Fatalf("unexpected Orion example: %+v", c)
 	}
 }
+
+func TestEditKeepsTheRest(t *testing.T) {
+	in := "# header\ndevice_id = mini3\nmqtt_host   = old.lan\n# mqtt_host = example\nprobe = a=old.lan:1883@broker\nlog_level = info\nprobe = b=old.lan:8123\n"
+	out := string(Edit([]byte(in), map[string][]string{
+		"mqtt_host":  {"new.lan"},
+		"probe":      {"a=new.lan:1883@broker", "b=new.lan:8123", "c=new.lan:10300@pipeline"},
+		"ntp_server": {"ntp.lan"},
+		"mqtt_pass":  nil,
+	}))
+	want := "# header\ndevice_id = mini3\nmqtt_host = new.lan\n# mqtt_host = example\n" +
+		"probe = a=new.lan:1883@broker\nprobe = b=new.lan:8123\nprobe = c=new.lan:10300@pipeline\n" +
+		"log_level = info\n\n# set from the Wi-Fi setup page\nntp_server = ntp.lan\n"
+	if out != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", out, want)
+	}
+	c, err := Parse(strings.NewReader(out))
+	if err != nil || c.MQTTHost != "new.lan" || len(c.Probes) != 3 || len(c.NTPServers) != 1 {
+		t.Fatalf("parse back: %v %+v", err, c)
+	}
+	if got := string(Edit([]byte("a = 1"), map[string][]string{"a": {"2"}})); got != "a = 2\n" {
+		t.Errorf("no trailing newline: %q", got)
+	}
+	if got := string(Edit([]byte(in), map[string][]string{"probe": {}})); strings.Contains(got, "\nprobe") {
+		t.Errorf("empty list did not remove the key:\n%s", got)
+	}
+}

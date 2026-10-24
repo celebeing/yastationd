@@ -3,6 +3,13 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Operations**
+- Setup page: "Home settings" for the network-dependent config (broker, health probes, time servers
+  and zone, Music Assistant, speaker name, the setup network's own password), checked with the
+  daemon's own parser before it is written; the agent restarts with them on leaving setup mode.
+
 ## v0.4.0 — 2026-10-24
 
 **Operations**

@@ -82,6 +82,8 @@ type App struct {
 	timers              timers
 	animGen             atomic.Int64 // ring_animation selections, to reset the select only for the latest
 
+	quit context.CancelFunc // ends Run: a deliberate restart (the supervisor starts us again)
+
 	marquee     display.RenderFunc[display.MatrixFrame] // message-mode layer; render goroutine only
 	marqueeText string
 }
@@ -240,6 +242,8 @@ func (a *App) ambilightBase() []hw.RGBW {
 
 // Run owns the daemon until ctx is cancelled.
 func (a *App) Run(ctx context.Context) error {
+	ctx, a.quit = context.WithCancel(ctx)
+	defer a.quit()
 	dev := mqtt.Device{
 		Identifiers:  []string{"yastation_" + a.cfg.DeviceID},
 		Name:         a.cfg.DeviceName,

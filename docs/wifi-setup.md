@@ -33,8 +33,10 @@ removed.
    - "Networks around" lists what the speaker saw just before it switched; tap one to fill in its
      name.
    - Saved passwords are never shown: "Edit" with an empty password keeps the current one.
-4. **"Connect now"** leaves setup mode and joins with the saved networks. "Reboot instead" does
-   the same through a reboot.
+4. **Home settings** (below): the broker, probes, time servers, time zone, Music Assistant, the
+   speaker's name.
+5. **"Connect now"** leaves setup mode and joins with the saved networks (and restarts the agent if
+   the settings changed). "Reboot instead" does the same through a reboot.
 
 The mode also ends by:
 - the same key combo again;
@@ -43,6 +45,36 @@ The mode also ends by:
 - the daemon stopping.
 
 The speaker is reachable over SSH on `10.42.0.1` while in setup mode, too.
+
+## Home settings
+
+The page's "Home settings" section edits the `yastationd.conf` keys that depend on the network the
+speaker lives in:
+
+| Field | Key |
+|---|---|
+| Speaker name | `device_name` (the device id is shown read-only: changing it makes a new device in HA) |
+| MQTT broker | `mqtt_host`, `mqtt_port`, `mqtt_user`, `mqtt_pass` (write-only) |
+| Health probes | `probe` (the list) |
+| Time | `ntp_server` (the list), `tz` |
+| Music Assistant | `sendspin`, `sendspin_server`, `sendspin_name` |
+| Setup network password | `wifi_setup_psk` (write-only; "stays open" clears it) |
+
+How an edit is written:
+1. Each field is checked: host names, ports, the probe format, a known time zone, a `ws://` URL,
+   no line breaks.
+2. The whole new file is checked with the daemon's own parser. A config the daemon can't load
+   would take setup mode down with it, and the supervisor rolls back only binaries.
+3. Only the edited keys' lines change; comments, commented-out examples and other keys stay byte
+   for byte. A key that wasn't in the file is appended under `# set from the Wi-Fi setup page`.
+4. The write is atomic, with `yastationd.conf.before-setup` kept from the session's first edit.
+
+The daemon loads the new values when setup mode ends: it exits 0 after restoring the Wi-Fi client,
+and the supervisor starts it again 1 s later (a deliberate exit, not counted as a crash). There is
+no "test the broker" button: in setup mode the speaker has no LAN.
+
+**Not on the page: SSH keys.** `/root/.ssh/authorized_keys` is on the read-only rootfs on both
+boards, and a web page doesn't remount the rootfs.
 
 ## How it works
 

@@ -41,6 +41,10 @@ type Options struct {
 	OnExit func()
 	// Reboot restarts the speaker (the page's "reboot" button).
 	Reboot func()
+	// ConfFile is yastationd.conf for the home settings ("" = no settings section); Restart is
+	// called after leaving setup mode when they were changed, so the daemon loads them.
+	ConfFile string
+	Restart  func()
 }
 
 type Mode struct {
@@ -55,6 +59,8 @@ type Mode struct {
 	hostapd *exec.Cmd
 	scanned []ScanResult
 	exited  chan struct{} // closed when hostapd exits
+
+	settingsChanged bool // under confMu
 }
 
 func New(o Options) *Mode {
@@ -106,7 +112,9 @@ func (m *Mode) Enter() error {
 	if err := os.MkdirAll(m.o.RunDir, 0o700); err != nil {
 		return err
 	}
-	os.Remove(m.markerPath() + ".backed-up") // a new session keeps its own before-setup copy
+	// A new session keeps its own before-setup copies.
+	os.Remove(m.markerPath() + ".backed-up")
+	os.Remove(m.markerPath() + ".settings-backed-up")
 
 	log.Info("wifi setup: scanning before the switch", "iface", m.iface)
 	m.scanned = scan(m.iface, 10*time.Second) // a full 2.4 + 5 GHz scan takes ~7 s
@@ -153,6 +161,14 @@ func (m *Mode) Leave() {
 	m.o.Log.Info("wifi setup: left, Wi-Fi client restored")
 	if m.o.OnExit != nil {
 		m.o.OnExit()
+	}
+	confMu.Lock()
+	changed := m.settingsChanged
+	m.settingsChanged = false
+	confMu.Unlock()
+	if changed && m.o.Restart != nil {
+		m.o.Log.Info("wifi setup: settings changed, restarting to load them")
+		m.o.Restart()
 	}
 }
 

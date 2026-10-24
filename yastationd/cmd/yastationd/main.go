@@ -38,6 +38,8 @@ func main() {
 		}
 	}
 
+	cfg.File = *confPath
+
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: parseLevel(cfg.LogLevel)}))
 	slog.SetDefault(log)
 

@@ -52,6 +52,7 @@ func (m *Mode) servePortal(ctx context.Context, ip net.IP) error {
 	mux.HandleFunc("/api/state", m.apiState)
 	mux.HandleFunc("/api/networks", m.apiNetworks)
 	mux.HandleFunc("/api/networks/", m.apiNetwork)
+	mux.HandleFunc("/api/settings", m.apiSettings)
 	mux.HandleFunc("/api/finish", m.apiFinish)
 	mux.HandleFunc("/api/reboot", m.apiReboot)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -103,17 +104,25 @@ func (m *Mode) loadConf() (*Conf, error) {
 // saveConf writes c; the first write of a setup session keeps the file as it was before the
 // session next to it (<conf>.before-setup).
 func (m *Mode) saveConf(c *Conf) error {
-	backup := m.conf + ".before-setup"
-	marker := m.markerPath() + ".backed-up"
-	if _, err := os.Stat(marker); err != nil {
-		if old, err := os.ReadFile(m.conf); err == nil {
-			if err := WriteConfAtomic(backup, old); err != nil {
-				return err
-			}
-		}
-		os.WriteFile(marker, nil, 0o600)
+	if err := m.backupOnce(m.conf, ".backed-up"); err != nil {
+		return err
 	}
 	return WriteConfAtomic(m.conf, c.Format())
+}
+
+// backupOnce copies path to <path>.before-setup on the session's first write to it (marker: a
+// file in runDir, cleared when a session starts).
+func (m *Mode) backupOnce(path, marker string) error {
+	marker = m.markerPath() + marker
+	if _, err := os.Stat(marker); err == nil {
+		return nil
+	}
+	if old, err := os.ReadFile(path); err == nil {
+		if err := WriteConfAtomic(path+".before-setup", old); err != nil {
+			return err
+		}
+	}
+	return os.WriteFile(marker, nil, 0o600)
 }
 
 func (m *Mode) apiState(w http.ResponseWriter, r *http.Request) {

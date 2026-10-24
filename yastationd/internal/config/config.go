@@ -8,12 +8,15 @@ import (
 	"io"
 	"net"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
 
 type Config struct {
+	File string // the file it was loaded from (set by main; the setup page edits it)
+
 	DeviceID   string
 	DeviceName string
 
@@ -441,4 +444,60 @@ func (c Config) Path(p string) string {
 		return p
 	}
 	return strings.TrimRight(c.SysRoot, "/") + p
+}
+
+// Edit rewrites the config text with new values for some keys: a key's first active line is
+// replaced by its new lines (several for a list key such as probe), its other lines are dropped,
+// and a key that wasn't there is appended. An empty list removes the key. Everything else
+// (comments, commented-out examples, other keys) stays byte for byte. The caller validates the
+// result with Parse.
+func Edit(data []byte, changes map[string][]string) []byte {
+	var out []string
+	done := map[string]bool{}
+	lines := strings.SplitAfter(string(data), "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		s := strings.TrimSpace(line)
+		k, _, ok := strings.Cut(s, "=")
+		k = strings.TrimSpace(k)
+		vals, edit := changes[k]
+		if s == "" || strings.HasPrefix(s, "#") || !ok || !edit {
+			out = append(out, line)
+			continue
+		}
+		if !done[k] {
+			done[k] = true
+			for _, v := range vals {
+				out = append(out, k+" = "+v+"\n")
+			}
+		}
+	}
+	if n := len(out); n > 0 && !strings.HasSuffix(out[n-1], "\n") {
+		out[n-1] += "\n"
+	}
+	var added []string
+	for _, k := range sortedKeys(changes) {
+		if done[k] {
+			continue
+		}
+		for _, v := range changes[k] {
+			added = append(added, k+" = "+v+"\n")
+		}
+	}
+	if len(added) > 0 {
+		out = append(out, "\n# set from the Wi-Fi setup page\n")
+		out = append(out, added...)
+	}
+	return []byte(strings.Join(out, ""))
+}
+
+func sortedKeys(m map[string][]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

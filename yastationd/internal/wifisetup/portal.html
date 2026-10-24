@@ -25,7 +25,7 @@ button.danger { color:var(--err); }
 button:disabled { opacity:.5; }
 form { padding:12px; display:grid; gap:10px; }
 label { display:grid; gap:4px; font-size:13px; color:var(--muted); }
-input[type=text], input[type=password], input[type=number] { font:inherit; padding:9px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); width:100%; }
+input[type=text], input[type=password], input[type=number], textarea { font:inherit; padding:9px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); width:100%; }
 .check { display:flex; gap:8px; align-items:center; color:var(--fg); font-size:14px; }
 .actions { display:flex; gap:8px; flex-wrap:wrap; }
 #msg { min-height:20px; margin:10px 0 0; font-size:14px; }
@@ -68,9 +68,57 @@ input[type=text], input[type=password], input[type=number] { font:inherit; paddi
   <p class="sub">Seen when setup mode started. Tap one to fill in its name.</p>
   <div class="card" id="scan"><div class="empty">Loading…</div></div>
 
+  <h2>Home settings</h2>
+  <p class="sub" id="setfile"></p>
+  <div class="card">
+    <form id="settings" autocomplete="off">
+      <label>Speaker name
+        <input type="text" id="s_name" maxlength="64">
+      </label>
+      <p class="sub" style="margin:0" id="s_id"></p>
+      <label>MQTT broker (host or IP)
+        <input type="text" id="s_mqtt_host" autocapitalize="off" spellcheck="false">
+      </label>
+      <label>Broker port
+        <input type="number" id="s_mqtt_port" min="1" max="65535">
+      </label>
+      <label>Broker user (empty = anonymous)
+        <input type="text" id="s_mqtt_user" autocapitalize="off" spellcheck="false">
+      </label>
+      <label><span id="s_mqtt_pass_hint">Broker password</span>
+        <input type="password" id="s_mqtt_pass" autocapitalize="off" spellcheck="false">
+      </label>
+      <label class="check"><input type="checkbox" id="s_mqtt_pass_clear"> No broker password</label>
+      <label>Health probes, one per line: name=host:port@role (role: broker, pipeline or lan)
+        <textarea id="s_probes" rows="3" autocapitalize="off" spellcheck="false"></textarea>
+      </label>
+      <label>Time servers, one per line (empty = from chrony.conf, then the gateway)
+        <textarea id="s_ntp" rows="2" autocapitalize="off" spellcheck="false"></textarea>
+      </label>
+      <label>Time zone (e.g. Europe/Moscow)
+        <input type="text" id="s_tz" autocapitalize="off" spellcheck="false">
+      </label>
+      <label class="check"><input type="checkbox" id="s_sendspin"> Music Assistant player</label>
+      <label>Music Assistant server to dial (optional: ws://host:8927/sendspin)
+        <input type="text" id="s_ss_server" autocapitalize="off" spellcheck="false">
+      </label>
+      <label>Player name in Music Assistant (empty = speaker name)
+        <input type="text" id="s_ss_name" maxlength="64">
+      </label>
+      <label><span id="s_psk_hint">Password of this setup network</span>
+        <input type="password" id="s_psk" maxlength="63" autocapitalize="off" spellcheck="false">
+      </label>
+      <label class="check"><input type="checkbox" id="s_psk_clear"> Setup network stays open</label>
+      <p class="sub" style="margin:0">Saved settings take effect when the speaker leaves setup mode.</p>
+      <div class="actions">
+        <button class="primary" type="submit">Save settings</button>
+      </div>
+    </form>
+  </div>
+
   <h2>Finish</h2>
   <div class="card"><form>
-    <p class="sub" style="margin:0">The speaker leaves setup mode and connects with the saved networks. This page stops working then.</p>
+    <p class="sub" style="margin:0">The speaker leaves setup mode and connects with the saved networks (and restarts its agent if the settings changed). This page stops working then.</p>
     <div class="actions">
       <button class="primary" type="button" id="finish">Connect now</button>
       <button type="button" id="reboot">Reboot instead</button>
@@ -211,7 +259,56 @@ $("reboot").onclick = async () => {
   catch (e) { say(e.message, "err"); }
 };
 
+let settings = null; // as loaded
+
+function lines(id) { return $(id).value.split("\n").map((l) => l.trim()).filter((l) => l); }
+
+function renderSettings(st) {
+  settings = st;
+  $("setfile").textContent = st.file + (st.pending ? " · saved, applied on leaving" : "");
+  $("s_name").value = st.device_name;
+  $("s_id").textContent = "Device id: " + st.device_id + " (not editable: HA would see a new device)";
+  $("s_mqtt_host").value = st.mqtt_host;
+  $("s_mqtt_port").value = st.mqtt_port;
+  $("s_mqtt_user").value = st.mqtt_user;
+  $("s_mqtt_pass").value = ""; $("s_mqtt_pass_clear").checked = false;
+  $("s_mqtt_pass_hint").textContent = st.mqtt_pass_set ? "Broker password (empty = keep the current one)" : "Broker password (none set)";
+  $("s_probes").value = st.probes.join("\n");
+  $("s_ntp").value = st.ntp_servers.join("\n");
+  $("s_tz").value = st.tz;
+  $("s_sendspin").checked = st.sendspin;
+  $("s_ss_server").value = st.sendspin_server;
+  $("s_ss_name").value = st.sendspin_name;
+  $("s_psk").value = ""; $("s_psk_clear").checked = false;
+  $("s_psk_hint").textContent = st.setup_psk_set ? "Password of this setup network (empty = keep the current one)" : "Password of this setup network (none: it is open)";
+}
+
+async function loadSettings() {
+  try { renderSettings(await api("GET", "/api/settings")); }
+  catch (e) { $("settings").hidden = true; $("setfile").textContent = "Settings unavailable: " + e.message; }
+}
+
+$("settings").onsubmit = async (ev) => {
+  ev.preventDefault();
+  if (!settings) return;
+  const b = {}, st = settings;
+  const str = (id, key) => { const v = $(id).value.trim(); if (v !== st[key]) b[key] = v; };
+  str("s_name", "device_name"); str("s_mqtt_host", "mqtt_host"); str("s_mqtt_user", "mqtt_user");
+  str("s_tz", "tz"); str("s_ss_server", "sendspin_server"); str("s_ss_name", "sendspin_name");
+  const port = parseInt($("s_mqtt_port").value, 10); if (port !== st.mqtt_port) b.mqtt_port = port;
+  const probes = lines("s_probes"); if (probes.join("\n") !== st.probes.join("\n")) b.probes = probes;
+  const ntp = lines("s_ntp"); if (ntp.join("\n") !== st.ntp_servers.join("\n")) b.ntp_servers = ntp;
+  if ($("s_sendspin").checked !== st.sendspin) b.sendspin = $("s_sendspin").checked;
+  if ($("s_mqtt_pass_clear").checked) b.mqtt_pass = ""; else if ($("s_mqtt_pass").value) b.mqtt_pass = $("s_mqtt_pass").value;
+  if ($("s_psk_clear").checked) b.setup_psk = ""; else if ($("s_psk").value) b.setup_psk = $("s_psk").value;
+  if (!Object.keys(b).length) { say("Nothing changed.", ""); return; }
+  try { await api("POST", "/api/settings", b); say("Settings saved. They take effect when the speaker leaves setup mode.", "ok"); }
+  catch (e) { say(e.message, "err"); return; }
+  loadSettings();
+};
+
 load();
+loadSettings();
 </script>
 </body>
 </html>

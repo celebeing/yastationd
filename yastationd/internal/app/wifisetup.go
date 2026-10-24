@@ -52,6 +52,12 @@ func (a *App) newWifiSetup() *wifisetup.Mode {
 		DeviceName: c.DeviceName,
 		Log:        a.log,
 		OnExit:     func() { a.showSetup(false) },
+		ConfFile:   c.File,
+		Restart: func() {
+			if a.quit != nil {
+				a.quit() // Run returns, the daemon exits 0 and the supervisor starts it again in 1 s
+			}
+		},
 		Reboot: func() {
 			a.log.Info("wifi setup: rebooting on request from the page")
 			exec.Command("reboot").Run()
