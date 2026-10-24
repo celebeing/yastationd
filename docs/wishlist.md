@@ -105,3 +105,82 @@ sysfs, board-agnostic: trigger `none` and a low brightness on every `/sys/class/
 the face's segments on `*clock*` (the clip LED order, docs/display-expressions.md). It must never
 fight a running daemon over the LEDs, and must keep working when the daemon binary is broken.
 
+
+## Orion's ultrasound rig
+
+**Status:** idea (2026-10-25); nothing is planned or decided. Hardware exists on orion;
+pickle's asound also names an `ultrasound` PCM (boards/pickle.md), so it may share the
+rig — unverified. Everything below is orion.
+
+The vendor firmware ships a complete but **disabled** sonar stack around orion's
+dedicated ultrasound transducer (`us` amp, `hw:0,0`, TDM-A 96 kHz):
+
+- **Generator** (quasar.cfg `ultrasound.generator`): 38.4 kHz sine, amplitude 0.05
+  full-scale, 4 TDM slots with [0,1] zeroed — so transmit presumably rides slots 2-3.
+  maind strings also name an **impulse generator**, not just sine.
+- **Detector** (quasar.cfg `ultrasound.detector`): 4 channels, 2048-sample frames at
+  96 kHz, 600 Hz analysis band, threshold −70 dB. libyandex_evil.so **exports a C API**:
+  `YandexVqeC_UltrasoundDetector_{Create,AddChannelData,Process,Free}` (+ an outdoors
+  detector), with C++ classes `vqe::BaseDopplerDetector` / `SimpleDopplerDetector`. So
+  the vendor detector is reusable from a process that dlopens the blob — the exact
+  spotter-host pattern; no need to invent our own DSP from scratch.
+- **Capture plumbing**: `hw:0,0` exposes capture too (survey: "playback 1 : capture 1"),
+  and mcapt reopens the same `pcm.ultrasound` definition as a capture slave, folding two
+  ultrasound RX channels into the 13ch/96k stream (idx 11-12), which we already
+  capture. The detector's 4 channels map onto those + the loopback; the exact slot
+  wiring needs one on-device look with a live carrier. Measured (verify2 raws,
+  2026-10-24): idx 11-12 are dead LSB **while TDM-A is idle** — the S94alsa prime is
+  only 1 s of silence and no carrier was playing during those captures; with a live
+  carrier on `hw:0,0` they should carry the reflections.
+- 38.4 kHz is inside the mics' Nyquist range (96 kHz clocking), so the PDM mics may
+  also see the carrier as a bonus RX — bonus, since the primary RX is the transducer
+  slots. Music stays far below the carrier band, so sonar can run even mid-song.
+
+**What we could get, roughly in buildability order (none decided):**
+
+1. **Doppler motion alert** — emit the carrier, watch the ±300 Hz band around it,
+   publish a binary motion/occupancy sensor. The vendor detector's parameters (600 Hz
+   band, −70 dB threshold) map directly onto this. Cheapest useful outcome, and the
+   vendor API exists for exactly this recognition.
+2. **Echo-signature presence** — rather than Doppler, track how the static echo profile
+   (room geometry) drifts over minutes. Fires on sustained change: night trips in a
+   household that sleeps, or nobody-home when an automation wants a warm body. Doubles
+   as the presence input to the wake state machine (don't run the goodnight scene if
+   nobody is home; gate "no one heard you" retries).
+3. **Push/pull gesture** — approaching/receding Doppler has a sign, so a hand moving
+   toward the speaker could act as a volume/intent gesture. Single-axis only; lateral
+   motion mostly invisible; direct path dominates at arm's length, so near-field may
+   be the weak spot. A toy unless it proves clean.
+4. **Tiny sonar radar** — mic-array phase differences across the 6 mics to localize a
+   dominant reflection, ARPA-style. Array response at 38 kHz unknown; a dream, not a
+   plan.
+
+**Feasibility experiment to run first** (one session, on the device, stack stopped; only
+on the unit the user names — doctrine: the speaker emits energy): generate a 38.4 kHz
+sine raw S16 at a few amplitudes (vendor starts at 0.05), **unmute the `us` amp** first
+(its `AMP mute status` reads 1 in stock state; same cset family as the speaker amps),
+play it to `hw:0,0` through `aplay -D ultrasound`, capture the 13ch/96k `mroute` stream
+simultaneously, then FFT host-side: carrier at idx 11-12 with tone vs without, hand
+moving vs still, near vs far. Host-side FFT is the same workflow that resolved the
+earlier idx-5 anomaly: two 30 s pure captures on **each of two units** showed healthy
+channels, so microphone hardware does not block array work (orion.md "Mic capture").
+Open questions it settles: slot direction ([0,1] RX vs TX), mic response at 38.4 kHz
+(bonus RX), direct-path dominance, and the real noise floor for the −70 dB threshold.
+
+If the experiment shows clean signal, the natural host is **spotter-host itself**: it
+already dlopens libyandex_evil.so and already consumes the 13ch/96k stream (idx 11-12
+included) — a `-U/--ultrasound` mode emit-via-`hw:0,0` + detector-via-blob add-on would
+reuse the capture, VQE, and LED paths. No new daemon, no `mcapt` surgery. One structural
+choice: carrier always-on while spotter-host serves wake (duty-cycled in idle windows),
+or carrier in bursts; either way it emits energy, so an always-radiating mode is a user
+decision, not a default. The Yandex detector via dlopen keeps our DSP cost near zero
+(the blob handles the FFT/decision), and the vendor shipped the feature disabled —
+evidence they never made it a default either.
+
+Two footnotes. AEC: today mroute idx 11-12 are consumed as two of the seven `raw_spk_*`
+AEC refs, so a carrier changes what those channels mean — if yastationd ever emits a
+carrier, either the VQE ref set must exclude the carrier-bearing channels (`wake.refs`
+remap) or the detector must tolerate the carrier inside the refs. Hardware honesty:
+the earlier idx-5 spike was transient; two-pass tests on both units cleared it, so it
+does not block array-phase work. The first experiment will still tell us whether
+`raw_mic` channels see the carrier at all.

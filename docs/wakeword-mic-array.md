@@ -121,6 +121,26 @@ Playback path (for completeness / AEC-reference context): `pcm.speakers → dmix
 }
 ```
 
+#### Vendor bad-mic detector
+
+`audiod.brokenMicDetector` is a **channel-consistency health detector**, not a calibration
+or absolute noise-floor test. The recoverable contract is deliberately narrow:
+
+- `rmsRatioThreshold = 0.8` compares RMS levels between microphone channels, but the
+  config does not expose the ratio direction, the aggregation window, or whether it
+  compares each channel with a mean, median, or peer.
+- `rmsRatioExceededCount = 25` adds temporal accumulation before it declares a result;
+  the cadence and whether the observations must be consecutive are unrecovered.
+- Orion also sets `sendAudioData = false`: the detector is enabled without asking the
+  audiod configuration to include diagnostic audio in its result path.
+
+Do not turn these fields into an absolute “bad mic” verdict in our daemon. Static
+configuration does not show whether the vendor reports an event, mutes a channel, or
+changes the VQE input after a detection. Use a repeated raw-capture comparison first:
+a physical fault remains disproportionately noisy or quiet across captures, while a
+single noisy interval can be room activity, electrical interference, or a transport
+glitch. The Orion retest in `boards/orion.md` is the concrete example.
+
 The `audiosender` component enumerates the **named channels** that exist inside the pipeline:
 
 ```
