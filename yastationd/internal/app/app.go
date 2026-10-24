@@ -21,6 +21,7 @@ import (
 	"github.com/celebeing/yastationd/yastationd/internal/timesync"
 	"github.com/celebeing/yastationd/yastationd/internal/version"
 	"github.com/celebeing/yastationd/yastationd/internal/wake"
+	"github.com/celebeing/yastationd/yastationd/internal/wifisetup"
 	"github.com/celebeing/yastationd/yastationd/internal/wyoming"
 )
 
@@ -53,6 +54,8 @@ type App struct {
 	sat       *satellite
 	muted     atomic.Bool      // mic-mute switch latch
 	clock     *timesync.Syncer // nil when time_sync is off
+	setup     *wifisetup.Mode  // Wi-Fi setup mode; nil when off
+	combo     keyCombo
 
 	ringStack   *display.Stack[display.RingFrame]
 	matrixStack *display.Stack[display.MatrixFrame]
@@ -162,6 +165,7 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 	a.clips = a.newClipLibrary()
 	a.spot = a.newSpotter()
 	a.music.host = a.newMusic()
+	a.setup = a.newWifiSetup()
 
 	if cfg.TimeSync {
 		a.clock = &timesync.Syncer{Servers: cfg.NTPServers, ChronyConf: cfg.Path(cfg.ChronyConf),
@@ -273,6 +277,9 @@ func (a *App) Run(ctx context.Context) error {
 		a.log.Warn("no mqtt_host configured; running local-only")
 	}
 
+	if a.setup != nil {
+		a.setup.Recover() // a previous run that died in setup mode left the Wi-Fi client stopped
+	}
 	go a.restoreVolume()
 	if g := a.prof.Audio; g.MicGain != "" && g.MicGainValue >= 0 {
 		if err := a.mixer.Set(g.MicGain, g.MicGainValue); err != nil {
@@ -290,6 +297,9 @@ func (a *App) Run(ctx context.Context) error {
 		go a.inputLoop(stop, dev)
 	}
 	go a.statusLoop(stop)
+	if a.setup != nil {
+		go a.setupSignalLoop(stop)
+	}
 	go a.hmon.Run(stop, 10*time.Second, 2*time.Second)
 	go a.telemetryLoop(stop)
 	go a.powerLoop(stop)
@@ -318,6 +328,9 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	<-ctx.Done()
+	if a.setup != nil {
+		a.setup.Leave() // never leave the speaker as an access point without its daemon
+	}
 	close(stop)
 	<-renderDone // no final clock frame may race with the screen blank below
 	// A failed blank is only logged: an error from Run means exit 1, which the supervisor

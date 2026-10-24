@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -94,6 +95,17 @@ type Config struct {
 	// separate: it is a music-only gain under the speaker's volume.
 	SendspinVolume string
 	MusicDuckDB    int // music level while the assistant listens/talks/rings, dB below normal
+
+	// Wi-Fi setup mode (docs/wifi-setup.md): the speaker becomes an access point with a page for
+	// editing the saved networks, entered by holding volume-down + voice + mute for 5 s. Lasts
+	// until it is left or the speaker reboots.
+	WifiSetup        bool
+	WifiSetupSSID    string // "" = yastation-<device_id>
+	WifiSetupPSK     string // "" = an open network
+	WifiSetupChannel int
+	WifiSetupAddress string // the speaker's address/prefix on its access point
+	HostapdBin       string
+	WPAConf          string // "" = the running wpa_supplicant's -c
 
 	// Clock: SNTP sync when no chronyd/ntpd runs (internal/timesync). ntp_server entries are tried
 	// first, then the servers in chrony_conf, then the default gateway.
@@ -188,6 +200,10 @@ func Default() Config {
 		SendspinState:       cfw + "/sendspin/state.json",
 		SendspinVolume:      "linked",
 		MusicDuckDB:         -26,
+		WifiSetup:           true,
+		WifiSetupChannel:    6,
+		WifiSetupAddress:    "10.42.0.1/24",
+		HostapdBin:          cfw + "/bin/hostapd",
 		WakeEnabled:         true,
 		SpotterBin:          cfw + "/bin/spotter-host",
 		ReplyTimeout:        90 * time.Second,
@@ -334,6 +350,33 @@ func (c *Config) set(k, v string) error {
 			return fmt.Errorf("want linked or separate")
 		}
 		c.SendspinVolume = v
+	case "wifi_setup":
+		c.WifiSetup, err = strconv.ParseBool(v)
+	case "wifi_setup_ssid":
+		if l := len(v); l == 0 || l > 32 {
+			return fmt.Errorf("want 1..32 bytes")
+		}
+		c.WifiSetupSSID = v
+	case "wifi_setup_psk":
+		if l := len(v); l < 8 || l > 63 {
+			return fmt.Errorf("want 8..63 characters")
+		}
+		c.WifiSetupPSK = v
+	case "wifi_setup_channel":
+		c.WifiSetupChannel, err = atoiRange(v, 1, 13)
+	case "wifi_setup_address":
+		ip, n, perr := net.ParseCIDR(v)
+		if perr != nil {
+			return perr
+		}
+		if ones, _ := n.Mask.Size(); ip.To4() == nil || ones != 24 {
+			return fmt.Errorf("want an IPv4 address in a /24, e.g. 10.42.0.1/24")
+		}
+		c.WifiSetupAddress = v
+	case "hostapd_bin":
+		c.HostapdBin = v
+	case "wpa_conf":
+		c.WPAConf = v
 	case "music_duck_db":
 		c.MusicDuckDB, err = atoiRange(v, -60, 0)
 	case "aplay_device":

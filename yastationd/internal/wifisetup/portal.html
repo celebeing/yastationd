@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speaker Wi-Fi setup</title>
+<style>
+:root { --bg:#f6f6f4; --card:#fff; --fg:#1d1d1b; --muted:#6b6b66; --line:#e2e2dc; --acc:#b88a00; --err:#b3261e; --ok:#2e7d32; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root { --bg:#151514; --card:#1f1f1d; --fg:#ecece8; --muted:#9a9a93; --line:#33332f; --acc:#e0b100; --err:#ff8a80; --ok:#81c784; color-scheme: dark; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding:16px; }
+main { max-width:560px; margin:0 auto; }
+h1 { font-size:20px; margin:4px 0 2px; }
+h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:22px 0 8px; font-weight:600; }
+.sub { color:var(--muted); font-size:13px; margin:0 0 8px; word-break:break-all; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:10px; }
+.row { display:flex; align-items:center; gap:10px; padding:11px 12px; border-top:1px solid var(--line); }
+.row:first-child { border-top:0; }
+.row .name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tag { font-size:12px; color:var(--muted); white-space:nowrap; }
+.empty { padding:12px; color:var(--muted); }
+button { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--fg); border-radius:8px; padding:7px 12px; cursor:pointer; }
+button.primary { background:var(--acc); border-color:var(--acc); color:#1d1d1b; font-weight:600; }
+button.danger { color:var(--err); }
+button:disabled { opacity:.5; }
+form { padding:12px; display:grid; gap:10px; }
+label { display:grid; gap:4px; font-size:13px; color:var(--muted); }
+input[type=text], input[type=password], input[type=number] { font:inherit; padding:9px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); width:100%; }
+.check { display:flex; gap:8px; align-items:center; color:var(--fg); font-size:14px; }
+.actions { display:flex; gap:8px; flex-wrap:wrap; }
+#msg { min-height:20px; margin:10px 0 0; font-size:14px; }
+#msg.err { color:var(--err); } #msg.ok { color:var(--ok); }
+.scanrow { cursor:pointer; }
+.bars { font-family:ui-monospace, monospace; color:var(--muted); font-size:12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Wi-Fi setup</h1>
+  <p class="sub" id="device"></p>
+
+  <h2>Saved networks</h2>
+  <div class="card" id="saved"><div class="empty">Loading…</div></div>
+
+  <h2 id="formtitle">Add a network</h2>
+  <div class="card">
+    <form id="form" autocomplete="off">
+      <label>Network name (SSID)
+        <input type="text" id="ssid" list="ssids" required maxlength="32" autocapitalize="off" spellcheck="false">
+        <datalist id="ssids"></datalist>
+      </label>
+      <label><span id="pskhint">Password (empty = open network)</span>
+        <input type="password" id="psk" maxlength="64" autocapitalize="off" spellcheck="false">
+      </label>
+      <label class="check"><input type="checkbox" id="showpsk"> Show password</label>
+      <label class="check"><input type="checkbox" id="hidden"> Hidden network</label>
+      <label>Priority (higher is tried first)
+        <input type="number" id="prio" value="0" min="0" max="1000">
+      </label>
+      <div class="actions">
+        <button class="primary" type="submit" id="save">Save</button>
+        <button type="button" id="cancel" hidden>Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <h2>Networks around</h2>
+  <p class="sub">Seen when setup mode started. Tap one to fill in its name.</p>
+  <div class="card" id="scan"><div class="empty">Loading…</div></div>
+
+  <h2>Finish</h2>
+  <div class="card"><form>
+    <p class="sub" style="margin:0">The speaker leaves setup mode and connects with the saved networks. This page stops working then.</p>
+    <div class="actions">
+      <button class="primary" type="button" id="finish">Connect now</button>
+      <button type="button" id="reboot">Reboot instead</button>
+    </div>
+  </form></div>
+  <p id="msg"></p>
+</main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+let editing = null; // {id, ssid} while editing a saved network
+
+function say(text, cls) { const m = $("msg"); m.textContent = text; m.className = cls || ""; }
+
+async function api(method, path, body) {
+  const r = await fetch(path, { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "onclick") e.onclick = v; else if (k === "text") e.textContent = v; else e.setAttribute(k, v);
+  }
+  for (const k of kids) e.append(k);
+  return e;
+}
+
+function secLabel(s) { return s === "psk" ? "password" : s === "open" ? "open" : s; }
+
+function bars(dbm) {
+  const n = dbm >= -55 ? 4 : dbm >= -65 ? 3 : dbm >= -75 ? 2 : 1;
+  return "▮".repeat(n) + "▯".repeat(4 - n);
+}
+
+function render(st) {
+  $("device").textContent = (st.device ? st.device + " · " : "") + st.conf;
+  const saved = $("saved"); saved.replaceChildren();
+  if (!st.networks.length) saved.append(el("div", { class: "empty", text: "No saved networks." }));
+  for (const n of st.networks) {
+    const tags = [secLabel(n.security)];
+    if (n.priority) tags.push("priority " + n.priority);
+    if (n.hidden) tags.push("hidden");
+    if (n.disabled) tags.push("disabled");
+    saved.append(el("div", { class: "row" },
+      el("div", { class: "name", text: n.ssid }),
+      el("span", { class: "tag", text: tags.join(" · ") }),
+      el("button", { type: "button", text: "Edit", onclick: () => startEdit(n) }),
+      el("button", { type: "button", class: "danger", text: "Delete", onclick: (ev) => del(n, ev.currentTarget) })));
+  }
+  const scan = $("scan"); scan.replaceChildren();
+  const dl = $("ssids"); dl.replaceChildren();
+  if (!st.scan.length) scan.append(el("div", { class: "empty", text: "Nothing was found." }));
+  for (const s of st.scan) {
+    dl.append(el("option", { value: s.ssid }));
+    scan.append(el("div", { class: "row scanrow", onclick: () => pick(s) },
+      el("div", { class: "name", text: s.ssid }),
+      el("span", { class: "tag", text: secLabel(s.security) + " · " + (s.freq > 4000 ? "5 GHz" : "2.4 GHz") }),
+      el("span", { class: "bars", text: bars(s.signal) })));
+  }
+}
+
+async function load() {
+  try { render(await api("GET", "/api/state")); } catch (e) { say("Could not load: " + e.message, "err"); }
+}
+
+function resetForm() {
+  editing = null;
+  $("form").reset();
+  $("ssid").disabled = false;
+  $("hidden").disabled = false;
+  $("formtitle").textContent = "Add a network";
+  $("pskhint").textContent = "Password (empty = open network)";
+  $("cancel").hidden = true;
+}
+
+function pick(s) {
+  resetForm();
+  $("ssid").value = s.ssid;
+  $("psk").focus();
+  window.scrollTo({ top: $("form").getBoundingClientRect().top + window.scrollY - 60, behavior: "smooth" });
+}
+
+function startEdit(n) {
+  resetForm();
+  editing = { id: n.id, ssid: n.ssid };
+  $("ssid").value = n.ssid; $("ssid").disabled = true;
+  $("hidden").checked = n.hidden; $("hidden").disabled = true;
+  $("prio").value = n.priority;
+  $("formtitle").textContent = "Edit " + n.ssid;
+  $("pskhint").textContent = n.security === "psk" ? "New password (empty = keep the current one)" : "Password (empty = open network)";
+  $("cancel").hidden = false;
+  window.scrollTo({ top: $("form").getBoundingClientRect().top + window.scrollY - 60, behavior: "smooth" });
+}
+
+async function del(n, b) {
+  if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = "Sure?"; setTimeout(() => { b.dataset.armed = ""; b.textContent = "Delete"; }, 3000); return; }
+  try { await api("DELETE", "/api/networks/" + n.id + "?ssid=" + encodeURIComponent(n.ssid)); say("Deleted " + n.ssid + ".", "ok"); }
+  catch (e) { say(e.message, "err"); }
+  load();
+}
+
+$("showpsk").onchange = () => { $("psk").type = $("showpsk").checked ? "text" : "password"; };
+$("cancel").onclick = resetForm;
+
+$("form").onsubmit = async (ev) => {
+  ev.preventDefault();
+  const psk = $("psk").value, prio = parseInt($("prio").value || "0", 10);
+  try {
+    if (editing) {
+      const body = { ssid: editing.ssid, priority: prio };
+      if (psk !== "") body.psk = psk;
+      await api("POST", "/api/networks/" + editing.id, body);
+      say("Saved " + editing.ssid + ".", "ok");
+    } else {
+      const ssid = $("ssid").value;
+      await api("POST", "/api/networks", { ssid, psk, hidden: $("hidden").checked, priority: prio });
+      say("Saved " + ssid + ".", "ok");
+    }
+    resetForm();
+  } catch (e) { say(e.message, "err"); }
+  load();
+};
+
+function lock(text) {
+  for (const b of document.querySelectorAll("button")) b.disabled = true;
+  say(text, "ok");
+}
+
+$("finish").onclick = async () => {
+  try { await api("POST", "/api/finish"); lock("Leaving setup mode. The speaker connects to Wi-Fi now; you can close this page."); }
+  catch (e) { say(e.message, "err"); }
+};
+$("reboot").onclick = async () => {
+  try { await api("POST", "/api/reboot"); lock("Rebooting. You can close this page."); }
+  catch (e) { say(e.message, "err"); }
+};
+
+load();
+</script>
+</body>
+</html>

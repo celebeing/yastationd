@@ -35,12 +35,13 @@ func Fill(n, k int, c hw.RGB) RingFrame {
 }
 
 var (
-	Cyan  = hw.RGB{R: 0, G: 180, B: 255}
-	Blue  = hw.RGB{R: 0, G: 40, B: 255}
-	Amber = hw.RGB{R: 255, G: 140, B: 0}
-	Red   = hw.RGB{R: 255, G: 0, B: 0}
-	Green = hw.RGB{R: 0, G: 220, B: 0}
-	White = hw.RGB{R: 255, G: 255, B: 255}
+	Cyan   = hw.RGB{R: 0, G: 180, B: 255}
+	Blue   = hw.RGB{R: 0, G: 40, B: 255}
+	Amber  = hw.RGB{R: 255, G: 140, B: 0}
+	Yellow = hw.RGB{R: 255, G: 210, B: 0}
+	Red    = hw.RGB{R: 255, G: 0, B: 0}
+	Green  = hw.RGB{R: 0, G: 220, B: 0}
+	White  = hw.RGB{R: 255, G: 255, B: 255}
 )
 
 func scaleAll(f RingFrame, k float64) RingFrame {

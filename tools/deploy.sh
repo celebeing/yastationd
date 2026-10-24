@@ -10,7 +10,8 @@
 # Per-unit overrides remain available; use "-" to keep the profile root while overriding arch:
 #   root@<speaker-c>  pickle  -  aarch64
 # Native helpers are loaded from spotter-host/build/<arch>/spotter-host and, when built,
-# sendspin-host/build/<arch>/sendspin-host.
+# sendspin-host/build/<arch>/sendspin-host. hostapd (one static binary for every board) from
+# hostapd/build/hostapd, when built.
 #
 # Env: SSHKEY (default ~/.ssh/id_yastation). Speakers are updated one at a time; the script stops
 # at the first failure so a broken build never reaches the rest.
@@ -106,19 +107,21 @@ grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target platform cfw arc
 		ss=$here/sendspin-host/build/$arch/sendspin-host
 		[ -x "$ss" ] && ssh_ "$target" "cat > $cfw/bin/sendspin-host.upload" <"$ss"
 	fi
+	hap=$here/hostapd/build/hostapd
+	[ -x "$hap" ] && ssh_ "$target" "cat > $cfw/bin/hostapd.upload" <"$hap"
 
 	# The swap runs from stdin; it restarts the daemon, which restarts spotter-host with it.
 	ssh_ "$target" 'sh -s' <<EOF
 set -e
 D=$cfw
 chmod +x \$D/bin/yastationd.upload
-for h in spotter-host sendspin-host; do [ -f \$D/bin/\$h.upload ] && chmod +x \$D/bin/\$h.upload; done
+for h in spotter-host sendspin-host hostapd; do [ -f \$D/bin/\$h.upload ] && chmod +x \$D/bin/\$h.upload; done
 /etc/init.d/S52zyastationd stop >/dev/null 2>&1 || true
 sleep 1
 l0=\$(cat /tmp/yastationd.log 2>/dev/null | wc -l)
 [ -f \$D/bin/yastationd ] && cp -p \$D/bin/yastationd \$D/bin/yastationd.prev
 mv \$D/bin/yastationd.upload \$D/bin/yastationd
-for h in spotter-host sendspin-host; do [ -f \$D/bin/\$h.upload ] && mv \$D/bin/\$h.upload \$D/bin/\$h; done
+for h in spotter-host sendspin-host hostapd; do [ -f \$D/bin/\$h.upload ] && mv \$D/bin/\$h.upload \$D/bin/\$h; done
 /etc/init.d/S52zyastationd start >/dev/null
 sleep 8
 n=\$(ps w | awk -v b="\$D/bin/yastationd" '\$3 == b' | wc -l)

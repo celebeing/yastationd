@@ -22,6 +22,7 @@ This is the index of project documentation. Read the relevant doc here **before*
 | [display-expressions.md](display-expressions.md) | Display engine design: independent surfaces, semantic expressions, scenarios; the stock clock clip formats (`.scled` / `.binscled`) and their LED order; HA exposure; phases |
 | [voice-slow-replies.md](voice-slow-replies.md) | Slow replies: how HA behaves (no timeout, the wedge on a new run, the clean cancel by dropping the connection), the speaker's reply deadline, «стоп», wake-word interrupt, wedge watchdog |
 | [status-indication.md](status-indication.md) | Boot / first connection / degraded states and how the ring and the front display show them; the clock before the first time sync; voice attempts without HA |
+| [wifi-setup.md](wifi-setup.md) | Wi-Fi setup mode: the recovery access point (key combo), our hostapd build (the firmware's wpa_supplicant has no AP mode), DHCP/DNS/captive page in the daemon, the handoff back to wpa_supplicant, crash recovery, boot without a network |
 | [releasing.md](releasing.md) | Versions (SemVer tags, burned into the build, shown in HA) and how to cut a release |
 | [wishlist.md](wishlist.md) | Ideas under consideration, not planned: nearest-speaker arbitration, ESPHome API instead of MQTT+Wyoming, pipeline robustness, music; notes from reviewing pulsar |
 | [speaker-id.md](speaker-id.md) | Speaker identification design (who is talking) for the HA voice pipeline, with a status log |

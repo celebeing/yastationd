@@ -15,6 +15,7 @@ don't touch Wi-Fi/boot without a fallback, and make sound only on the unit the u
 | `<cfw>/bin/yastationd` | the agent (static armv7, same binary for every board) |
 | `<cfw>/bin/spotter-host` | the voice front-end host, built for the device's userland arch |
 | `<cfw>/bin/sendspin-host` | the Music Assistant player (optional, `sendspin = true`), built for the userland arch |
+| `<cfw>/bin/hostapd` | the access point for the Wi-Fi setup mode (static armv7, same binary for every board; [wifi-setup.md](wifi-setup.md)) |
 | `<cfw>/sendspin/state.json` | its identity (stable client_id) and pairing records, 0600 |
 | `<cfw>/yastationd.conf` | config (generic `yastationd/configs/yastationd.conf.example`; Orion bring-up `orion.conf.example`) |
 | `<cfw>/board.conf` | optional per-unit overrides of board-profile keys |
@@ -79,6 +80,9 @@ ARCH=aarch64 SYSROOT=dumps/sysroot-<board> OUT=spotter-host/build/aarch64/spotte
 `sendspin-host` (the music player, optional) needs no device files: `make -C sendspin-host` builds
 both arches with zig 0.14.1 (see its README).
 
+`hostapd` (the Wi-Fi setup mode's access point) likewise: `make -C hostapd` builds one static
+binary for every board with zig 0.14.1 (see [wifi-setup.md](wifi-setup.md)).
+
 ## 2. First install
 
 ```sh
@@ -138,7 +142,7 @@ One speaker: `make deploy` (build, upload aside along with `supervise.sh`, stop 
 binary as `.prev` → swap → start, tail the log). Several: `tools/deploy.sh` with a
 `tools/deploy.hosts` list (see `tools/deploy.hosts.example`). Each line is `<ssh-target>
 <platform> [cfw-root override] [helper-arch override]`; the board profile supplies omitted
-values. The script also rolls out `spotter-host` (and `sendspin-host`, when built) and stops at
+values. The script also rolls out `spotter-host` (and `sendspin-host` and `hostapd`, when built) and stops at
 the first failing speaker.
 
 **Don't** improvise the swap as one ssh command line that contains the binary's path. The init

@@ -3,6 +3,14 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Operations**
+- Wi-Fi setup mode: hold volume-down + voice + mute for 5 s and the speaker becomes an open access
+  point with a page for listing, adding, editing and removing its saved networks (captive portal,
+  networks seen nearby). Never persistent: leaving it, the page or a reboot brings the Wi-Fi client
+  back. Ships its own static `hostapd` (the firmware's wpa_supplicant has no AP mode).
+
 ## v0.3.0 — 2026-10-24
 
 The first tagged release; it covers everything up to now.

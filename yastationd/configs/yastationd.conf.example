@@ -55,6 +55,16 @@ volume_beep  = true
 # Chime before an HA announcement (needs `make sounds`).
 # announce_chime  = true
 
+# --- Wi-Fi setup mode (docs/wifi-setup.md): hold volume-down + voice + mute for 5 s; the speaker
+# becomes an access point with a page for its saved networks, until left or rebooted.
+# wifi_setup         = true
+# wifi_setup_ssid    = yastation-<device_id>
+# wifi_setup_psk     =                (empty = open network; 8..63 characters = WPA2-PSK)
+# wifi_setup_channel = 6
+# wifi_setup_address = 10.42.0.1/24   (a /24)
+# hostapd_bin        = <cfw>/bin/hostapd
+# wpa_conf           =                (empty = the running wpa_supplicant's -c)
+
 # --- Wyoming satellite (HA: Settings → Integrations → Wyoming → host = this device, port below).
 # Playback only for now: HA announcements (assist_satellite.announce) and TTS replies. 0 = off.
 wyoming_port = 10700

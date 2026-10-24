@@ -20,6 +20,8 @@ const (
 	PrioLocal      = 30
 	PrioVoice      = 40
 	PrioError      = 50
+	// Wi-Fi setup mode: the speaker is not itself for as long as it lasts.
+	PrioSetup = 60
 )
 
 // RenderFunc draws a frame at time now. `below` is what the layers underneath would show, so

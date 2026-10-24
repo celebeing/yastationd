@@ -19,6 +19,7 @@ internal/hw           sysfs LEDs (ring, matrix), evdev input, amixer/aplay, IIO 
 internal/display      per-surface priority layer stack + clock/text/ring effects
 internal/mqtt         paho client (LWT, backoff), topics, HA MQTT-Discovery
 internal/health       liveness state machine (TCP probes + heartbeat)
+internal/wifisetup    Wi-Fi setup mode: hostapd handoff, DHCP/DNS, the setup page, wpa_supplicant.conf edits
 internal/sendspin     supervises sendspin-host (Music Assistant player) and relays its events
 internal/app          wiring: render loop, command handlers, evdev reflexes
 configs/              generic and Orion-specific yastationd.conf examples
@@ -159,6 +160,9 @@ reports local changes back. Volume key ticks are skipped while music plays. Desi
 
 - Volume keys → `amixer Master` ± and a transient 6-pixel level bar.
 - Mic-mute switch → steady amber ring + `binary_sensor`.
+- Volume-down + voice + mute held 5 s → Wi-Fi setup mode: the speaker becomes an open access point
+  with a page for its saved networks (yellow comet, `O  O°`); the same again, the page or a reboot
+  leaves it. See [docs/wifi-setup.md](../docs/wifi-setup.md).
 - Broker/LAN down → health state machine drops to degraded/offline, shows a dim-red ring dot, keeps
   the clock and all local reflexes running, and re-publishes discovery + state on reconnect.
 

@@ -79,10 +79,15 @@ func (a *App) onInputEvent(f *os.File, hasSwitch bool, state *inputDeviceState, 
 	case hw.EvAbs:
 		a.onAbsoluteInput(f, state, ev)
 	case hw.EvKey:
+		action := a.prof.Input.Keys[int(ev.Code)]
+		if ev.Value == 0 || ev.Value == 1 { // down/up, not autorepeat
+			if a.setupKey(action, ev.Value == 1) {
+				return
+			}
+		}
 		if ev.Value != 1 { // key down only
 			return
 		}
-		action := a.prof.Input.Keys[int(ev.Code)]
 		if action == "mute_key" {
 			if hasSwitch {
 				a.readSwitches(f)

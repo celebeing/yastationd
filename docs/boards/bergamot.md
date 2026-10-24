@@ -65,7 +65,9 @@ Profile: `yastationd/internal/board/profiles/bergamot.conf` · Survey: `dumps/su
   meter next to the black unit: 1 lx → 0.033, 25 lx → 0.53, 37 lx → 0.57, office light (200 lx at the
   meter, shining onto the top) → 81 — direction/spectrum matter more than lux. Drives the clock
   auto-brightness (see yastationd README, open item 5). `meson-axg-saradc` (ADC).
-- Wi-Fi + BT (bluealsa present). No Zigbee.
+- Wi-Fi + BT (bluealsa present). No Zigbee. The Wi-Fi driver (`vlsicomm`) does AP mode on 2.4 GHz,
+  but the stock `wpa_supplicant` 2.9 is built without it and there is no hostapd: the setup mode
+  brings its own ([wifi-setup.md](../wifi-setup.md)).
 - **No RTC** (no `/dev/rtc*`, no `/sys/class/rtc`): the clock starts from scratch after a power loss (unit #2 came up 4 h 20 min behind). The vendor `set_monotonic_time.sh` only keeps it from going backwards (saved stamp in `/data/quasar/data/monotonic_time`); real time comes from chronyd or yastationd's SNTP once the network is up. (The Mini 3 Pro has a PCF8563 — see [pickle](pickle.md).)
 
 ## Firmware variants
