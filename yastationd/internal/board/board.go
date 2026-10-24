@@ -30,14 +30,15 @@ type Profile struct {
 	Model string   // human name for HA, e.g. "Station Mini 3"
 	Match []string // device-tree compatible strings that select this profile
 
-	Ring   RingSpec
-	Matrix MatrixSpec
-	Input  InputSpec
-	Audio  AudioSpec
-	Mic    MicSpec
-	Wake   WakeSpec
-	Lux    LuxSpec
-	Power  PowerSpec
+	Ring      RingSpec
+	Ambilight AmbilightSpec
+	Matrix    MatrixSpec
+	Input     InputSpec
+	Audio     AudioSpec
+	Mic       MicSpec
+	Wake      WakeSpec
+	Lux       LuxSpec
+	Power     PowerSpec
 }
 
 // RingSpec: an RGB ring of Pixels, each pixel = one sysfs LED per colour. LED names come from
@@ -49,11 +50,23 @@ type RingSpec struct {
 	Colors []string // sysfs colour names in R,G,B order, e.g. red,green,blue
 }
 
+// AmbilightSpec describes an independently controlled rear RGBW strip. Each logical position
+// may have multiple dies which receive the same value. Kind "none" or empty = no strip.
+type AmbilightSpec struct {
+	Kind   string // "sysfs-rgbw" | "none"
+	Pixels int
+	LED    string   // pattern with {color}, {i}, and {die}
+	Colors []string // sysfs colour names in R,G,B,W order
+	Dies   []string // physical die suffixes per logical position
+}
+
 // MatrixSpec: the front display. Kind "seg7" = Digits 7-segment digits, one sysfs LED per
-// segment from the Segment pattern ({seg} = A..G, {digit} = 0..Digits-1), plus the colon (one
-// or more LEDs), the dot and the degree mark. Kind "none" = no display.
+// segment from the Segment pattern ({seg} = A..G, {digit} = 0..Digits-1), plus the colon
+// (one or more LEDs), dot and degree mark. Kind "dotmatrix-fb" = an fbdev dot matrix found
+// by its "LED screen" name (Dev optionally pins /dev/fbN). Kind "none" = no display.
 type MatrixSpec struct {
-	Kind    string // "seg7" | "none"
+	Kind    string // "seg7" | "dotmatrix-fb" | "none"
+	Dev     string // dotmatrix-fb device path; "" = find /sys/class/graphics/fb*/name
 	Digits  int
 	Segment string
 	Colon   []string
@@ -242,8 +255,20 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Ring.LED = v
 	case k == "ring.colors":
 		p.Ring.Colors = splitList(v)
+	case k == "ambilight.kind":
+		p.Ambilight.Kind = v
+	case k == "ambilight.pixels":
+		p.Ambilight.Pixels, err = strconv.Atoi(v)
+	case k == "ambilight.led":
+		p.Ambilight.LED = v
+	case k == "ambilight.colors":
+		p.Ambilight.Colors = splitList(v)
+	case k == "ambilight.dies":
+		p.Ambilight.Dies = splitList(v)
 	case k == "matrix.kind":
 		p.Matrix.Kind = v
+	case k == "matrix.dev":
+		p.Matrix.Dev = v
 	case k == "matrix.digits":
 		p.Matrix.Digits, err = strconv.Atoi(v)
 	case k == "matrix.segment":
@@ -386,8 +411,21 @@ func (p Profile) Validate() error {
 	default:
 		return fmt.Errorf("ring.kind %q unknown", p.Ring.Kind)
 	}
+	switch p.Ambilight.Kind {
+	case "", "none":
+	case "sysfs-rgbw":
+		if p.Ambilight.Pixels <= 0 || p.Ambilight.LED == "" ||
+			len(p.Ambilight.Colors) != 4 || len(p.Ambilight.Dies) == 0 {
+			return fmt.Errorf("ambilight: sysfs-rgbw needs pixels > 0, led, 4 colors and dies")
+		}
+	default:
+		return fmt.Errorf("ambilight.kind %q unknown", p.Ambilight.Kind)
+	}
 	switch p.Matrix.Kind {
 	case "none":
+	case "dotmatrix-fb":
+		// Geometry, stride and RGB byte order are runtime fbdev properties: OpenDotMatrix
+		// validates them before the daemon starts. Dev may be empty for name-based discovery.
 	case "seg7":
 		if p.Matrix.Digits != 4 { // display/matrix.go draws 4 digits; widen it when a board needs it
 			return fmt.Errorf("matrix: seg7 supports 4 digits, got %d", p.Matrix.Digits)

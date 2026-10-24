@@ -63,6 +63,20 @@ func (c RGB) Scale(k int) RGB {
 
 func (c RGB) Hex() string { return fmt.Sprintf("%02x%02x%02x", c.R, c.G, c.B) }
 
+// RGBW is one red/green/blue/white pixel.
+type RGBW struct{ R, G, B, W uint8 }
+
+func (c RGBW) Scale(k int) RGBW {
+	return RGBW{
+		R: uint8(int(c.R) * k / 255),
+		G: uint8(int(c.G) * k / 255),
+		B: uint8(int(c.B) * k / 255),
+		W: uint8(int(c.W) * k / 255),
+	}
+}
+
+func (c RGBW) Hex() string { return fmt.Sprintf("%02x%02x%02x%02x", c.R, c.G, c.B, c.W) }
+
 // Ring is an RGB LED ring of n pixels, one sysfs LED per pixel per colour. Names come from a
 // pattern with {color} and {i}, e.g. "bergamot:{color}:logo{i}"; colors are the sysfs colour
 // names in R,G,B order. A nil *Ring (no ring on this board) shows nothing.
@@ -107,6 +121,69 @@ func (r *Ring) Show(f []RGB) error {
 		for ch, v := range []uint8{c.R, c.G, c.B} {
 			if err := r.px[i][ch].set(int(v)); err != nil && first == nil {
 				first = err
+			}
+		}
+	}
+	return first
+}
+
+// Ambilight is a logical RGBW strip. Each position may contain multiple physical dies;
+// Show writes every die identically. Names come from a pattern with {color}, {i}, and {die}.
+// A nil *Ambilight (no rear strip on this board) is a no-op.
+type Ambilight struct {
+	px [][][]ledNode // position -> die -> R,G,B,W
+}
+
+func NewAmbilight(root string, pixels int, pattern string, colors, dies []string) (*Ambilight, error) {
+	if len(colors) != 4 {
+		return nil, fmt.Errorf("ambilight: need 4 colours, got %d", len(colors))
+	}
+	if len(dies) == 0 {
+		return nil, fmt.Errorf("ambilight: need at least one die")
+	}
+	a := &Ambilight{px: make([][][]ledNode, pixels)}
+	for i := range pixels {
+		a.px[i] = make([][]ledNode, len(dies))
+		for d, die := range dies {
+			a.px[i][d] = make([]ledNode, len(colors))
+			for c, col := range colors {
+				name := strings.NewReplacer(
+					"{color}", col,
+					"{i}", strconv.Itoa(i),
+					"{die}", die,
+				).Replace(pattern)
+				if err := setTriggerNone(root, name); err != nil {
+					return nil, fmt.Errorf("ambilight %s: %w", name, err)
+				}
+				a.px[i][d][c].path = ledPath(root, name)
+			}
+		}
+	}
+	return a, nil
+}
+
+func (a *Ambilight) Pixels() int {
+	if a == nil {
+		return 0
+	}
+	return len(a.px)
+}
+
+func (a *Ambilight) Show(f []RGBW) error {
+	if a == nil {
+		return nil
+	}
+	var first error
+	for i, color := range f {
+		if i >= len(a.px) {
+			break
+		}
+		channels := [4]uint8{color.R, color.G, color.B, color.W}
+		for d := range a.px[i] {
+			for c, value := range channels {
+				if err := a.px[i][d][c].set(int(value)); err != nil && first == nil {
+					first = err
+				}
 			}
 		}
 	}

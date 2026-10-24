@@ -12,10 +12,11 @@ mqtt_port = 1883
 topic_prefix     = yastation
 discovery_prefix = homeassistant
 
-# --- display ---
-tz               = Europe/Moscow
-ring_brightness  = 128
-clock_brightness = 128
+# --- lights / display ---
+tz                    = Europe/Moscow
+ring_brightness       = 128
+ambilight_brightness  = 128
+clock_brightness      = 128
 # Clock brightness from the light sensor (also an HA switch; this is only the first-start value).
 # auto_brightness = true
 # Sensor reading -> brightness, interpolated on log(lux); readings are the sensor's own scale

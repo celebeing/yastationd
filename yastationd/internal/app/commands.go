@@ -13,6 +13,9 @@ import (
 func (a *App) subscribe() {
 	t := a.topics
 	a.mqtt.Subscribe(t.Command("ring"), a.cmdRing)
+	if a.ambilight != nil {
+		a.mqtt.Subscribe(t.Command("ambilight"), a.cmdAmbilight)
+	}
 	a.mqtt.Subscribe(t.Command("display_mode"), a.cmdDisplayMode)
 	a.mqtt.Subscribe(t.Command("display_message"), a.cmdDisplayMessage)
 	a.mqtt.Subscribe(t.Command("volume"), a.cmdVolume)
@@ -58,6 +61,46 @@ func (a *App) cmdRing(payload []byte) {
 		}
 	})
 	a.mqtt.Publish(a.topics.State("ring"), ringStateJSON(s))
+}
+
+type ambilightCommand struct {
+	State      string                      `json:"state"`
+	Brightness *int                        `json:"brightness"`
+	Color      *struct{ R, G, B, W uint8 } `json:"color"`
+}
+
+func parseAmbilightCommand(payload []byte) (ambilightCommand, error) {
+	var command ambilightCommand
+	err := json.Unmarshal(payload, &command)
+	return command, err
+}
+
+func (command ambilightCommand) apply(s *persistState) {
+	if command.State != "" {
+		s.AmbilightOn = strings.EqualFold(command.State, "ON")
+	}
+	if command.Brightness != nil {
+		s.AmbilightBright = clamp(*command.Brightness, 0, 255)
+	}
+	if command.Color != nil {
+		s.AmbilightRGBW = hw.RGBW{
+			R: command.Color.R,
+			G: command.Color.G,
+			B: command.Color.B,
+			W: command.Color.W,
+		}
+	}
+}
+
+// ambilight: HA JSON light schema {state, brightness, color:{r,g,b,w}}.
+func (a *App) cmdAmbilight(payload []byte) {
+	command, err := parseAmbilightCommand(payload)
+	if err != nil {
+		a.log.Warn("bad ambilight command", "err", err)
+		return
+	}
+	s := a.store.update(command.apply)
+	a.mqtt.Publish(a.topics.State("ambilight"), ambilightStateJSON(s))
 }
 
 func (a *App) cmdDisplayMode(payload []byte) {

@@ -22,11 +22,12 @@ type Entity struct {
 type builder struct {
 	t   Topics
 	dev Device
-	// RingEffects is the light's effect_list; Animations the ring_animation select's options
-	// (both owned by the app, which renders them).
-	RingEffects []string
-	Animations  []string
-	FollowModes []string
+	// RingEffects is the ring light's effect_list; Animations the ring_animation select's
+	// options. HasAmbilight adds the independently controlled rear RGBW light.
+	RingEffects  []string
+	Animations   []string
+	FollowModes  []string
+	HasAmbilight bool
 }
 
 func NewBuilder(t Topics, dev Device) *builder { return &builder{t: t, dev: dev} }
@@ -49,7 +50,7 @@ func (b *builder) build(e Entity) (topic string, payload []byte) {
 // object names to publish state and subscribe to commands.
 func (b *builder) Entities() []Entity {
 	t := b.t
-	return []Entity{
+	entities := []Entity{
 		{"light", "ring", map[string]any{
 			"name":                  "Ring",
 			"schema":                "json",
@@ -200,6 +201,18 @@ func (b *builder) Entities() []Entity {
 			"icon":        "mdi:gesture-tap-button",
 		}},
 	}
+	if b.HasAmbilight {
+		entities = append(entities, Entity{"light", "ambilight", map[string]any{
+			"name":                  "Ambilight",
+			"schema":                "json",
+			"state_topic":           t.State("ambilight"),
+			"command_topic":         t.Command("ambilight"),
+			"brightness":            true,
+			"supported_color_modes": []string{"rgbw"},
+			"icon":                  "mdi:led-strip-variant",
+		}})
+	}
+	return entities
 }
 
 // Publish sends every entity's discovery config (retained).

@@ -5,9 +5,11 @@ Device tree: `yandex,orion-pvt yandex,orion amlogic, a5`. Sources for this page:
 on-device survey and static analysis of the vendor 3.21 tree (maind, libyandex_evil.so,
 quasar.cfg, asound.conf …), both kept locally and not committed.
 
-Status: **sound bring-up** — playback + volume (stock stack) and mic capture (stack
-stopped, `tools/orion-stack-stop.sh`) **verified on device 2026-10-23**. LEDs
-(ring/screen/ambilight) and the wake word are later phases; see "Open" below.
+Status: playback, volume, mic capture, LED ring and the 21×12 front-screen daemon
+backend **verified on device 2026-10-23/24**. Both `fbleddemo -uwu` and the production
+clock renderer remain stable with no flashing; the clock advances normally. Rear
+ambilight hardware is verified and its daemon entity is implemented but not yet smoke-tested
+on-device. Wake is verified offline; on-device spotter remains open.
 
 ## Audio out
 
@@ -130,6 +132,9 @@ stopped, `tools/orion-stack-stop.sh`) **verified on device 2026-10-23**. LEDs
 
 ## Lux / power
 
+- Persistent writable storage: `/data`, approximately 2 GB free on the tested unit. The
+  Orion CFW root is `/data/cfw`; do not deploy it under `/bkupgrade/cfw`.
+
 - Ambient light: ltr308 (I2C 1-0053) registered as IIO `light-sensor-top`, `in_intensity_*`
   only; the stock S80light-sensor sets gain 18 / 0.4 s — max values, nothing to override.
   Profile prefix: `light-sensor`.
@@ -140,13 +145,59 @@ stopped, `tools/orion-stack-stop.sh`) **verified on device 2026-10-23**. LEDs
   the vendor tree (quasar.cfg, scripts) carries a textual threshold, so 15000 is our own
   alert line, tuned to the measured contract.
 
-## LEDs (open, for the later phase)
+## LEDs
 
-- 36 LEDs ring (AW21036 ×2 at I2C 2-0034/2-0035) in sysfs as `orion:{color}:ring{i}` plus
-  `orion:{ring,ambilight}{A,B,C}:sync` trigger-sync LEDs; boots on `ledfb-ring`.
-- Front display: 21×12 dot-matrix on /dev/fb1 ("YNDX LED screen", gowin FPGA) — needs its
-  own backend (like midi.md's); patterns in the vendor `ledpatterns/{ring,screen,ambilight}`.
-- Ambilight: 12 pixels (`orion:{color}:ambilight{i}{a,b}`) behind the grille.
+Three surfaces, every LED a Linux LED class device each mirrored by a framebuffer
+(`ledfb` triggers) — same architecture as bergamot's logo bar, ×3 chips:
+
+| Surface | sysfs | fb | geometry | chips |
+| --- | --- | --- | --- | --- |
+| Ring | `orion:{red,green,blue}:ring{0..35}` | `fb2` "ring" 36×1 | 36 RGB px | 3 × AW21036 @ I2C 2-0034/2-0035 (12 px each; expected A=0..11, B=12..23, C=24..35) |
+| Ambilight | `orion:{red,green,blue,white}:ambilight{i}{a,b}` (i=0..11) | `fb0` "ambilight" 12×1 | 12 positions × 2 dies; **RGBW** (the only white channel) | own `ambilight{A,B,C}:sync` latch |
+| Screen | — (fb only) | `fb1` "YNDX LED screen" 21×12 **(ioctl-confirmed)**, gowin FPGA | 252 px dot-matrix; glass lags one write behind — needs periodic re-send | plain `write()` works (verified 2026-10-24); no `S29gowin`/ipc needed |
+
+- Latch pseudo-LEDs `orion:{ring,ambilight}{A,B,C}:sync` (trigger `ledfb-*-sync`): one
+  per AW21036 in each chain. bergamot's `logo:sync` is never poked by our sysfs writes and
+  the ring works — the same is expected here; `tools/orion-led-probe.sh` verifies it
+  before the daemon relies on it.
+- **Vendor pattern files** (`/system/vendor/quasar/ledpatterns/`, dumped): plain text,
+  one frame per line — `RRGGBB` per pixel + trailing frame duration in **ms** (usually
+  `20`; `ring/block.led` holds `10000`). A global first line may be `loop`,
+  `smooth <N>` (interpolation on) or `no_size_optimization`; `ring/` = 36 px + duration,
+  `ambilight/` = 12 px + duration, `screen/` = 252 px (21×12 row-major) + duration.
+  No gamma in the files — the surfaces' gamma (ambilight 2.0, screen 2.2) comes from
+  quasar.cfg's `leds` block.
+- `ledconfigs/{red,blue}.json`: per-case-colour 3×3 **channel current coefficient
+  matrices** — which one applies is decided by the case colour, and
+  `S61leds-current-coefficients` programs it at boot. Orthogonal to our sysfs brightness
+  writes; we keep it running.
+- The profile wires the ring exactly like bergamot's bar (`sysfs-rgb`, trigger → `none`);
+  the 36 px work with the existing stack/effect sizes — **no new backend needed, verified
+  on device 2026-10-24** (`tools/orion-led-probe.sh`, log in the local `dumps/`):
+  - sysfs brightness writes reach the glass with no `:sync` poke (sync LEDs stay at 0,
+    never written);
+  - `ring{i}` indices walk **clockwise** starting at the vendor's 0 — the effect stack's
+    rotations read as-is, no `ring.reverse` knob; all 36 px live, none dead;
+  - the 0/12/24 chip-third pixels look equally bright;
+  - `fb2` accepts plain writes and the ring follows them (byte order RGB) — but we drive
+    sysfs, not the fb, as the single-writer-per-surface rule needs.
+- **Ambilight hardware probed on device 2026-10-24** — a 12-position strip on the
+  **back** of the speaker, top-to-bottom in index order (0→11); the `a`/`b` suffixes
+  are two dies of one position and are driven identically. It is RGBW (the only white
+  channel). `ambilight.kind = sysfs-rgbw` exposes it as a separate persisted HA MQTT
+  `light` with brightness and `rgbw` color mode; no voice/music overlays use it. The
+  daemon path is host-tested but still needs an on-device smoke test.
+- **Screen backend verified end-to-end on device 2026-10-24:** `hw.DotMatrix`
+  discovers fb1 by the "LED screen" name and reads geometry / stride / RGB channel order
+  from fbdev ioctls (21×12 confirmed). The glass lags one write behind, so a lone write
+  does not replace the vendor's stale clock; the next one latches it. `matrix.kind =
+  dotmatrix-fb` makes the daemon's existing 15 Hz display loop the continuous writer.
+  `display.Seg7ToPixels` converts the board-independent `MatrixFrame` to a 3×5 pixel
+  font doubled vertically (3×10 per digit), so clock, countdown, message text, marquee,
+  brightness and overlays keep their existing semantics. On shutdown: blank → `Flush`
+  so the stale frame does not remain. `fbleddemo -clock` verified that exact renderer
+  and cadence on glass: correct orientation, stable image, live clock updates; `-uwu`
+  remains the lower-level framebuffer diagnostic.
 
 ## Boot / egress
 

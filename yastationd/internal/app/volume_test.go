@@ -29,7 +29,7 @@ func TestWantsFollowUp(t *testing.T) {
 
 func TestStateDebouncedFlush(t *testing.T) {
 	path := t.TempDir() + "/state.json"
-	st := newStateStore(path, defaultState(128, 128, false))
+	st := newStateStore(path, defaultState(128, 128, 128, false))
 	for v := 0; v < 10; v++ {
 		st.update(func(s *persistState) { s.Volume = v })
 	}
@@ -37,7 +37,7 @@ func TestStateDebouncedFlush(t *testing.T) {
 		t.Fatal("written before the debounce delay")
 	}
 	st.flush()
-	if got := newStateStore(path, defaultState(128, 128, false)).get().Volume; got != 9 {
+	if got := newStateStore(path, defaultState(128, 128, 128, false)).get().Volume; got != 9 {
 		t.Fatalf("persisted volume = %d, want 9", got)
 	}
 }

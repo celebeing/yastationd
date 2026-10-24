@@ -6,9 +6,10 @@ and [wakeword-mic-array.md](wakeword-mic-array.md).
 
 ## 0. Scope
 One static daemon on the speaker (`root@<speaker-ip>`) that makes it a normal offline HASS device over
-**MQTT + MQTT Discovery**. **Phase 1 (this spec):** LED ring, front clock matrix, volume, mic-mute
-state, local button reflexes, WAV/announcement playback, health + watchdog. **Explicit non-goals here
-(Phase 2+):** voice / Wyoming satellite / wake word, beamforming, GTCRN NR. No cloud, no internet.
+**MQTT + MQTT Discovery**. **Phase 1 (this spec):** LED ring, optional rear ambilight,
+front clock matrix, volume, mic-mute state, local button reflexes, WAV/announcement
+playback, health + watchdog. **Explicit non-goals here (Phase 2+):** voice / Wyoming
+satellite / wake word, beamforming, GTCRN NR. No cloud, no internet.
 
 ## 1. Build & deploy
 - **Go, static: `CGO_ENABLED=0 GOARCH=arm GOARM=7 go build`.** Static sidesteps the device's armhf
@@ -29,6 +30,23 @@ position 0 = leftmost; standard 7-seg A=top,B=TR,C=BR,D=bottom,E=BL,F=TL,G=mid; 
 Digit→segments: 0=ABCDEF 1=BC 2=ABDEG 3=ABCDG 4=BCFG 5=ACDFG 6=ACDEFG 7=ABC 8=ABCDEFG 9=ABCDFG.
 **Flicker-free rule: write a segment only if its value changed** (read current, compare) — no blank-all pass.
 Brightness source `/bkupgrade/cfw/clock_brightness` (currently 128). Reference impl: `clock.sh`.
+
+### Orion front screen — 21×12 fbdev dot matrix
+`/dev/fb1`, name `YNDX LED screen`, gowin FPGA. `matrix.kind = dotmatrix-fb` discovers it
+by name (or `matrix.dev` pins the path) and reads geometry, row stride and RGB byte
+offsets via fbdev ioctls — no hard-coded packing. The panel latches one write behind:
+the 15 Hz display loop continuously re-sends the current frame, making it stable with no
+visible flash; shutdown writes blank then flushes once. The same `MatrixFrame` stack is
+rendered as a compact 3×5 segment font doubled vertically to 3×10, so clock, countdown,
+messages, marquee, brightness and overlay priority are board-independent.
+
+### Orion rear ambilight — 12 RGBW positions
+`orion:{red,green,blue,white}:ambilight{i}{a,b}` exposes two co-located dies for each
+logical position, ordered top-to-bottom. `ambilight.kind = sysfs-rgbw` takes every
+channel off its `ledfb-ambilight` trigger and writes both dies identically. The strip is
+an independent persisted HA MQTT `light` with brightness and `rgbw` color mode; it does
+not participate in ring voice/status overlays.
+
 ### Buttons
 `/dev/input/event0` = `gpio-keys`: `KEY_MUTE`(113) + `EV_SW SW_MUTE_DEVICE`(14) — the mic-mute.
 `/dev/input/event1` = `aw933xx` touch: `KEY_VOLUMEUP`(115), `KEY_VOLUMEDOWN`(114), `KEY_VOICECOMMAND`(582).
@@ -54,11 +72,14 @@ Mic (`hw:0,1`) is Phase 2, not needed here.
 Connect to the HASS broker (Phase-0 prereq: stand up Mosquitto on `<ha-host>`). Publish Home
 Assistant MQTT-Discovery configs under `homeassistant/<component>/yastation_<id>/<obj>/config`; state/cmd
 under `yastation/<id>/…`. Availability via **LWT** (`.../availability` online/offline).
-MVP entities: `light` (ring: on/off/brightness/rgb) · `select` `display_mode` (default **clock**) ·
-`text` `message` (matrix text/number) · `number` `volume` (`amixer Master`). **No `media_player`** — HA has
-no MQTT media_player platform (it silently ignores the config); announcements/TTS arrive via the
-**Wyoming satellite** role instead (`assist_satellite.announce`, see yastationd/README "Audio from HA") · `binary_sensor` `mic_mute` (from event0) · `sensor`s (uptime/health; `lux`+auto-bright
-later) · a `yastation/<id>/display/cmd` JSON topic for one-shot HASS overlays (see §4).
+MVP entities: `light` (ring: on/off/brightness/rgb), optional `light` (rear ambilight:
+on/off/brightness/rgbw), `select` `display_mode` (default **clock**), `text` `message`
+(matrix text/number), and `number` `volume` (`amixer Master`). **No `media_player`** —
+HA has no MQTT media_player platform (it silently ignores the config); announcements/TTS
+arrive via the **Wyoming satellite** role instead (`assist_satellite.announce`, see
+yastationd/README "Audio from HA") · `binary_sensor` `mic_mute` (from event0) ·
+`sensor`s (uptime/health; `lux`+auto-bright later) · a
+`yastation/<id>/display/cmd` JSON topic for one-shot HASS overlays (see §4).
 
 ## 4. Display layer-stack (core model)
 Each surface (matrix, ring) is a **priority-ordered stack of layers with per-layer TTL + auto-revert**:
@@ -68,6 +89,8 @@ Each surface (matrix, ring) is a **priority-ordered stack of layers with per-lay
 - Two drivers: MQTT entities/overlay-topic (HASS) **and** local reflexes that work with no broker
   (volume button → bubble; mute → indicator). Arbitration = the priority order (local reflexes and HASS
   overlays share the stack).
+The rear ambilight is intentionally outside this stack: it is a stable ambient light, not a
+status surface, so ring/matrix overlays never replace the user's ambilight state.
 
 ## 5. Watchdog / health (MVP slice)
 Supervisor respawn (init.d loop). On-device liveness: broker reachable? → `binary_sensor pipeline_ok`.

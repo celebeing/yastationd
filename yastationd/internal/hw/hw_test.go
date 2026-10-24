@@ -216,3 +216,115 @@ func TestRingFromPattern(t *testing.T) {
 		t.Fatal("nil ring should be a no-op")
 	}
 }
+
+// Orion's ring: 36 px across three AW21036 chips. The pattern must produce the real
+// device names and Show must land each colour channel on its own pixel file — including
+// across the chip-third boundaries (11→12, 23→24), the classic off-by-one/broken-chain spot.
+func TestRing36OrionLayout(t *testing.T) {
+	root := t.TempDir()
+	for i := range 36 {
+		for _, c := range []string{"red", "green", "blue"} {
+			d := filepath.Join(root, "sys/class/leds", "orion:"+c+":ring"+strconv.Itoa(i))
+			os.MkdirAll(d, 0o755)
+			os.WriteFile(filepath.Join(d, "trigger"), []byte("ledfb-ring [ledfb-ring]"), 0o644)
+			os.WriteFile(filepath.Join(d, "brightness"), []byte("0"), 0o644)
+		}
+		os.WriteFile(filepath.Join(root, "sys/class/leds/orion:ring"+string(rune('A'+i/12))+":sync/brightness"), []byte("0"), 0o755)
+	}
+	r, err := NewRing(root, 36, "orion:{color}:ring{i}", []string{"red", "green", "blue"})
+	if err != nil {
+		t.Fatalf("NewRing: %v", err)
+	}
+	if r.Pixels() != 36 {
+		t.Fatalf("pixels = %d", r.Pixels())
+	}
+	// One frame: red on the three boundary pixels, blue on the last, as hex channels.
+	f := make([]RGB, 36)
+	f[0], f[11], f[12], f[23], f[24], f[35] = RGB{R: 255}, RGB{R: 128}, RGB{R: 1}, RGB{R: 64}, RGB{R: 32}, RGB{B: 255}
+	if err := r.Show(f); err != nil {
+		t.Fatal(err)
+	}
+	for _, px := range []struct {
+		i    int
+		leds map[string]string
+	}{
+		{0, map[string]string{"red": "255"}},
+		{11, map[string]string{"red": "128"}},
+		{12, map[string]string{"red": "1"}},
+		{23, map[string]string{"red": "64"}},
+		{24, map[string]string{"red": "32"}},
+		{35, map[string]string{"blue": "255"}},
+	} {
+		for c, want := range px.leds {
+			b, _ := os.ReadFile(filepath.Join(root, "sys/class/leds", "orion:"+c+":ring"+strconv.Itoa(px.i), "brightness"))
+			if string(b) != want {
+				t.Errorf("px %d %s = %q, want %s", px.i, c, b, want)
+			}
+		}
+	}
+	// Untouched pixels must still be 0 and no sync node was touched by NewRing/Show.
+	if b, _ := os.ReadFile(filepath.Join(root, "sys/class/leds/orion:red:ring5/brightness")); string(b) != "0" {
+		t.Errorf("untouched px = %q", b)
+	}
+	// Prove the whole frame is a no-op when nothing changed (flicker-free rule at 36 px).
+	if err := r.Show(f); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOrionAmbilightLayout(t *testing.T) {
+	root := t.TempDir()
+	colors := []string{"red", "green", "blue", "white"}
+	dies := []string{"a", "b"}
+	for i := range 12 {
+		for _, die := range dies {
+			for _, color := range colors {
+				dir := filepath.Join(root, "sys/class/leds",
+					"orion:"+color+":ambilight"+strconv.Itoa(i)+die)
+				if err := os.MkdirAll(dir, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "trigger"), []byte("none [ledfb-ambilight]"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "brightness"), []byte("0"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+	}
+
+	strip, err := NewAmbilight(root, 12, "orion:{color}:ambilight{i}{die}", colors, dies)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strip.Pixels() != 12 {
+		t.Fatalf("pixels = %d", strip.Pixels())
+	}
+	frame := make([]RGBW, 12)
+	frame[0] = RGBW{R: 1, G: 2, B: 3, W: 4}
+	frame[11] = RGBW{R: 10, G: 20, B: 30, W: 40}
+	if err := strip.Show(frame); err != nil {
+		t.Fatal(err)
+	}
+	for _, die := range dies {
+		for color, want := range map[string]string{
+			"red": "10", "green": "20", "blue": "30", "white": "40",
+		} {
+			path := filepath.Join(root, "sys/class/leds",
+				"orion:"+color+":ambilight11"+die, "brightness")
+			if got, err := os.ReadFile(path); err != nil || string(got) != want {
+				t.Errorf("%s = %q, %v; want %s", path, got, err, want)
+			}
+		}
+	}
+	if got, _ := os.ReadFile(filepath.Join(root,
+		"sys/class/leds/orion:white:ambilight0a/brightness")); string(got) != "4" {
+		t.Errorf("first white die = %q, want 4", got)
+	}
+
+	var none *Ambilight
+	if none.Pixels() != 0 || none.Show([]RGBW{{W: 1}}) != nil {
+		t.Fatal("nil ambilight should be a no-op")
+	}
+}

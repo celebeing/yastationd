@@ -1,9 +1,10 @@
 # yastationd — build, stage and deploy (guide: docs/deploying.md). A CGO-free static armv7 binary
 # runs on every supported userland (armhf, and aarch64 kernels with 32-bit EL0 support).
-
 BIN      := yastationd
 OUT      := build/$(BIN)
 PKG      := ./cmd/yastationd
+RINGDEMOBIN := build/ringdemo
+FBLEDDEMOBIN := build/fbleddemo
 # Device address and ssh key come from local.mk (gitignored; see local.mk.example).
 -include local.mk
 DEVICE   ?= root@yastation.local
@@ -13,7 +14,8 @@ DESTDIR  ?= /bkupgrade/cfw
 GOFLAGS  := -trimpath -ldflags="-s -w"
 GOENV    := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: all build test vet clean stage stage-tmp redeploy-tmp install-initd sounds deploy deploy-spotter deploy-sendspin
+.PHONY: all build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds deploy deploy-spotter deploy-sendspin
+
 
 all: test build
 
@@ -42,6 +44,24 @@ stage: build
 	$(SSH) 'cat > $(DESTDIR)/init.d/S52zyastationd && chmod +x $(DESTDIR)/init.d/S52zyastationd' < init.d/S52zyastationd
 	$(SSH) 'cat > $(DESTDIR)/init.d/supervise.sh.new && mv $(DESTDIR)/init.d/supervise.sh.new $(DESTDIR)/init.d/supervise.sh' < init.d/supervise.sh
 	@echo "staged to $(DEVICE):$(DESTDIR) — not yet autostarted (see install-initd)"
+
+# LED dev tools are not part of deploy/stage. Build and ship them to /tmp on demand for
+# on-device verification; stop yastationd first so two processes do not write the same LEDs.
+build-ringdemo:
+	$(GOENV) go build $(GOFLAGS) -o $(RINGDEMOBIN) ./cmd/ringdemo
+	@file $(RINGDEMOBIN)
+
+stage-ringdemo: build-ringdemo
+	$(SSH) 'cat > /tmp/ringdemo.new && chmod +x /tmp/ringdemo.new && mv /tmp/ringdemo.new /tmp/ringdemo' < $(RINGDEMOBIN)
+	@echo "ring effects: ssh $(DEVICE) '/tmp/ringdemo -board auto'"
+
+build-fbleddemo:
+	$(GOENV) go build $(GOFLAGS) -o $(FBLEDDEMOBIN) ./cmd/fbleddemo
+	@file $(FBLEDDEMOBIN)
+
+stage-fbleddemo: build-fbleddemo
+	$(SSH) 'cat > /tmp/fbleddemo.new && chmod +x /tmp/fbleddemo.new && mv /tmp/fbleddemo.new /tmp/fbleddemo' < $(FBLEDDEMOBIN)
+	@echo "screen smoke: ssh $(DEVICE) '/tmp/fbleddemo -clock'  (or -uwu)"
 
 # Throwaway copy in tmpfs for manual on-device testing (gone on reboot). Written aside and
 # renamed in, so it works while the old binary runs (a supervisor respawn then picks it up).

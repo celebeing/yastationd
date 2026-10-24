@@ -1,8 +1,8 @@
 # yastationd
 
-On-device Home Assistant agent for the de-Yandexed **Yandex Station Mini 3** (`bergamot`). It turns
-the speaker into a normal offline MQTT device: LED ring, front 7-segment clock, volume, mic-mute,
-button reflexes, announcements and a health/watchdog layer. No cloud, no internet.
+On-device Home Assistant agent for de-Yandexed Yandex Stations. It turns the speaker into a
+normal offline MQTT device: LED ring, front clock/display, volume, mic-mute, button reflexes,
+announcements and a health/watchdog layer. No cloud, no internet.
 
 This is **Phase 1** of [`docs/yastationd-design.md`](../docs/yastationd-design.md). Voice / Wyoming
 satellite, beamforming and the on-device command recogniser are later phases.
@@ -11,7 +11,8 @@ satellite, beamforming and the on-device command recogniser are later phases.
 
 ```
 cmd/yastationd        main: flags, config, signal handling, tzdata embed
-cmd/ringdemo          dev tool: cycles the ring effects on the real LEDs (stop yastationd first; -board)
+cmd/ringdemo          dev tool: real ring effects (make build-ringdemo / make stage-ringdemo; stop yastationd first)
+cmd/fbleddemo         dev tool: front-screen `-clock`/`-uwu` smoke modes (make build-fbleddemo / make stage-fbleddemo; stop yastationd first)
 internal/board        board profiles: per-model hardware description + device-tree detection
 internal/config       <cfw>/yastationd.conf parser (<cfw> = /bkupgrade/cfw, or /data/cfw on pickle)
 internal/hw           sysfs LEDs (ring, matrix), evdev input, amixer/aplay, IIO lux
@@ -32,7 +33,7 @@ profile** (`internal/board/profiles/<codename>.conf`, embedded). The device is m
 device-tree `compatible` (`yandex,<codename>`); `board = <codename>` forces one, and
 `<cfw>/board.conf` overrides single keys without a rebuild. Effects size themselves from
 the ring's pixel count. Bringing up a new station: [`../docs/boards/README.md`](../docs/boards/README.md)
-(survey tool, procedure, reversing checklist). Supported: `bergamot` (Station Mini 3), `pickle` (Station Mini 3 Pro), `orion` (Station 3, sound bring-up).
+(survey tool, procedure, reversing checklist). Supported: `bergamot` (Station Mini 3), `pickle` (Station Mini 3 Pro), `orion` (Station 3 — sound, ring and 21×12 front screen verified on-device).
 
 `<cfw>` is the CFW root on the device: `/bkupgrade/cfw` where `/bkupgrade` exists, else `/data/cfw`
 (pickle has no `/bkupgrade` and must not get one — its `S40wifi` would then look for the Wi-Fi config
@@ -56,7 +57,11 @@ Device address, ssh key and `DESTDIR` (the device's `<cfw>`) come from `local.mk
 `local.mk.example`) or the command line.
 
 ```
-make stage-tmp       # throwaway binary in /tmp for manual testing (gone on reboot)
+make stage-tmp       # throwaway yastationd in /tmp for manual testing (gone on reboot)
+make build-ringdemo  # -> build/ringdemo (ring dev tool; not part of stage/deploy)
+make stage-ringdemo  # throwaway ringdemo in /tmp — cycles the ring effects on the real LEDs
+make build-fbleddemo # -> build/fbleddemo (front-screen dev tool; not part of stage/deploy)
+make stage-fbleddemo # throwaway fbleddemo in /tmp — shows the clock or UwU
 make stage           # first install: binary + init hook copy -> $(DEVICE):$(DESTDIR), no autostart
 make install-initd   # copy the init hook into /etc/init.d (remounts / rw then ro)
 make deploy          # update a running install: upload aside, stop -> swap -> start, tail the log
@@ -82,15 +87,17 @@ plays, the white "thinking" comet while it waits for audio, and nothing once apl
 
 ## Entities (HA MQTT Discovery)
 
-`light` ring (with `effect_list`: none/pulse/comet/blink/rainbow + voice presets) · `select` display_mode
+`light` ring (with `effect_list`: none/pulse/comet/blink/rainbow + voice presets) · optional
+`light` ambilight (rear RGBW strip, on boards that declare one) · `select` display_mode
 (clock/off/message; long messages scroll) · `text` display_message · `number` volume ·
-`notify` show_text + `number` text_duration (s) · `select` ring_animation + `number` animation_duration (s) ·
-`binary_sensor` mic_mute · `sensor` lux/health/uptime · `binary_sensor` pipeline_ok ·
-`event` button (volume_up/down, voice_command).
+`notify` show_text + `number` text_duration (s) · `select` ring_animation + `number`
+animation_duration (s) · `binary_sensor` mic_mute · `sensor` lux/health/uptime ·
+`binary_sensor` pipeline_ok · `event` button (volume_up/down, voice_command).
 
 Timed overlays (show_text, ring_animation, display/cmd) light the ring/matrix over whatever is
 underneath — even with the ring light off — and fall back when the time is up, without touching the
 light's state. `ring_animation` returns to `off` (not "none": HA's MQTT select reads "None" as unknown).
+The ambilight is an independent persisted RGBW light. Ring/status overlays do not take it over.
 
 ### HA-side scripts (Assist tools)
 

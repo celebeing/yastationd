@@ -11,34 +11,40 @@ import (
 
 // persistState is the HA-set state that survives a restart (written to Config.StateFile).
 type persistState struct {
-	RingOn      bool   `json:"ring_on"`
-	RingRGB     hw.RGB `json:"ring_rgb"`
-	RingBright  int    `json:"ring_bright"` // 0..255
-	RingEffect  string `json:"ring_effect"` // one of ringEffects; "" = none
-	Mode        string `json:"mode"`        // clock|off|message
-	Message     string `json:"message"`
-	TextSecs    int    `json:"text_secs"`    // show_text duration
-	AnimSecs    int    `json:"anim_secs"`    // ring_animation duration
-	FollowUp    string `json:"follow_up"`    // dialog mode: off|question|always
-	Volume      int    `json:"volume"`       // Master 0..255; -1 = never set (leave the boot value)
-	ClockAuto   bool   `json:"clock_auto"`   // clock brightness follows the light sensor
-	ClockBright int    `json:"clock_bright"` // manual clock brightness 1..255
-	MusicVolume int    `json:"music_volume"` // Music Assistant player volume 0..100 (volume "separate")
+	RingOn          bool    `json:"ring_on"`
+	RingRGB         hw.RGB  `json:"ring_rgb"`
+	RingBright      int     `json:"ring_bright"` // 0..255
+	RingEffect      string  `json:"ring_effect"` // one of ringEffects; "" = none
+	AmbilightOn     bool    `json:"ambilight_on"`
+	AmbilightRGBW   hw.RGBW `json:"ambilight_rgbw"`
+	AmbilightBright int     `json:"ambilight_bright"` // 0..255
+	Mode            string  `json:"mode"`             // clock|off|message
+	Message         string  `json:"message"`
+	TextSecs        int     `json:"text_secs"`    // show_text duration
+	AnimSecs        int     `json:"anim_secs"`    // ring_animation duration
+	FollowUp        string  `json:"follow_up"`    // dialog mode: off|question|always
+	Volume          int     `json:"volume"`       // Master 0..255; -1 = never set (leave the boot value)
+	ClockAuto       bool    `json:"clock_auto"`   // clock brightness follows the light sensor
+	ClockBright     int     `json:"clock_bright"` // manual clock brightness 1..255
+	MusicVolume     int     `json:"music_volume"` // Music Assistant player volume 0..100 (volume "separate")
 }
 
-func defaultState(ringBright, clockBright int, clockAuto bool) persistState {
+func defaultState(ringBright, ambilightBright, clockBright int, clockAuto bool) persistState {
 	return persistState{
-		RingOn:      false,
-		RingRGB:     hw.RGB{R: 255, G: 255, B: 255},
-		RingBright:  ringBright,
-		Mode:        "clock",
-		TextSecs:    10,
-		AnimSecs:    10,
-		FollowUp:    "question",
-		Volume:      -1,
-		MusicVolume: 100,
-		ClockAuto:   clockAuto,
-		ClockBright: max(clockBright, 1),
+		RingOn:          false,
+		RingRGB:         hw.RGB{R: 255, G: 255, B: 255},
+		RingBright:      ringBright,
+		AmbilightOn:     false,
+		AmbilightRGBW:   hw.RGBW{W: 255},
+		AmbilightBright: ambilightBright,
+		Mode:            "clock",
+		TextSecs:        10,
+		AnimSecs:        10,
+		FollowUp:        "question",
+		Volume:          -1,
+		MusicVolume:     100,
+		ClockAuto:       clockAuto,
+		ClockBright:     max(clockBright, 1),
 	}
 }
 

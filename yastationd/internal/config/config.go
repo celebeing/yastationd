@@ -35,9 +35,10 @@ type Config struct {
 
 	LuxPath string // empty = the board's IIO lux sensor
 
-	ClockBrightness int  // manual clock brightness at first start (later: HA "Clock brightness")
-	RingBrightness  int  // HA light brightness at first start (0..255)
-	AutoBrightness  bool // clock brightness from the light sensor at first start (later: HA switch)
+	ClockBrightness     int  // manual clock brightness at first start (later: HA "Clock brightness")
+	RingBrightness      int  // ring light brightness at first start (0..255)
+	AmbilightBrightness int  // rear ambilight brightness at first start (0..255)
+	AutoBrightness      bool // clock brightness from the light sensor at first start (later: HA switch)
 	// Light-sensor reading -> clock brightness, interpolated on log(lux) between the points
 	// (ascending lux) and clamped at the ends. The reading is the sensor's own scale, not true
 	// lux: the sensor sits behind the grille and its spectrum differs from a lux meter's.
@@ -149,36 +150,37 @@ func parseCurve(v string) ([]CurvePoint, error) {
 func Default() Config {
 	cfw := CFWRoot()
 	return Config{
-		DeviceID:         "mini3",
-		DeviceName:       "Yandex Station Mini 3",
-		MQTTPort:         1883,
-		TopicPrefix:      "yastation",
-		DiscoveryPrefix:  "homeassistant",
-		Board:            "auto",
-		BoardFile:        cfw + "/board.conf",
-		ClockBrightness:  128,
-		AutoBrightness:   true,
-		BrightnessCurve:  DefaultBrightnessCurve,
-		RingBrightness:   128,
-		TZ:               "Europe/Moscow",
-		VolumeStep:       1,
-		VolumeBeep:       true,
-		AnnounceChime:    true,
-		WyomingPort:      10700,
-		SendspinBin:      cfw + "/bin/sendspin-host",
-		SendspinPort:     8928,
-		SendspinUnpaired: true,
-		SendspinState:    cfw + "/sendspin/state.json",
-		SendspinVolume:   "linked",
-		MusicDuckDB:      -26,
-		WakeEnabled:      true,
-		SpotterBin:       cfw + "/bin/spotter-host",
-		PrerollMs:        300,
-		TimeSync:         true,
-		ChronyConf:       "/etc/chrony.conf",
-		HeartbeatFile:    "/tmp/yastationd.heartbeat",
-		StateFile:        cfw + "/yastationd.state",
-		LogLevel:         "info",
+		DeviceID:            "mini3",
+		DeviceName:          "Yandex Station Mini 3",
+		MQTTPort:            1883,
+		TopicPrefix:         "yastation",
+		DiscoveryPrefix:     "homeassistant",
+		Board:               "auto",
+		BoardFile:           cfw + "/board.conf",
+		ClockBrightness:     128,
+		AutoBrightness:      true,
+		BrightnessCurve:     DefaultBrightnessCurve,
+		RingBrightness:      128,
+		AmbilightBrightness: 128,
+		TZ:                  "Europe/Moscow",
+		VolumeStep:          1,
+		VolumeBeep:          true,
+		AnnounceChime:       true,
+		WyomingPort:         10700,
+		SendspinBin:         cfw + "/bin/sendspin-host",
+		SendspinPort:        8928,
+		SendspinUnpaired:    true,
+		SendspinState:       cfw + "/sendspin/state.json",
+		SendspinVolume:      "linked",
+		MusicDuckDB:         -26,
+		WakeEnabled:         true,
+		SpotterBin:          cfw + "/bin/spotter-host",
+		PrerollMs:           300,
+		TimeSync:            true,
+		ChronyConf:          "/etc/chrony.conf",
+		HeartbeatFile:       "/tmp/yastationd.heartbeat",
+		StateFile:           cfw + "/yastationd.state",
+		LogLevel:            "info",
 	}
 }
 
@@ -248,6 +250,8 @@ func (c *Config) set(k, v string) error {
 		c.ClockBrightness, err = atoiRange(v, 0, 255)
 	case "ring_brightness":
 		c.RingBrightness, err = atoiRange(v, 0, 255)
+	case "ambilight_brightness":
+		c.AmbilightBrightness, err = atoiRange(v, 0, 255)
 	case "auto_brightness":
 		c.AutoBrightness, err = strconv.ParseBool(v)
 	case "auto_brightness_curve":

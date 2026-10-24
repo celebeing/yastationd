@@ -20,9 +20,9 @@ func TestBergamotBuiltin(t *testing.T) {
 	}
 }
 
-// Orion's odd bits: 13ch capture at 96 kHz through the stock plug chain, three amp unmutes,
-// display off (its dot-matrix framebuffer is future work) — and the vendor wake: 6 mics +
-// 7 speaker refs (multi-ref, passed to spotter-host as -Q).
+// Orion's odd bits: 13ch capture at 96 kHz through the stock plug chain, dot-matrix fb
+// screen, three amp unmutes — and the vendor wake: 6 mics + 7 speaker refs (multi-ref,
+// passed to spotter-host as -Q).
 func TestOrionBuiltin(t *testing.T) {
 	p, err := Builtin("orion")
 	if err != nil {
@@ -37,8 +37,10 @@ func TestOrionBuiltin(t *testing.T) {
 	if len(p.Audio.Unmute) != 3 {
 		t.Errorf("unmute = %q", p.Audio.Unmute)
 	}
-	if p.Matrix.Kind != "none" || p.Ring.Pixels != 36 {
-		t.Errorf("matrix %q / ring %d", p.Matrix.Kind, p.Ring.Pixels)
+	if p.Matrix.Kind != "dotmatrix-fb" || p.Ring.Pixels != 36 ||
+		p.Ambilight.Kind != "sysfs-rgbw" || p.Ambilight.Pixels != 12 ||
+		len(p.Ambilight.Colors) != 4 || len(p.Ambilight.Dies) != 2 {
+		t.Errorf("matrix %q / ring %d / ambilight %+v", p.Matrix.Kind, p.Ring.Pixels, p.Ambilight)
 	}
 	if p.Wake.VQEPreset != "orion" || len(p.Wake.Mics) != 6 {
 		t.Errorf("wake mics/preset = %+v", p.Wake)

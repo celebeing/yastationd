@@ -45,8 +45,9 @@ not be recoverable by us. Hence the hard rules:
 ## Hardware / environment facts
 - Per-model facts live in `docs/boards/<codename>.md`. bergamot: armhf userland (glibc 2.30) on an
   arm64 kernel, CFW root `/bkupgrade/cfw`. pickle: aarch64 userland (glibc 2.36), CFW root
-  `/data/cfw` (no `/bkupgrade` — never create one). `yastationd` is static armv7 and runs on both;
-  anything linking vendor libs (`spotter-host`) must match the userland.
+  `/data/cfw` (no `/bkupgrade` — never create one). orion: aarch64 userland, CFW root `/data/cfw`
+  on its writable 2 GB `/data` mount. `yastationd` is static armv7 and runs on all three; anything
+  linking vendor libs (`spotter-host`) must match the userland.
 - No python / compiler / MQTT client on the devices; `aplay/arecord/amixer`, busybox tools are
   there. **Missing:** `scp` (stream files via `ssh … 'cat > f' < f`), `timeout`, `pkill`/`pgrep`
   (find pids via `ps w`; don't match by substring of a command line — it hits your own ssh session).

@@ -7,8 +7,8 @@ don't touch Wi-Fi/boot without a fallback, and make sound only on the unit the u
 
 ## What ends up on the device
 
-`<cfw>` = `/bkupgrade/cfw` if `/bkupgrade` exists (bergamot), else `/data/cfw` (pickle). Never
-create `/bkupgrade` on a model that lacks it — stock scripts branch on it.
+`<cfw>` = `/bkupgrade/cfw` on bergamot and `/data/cfw` on pickle/orion. Never create
+`/bkupgrade` on a model that lacks it — stock scripts branch on its existence.
 
 | Path | What |
 |---|---|
