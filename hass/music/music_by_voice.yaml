@@ -1,0 +1,53 @@
+# Template — see docs/ha-music-setup.md. Replace the <PLACEHOLDERS>, then paste into the HA UI
+# (Settings → Automations & scenes → automation → ⋮ → Edit in YAML) or POST it to /api/config/automation/config/<id>.
+id: music_by_voice
+alias: 'Music: by voice'
+description: Fast path without the LLM for explicit music phrases. Answers at once («Ищу.» / «Сейчас.»), searches
+  and starts playback in the background (script.music_find_and_play), says nothing after the start. Sentence triggers
+  win over intents and custom sentences.
+mode: parallel
+max: 5
+triggers:
+- trigger: conversation
+  id: likes
+  command:
+  - '[алиса] (включи|поставь|запусти) [мои|моё|мою] (лайки|любимое|любимые [треки|песни]|любимую музыку|лайкнутые
+    [треки|песни]|понравившиеся [треки|песни])'
+  - '[алиса] (включи|поставь) плейлист [с] (моими лайками|мои лайки|любимых песен)'
+  - '[алиса] (включи|поставь) [какую-нибудь] музыку'
+- trigger: conversation
+  id: artist
+  command:
+  - '[алиса] (включи|поставь|запусти|играй|сыграй) (исполнителя|группу|артиста) {query}'
+- trigger: conversation
+  id: album
+  command:
+  - '[алиса] (включи|поставь|запусти|играй|сыграй) альбом {query}'
+- trigger: conversation
+  id: playlist
+  command:
+  - '[алиса] (включи|поставь|запусти|играй|сыграй) плейлист {query}'
+- trigger: conversation
+  id: track
+  command:
+  - '[алиса] (включи|поставь|запусти|играй|сыграй) (песню|трек) {query}'
+- trigger: conversation
+  id: radio
+  command:
+  - '[алиса] (включи|поставь|запусти|играй|сыграй) радио {query}'
+- trigger: conversation
+  id: any
+  command:
+  - '[алиса] (включи|поставь) музыку {query}'
+  - '[алиса] (играй|сыграй|хочу послушать) {query}'
+conditions: []
+actions:
+- action: script.turn_on
+  target:
+    entity_id: script.music_find_and_play
+  data:
+    variables:
+      query: '{{ trigger.slots.query | default('''') }}'
+      media_type: '{{ trigger.id }}'
+      area: '{{ area_id(trigger.device_id) if trigger.device_id else '''' }}'
+- set_conversation_response: '{{ ''Сейчас.'' if trigger.id == ''likes'' else ''Ищу.'' }}'

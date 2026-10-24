@@ -1,0 +1,32 @@
+# Template — see docs/ha-music-setup.md. Replace the <PLACEHOLDERS>, then paste into the HA UI
+# (Settings → Automations & scenes → automation → ⋮ → Edit in YAML) or POST it to /api/config/automation/config/<id>.
+id: music_stop
+alias: 'Music: stop'
+description: «(Алиса,) выключи / выруби / выключи музыку / останови …» → pause the playing MA players of this room,
+  or all playing ones if none here. MA players don't support turn_off, so an LLM's HassTurnOff fails.
+mode: queued
+triggers:
+- trigger: conversation
+  command:
+  - '[алиса] (выключи|выключись|выруби|вырубись|отключи|отключись)'
+  - '[алиса] (выключи|выруби|отключи|останови|прекрати) (музыку|песню|звук)'
+conditions: []
+actions:
+- variables:
+    here: '{{ (area_entities(area_id(trigger.device_id)) if trigger.device_id and area_id(trigger.device_id) else
+      []) | select(''in'', integration_entities(''music_assistant'')) | select(''match'',''media_player\.'') | select(''is_state'',''playing'')
+      | list }}'
+    everywhere: '{{ integration_entities(''music_assistant'') | select(''match'',''media_player\.'') | select(''is_state'',''playing'')
+      | list }}'
+- variables:
+    targets: '{{ here if here else everywhere }}'
+- if:
+  - condition: template
+    value_template: '{{ targets | count > 0 }}'
+  then:
+  - action: media_player.media_pause
+    target:
+      entity_id: '{{ targets }}'
+  - set_conversation_response: Хорошо.
+  else:
+  - set_conversation_response: Сейчас ничего не играет.

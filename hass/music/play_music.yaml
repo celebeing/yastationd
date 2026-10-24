@@ -1,0 +1,46 @@
+# Template — see docs/ha-music-setup.md. Replace the <PLACEHOLDERS>, then paste into the HA UI
+# (Settings → Automations & scenes → script → ⋮ → Edit in YAML) or POST it to /api/config/script/config/<id>.
+alias: Включить музыку
+description: 'Find and play music on a room''s speaker: an artist, song, album, playlist, radio station, or the
+  owner''s liked songs. Runs in the background: returns at once, the music starts by itself, and if nothing is found
+  the speaker says so. Use only when the request is clearly about music.'
+mode: parallel
+max: 5
+fields:
+  query:
+    name: Query
+    description: Artist/song/album/playlist name. Foreign names in Latin script; fix speech-recognition errors by
+      sound ("металику" → Metallica). Empty for liked songs.
+    required: false
+    selector:
+      text: {}
+  media_type:
+    name: Type
+    description: artist, track, album, playlist, radio; likes = the owner's liked songs («любимое», «мои лайки»,
+      bare «музыку»); any = unclear.
+    required: true
+    selector:
+      select:
+        options:
+        - any
+        - artist
+        - track
+        - album
+        - playlist
+        - radio
+        - likes
+  room:
+    name: Room
+    description: 'Room to play in: by default the one with the speaker you are talking to. Use the area name.'
+    required: true
+    selector:
+      text: {}
+sequence:
+- action: script.turn_on
+  target:
+    entity_id: script.music_find_and_play
+  data:
+    variables:
+      query: '{{ query | default('''') }}'
+      media_type: '{{ media_type | default(''any'') }}'
+      area: '{{ room | default('''') }}'

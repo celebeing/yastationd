@@ -1,0 +1,196 @@
+# Template — see docs/ha-music-setup.md. Replace the <PLACEHOLDERS>, then paste into the HA UI
+# (Settings → Automations & scenes → script → ⋮ → Edit in YAML) or POST it to /api/config/script/config/<id>.
+alias: 'Music: find and play (background)'
+description: Background worker behind «Play music» and the «Music by voice» automation. Searches Music Assistant
+  and starts playback on the room's player silently; if nothing similar is found, the room's speaker says so. Not
+  for the LLM directly.
+mode: parallel
+max: 5
+fields:
+  query:
+    name: Query
+    selector:
+      text: {}
+  media_type:
+    name: Type
+    default: any
+    selector:
+      select:
+        options:
+        - any
+        - artist
+        - album
+        - track
+        - playlist
+        - radio
+        - likes
+  area:
+    name: Area (id or name)
+    selector:
+      text: {}
+sequence:
+- variables:
+    area_id_: '{{ area_id(area) or area or ''<DEFAULT_AREA_ID>'' }}'
+    player: '{{ area_entities(area_id_) | select(''in'', integration_entities(''music_assistant'')) | select(''match'',''media_player\.'')
+      | first | default('''') }}'
+    sat: '{{ area_entities(area_id_) | select(''match'',''assist_satellite\.'') | first | default('''') }}'
+    t: '{{ media_type | default(''any'', true) }}'
+    q: '{{ (query | default('''', true)) | trim }}'
+- if:
+  - condition: template
+    value_template: '{{ player == '''' }}'
+  then:
+  - stop: no player in area
+- if:
+  - condition: template
+    value_template: '{{ t == ''likes'' or q == '''' }}'
+  then:
+  - action: media_player.shuffle_set
+    target:
+      entity_id: '{{ player }}'
+    data:
+      shuffle: true
+    continue_on_error: true
+  - action: music_assistant.play_media
+    target:
+      entity_id: '{{ player }}'
+    data:
+      media_id: <LIKED_SONGS_URI>
+      media_type: playlist
+      enqueue: replace
+  - stop: likes
+- action: music_assistant.search
+  data:
+    config_entry_id: <MA_CONFIG_ENTRY_ID>
+    name: '{{ q }}'
+    limit: 10
+    media_type: '{{ [''artist'',''track'',''album'',''playlist''] if t == ''any'' else [t] }}'
+  response_variable: r
+  continue_on_error: true
+- variables:
+    pick: '{%- macro norm(x) -%}{%- set m = {''а'':''a'',''б'':''b'',''в'':''v'',''г'':''g'',''д'':''d'',''е'':''e'',''ё'':''e'',''ж'':''zh'',''з'':''z'',''и'':''i'',''й'':''i'',''к'':''k'',''л'':''l'',''м'':''m'',''н'':''n'',''о'':''o'',''п'':''p'',''р'':''r'',''с'':''s'',''т'':''t'',''у'':''u'',''ф'':''f'',''х'':''h'',''ц'':''c'',''ч'':''ch'',''ш'':''sh'',''щ'':''sch'',''ъ'':'''',''ы'':''y'',''ь'':'''',''э'':''e'',''ю'':''yu'',''я'':''ya'',''c'':''k'',''q'':''k'',''w'':''v'',''x'':''ks''}
+      -%}{%- for ch in (x | lower) -%}{%- if ch in m -%}{{ m[ch] }}{%- elif ch is match(''[a-z0-9]'') -%}{{ ch }}{%-
+      endif -%}{%- endfor -%}{%- endmacro -%}
+
+      {%- macro similar(a, b) -%}{%- set x = norm(a) -%}{%- set y = norm(b) -%}{{ (x | length > 0 and y | length
+      > 0) and (x in y or y in x or (x | length >= 4 and y | length >= 4 and x[:4] == y[:4])) }}{%- endmacro -%}
+
+      {%- set ql = q | lower -%}
+
+      {%- set A = (r.artists if r is defined and r.artists is defined else []) -%}
+
+      {%- set T = (r.tracks if r is defined and r.tracks is defined else []) -%}
+
+      {%- set AL = (r.albums if r is defined and r.albums is defined else []) -%}
+
+      {%- set P = (r.playlists if r is defined and r.playlists is defined else []) -%}
+
+      {%- set R = (r.radio if r is defined and r.radio is defined else []) -%}
+
+      {%- set ns = namespace(e=[]) -%}{%- for x in T if (x.name | default('''') | lower) == ql -%}{%- set ns.e =
+      ns.e + [x] -%}{%- endfor -%}{%- set exact_t = ns.e -%}
+
+      {%- set A = A | select(''defined'') | list -%}{%- set ns2 = namespace(a=[]) -%}{%- for x in A if similar(x.name,
+      q) == ''True'' -%}{%- set ns2.a = ns2.a + [x] -%}{%- endfor -%}{%- set A = ns2.a -%}
+
+      {%- set ns3 = namespace(t=[]) -%}{%- for x in T if similar(x.name, q) == ''True'' or (x.artists | default([])
+      | map(attribute=''name'') | select(''defined'') | map(''string'') | list | join('' '') | length > 0 and similar(x.artists[0].name,
+      q) == ''True'') -%}{%- set ns3.t = ns3.t + [x] -%}{%- endfor -%}{%- set Tsim = ns3.t -%}
+
+      {%- if t == ''artist'' and A -%}{{ {''kind'':''artist'',''uri'':A[0].uri,''name'':A[0].name} | tojson }}
+
+      {%- elif t == ''track'' and T -%}{{ {''kind'':''track'',''uri'':(exact_t or T)[0].uri,''name'':(exact_t or
+      T)[0].name} | tojson }}
+
+      {%- elif t == ''album'' and AL -%}{{ {''kind'':''album'',''uri'':AL[0].uri,''name'':AL[0].name} | tojson }}
+
+      {%- elif t == ''playlist'' and P -%}{{ {''kind'':''playlist'',''uri'':P[0].uri,''name'':P[0].name} | tojson
+      }}
+
+      {%- elif t == ''radio'' and R -%}{{ {''kind'':''radio'',''uri'':R[0].uri,''name'':R[0].name} | tojson }}
+
+      {%- elif t == ''any'' and exact_t and '' '' in q -%}{{ {''kind'':''track'',''uri'':exact_t[0].uri,''name'':exact_t[0].name}
+      | tojson }}
+
+      {%- elif t == ''any'' and A and norm(A[0].name) == norm(q) -%}{{ {''kind'':''artist'',''uri'':A[0].uri,''name'':A[0].name}
+      | tojson }}
+
+      {%- elif t == ''any'' and exact_t -%}{{ {''kind'':''track'',''uri'':exact_t[0].uri,''name'':exact_t[0].name}
+      | tojson }}
+
+      {%- elif t == ''any'' and A -%}{{ {''kind'':''artist'',''uri'':A[0].uri,''name'':A[0].name} | tojson }}
+
+      {%- elif t == ''any'' and Tsim -%}{{ {''kind'':''track'',''uri'':Tsim[0].uri,''name'':Tsim[0].name} | tojson
+      }}
+
+      {%- else -%}{{ {''kind'':''none''} | tojson }}{%- endif -%}'
+- if:
+  - condition: template
+    value_template: '{{ pick.kind == ''none'' }}'
+  then:
+  - if:
+    - condition: template
+      value_template: '{{ sat != '''' }}'
+    then:
+    - action: assist_satellite.announce
+      target:
+        entity_id: '{{ sat }}'
+      data:
+        message: Не нашла {{ q }}.
+        preannounce: false
+      continue_on_error: true
+  - stop: not found
+- choose:
+  - conditions:
+    - condition: template
+      value_template: '{{ pick.kind == ''artist'' }}'
+    sequence:
+    - action: music_assistant.search
+      data:
+        config_entry_id: <MA_CONFIG_ENTRY_ID>
+        name: '{{ pick.name }}'
+        media_type:
+        - track
+        limit: 25
+      response_variable: rt
+      continue_on_error: true
+    - variables:
+        uris: '{%- set ns = namespace(u=[]) -%}{%- for x in (rt.tracks if rt is defined and rt.tracks is defined
+          else []) if (pick.name | lower) in (x.artists | default([]) | map(attribute=''name'') | map(''lower'')
+          | list) -%}{%- set ns.u = ns.u + [x.uri] -%}{%- endfor -%}{{ ns.u }}'
+    - action: media_player.shuffle_set
+      target:
+        entity_id: '{{ player }}'
+      data:
+        shuffle: true
+      continue_on_error: true
+    - action: music_assistant.play_media
+      target:
+        entity_id: '{{ player }}'
+      data:
+        media_id: '{{ uris if uris | count > 2 else pick.uri }}'
+        media_type: track
+        enqueue: replace
+      continue_on_error: true
+  - conditions:
+    - condition: template
+      value_template: '{{ pick.kind == ''track'' }}'
+    sequence:
+    - action: music_assistant.play_media
+      target:
+        entity_id: '{{ player }}'
+      data:
+        media_id: '{{ pick.uri }}'
+        media_type: track
+        enqueue: replace
+        radio_mode: true
+      continue_on_error: true
+  default:
+  - action: music_assistant.play_media
+    target:
+      entity_id: '{{ player }}'
+    data:
+      media_id: '{{ pick.uri }}'
+      media_type: '{{ pick.kind }}'
+      enqueue: replace
+    continue_on_error: true

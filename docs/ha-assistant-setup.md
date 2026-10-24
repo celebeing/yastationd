@@ -86,6 +86,7 @@ LLM tips:
 - `assist_satellite.announce`: speak a message, or play a media URL, from automations.
 - Everything on the MQTT device (ring light, display text, volume, brightness…) from automations
   and dashboards.
+- Music by voice through Music Assistant: [ha-music-setup.md](ha-music-setup.md).
 
 ## 8. Gotchas and recommendations
 
