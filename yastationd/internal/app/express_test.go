@@ -1,6 +1,8 @@
 package app
 
 import (
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ func newExpressApp(t *testing.T, faces bool) *App {
 	st := defaultState(128, 128, 128, false)
 	st.Faces = faces
 	a := &App{
+		log:         slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ringStack:   display.NewStack(func(time.Time) display.RingFrame { return display.Blank(6) }),
 		matrixStack: display.NewStack(func(time.Time) display.MatrixFrame { return display.MatrixFrame{} }),
 		matrix:      hw.NewMatrix(t.TempDir(), "clock{seg}{digit}", []string{"DH"}, "", ""),

@@ -70,6 +70,12 @@ type Config struct {
 	SpotterBin  string
 	PrerollMs   int // VQE audio before the wake sent to HA, so the first word survives
 
+	// A pending reply: how long we wait for HA's answer (HA has no timeout of its own) before
+	// cancelling it, and what a wake word does meanwhile: "interrupt" (drop the connection, start
+	// a new session once HA is back, the speech buffered meanwhile) or "ignore" (blink "busy").
+	ReplyTimeout     time.Duration
+	WakeWhileWaiting string
+
 	// Wyoming satellite server port for HA's Wyoming integration (10700 is the convention); 0 = off.
 	WyomingPort int
 
@@ -181,6 +187,8 @@ func Default() Config {
 		MusicDuckDB:         -26,
 		WakeEnabled:         true,
 		SpotterBin:          cfw + "/bin/spotter-host",
+		ReplyTimeout:        90 * time.Second,
+		WakeWhileWaiting:    "interrupt",
 		PrerollMs:           300,
 		TimeSync:            true,
 		ChronyConf:          "/etc/chrony.conf",
@@ -282,6 +290,15 @@ func (c *Config) set(k, v string) error {
 		c.WakeModel = v
 	case "command_model":
 		c.CommandModel = v
+	case "reply_timeout":
+		var n int
+		n, err = atoiRange(v, 10, 600)
+		c.ReplyTimeout = time.Duration(n) * time.Second
+	case "wake_while_waiting":
+		if v != "interrupt" && v != "ignore" {
+			return fmt.Errorf("want interrupt or ignore")
+		}
+		c.WakeWhileWaiting = v
 	case "preroll_ms":
 		c.PrerollMs, err = atoiRange(v, 0, 2000)
 	case "mic_pdm_gain":

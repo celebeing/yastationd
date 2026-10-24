@@ -63,6 +63,10 @@ wyoming_port = 10700
 # stays open. Session audio to HA is the VQE output with a pre-roll. Commands (стоп/хватит/пауза,
 # громче/тише) act locally, only while the speaker is playing. wake_enabled = false -> push-to-talk only.
 # wake_enabled = true
+# Waiting for HA's reply (HA has no timeout): our deadline in s, and what a wake word does meanwhile
+# (interrupt = start the new request once HA is back; ignore = blink "busy"). docs/voice-slow-replies.md
+# reply_timeout      = 90
+# wake_while_waiting = interrupt
 # spotter_bin defaults to <cfw>/bin/spotter-host
 # preroll_ms = 300
 

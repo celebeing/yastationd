@@ -23,6 +23,8 @@ var expressions = map[string]expression{
 	"listening": {ring: "listening", ringPrio: display.PrioVoice, clips: []string{"alice_listening", "listening"}, loop: true},
 	"thinking":  {ring: "thinking", ringPrio: display.PrioVoice, clips: []string{"alice_thinking", "thinking"}, loop: true},
 	"speaking":  {ring: "speaking", ringPrio: display.PrioVoice, clips: []string{"alice_speaking", "speaking"}, loop: true},
+	"waiting":   {ring: "waiting", ringPrio: display.PrioVoice, clips: []string{"waiting"}, loop: true},
+	"busy":      {ring: "busy", ringPrio: display.PrioVoice, clips: []string{"blink"}},
 	"error":     {ring: "error", ringPrio: display.PrioVoice},
 	"mute":      {ring: "mute", ringPrio: display.PrioVoice},
 	"boot":      {ring: "boot", ringPrio: display.PrioScenario, clips: []string{"boot"}},
@@ -45,7 +47,7 @@ const oneShotRing = 2 * time.Second
 // callers clear the slot), whatever the front shows.
 func ringHolds(name string) bool {
 	switch name {
-	case "listening", "thinking", "speaking", "error", "mute":
+	case "listening", "thinking", "waiting", "speaking", "error", "mute":
 		return true
 	}
 	return false

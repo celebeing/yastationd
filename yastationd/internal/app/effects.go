@@ -22,6 +22,10 @@ func effect(name string) display.RenderFunc[display.RingFrame] {
 		return display.Flash(display.Green, 800*time.Millisecond)
 	case "boot":
 		return display.Comet(display.Cyan, 1200*time.Millisecond)
+	case "waiting": // a long wait for HA's reply: the thinking comet, slower and dimmer
+		return display.Comet(display.White.Scale(110), 2400*time.Millisecond)
+	case "busy": // heard the wake word, but a reply is still pending
+		return display.Flash(display.White, 500*time.Millisecond)
 	case "rainbow":
 		return display.Rainbow(3*time.Second, 255)
 	case "mute":

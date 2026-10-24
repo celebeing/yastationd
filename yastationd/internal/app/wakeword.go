@@ -63,8 +63,15 @@ func (a *App) onWakeEvent(ev wake.Event) {
 			// No verified AEC yet: our own playback (e.g. TTS saying «Алиса») must not wake us.
 			a.log.Info("wake: ignored while playing", "phrase", ev.Phrase)
 		case a.sat.awaitingReply():
-			// A new run now would make HA cancel the one computing the answer (and wedge it).
-			a.log.Info("wake: ignored, HA is still answering the previous request")
+			// A run-pipeline now would wedge HA's satellite; see interruptForWake.
+			if a.cfg.WakeWhileWaiting == "interrupt" {
+				a.log.Info("wake: interrupting the pending reply", "phrase", ev.Phrase)
+				a.publishButton("wake_word")
+				a.sat.interruptForWake()
+			} else {
+				a.log.Info("wake: ignored, HA is still answering the previous request")
+				a.express("busy", "busy", 0)
+			}
 		default:
 			a.log.Info("wake: detected", "phrase", ev.Phrase, "at", ev.At)
 			a.publishButton("wake_word")
@@ -93,6 +100,13 @@ func (a *App) speaking() bool {
 // from household talk out of the rest of the day.
 func (a *App) onCommand(phrase string) {
 	if !a.speaking() {
+		// While a reply is pending, «стоп» gives up on it (the request, not the speaker).
+		if a.sat.awaitingReply() && isStop(phrase) {
+			a.log.Info("command: cancel the pending reply", "phrase", phrase)
+			a.sat.cancelReply("«" + phrase + "»")
+			a.express("voice", "blink", 0)
+			return
+		}
 		a.log.Debug("command ignored (not playing)", "phrase", phrase)
 		return
 	}
@@ -111,6 +125,14 @@ func (a *App) onCommand(phrase string) {
 	default:
 		a.log.Info("command not mapped", "phrase", phrase)
 	}
+}
+
+func isStop(phrase string) bool {
+	switch strings.ToLower(phrase) {
+	case "стоп", "хватит", "отмена", "выключись":
+		return true
+	}
+	return false
 }
 
 // wakeAudio picks the session audio source: VQE output (with pre-roll) when the spotter runs,

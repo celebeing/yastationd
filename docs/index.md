@@ -19,6 +19,7 @@ This is the index of project documentation. Read the relevant doc here **before*
 | [boards/README.md](boards/README.md) | Multi-model support: board profiles, bringing up a new station, per-model reversing checklist; per-board notes ([bergamot](boards/bergamot.md), [midi](boards/midi.md), [orion](boards/orion.md) — Station 3 sound bring-up, 96 kHz mroute capture; [pickle](boards/pickle.md) — incl. the Mini 3 Pro connectivity/Wi-Fi-hop logic, running without maind and the bottom pogo-pad module connector) |
 | [music-sendspin.md](music-sendspin.md) | The speaker as a Music Assistant (Sendspin) player: sendspin-host, the shared dmix, wake word over music (hardware AEC reference), ducking, linked/separate volume, connecting and pairing, measurements, announce chime |
 | [display-expressions.md](display-expressions.md) | Display engine design: independent surfaces, semantic expressions, scenarios; the stock clock clip formats (`.scled` / `.binscled`) and their LED order; HA exposure; phases |
+| [voice-slow-replies.md](voice-slow-replies.md) | Slow replies: how HA behaves (no timeout, the wedge on a new run, the clean cancel by dropping the connection), the speaker's reply deadline, «стоп», wake-word interrupt, wedge watchdog |
 | [wishlist.md](wishlist.md) | Ideas under consideration, not planned: nearest-speaker arbitration, ESPHome API instead of MQTT+Wyoming, pipeline robustness, music; notes from reviewing pulsar |
 | [speaker-id.md](speaker-id.md) | Speaker identification design (who is talking) for the HA voice pipeline, with a status log |
 

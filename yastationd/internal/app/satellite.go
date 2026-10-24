@@ -46,7 +46,9 @@ type satellite struct {
 	listen *voiceSession // push-to-talk / wake session in progress
 	follow bool          // the reply being played asked for a follow-up (dialog mode)
 
-	awaitUntil time.Time // HA is working on a reply until then (see setAwaiting)
+	awaitUntil time.Time // a reply is pending until then (see setAwaiting); zero = none
+	awaitGen   int       // bumps on every setAwaiting, so stale timers do nothing
+	held       *heldWake // a wake word waiting for HA to reconnect
 }
 
 type sndStream struct {
@@ -74,11 +76,19 @@ func (s *satellite) OnConnect(c *wyoming.Conn) {}
 func (s *satellite) OnDisconnect(c *wyoming.Conn) {
 	s.endListeningOn(c, "HA disconnected")
 	s.mu.Lock()
-	if s.main == c {
+	wasMain := s.main == c
+	if wasMain {
 		s.main = nil
 	}
+	held := s.held != nil
 	s.mu.Unlock()
 	s.endStream(c, false)
+	// HA went away (e.g. its ping timeout) with a reply pending: that reply will never come. Our
+	// own drop (cancel, interrupt) has already cleared the flag.
+	if wasMain && !held && s.awaitingReply() {
+		s.setAwaiting(false)
+		s.a.express("voice", "error", errorTTL)
+	}
 }
 
 func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
@@ -101,6 +111,7 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 		s.mu.Lock()
 		s.main = c
 		s.mu.Unlock()
+		s.resumeHeldWake()
 	case wyoming.TypePauseSatellite:
 		// HA muted the satellite (its mute switch) or is going away; nothing streams from us
 		// yet (no mic until Phase 2), so just drop any voice-stage indication.
@@ -116,6 +127,9 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 	case wyoming.TypeDetection, wyoming.TypeTranscribe, wyoming.TypeVoiceStarted:
 		if ev.Type != wyoming.TypeDetection {
 			s.sttStarted(c)
+		}
+		if ev.Type == wyoming.TypeVoiceStarted {
+			s.speechStarted(c)
 		}
 		s.voiceStage("listening")
 	case wyoming.TypeVoiceStopped, wyoming.TypeTranscript, wyoming.TypeSynthesize:
@@ -191,7 +205,7 @@ func (s *satellite) startStream(c *wyoming.Conn, rate, width, channels int) *snd
 	// Audio from HA with no dialog going on is an announcement. Wyoming carries no preannounce
 	// sound, so we chime first and the pump holds the stream until the chime has played.
 	s.mu.Lock()
-	announce := s.listen == nil && !time.Now().Before(s.awaitUntil)
+	announce := s.listen == nil && s.awaitUntil.IsZero()
 	s.mu.Unlock()
 	s.setAwaiting(false) // the reply (or an announcement) is here
 	a.unmute()
@@ -375,8 +389,12 @@ func (s *satellite) voiceStage(name string) {
 	s.mu.Lock()
 	playing := s.cur != nil
 	s.mu.Unlock()
+	ttl := stageTTL
+	if name == "thinking" { // lasts the whole wait: HA has no timeout, ours cancels it
+		ttl = s.a.cfg.ReplyTimeout
+	}
 	if !playing {
-		s.a.express("voice", name, stageTTL)
+		s.a.express("voice", name, ttl)
 	}
 }
 
