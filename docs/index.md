@@ -26,7 +26,7 @@ This is the index of project documentation. Read the relevant doc here **before*
 | [permanent-install.md](permanent-install.md) | Making the CFW survive a hard reset: how the factory reset works per model, the reset as the safety net for rootfs work, replacing pickle's `aml_sysrecovery` restore package, why bergamot's recovery is not replaceable, the dev/golden/stock layers, plan and hazards |
 | [wifi-setup.md](wifi-setup.md) | Wi-Fi setup mode: the recovery access point (key combo), our hostapd build (the firmware's wpa_supplicant has no AP mode), DHCP/DNS/captive page in the daemon, the page's home settings (broker, probes, NTP, MA), the handoff back to wpa_supplicant, crash recovery, boot without a network |
 | [releasing.md](releasing.md) | Versions (SemVer tags, burned into the build, shown in HA) and how to cut a release |
-| [wishlist.md](wishlist.md) | Ideas under consideration, not planned: nearest-speaker arbitration, ESPHome API instead of MQTT+Wyoming, pipeline robustness, music; notes from reviewing pulsar |
+| [wishlist.md](wishlist.md) | Ideas under consideration, not planned: nearest-speaker arbitration, ESPHome API instead of MQTT+Wyoming, pipeline robustness, music, orion's ultrasound sonar rig; notes from reviewing pulsar |
 | [speaker-id.md](speaker-id.md) | Speaker identification design (who is talking) for the HA voice pipeline, with a status log |
 
 Also: [`../yastationd/README.md`](../yastationd/README.md) (daemon usage, entities, open items) and

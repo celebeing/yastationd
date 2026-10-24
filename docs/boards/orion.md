@@ -10,13 +10,28 @@ front-screen daemon backend **verified on device 2026-10-23/24**. Both `fbleddem
 and the production clock renderer remain stable with no flashing; the clock advances normally.
 Rear ambilight hardware is verified and its daemon entity is implemented but not yet
 smoke-tested on-device. Wake is verified offline; on-device spotter remains open.
+**Mic retest 2026-10-24 (both tested units; two 30 s pure-capture passes each): all
+six channels are healthy.** The earlier "dead capsule" reading from one 4 s clip was a
+transient (see "Mic capture"); it does not block on-device wake/VQE work.
 
 ## Audio out
 
 - Card 0 `AMLAUGESOUND`. Playback chain `default -> speakers` (plug → dmix → `hw:0,1`
-  "TDM-B acm8625-speakers", 6ch S16 @ 48 kHz, period 1920). A third amp `us` drives the
-  **ultrasound transducer** on `hw:0,0` (TDM-A, 96 kHz) — vendor keeps it fed with silence
-  via `aplay -D ultrasound`; we do not touch it.
+  "TDM-B acm8625-speakers", 6ch S16 @ 48 kHz, period 1920). A separate `us` amp drives
+  the **ultrasound transducer** on `hw:0,0` (TDM-A, 96 kHz); `S94alsa` primes it with
+  1 s of silence at boot (that materializes the `Ultrasound Playback Volume` softvol).
+  quasar.cfg (3.21) ships a complete but **disabled** sonar stack around it
+  (`ultrasound.enabled=false`, detector type `debug`): a 38.4 kHz sine generator
+  (amplitude 0.05, 4 slots with [0,1] zeroed) and a Doppler detector (2048-sample
+  frames, 600 Hz band, thresholdDb −70). libyandex_evil.so exports the detector C API:
+  `YandexVqeC_UltrasoundDetector_{Create,AddChannelData,Process,Free}` — spotter-host
+  could dlopen it exactly like the VQE. maind names the full pipeline:
+  `UltrasoundModule` + `HighLevelUltrasoundDetector`, sine **and impulse** generators,
+  `doppler_detection` events over IPC. Verified 2026-10-24 by host-side FFT of the
+  verify2 raws (local `dumps/`): the two ultrasound **capture** channels (mroute
+  idx 11-12) are dead LSB unless a TDM-A stream is up — they are the `us` codec's own
+  TDM-A capture slots, not mics (details in "Mic capture"). Sonar ideas on this dormant
+  rig: wishlist.md §"Orion's ultrasound rig".
 - Three ACM8625 amps: `fr1`, `fr2`, `wf` (front L/R, rear L/R, woofer) — a 3-way system.
   Each has `ChL/ChR Volume` (−103..0 dB in 0.25 steps), `Post Gain`, `AMP mute status`,
   `Playback Ramp Volume`.
@@ -55,7 +70,44 @@ smoke-tested on-device. Wake is verified offline; on-device spotter remains open
   window vs 20-40 floor)** and on all five refs (15-31 RMS). Silence floor 20-40 RMS,
   DC ≈ 0 → `mic.voice = 0` (idx 0 = loopback ch 0) confirmed, `Loopback PDM Gain` 24 kept.
   Ref channels are silent (0.0) with the stack stopped - speaker refs only start flowing
-  when TDM-B playback is up.
+  when TDM-B playback is up. A later **pure-capture retest** (2026-10-24: two complete
+  30 s `mroute` captures, 150 s apart; 74880000 B each) **cleared mic idx 5** on the
+  first tested unit: RMS 27.4 vs 28.1-30.3 on its five peers in capture A and 43.8 vs
+  37.8-48.4 in B. The second unit independently passed the same test: idx 5 was 17.2
+  vs 17.4-22.0 in A and 41.6 vs 40.4-46.4 in B; B's 196-232 peak-RMS activity was
+  shared by every mic, consistent with room noise. The earlier first-unit 4 s idx-5
+  spike (RMS 3061, low-frequency junk) was therefore transient — either a local
+  acoustic/electrical event or a one-off transport glitch, not a dead capsule. All six
+  mic channels are valid VQE inputs; retain raw captures if it recurs.
+  The ultrasound pair (idx 11-12) is **dead LSB in every capture** (RMS 0-1 flat,
+  no 1 kHz leakage) — those slots are the `us` amp's own TDM-A RX lines; they only
+  carry data with a live TDM-A stream. Not captured here because the stock S94alsa
+  ultrasound aplay stops after 1 s, so no TDM-A stream was up during the captures.
+
+### Vendor bad-mic detector
+
+`quasar.cfg` enables `audiod.brokenMicDetector` on Orion:
+
+```json
+{
+  "enabled": true,
+  "rmsRatioThreshold": 0.8,
+  "rmsRatioExceededCount": 25,
+  "sendAudioData": false
+}
+```
+
+This is a vendor **RMS channel-consistency watchdog**, not an absolute floor or a
+calibration measurement. The `0.8` ratio direction, analysis window, 25-observation
+cadence/consecutiveness, and post-detection action are not present in the config or
+recovered symbols. In particular, do not assume it removes a channel from VQE or emits a
+useful event to us. Its temporal count is still the reason a one-off anomalous frame must
+not become a hardware diagnosis: compare complete raw captures at separate times first.
+The 2026-10-24 two-pass retest did exactly that and cleared the earlier idx-5 anomaly.
+
+Generic detector limits and the bergamot instance: docs/wakeword-mic-array.md §2.3
+“Vendor bad-mic detector”.
+
 - CPU cost of the stock 96 kHz plug chain: arecord via `mroute` 13ch **110 jiffies / 5 s
   ≈ 2.2 %** of one core vs **60 jiffies ≈ 1.2 %** at 48 kHz (measured; =13 % of a CPU on
   the 4×A55). On top, in-process 6× decimation costs ~0.2-0.3 % per the Go Decimator's
