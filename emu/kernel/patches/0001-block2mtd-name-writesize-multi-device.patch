@@ -1,0 +1,250 @@
+block2mtd: per-device MTD name and writesize, several devices when built in, configurable wait,
+write-through.
+
+  block2mtd.block2mtd=<dev>[,<erasesize>[,<name>[,<writesize>]]]   repeatable, registered in order
+  block2mtd.timeout=<seconds>                                     wait per device (default 3)
+  block2mtd.sync=<0|1>                                            write-through (default 1)
+
+writesize lets UBI images made for 4 KiB-page NAND attach (UBI takes its min I/O unit from it); the
+name keeps /proc/mtd identical to the real board; write-through makes a completed MTD write survive
+an abrupt VM stop, like a programmed NAND page survives a power cut.
+
+--- a/drivers/mtd/devices/block2mtd.c
++++ b/drivers/mtd/devices/block2mtd.c
+@@ -31,6 +31,25 @@
+ #include <linux/slab.h>
+ #include <linux/major.h>
+ 
++/*
++ * Emulator extension: the device wait can be raised with block2mtd.timeout=<seconds> on the
++ * kernel command line (polled every 100 ms). Several block2mtd= parameters may be given to a
++ * built-in driver; they are registered in command-line order, so mtdN indices are stable.
++ */
++#define BLOCK2MTD_MAX_DEVS	16
++static unsigned int block2mtd_timeout = MTD_DEFAULT_TIMEOUT;
++module_param_named(timeout, block2mtd_timeout, uint, 0644);
++MODULE_PARM_DESC(timeout, "Seconds to wait for each block device to appear (built-in only)");
++
++/*
++ * Emulator extension: write erases and writes through to the block device before returning, so a
++ * completed MTD write survives an abrupt stop of the VM the way a programmed NAND page survives a
++ * power cut (otherwise it may sit in the guest page cache for up to dirty_expire).
++ */
++static bool block2mtd_sync_writes = true;
++module_param_named(sync, block2mtd_sync_writes, bool, 0644);
++MODULE_PARM_DESC(sync, "Write erases/writes through to the block device before returning (default 1)");
++
+ /* Info for the block device */
+ struct block2mtd_dev {
+ 	struct list_head list;
+@@ -49,6 +68,14 @@
+ 	return read_mapping_page(mapping, index, NULL);
+ }
+ 
++static int block2mtd_writeback(struct block2mtd_dev *dev, loff_t from, size_t len)
++{
++	if (!block2mtd_sync_writes || !len)
++		return 0;
++	return filemap_write_and_wait_range(dev->blkdev->bd_inode->i_mapping,
++					    from, from + len - 1);
++}
++
+ /* erase a specified part of the device */
+ static int _block2mtd_erase(struct block2mtd_dev *dev, loff_t to, size_t len)
+ {
+@@ -90,6 +117,8 @@
+ 
+ 	mutex_lock(&dev->write_mutex);
+ 	err = _block2mtd_erase(dev, from, len);
++	if (!err)
++		err = block2mtd_writeback(dev, from, len);
+ 	mutex_unlock(&dev->write_mutex);
+ 	if (err)
+ 		pr_err("erase failed err = %d\n", err);
+@@ -180,6 +209,8 @@
+ 
+ 	mutex_lock(&dev->write_mutex);
+ 	err = _block2mtd_write(dev, buf, to, len, retlen);
++	if (!err)
++		err = block2mtd_writeback(dev, to, len);
+ 	mutex_unlock(&dev->write_mutex);
+ 	if (err > 0)
+ 		err = 0;
+@@ -214,7 +245,7 @@
+ 
+ 
+ static struct block2mtd_dev *add_device(char *devname, int erase_size,
+-		int timeout)
++		int timeout, const char *label, int write_size)
+ {
+ #ifndef MODULE
+ 	int i;
+@@ -239,7 +270,7 @@
+ 	 * We might not have the root device mounted at this point.
+ 	 * Try to resolve the device name by other means.
+ 	 */
+-	for (i = 0; IS_ERR(bdev) && i <= timeout; i++) {
++	for (i = 0; IS_ERR(bdev) && i <= timeout * 10; i++) {
+ 		dev_t devt;
+ 
+ 		if (i)
+@@ -248,7 +279,7 @@
+ 			 * was not enough, sleep for a bit in subsequent
+ 			 * go-arounds.
+ 			 */
+-			msleep(1000);
++			msleep(100);
+ 		wait_for_device_probe();
+ 
+ 		devt = name_to_dev_t(devname);
+@@ -274,11 +305,20 @@
+ 		goto err_free_block2mtd;
+ 	}
+ 
++	if (write_size < 1 || (write_size & (write_size - 1)) ||
++	    erase_size % write_size) {
++		pr_err("writesize must be a power of two dividing erasesize\n");
++		goto err_free_block2mtd;
++	}
++
+ 	mutex_init(&dev->write_mutex);
+ 
+ 	/* Setup the MTD structure */
+-	/* make the name contain the block device in */
+-	name = kasprintf(GFP_KERNEL, "block2mtd: %s", devname);
++	/* use the given label, else make the name contain the block device in */
++	if (label && *label)
++		name = kstrdup(label, GFP_KERNEL);
++	else
++		name = kasprintf(GFP_KERNEL, "block2mtd: %s", devname);
+ 	if (!name)
+ 		goto err_destroy_mutex;
+ 
+@@ -286,7 +326,7 @@
+ 
+ 	dev->mtd.size = dev->blkdev->bd_inode->i_size & PAGE_MASK;
+ 	dev->mtd.erasesize = erase_size;
+-	dev->mtd.writesize = 1;
++	dev->mtd.writesize = write_size;
+ 	dev->mtd.writebufsize = PAGE_SIZE;
+ 	dev->mtd.type = MTD_RAM;
+ 	dev->mtd.flags = MTD_CAP_RAM;
+@@ -303,10 +343,10 @@
+ 	}
+ 
+ 	list_add(&dev->list, &blkmtd_device_list);
+-	pr_info("mtd%d: [%s] erase_size = %dKiB [%d]\n",
+-		dev->mtd.index,
+-		dev->mtd.name + strlen("block2mtd: "),
+-		dev->mtd.erasesize >> 10, dev->mtd.erasesize);
++	pr_info("mtd%d: [%s] on %s erase_size = %dKiB [%d] writesize = %d\n",
++		dev->mtd.index, dev->mtd.name, devname,
++		dev->mtd.erasesize >> 10, dev->mtd.erasesize,
++		dev->mtd.writesize);
+ 	return dev;
+ 
+ err_destroy_mutex:
+@@ -372,19 +412,21 @@
+ 
+ #ifndef MODULE
+ static int block2mtd_init_called = 0;
+-/* 80 for device, 12 for erase size */
+-static char block2mtd_paramline[80 + 12];
++/* 80 for device, 12 for erase size, 64 for name, 12 for writesize */
++static char block2mtd_paramline[BLOCK2MTD_MAX_DEVS][80 + 12 + 64 + 12];
++static int block2mtd_nparams;
+ #endif
+ 
+ static int block2mtd_setup2(const char *val)
+ {
+-	/* 80 for device, 12 for erase size, 80 for name, 8 for timeout */
+-	char buf[80 + 12 + 80 + 8];
++	/* 80 for device, 12 for erase size, 64 for name, 12 for writesize */
++	char buf[80 + 12 + 64 + 12];
+ 	char *str = buf;
+-	char *token[2];
++	char *token[4];
+ 	char *name;
+ 	size_t erase_size = PAGE_SIZE;
+-	unsigned long timeout = MTD_DEFAULT_TIMEOUT;
++	size_t write_size = 1;
++	unsigned long timeout = block2mtd_timeout;
+ 	int i, ret;
+ 
+ 	if (strnlen(val, sizeof(buf)) >= sizeof(buf)) {
+@@ -395,7 +437,7 @@
+ 	strcpy(str, val);
+ 	kill_final_newline(str);
+ 
+-	for (i = 0; i < 2; i++)
++	for (i = 0; i < 4; i++)
+ 		token[i] = strsep(&str, ",");
+ 
+ 	if (str) {
+@@ -422,7 +464,20 @@
+ 		}
+ 	}
+ 
+-	add_device(name, erase_size, timeout);
++	if (token[2] && strlen(token[2]) + 1 > 64) {
++		pr_err("mtd name too long\n");
++		return 0;
++	}
++
++	if (token[3]) {
++		ret = parse_num(&write_size, token[3]);
++		if (ret) {
++			pr_err("illegal write size\n");
++			return 0;
++		}
++	}
++
++	add_device(name, erase_size, timeout, token[2], write_size);
+ 
+ 	return 0;
+ }
+@@ -448,7 +503,12 @@
+ 	   the device (even kmalloc() fails). Deter that work to
+ 	   block2mtd_setup2(). */
+ 
+-	strlcpy(block2mtd_paramline, val, sizeof(block2mtd_paramline));
++	if (block2mtd_nparams >= BLOCK2MTD_MAX_DEVS) {
++		pr_err("too many devices, ignoring %s\n", val);
++		return 0;
++	}
++	strlcpy(block2mtd_paramline[block2mtd_nparams++], val,
++		sizeof(block2mtd_paramline[0]));
+ 
+ 	return 0;
+ #endif
+@@ -456,15 +516,17 @@
+ 
+ 
+ module_param_call(block2mtd, block2mtd_setup, NULL, NULL, 0200);
+-MODULE_PARM_DESC(block2mtd, "Device to use. \"block2mtd=<dev>[,<erasesize>]\"");
++MODULE_PARM_DESC(block2mtd, "Device to use. \"block2mtd=<dev>[,<erasesize>[,<name>[,<writesize>]]]\"");
+ 
+ static int __init block2mtd_init(void)
+ {
+ 	int ret = 0;
+ 
+ #ifndef MODULE
+-	if (strlen(block2mtd_paramline))
+-		ret = block2mtd_setup2(block2mtd_paramline);
++	int i;
++
++	for (i = 0; i < block2mtd_nparams; i++)
++		block2mtd_setup2(block2mtd_paramline[i]);
+ 	block2mtd_init_called = 1;
+ #endif
+ 
+@@ -483,8 +545,7 @@
+ 		mtd_device_unregister(&dev->mtd);
+ 		mutex_destroy(&dev->write_mutex);
+ 		pr_info("mtd%d: [%s] removed\n",
+-			dev->mtd.index,
+-			dev->mtd.name + strlen("block2mtd: "));
++			dev->mtd.index, dev->mtd.name);
+ 		list_del(&dev->list);
+ 		block2mtd_free_device(dev);
+ 	}

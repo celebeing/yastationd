@@ -25,3 +25,6 @@ build-*/
 __pycache__/
 tools/deploy.hosts
 spotter-host/build/
+
+# Emulator work dir: kernel sources/builds, flash images made from dumps, seeds copied from units
+emu/work/

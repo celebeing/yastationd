@@ -1,0 +1,21 @@
+# Overrides applied on top of BusyBox's defconfig (see build.sh).
+CONFIG_STATIC=y
+# Static glibc: these pull NSS/networking pieces that do not link statically or are unneeded.
+# CONFIG_FEATURE_HAVE_RPC is not set
+# CONFIG_FEATURE_INETD_RPC is not set
+# CONFIG_TC is not set
+# CONFIG_FEATURE_TC_INGRESS is not set
+# UBI and MTD tools the maintenance shell relies on.
+CONFIG_UBIATTACH=y
+CONFIG_UBIDETACH=y
+CONFIG_UBIMKVOL=y
+CONFIG_UBIRMVOL=y
+CONFIG_UBIRSVOL=y
+CONFIG_UBIUPDATEVOL=y
+CONFIG_UBIRENAME=y
+CONFIG_FLASH_ERASEALL=y
+CONFIG_FLASH_LOCK=y
+CONFIG_FLASH_UNLOCK=y
+CONFIG_FLASHCP=y
+CONFIG_NANDWRITE=y
+CONFIG_NANDDUMP=y

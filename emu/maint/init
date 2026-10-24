@@ -1,0 +1,125 @@
+#!/bin/sh
+# /init of the maintenance initramfs: the emulator's stand-in for a UART + recovery shell.
+#
+# The kernel has already attached the board's UBI devices (ubi.mtd= on the cmdline). We:
+#   1. mount proc/sys/devtmpfs/debugfs and reopen the console;
+#   2. create the rw UBI volume when its device is empty (what the vendor recovery or
+#      pickle's S00rw-partitions would do);
+#   3. mount the rootfs volume rw on /mnt/root and the rw volume on /mnt/rw (also bind-mounted
+#      at its real path inside /mnt/root, so `chroot /mnt/root` sees the familiar layout);
+#   4. mount the 9p share "seed" (host emu/work/<board>/seed) on /mnt/seed and run
+#      /mnt/seed/provision.sh if it exists;
+#   5. emu.auto=1: sync, unmount, power off; otherwise drop to a shell on the console.
+#
+# Cmdline knobs (all written by emu/run.sh from the board file):
+#   emu.board=<name>  emu.rootvol=ubi0:rootfs  emu.rwvol=ubi1:bkupgrade  emu.rwpath=/bkupgrade
+#   emu.auto=1        emu.noprovision=1
+
+PATH=/bin:/sbin:/usr/bin:/usr/sbin
+export PATH
+
+mount -t devtmpfs devtmpfs /dev 2>/dev/null
+exec </dev/console >/dev/console 2>&1
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null
+mkdir -p /dev/pts && mount -t devpts devpts /dev/pts
+
+log() { echo "[maint] $*"; }
+
+BOARD= ROOTVOL=ubi0:rootfs RWVOL= RWPATH= AUTO=0 NOPROV=0
+for a in $(cat /proc/cmdline); do
+	case $a in
+		emu.board=*) BOARD=${a#*=} ;;
+		emu.rootvol=*) ROOTVOL=${a#*=} ;;
+		emu.rwvol=*) RWVOL=${a#*=} ;;
+		emu.rwpath=*) RWPATH=${a#*=} ;;
+		emu.auto=1) AUTO=1 ;;
+		emu.noprovision=1) NOPROV=1 ;;
+	esac
+done
+export BOARD ROOTVOL RWVOL RWPATH AUTO
+
+log "board=$BOARD rootvol=$ROOTVOL rwvol=$RWVOL rwpath=$RWPATH auto=$AUTO"
+log "mtd:"; cat /proc/mtd
+for d in /sys/class/ubi/ubi[0-9]*; do
+	[ -d "$d" ] || continue
+	case ${d##*/} in *_*) continue ;; esac
+	log "${d##*/}: mtd$(cat "$d/mtd_num") volumes=$(cat "$d/volumes_count") avail_ebs=$(cat "$d/avail_eraseblocks")"
+done
+
+FAIL=0
+fail() { log "ERROR: $*"; FAIL=1; }
+
+# ubiN:name -> /dev/ubiN_M, or empty when the volume does not exist.
+voldev() {
+	dev=${1%%:*} name=${1#*:}
+	for v in /sys/class/ubi/${dev}_*; do
+		[ -f "$v/name" ] && [ "$(cat "$v/name")" = "$name" ] && { echo "/dev/${v##*/}"; return 0; }
+	done
+	return 1
+}
+
+# Create the rw volume on an empty UBI device (fills the device, like `ubimkvol -m`).
+if [ -n "$RWVOL" ] && ! voldev "$RWVOL" >/dev/null; then
+	dev=${RWVOL%%:*} name=${RWVOL#*:}
+	if [ -e "/dev/$dev" ]; then
+		log "creating volume $name on /dev/$dev"
+		ubimkvol "/dev/$dev" -N "$name" -m || fail "ubimkvol $RWVOL"
+		mdev -s 2>/dev/null
+	else
+		fail "/dev/$dev missing (is ubi.mtd= for the rw partition on the cmdline?)"
+	fi
+fi
+
+if mount -t ubifs "$ROOTVOL" /mnt/root; then
+	log "rootfs $ROOTVOL mounted rw on /mnt/root"
+else
+	fail "cannot mount rootfs $ROOTVOL"
+fi
+if [ -n "$RWVOL" ]; then
+	if mount -t ubifs "$RWVOL" /mnt/rw; then
+		log "rw volume $RWVOL mounted on /mnt/rw"
+		if [ -n "$RWPATH" ] && [ -d "/mnt/root$RWPATH" ]; then
+			mount --bind /mnt/rw "/mnt/root$RWPATH"
+		fi
+	else
+		fail "cannot mount rw volume $RWVOL"
+	fi
+fi
+
+if mount -t 9p -o trans=virtio,version=9p2000.L,msize=262144 seed /mnt/seed 2>/dev/null; then
+	log "seed share mounted on /mnt/seed"
+	if [ "$NOPROV" = 0 ] && [ -f /mnt/seed/provision.sh ] && [ "$FAIL" = 0 ]; then
+		log "running seed/provision.sh"
+		if sh /mnt/seed/provision.sh; then
+			log "provision OK"
+		else
+			fail "provision.sh exited $?"
+		fi
+	fi
+else
+	log "no seed share (9p tag 'seed' not attached)"
+fi
+
+finish() {
+	sync
+	[ -n "$RWPATH" ] && umount "/mnt/root$RWPATH" 2>/dev/null
+	umount /mnt/seed 2>/dev/null
+	umount /mnt/rw 2>/dev/null
+	umount /mnt/root 2>/dev/null
+	sync
+}
+
+if [ "$AUTO" = 1 ]; then
+	finish
+	if [ "$FAIL" = 0 ]; then log "RESULT: OK"; else log "RESULT: FAIL"; fi
+	poweroff -f
+fi
+
+log "maintenance shell. rootfs: /mnt/root, rw: /mnt/rw, seed: /mnt/seed."
+log "chroot /mnt/root /bin/sh works for the vendor userland. 'exit' syncs and powers off."
+setsid cttyhack sh -l
+finish
+log "powering off"
+poweroff -f

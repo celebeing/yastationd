@@ -1,0 +1,14 @@
+snd-dummy: allow 1..8 channels so the vendor capture paths (bergamot hw:0,1 8ch, pickle hw:0,2
+4ch) and the dmix playback (2ch) all open on the emulator's card 0.
+
+--- a/sound/drivers/dummy.c
++++ b/sound/drivers/dummy.c
+@@ -40,7 +40,7 @@
+ #define USE_RATE_MIN		5500
+ #define USE_RATE_MAX		48000
+ #define USE_CHANNELS_MIN 	1
+-#define USE_CHANNELS_MAX 	2
++#define USE_CHANNELS_MAX 	8
+ #define USE_PERIODS_MIN 	1
+ #define USE_PERIODS_MAX 	1024
+ 

@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0
+config EMUBOARD
+	bool "Yandex speaker board stubs for QEMU (emuboard=)"
+	depends on OF && INPUT && LEDS_CLASS && LEDS_TRIGGERS && POWER_SUPPLY && IIO && DEBUG_FS
+	depends on FB && BACKLIGHT_CLASS_DEVICE
+	help
+	  Stub LEDs, input devices, aml_info, ya_pd and the light sensor of a
+	  Yandex smart speaker so its vendor rootfs can boot under QEMU virt.
+	  Inactive unless "emuboard=<board>" is on the kernel command line.
