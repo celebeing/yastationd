@@ -126,3 +126,12 @@ func TestClipFromRaw(t *testing.T) {
 		}
 	}
 }
+
+func TestPlayClipNormalizes(t *testing.T) {
+	// A dim stock-like clip (peak 85) plays at full level; relative levels are kept.
+	c, _ := ParseScled("dim", strings.NewReader("0 0 0 0 0 0 85 | 0 0 0 0 0 0 40 | 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 | 0 0 0 0 | 100\n"))
+	f, _ := PlayClip(c, true, func() int { return 255 })(time.Now(), MatrixFrame{})
+	if f.Level.Seg[0][6] != 255 || f.Level.Seg[1][6] != 120 {
+		t.Fatalf("levels = %d, %d", f.Level.Seg[0][6], f.Level.Seg[1][6])
+	}
+}

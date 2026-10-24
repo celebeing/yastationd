@@ -25,6 +25,13 @@ noise reduction and mic-array processing that the manufacturer tuned for this ex
 works phenomenally well and hears the wake word even over the speaker's own music. Open-source
 wake word engines don't come close.
 
+**A living front display.** The clock face plays the speaker's own animations, read from its
+firmware: eyes, the voice-state bars while it listens, thinks and speaks, a ringing timer, pause
+and track changes. A few more faces of ours fill the gaps (happy, sad, wink, sleep). Every change
+on the display is smooth: segments cross-fade per element, so animations join without a blank,
+digits morph into new ones and the clock fades back in after a face. All of it is scriptable from
+HA, from single expressions to timed scenarios across the ring and the display.
+
 ## What the speaker does with the CFW
 
 **Voice (Wyoming satellite in HA's Assist pipeline)**
@@ -35,6 +42,17 @@ wake word engines don't come close.
 - HA voice timers: countdown on the clock, an alarm on finish, any touch key stops it. A paused timer
   blinks its remainder briefly, then the clock comes back.
 - Local reflexes while audio plays: «стоп», «громче», «тише» are handled on the device.
+
+**Expressions on the display and the ring**
+- The speaker's own clock animations play on the front display: the voice-state bars while the
+  assistant listens, thinks and speaks, then a wink as the dialog ends; a greeting (eyes, wink)
+  once per boot; `ringing` for a timer or alarm. Our own faces add happy, sad, wink and sleep.
+- Smooth per-segment transitions everywhere: back-to-back animations join without a blank, the
+  volume digits morph, the clock fades back in after a face.
+- From HA: an `Expression` select, `express` and `scenario` topics (built-in or your own timed
+  scenarios over the ring and the display), raw frames, and a `Display faces` switch. The speaker
+  publishes what it can show, so scripts and an LLM agent can adapt to each model.
+  Details: [docs/display-expressions.md](docs/display-expressions.md).
 
 **Controls and sensors (HA MQTT Discovery, one device per speaker)**
 - LED ring as an HA `light` with effects (pulse, comet, blink, rainbow, voice-state presets), plus

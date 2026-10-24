@@ -117,12 +117,16 @@ func (a *App) startAlarm() {
 	t.mu.Unlock()
 
 	a.ringStack.Push("alarm", display.PrioError, 0, display.Blink(display.Amber, 400*time.Millisecond))
-	a.matrixStack.Push("alarm", display.PrioLocal, 0, func(now time.Time, _ display.MatrixFrame) (display.MatrixFrame, bool) {
-		if now.UnixMilli()/400%2 == 0 {
-			return display.Text("00:00", a.brightness()), false
-		}
-		return display.MatrixFrame{}, false
-	})
+	if c, ok := a.clips.Load("ringing"); ok && a.frontClipsPossible() {
+		a.matrixStack.Push("alarm", display.PrioLocal, 0, display.PlayClip(c, true, a.brightness))
+	} else {
+		a.matrixStack.Push("alarm", display.PrioLocal, 0, func(now time.Time, _ display.MatrixFrame) (display.MatrixFrame, bool) {
+			if now.UnixMilli()/400%2 == 0 {
+				return display.Text("00:00", a.brightness()), false
+			}
+			return display.MatrixFrame{}, false
+		})
+	}
 	go func() {
 		defer a.endAlarm(stop)
 		a.unmute()

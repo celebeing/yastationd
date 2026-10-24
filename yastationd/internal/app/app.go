@@ -372,9 +372,19 @@ func (a *App) restoreVolume() {
 	a.log.Warn("volume restore failed: no Master control")
 }
 
+// Front-display transitions: a layer coming on top fades in fast, a lower one coming back slowly;
+// a plain picture changing within a layer (digits, scrolling text) morphs.
+const (
+	frontFadeUp   = 80 * time.Millisecond
+	frontFadeDown = 400 * time.Millisecond
+	frontMorph    = 120 * time.Millisecond
+)
+
 func (a *App) renderLoop(stop <-chan struct{}) {
 	t := time.NewTicker(frameInterval)
 	defer t.Stop()
+	fade := display.Fader{Up: frontFadeUp, Down: frontFadeDown}                             // pixel screens
+	smooth := display.Seg7Smoother{Up: frontFadeUp, Down: frontFadeDown, Morph: frontMorph} // seg7
 	for {
 		select {
 		case <-stop:
@@ -389,6 +399,11 @@ func (a *App) renderLoop(stop <-chan struct{}) {
 				}
 			}
 			frame := a.matrixStack.Frame(now)
+			if a.screen == nil {
+				frame = smooth.Frame(now, frame, a.matrixStack.Top())
+			} else if k := fade.Level(now, a.matrixStack.Top()); k < 1 {
+				frame.Brightness = int(float64(frame.Brightness) * k)
+			}
 			if err := a.showMatrix(frame); err != nil {
 				a.log.Debug("matrix show", "err", err)
 			}

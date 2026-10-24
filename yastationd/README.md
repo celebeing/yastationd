@@ -98,12 +98,31 @@ plays, the white "thinking" comet while it waits for audio, and nothing once apl
 (clock/off/message; long messages scroll) · `text` display_message · `number` volume ·
 `notify` show_text + `number` text_duration (s) · `select` ring_animation + `number`
 animation_duration (s) · `binary_sensor` mic_mute · `sensor` lux/health/uptime ·
-`binary_sensor` pipeline_ok · `event` button (volume_up/down, voice_command, panel_gesture).
+`binary_sensor` pipeline_ok · `event` button (volume_up/down, voice_command, panel_gesture) ·
+`select` expression (attributes: the display capabilities) · `switch` display_faces (seg7 fronts).
 
 Timed overlays (show_text, ring_animation, display/cmd) light the ring/matrix over whatever is
 underneath — even with the ring light off — and fall back when the time is up, without touching the
 light's state. `ring_animation` returns to `off` (not "none": HA's MQTT select reads "None" as unknown).
 The ambilight is an independent persisted RGBW light. Ring/status overlays do not take it over.
+
+### Expressions and scenarios
+
+Design: [`../docs/display-expressions.md`](../docs/display-expressions.md) (`internal/app/express*.go`,
+`scenario.go`, `internal/display/clip.go`). Topics under `yastation/<id>/`:
+
+| Topic | Payload |
+|---|---|
+| `expression/set` | the `Expression` select: one name, shown for `animation_duration`, then `off` |
+| `express/set` | a name, or `{"name": "happy", "ttl_ms": 5000}`; `off` clears |
+| `scenario/set` | a name (built-in `hello`, `celebrate`, `goodnight`, `startup`, or `<cfw>/scenarios/<name>.json`), an inline `{"steps": [...]}`, or `{"stop": true}` |
+| `display/cmd` | also `{"surface":"matrix","op":"clip","args":{"name":"ringing","loop":true},"ttl_ms":5000}` and `"op":"frames"` with `[{"seg":["ABFG","","","ABFG"],"ms":300}, {"text":"12:34","ms":500}]` |
+| `display_caps/state` | what this speaker can show: front kind, ring size, expressions, clips, scenarios |
+
+A scenario step is `{"express": …, "ring": <effect>, "matrix": <clip>, "text": …, "ms": …}`; the
+fields of one step run in parallel, steps run in sequence. The front display runs through a
+per-segment smoother: a layer on top fades in in 80 ms, a lower one returning in 400 ms, a plain
+picture changing within a layer morphs in 120 ms, frames of one clip keep their own timing.
 
 ### HA-side scripts (Assist tools)
 

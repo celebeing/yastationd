@@ -3,6 +3,8 @@ package display
 import (
 	"testing"
 	"time"
+
+	"github.com/celebeing/yastationd/yastationd/internal/hw"
 )
 
 func TestTextDigitsColonDot(t *testing.T) {
@@ -88,5 +90,41 @@ func TestMarqueeScrollsLongText(t *testing.T) {
 	f4, _ := r(now.Add(450*time.Millisecond), MatrixFrame{})
 	if f0.Seg == f4.Seg || f4.Seg != Text("1234", 1).Seg {
 		t.Fatalf("frame@0 %v, frame@4 steps %v", f0.Seg, f4.Seg)
+	}
+}
+
+func TestSeg7SmootherJoinsAndMorphs(t *testing.T) {
+	s := Seg7Smoother{Up: 80 * time.Millisecond, Down: 400 * time.Millisecond, Morph: 120 * time.Millisecond}
+	now := time.Unix(100, 0)
+	// "eyes" then "wink" as two layers of one slot: segment A0 is lit in both.
+	a := MatrixFrame{Brightness: 255, Graded: true}
+	a.Level.Seg[0][0], a.Level.Seg[3][0] = 255, 255
+	b := MatrixFrame{Brightness: 255, Graded: true}
+	b.Level.Seg[0][0], b.Level.Seg[3][6] = 255, 255
+	s.Frame(now, a, Top{Name: "scenario", Prio: PrioExpression, Seq: 1})
+	for i := 1; i <= 3; i++ { // the step change: a replaced layer in the same slot
+		f := s.Frame(now.Add(time.Duration(i)*33*time.Millisecond), b, Top{Name: "scenario", Prio: PrioExpression, Seq: 2})
+		if f.Level.Seg[0][0] != 255 {
+			t.Fatalf("shared segment dipped to %d at step %d", f.Level.Seg[0][0], i)
+		}
+		if i == 1 && (f.Level.Seg[3][6] == 0 || f.Level.Seg[3][6] == 255) {
+			t.Fatalf("new segment did not cross-fade: %d", f.Level.Seg[3][6])
+		}
+	}
+	// A plain digit change within one layer morphs instead of snapping.
+	top := Top{Name: "volbubble", Prio: PrioLocal, Seq: 3}
+	s.Frame(now.Add(time.Second), Number(40, 255), top)
+	s.Frame(now.Add(2*time.Second), Number(40, 255), top)
+	f := s.Frame(now.Add(2*time.Second+33*time.Millisecond), Number(45, 255), top)
+	changed := false
+	for d := 0; d < hw.Digits; d++ {
+		for e := 0; e < 7; e++ {
+			if v := f.Level.Seg[d][e]; v != 0 && v != 255 {
+				changed = true
+			}
+		}
+	}
+	if !changed {
+		t.Fatal("digits snapped instead of morphing")
 	}
 }

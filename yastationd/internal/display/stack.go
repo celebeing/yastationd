@@ -39,6 +39,22 @@ type Stack[F any] struct {
 	base   func(now time.Time) F
 	layers map[string]*layer[F]
 	seq    int
+	top    Top
+}
+
+// Top identifies the layer that drew the last frame on top: the base has Name "" and Prio
+// PrioBase. Seq changes when a layer is replaced under the same name.
+type Top struct {
+	Name string
+	Prio int
+	Seq  int
+}
+
+// Top reports which layer drew the last frame on top.
+func (s *Stack[F]) Top() Top {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.top
 }
 
 func NewStack[F any](base func(now time.Time) F) *Stack[F] {
@@ -91,6 +107,7 @@ func (s *Stack[F]) Frame(now time.Time) F {
 		return ls[i].seq < ls[j].seq
 	})
 	f := s.base(now)
+	top := Top{Prio: PrioBase}
 	for _, l := range ls {
 		nf, done := l.render(now, f)
 		if done {
@@ -102,6 +119,45 @@ func (s *Stack[F]) Frame(now time.Time) F {
 			continue
 		}
 		f = nf
+		top = Top{Name: l.name, Prio: l.prio, Seq: l.seq}
 	}
+	s.mu.Lock()
+	s.top = top
+	s.mu.Unlock()
 	return f
+}
+
+// Fader turns a change of the top layer into a brightness ramp from 0: Up when a higher layer
+// takes over (it must be readable at once, e.g. the volume number), Down when a lower one comes
+// back (the clock after a face), so a switch never snaps.
+type Fader struct {
+	Up, Down time.Duration
+
+	last  Top
+	known bool
+	start time.Time
+	dur   time.Duration
+}
+
+// Level is the brightness factor 0..1 for a frame drawn at now by top.
+func (f *Fader) Level(now time.Time, top Top) float64 {
+	if !f.known {
+		f.last, f.known = top, true
+		return 1
+	}
+	if top != f.last {
+		f.dur = f.Up
+		if top.Prio < f.last.Prio {
+			f.dur = f.Down
+		}
+		f.start, f.last = now, top
+	}
+	if f.dur <= 0 {
+		return 1
+	}
+	el := now.Sub(f.start)
+	if el >= f.dur {
+		return 1
+	}
+	return float64(el) / float64(f.dur)
 }

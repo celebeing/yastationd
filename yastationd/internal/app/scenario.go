@@ -103,8 +103,7 @@ func (a *App) runScenario(s scenario) {
 		}()
 		for _, st := range s.Steps {
 			d := min(time.Duration(st.Ms)*time.Millisecond, maxScenarioStep)
-			a.unexpress(scenarioSlot)
-			a.showStep(st, d)
+			a.showStep(st, d) // replaces the previous step's layers in place: no blank between steps
 			select {
 			case <-stop:
 				return
@@ -114,22 +113,39 @@ func (a *App) runScenario(s scenario) {
 	}()
 }
 
+// showStep puts one step on the surfaces, replacing the previous step's layers in place; a
+// surface the step does not name is cleared (unless its expression covers it).
 func (a *App) showStep(st scenarioStep, d time.Duration) {
+	ring, front := false, false
 	if st.Express != "" {
-		a.express(scenarioSlot, st.Express, d)
+		a.express(scenarioSlot, st.Express, d) // replaces or clears both surfaces itself
+		ring, front = true, true
 	}
 	if st.Ring != "" {
 		if r := effect(st.Ring); r != nil {
 			a.ringStack.Push(scenarioSlot, display.PrioScenario, d, r)
+			ring = true
 		}
 	}
 	if st.Matrix != "" && a.frontClips() {
 		if c, ok := a.clips.Load(st.Matrix); ok {
-			a.matrixStack.Push(scenarioSlot, display.PrioExpression, d, display.PlayClip(c, c.Loop, a.brightness))
+			r := display.PlayClip(c, c.Loop, a.brightness)
+			if !c.Loop {
+				r = display.HoldClip(c, a.brightness)
+			}
+			a.matrixStack.Push(scenarioSlot, display.PrioExpression, d, r)
+			front = true
 		}
 	}
 	if st.Text != "" {
 		a.matrixStack.Push(scenarioSlot, display.PrioExpression, d, display.Marquee(st.Text, marqueeStep, a.brightness))
+		front = true
+	}
+	if !ring {
+		a.ringStack.Remove(scenarioSlot)
+	}
+	if !front {
+		a.matrixStack.Remove(scenarioSlot)
 	}
 }
 

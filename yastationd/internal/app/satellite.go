@@ -14,9 +14,10 @@ import (
 // Voice-stage ring indications share one "voice" layer, so stages replace each other. The TTLs
 // are safety nets: a pipeline that dies without a terminal event can't leave the ring stuck.
 const (
-	stageTTL    = 15 * time.Second
-	errorTTL    = 2 * time.Second
-	followDelay = 300 * time.Millisecond
+	dialogEndWink = 1500 * time.Millisecond
+	stageTTL      = 15 * time.Second
+	errorTTL      = 2 * time.Second
+	followDelay   = 300 * time.Millisecond
 )
 
 // sndQueueLen bounds buffered audio chunks per stream. HA sends 2 KiB chunks faster than
@@ -63,6 +64,7 @@ type sndStream struct {
 	rebuffers   atomic.Int32
 
 	holdUntil time.Time // the pump starts no earlier (the announce chime is playing)
+	announce  bool      // an announcement, not a reply in a dialog
 }
 
 func (s *satellite) OnConnect(c *wyoming.Conn) {}
@@ -201,6 +203,7 @@ func (s *satellite) startStream(c *wyoming.Conn, rate, width, channels int) *snd
 	st := &sndStream{owner: c, rate: rate, channels: channels, q: make(chan []byte, sndQueueLen),
 		done: done, start: time.Now()}
 	if announce {
+		st.announce = true
 		st.holdUntil = st.start.Add(a.announceChime())
 	}
 	s.mu.Lock()
@@ -347,17 +350,19 @@ func (s *satellite) endStream(c *wyoming.Conn, played bool) {
 		}
 		s.mu.Lock()
 		idle := s.cur == nil
+		follow := played && idle && s.follow
+		s.follow = false
 		s.mu.Unlock()
-		if idle {
+		switch {
+		case !idle:
+		case played && !follow && !st.announce:
+			s.a.express("voice", "wink", dialogEndWink) // the dialog is over: a wink, then the clock
+		default:
 			s.a.unexpress("voice")
 		}
 		if played {
 			c.Send(wyoming.Event{Type: wyoming.TypePlayed})
 		}
-		s.mu.Lock()
-		follow := played && idle && s.follow
-		s.follow = false
-		s.mu.Unlock()
 		if follow {
 			time.Sleep(followDelay) // let the room's echo of the reply die down
 			s.startListening(srcFollow)

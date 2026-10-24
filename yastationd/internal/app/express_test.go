@@ -69,3 +69,18 @@ func TestExpressOneShotRingEnds(t *testing.T) {
 		t.Fatal("ring effect outlived the one-shot clip")
 	}
 }
+
+func TestExpressWinkClearsRingAndHolds(t *testing.T) {
+	a := newExpressApp(t, true)
+	a.express("voice", "speaking", 0)
+	a.express("voice", "wink", 5*time.Second)
+	if a.ringStack.Has("voice") || !a.matrixStack.Has("voice") {
+		t.Fatal("wink must take over the slot: front only, no ring left")
+	}
+	clip, _ := a.clips.Load("wink")
+	a.matrixStack.Frame(time.Now())
+	a.matrixStack.Frame(time.Now().Add(clip.Duration() + 500*time.Millisecond))
+	if !a.matrixStack.Has("voice") {
+		t.Fatal("short clip with a TTL did not hold its last frame")
+	}
+}

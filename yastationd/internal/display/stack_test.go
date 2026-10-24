@@ -61,3 +61,30 @@ func TestStackDonePops(t *testing.T) {
 		t.Fatalf("done layer rendered again: calls=%d", calls)
 	}
 }
+
+func TestStackTopAndFader(t *testing.T) {
+	s := NewStack(func(time.Time) int { return 0 })
+	now := time.Unix(100, 0)
+	s.Frame(now)
+	f := Fader{Up: 100 * time.Millisecond, Down: 400 * time.Millisecond}
+	if k := f.Level(now, s.Top()); k != 1 {
+		t.Fatalf("first frame faded: %v", k)
+	}
+	s.Push("bubble", PrioLocal, 0, func(time.Time, int) (int, bool) { return 1, false })
+	s.Frame(now)
+	if top := s.Top(); top.Name != "bubble" || top.Prio != PrioLocal {
+		t.Fatalf("top = %+v", top)
+	}
+	if k := f.Level(now, s.Top()); k != 0 { // a higher layer starts its fast fade from 0
+		t.Fatalf("up fade start = %v", k)
+	}
+	if k := f.Level(now.Add(100*time.Millisecond), s.Top()); k != 1 {
+		t.Fatalf("up fade not done after Up: %v", k)
+	}
+	s.Remove("bubble")
+	s.Frame(now.Add(time.Second))
+	f.Level(now.Add(time.Second), s.Top())
+	if k := f.Level(now.Add(time.Second+200*time.Millisecond), s.Top()); k < 0.4 || k > 0.6 {
+		t.Fatalf("down fade halfway = %v, want ~0.5", k)
+	}
+}

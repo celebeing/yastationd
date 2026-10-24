@@ -53,7 +53,7 @@ func ringHolds(name string) bool {
 
 // expressionNames is the HA-facing list (stable order).
 var expressionNames = []string{"listening", "thinking", "speaking", "happy", "sad", "wink", "eyes",
-	"blink", "sleep", "boot", "ringing", "pause", "next", "previous", "error"}
+	"blink", "sleep", "ringing", "pause", "next", "previous", "error"}
 
 // frontClips: the front display takes clip layers. Only 7-segment displays for now: pixel
 // screens get their own scenes once explored on a device, and show none of these meanwhile.
@@ -70,16 +70,26 @@ func (a *App) express(slot, name string, ttl time.Duration) bool {
 		e = expression{clips: []string{name}}
 	}
 	shown := false
-	// A slot moving to a state without a front part (e.g. speaking -> error) must not leave the
-	// previous state's clip running there.
-	a.matrixStack.Remove(slot)
 	var clip display.Clip
 	haveClip := false
 	if len(e.clips) > 0 && a.frontClips() {
-		if clip, haveClip = a.clips.Load(e.clips...); haveClip {
-			a.matrixStack.Push(slot, display.PrioExpression, ttl, display.PlayClip(clip, e.loop, a.brightness))
-			shown = true
+		clip, haveClip = a.clips.Load(e.clips...)
+	}
+	// Replace in place (Push over the same slot), never remove-then-push: a render between the two
+	// would show the layer below for a frame. A state without a front part (speaking -> error)
+	// removes the previous state's clip.
+	if haveClip {
+		r := display.PlayClip(clip, e.loop, a.brightness)
+		if !e.loop && ttl > 0 { // a short clip asked for ttl keeps its last frame
+			r = display.HoldClip(clip, a.brightness)
 		}
+		a.matrixStack.Push(slot, display.PrioExpression, ttl, r)
+		shown = true
+	} else {
+		a.matrixStack.Remove(slot)
+	}
+	if e.ring == "" { // the slot moves on as a whole: no ring part left from its previous state
+		a.ringStack.Remove(slot)
 	}
 	if e.ring != "" {
 		if r := effect(e.ring); r != nil {
@@ -105,7 +115,8 @@ func (a *App) unexpress(slot string) {
 	a.matrixStack.Remove(slot)
 }
 
-// bootMarker makes the boot expression once per device boot, not on every daemon restart.
+// bootMarker plays the startup greeting once per device boot, not on every daemon restart. The
+// stock "boot" clip is not used: it is made to go with a boot jingle and runs ~10 s.
 const bootMarker = "/tmp/yastationd.boot-shown"
 
 func (a *App) expressBoot() {
@@ -114,7 +125,9 @@ func (a *App) expressBoot() {
 		return
 	}
 	os.WriteFile(marker, nil, 0o644)
-	a.express("boot", "boot", 0)
+	if s, err := a.loadScenario("startup"); err == nil {
+		a.runScenario(s)
+	}
 }
 
 // newClipLibrary searches the CFW's converted clips, then the firmware's own, then ours.

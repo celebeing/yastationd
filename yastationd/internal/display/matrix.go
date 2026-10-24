@@ -151,3 +151,108 @@ func twoDigits(n int) string {
 	}
 	return strconv.Itoa(n)
 }
+
+// seg7Elems: the 28 digit segments, the colon, the DM dot and the degree mark.
+const seg7Elems = hw.Digits*7 + 3
+
+// levelsOf flattens a frame to an absolute level per element (brightness applied).
+func levelsOf(f MatrixFrame) [seg7Elems]float64 {
+	var l [seg7Elems]float64
+	k := float64(max(f.Brightness, 0))
+	if f.Graded {
+		for d := 0; d < hw.Digits; d++ {
+			for s := 0; s < 7; s++ {
+				l[d*7+s] = float64(f.Level.Seg[d][s]) * k / 255
+			}
+		}
+		l[28] = float64(f.Level.Colon) * k / 255
+		l[29] = float64(f.Level.DM) * k / 255
+		l[30] = float64(f.Level.Degree) * k / 255
+		return l
+	}
+	on := func(b bool) float64 {
+		if b {
+			return k
+		}
+		return 0
+	}
+	for d := 0; d < hw.Digits; d++ {
+		for s := 0; s < 7; s++ {
+			l[d*7+s] = on(f.Seg[d]&(1<<s) != 0)
+		}
+	}
+	l[28], l[29], l[30] = on(f.Colon), on(f.DM), on(f.Degree)
+	return l
+}
+
+// Seg7Smoother moves every element of the 7-segment display towards its target level at a
+// rate set per frame, so a change never snaps: elements two pictures share stay lit (two clips
+// back to back join without a blank), digits morph into new ones, a layer coming back fades in.
+type Seg7Smoother struct {
+	// Up: a higher layer took over (fast, it must be readable at once); Down: a lower one came
+	// back (slow); Morph: the same layer changed its plain picture (digits, scrolling text).
+	// Frames of an animation clip within one layer are not smoothed: they carry their own timing.
+	Up, Down, Morph time.Duration
+
+	cur     [seg7Elems]float64
+	last    time.Time
+	top     Top
+	known   bool
+	trans   time.Duration // a layer transition in progress, until transEnd
+	transTo time.Time
+}
+
+// Frame returns what to show for frame f drawn by top at now (a graded frame at full
+// brightness: the levels already carry it).
+func (s *Seg7Smoother) Frame(now time.Time, f MatrixFrame, top Top) MatrixFrame {
+	target := levelsOf(f)
+	if !s.known {
+		s.cur, s.last, s.top, s.known = target, now, top, true
+		return s.out()
+	}
+	dt := now.Sub(s.last)
+	s.last = now
+	if top != s.top {
+		s.trans = s.Up
+		if top.Prio < s.top.Prio {
+			s.trans = s.Down
+		}
+		s.transTo = now.Add(s.trans)
+		s.top = top
+	}
+	tau := s.Morph
+	if f.Graded {
+		tau = 0
+	}
+	if now.Before(s.transTo) {
+		tau = s.trans
+	}
+	for i := range s.cur {
+		if tau <= 0 {
+			s.cur[i] = target[i]
+			continue
+		}
+		step := 255 * float64(dt) / float64(tau)
+		switch d := target[i] - s.cur[i]; {
+		case d > step:
+			s.cur[i] += step
+		case d < -step:
+			s.cur[i] -= step
+		default:
+			s.cur[i] = target[i]
+		}
+	}
+	return s.out()
+}
+
+func (s *Seg7Smoother) out() MatrixFrame {
+	f := MatrixFrame{Brightness: 255, Graded: true}
+	lv := func(x float64) uint8 { return uint8(min(max(x+0.5, 0), 255)) }
+	for d := 0; d < hw.Digits; d++ {
+		for e := 0; e < 7; e++ {
+			f.Level.Seg[d][e] = lv(s.cur[d*7+e])
+		}
+	}
+	f.Level.Colon, f.Level.DM, f.Level.Degree = lv(s.cur[28]), lv(s.cur[29]), lv(s.cur[30])
+	return f
+}

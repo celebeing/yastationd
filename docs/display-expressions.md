@@ -1,8 +1,8 @@
 # Display expressions: surfaces, expressions, scenarios
 
-Status (2026-10-24): design agreed; the seg7 front display (bergamot, pickle) and the ring are
-being moved onto it. Pixel screens (orion's 21×12, Midi's panel) come later: until they are
-explored on a device, their boards show no expression layers on the front screen.
+Status (2026-10-24): working on the seg7 front display (bergamot, pickle) and the ring; checked by
+eye on bergamot. Pixel screens (orion's 21×12, Midi's panel) come later: until they are explored on
+a device, their boards show no expression layers on the front screen.
 
 ## Three layers
 
@@ -67,8 +67,37 @@ The daemon reads only the text form, from `<cfw>/clips/` first, then the firmwar
 
 ## Our own clips
 
-Same text format, committed under `yastationd/internal/display/clips/` (our drawings), embedded.
-They fill the gaps (e.g. `happy`, `sleep`, `wink`) and are what a board without stock clips uses.
+Same text format, committed under `yastationd/internal/display/clips/` (our drawings), embedded:
+`eyes`, `happy`, `sad`, `wink`, `sleep`, and `listening` / `thinking` / `speaking` for boards whose
+stock voice clips are blank (pickle). A clip in the CFW or firmware directory with the same name
+wins over ours.
+
+## How the expressions are used
+
+- Voice: `listening` → `thinking` → `speaking` on the ring and the front display; when a reply has
+  played and no follow-up listening comes, `wink` for 1.5 s, then the clock (not after an
+  announcement). Pickle's stock voice clips are a single dark frame (its firmware blanks the clock
+  while it talks), so a blank clip is skipped and our own bars play instead. Our `speaking` looks
+  much like `thinking`; worth redrawing.
+- Startup: the `startup` scenario (eyes, then wink) once per device boot. The stock `boot` clip is
+  not used: it is timed to a boot jingle and runs ~10 s with a 3 s dark start.
+- Timer and alarm ring: the stock `ringing` clip on the front display (the blinking "00:00" where a
+  board has no clips).
+- One-shot clips shown for a TTL hold their last frame until it ends.
+- Clips are normalised so their brightest element is 255: the stock voice clips peak at about a
+  third, which vanished under the display's own (auto) brightness.
+- A one-shot expression's ring part ends with its clip (ring effects never end on their own).
+
+## Transitions (seg7)
+
+The front display goes through a per-element smoother: every segment moves towards its new level
+at a rate chosen per frame. A layer coming on top takes 80 ms (the volume number must be readable
+at once), a lower one coming back 400 ms (the clock after a face), a plain picture changing within
+a layer 120 ms (digits morphing, scrolling text); frames inside one clip are passed through, they
+carry their own timing. Elements two pictures share stay lit, so back-to-back animations join
+without a blank. Layers are replaced in place (a push over the same slot, never remove-then-push),
+and scenario steps replace the previous step's layers. Pixel screens keep a plain fade-in on a
+change of the top layer until they get their own scenes.
 
 ## HA exposure
 
@@ -83,10 +112,9 @@ They fill the gaps (e.g. `happy`, `sleep`, `wink`) and are what a board without 
 ## Phases
 
 1. Recon — done (clip formats and order above).
-2. Core: per-segment brightness in the seg7 frame, the clip loader and player, the expression layer;
-   the ring's voice stages move onto it unchanged.
-3. Clips + voice on the front: stock clips for listening / thinking / speaking / boot / ringing;
-   `make clips`.
-4. HA: the topics and entities above, scenarios.
+2. Core — done: per-segment levels in the seg7 frame, the clip loader and player, the expression
+   layer; the ring's voice stages run on it.
+3. Clips + voice on the front — done (see "How the expressions are used"); `make clips`.
+4. HA — done: the topics and entities above, scenarios.
 5. Music: pause / next / previous clips; levels and metadata from sendspin-host for a visualiser.
 6. Pixel screens (orion first): their own scenes, once a unit is on the desk.

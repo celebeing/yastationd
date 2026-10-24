@@ -54,6 +54,41 @@ func (c Clip) Blank() bool {
 	return true
 }
 
+// normalized scales the clip so its brightest element is 255. Stock clips peak at very
+// different levels (the voice ones barely reach a third), and on top of the display's own
+// brightness a dim one would vanish; the animation's relative levels stay as drawn.
+func (c Clip) normalized() Clip {
+	peak := uint8(0)
+	for _, f := range c.Frames {
+		for _, d := range f.Seg {
+			for _, v := range d {
+				peak = max(peak, v)
+			}
+		}
+		for _, v := range f.Extra {
+			peak = max(peak, v)
+		}
+	}
+	if peak == 0 || peak == 255 {
+		return c
+	}
+	out := c
+	out.Frames = make([]ClipFrame, len(c.Frames))
+	k := func(v uint8) uint8 { return uint8(int(v) * 255 / int(peak)) }
+	for i, f := range c.Frames {
+		for d := range f.Seg {
+			for s := range f.Seg[d] {
+				f.Seg[d][s] = k(f.Seg[d][s])
+			}
+		}
+		for x := range f.Extra {
+			f.Extra[x] = k(f.Extra[x])
+		}
+		out.Frames[i] = f
+	}
+	return out
+}
+
 // Duration is one pass through the clip.
 func (c Clip) Duration() time.Duration {
 	var d time.Duration
@@ -183,6 +218,17 @@ func writeLevels(b *bytes.Buffer, l []uint8) {
 // layer is removed; otherwise the layer pops after one pass. Brightness scales every level,
 // so a clip follows the clock's auto-brightness.
 func PlayClip(c Clip, loop bool, brightness func() int) RenderFunc[MatrixFrame] {
+	return playClip(c, loop, false, brightness)
+}
+
+// HoldClip plays c once and then keeps its last frame until the layer's TTL removes it (a short
+// clip shown "for 5 s").
+func HoldClip(c Clip, brightness func() int) RenderFunc[MatrixFrame] {
+	return playClip(c, false, true, brightness)
+}
+
+func playClip(c Clip, loop, hold bool, brightness func() int) RenderFunc[MatrixFrame] {
+	c = c.normalized()
 	total := c.Duration()
 	var start time.Time
 	return func(now time.Time, _ MatrixFrame) (MatrixFrame, bool) {
@@ -191,11 +237,11 @@ func PlayClip(c Clip, loop bool, brightness func() int) RenderFunc[MatrixFrame] 
 		}
 		el := now.Sub(start)
 		if total <= 0 {
-			return c.Frames[0].matrixFrame(brightness()), !loop
+			return c.Frames[0].matrixFrame(brightness()), !loop && !hold
 		}
 		if el >= total {
 			if !loop {
-				return c.Frames[len(c.Frames)-1].matrixFrame(brightness()), true
+				return c.Frames[len(c.Frames)-1].matrixFrame(brightness()), !hold
 			}
 			el %= total
 		}
