@@ -3,7 +3,7 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.4.0 — 2026-10-24
 
 **Operations**
 - Wi-Fi setup mode: hold volume-down + voice + mute for 5 s and the speaker becomes an open access
