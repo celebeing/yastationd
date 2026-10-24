@@ -322,7 +322,8 @@ services, launcher "apply quasar.cfg patch" reboot, "suicide request") disappear
 ## Open questions
 - Mic channel mapping (with speech + playback), a measured PDM gain, the speaker-reference channel,
   VQE `pickle` preset resolution, an aarch64 spotter-host build; ring pixel order around the circle.
-- What triggers the sysrecovery restore; whether an OTA also rewrites `aml_sysrecovery`.
+- Whether an OTA also rewrites `aml_sysrecovery`; what the (encrypted) recovery checks before it
+  restores. The package format and the restore takeover: [permanent-install.md](../permanent-install.md).
 - Accelerometer probe failure (`-11`) — hardware or timing.
 - Bottom pogo pads: confirm the pinout and the CDC-ACM enumeration of a cradle module; extract the
   cradle `.proto` descriptors and the HDLC framing from maind (see "Bottom pogo pads").

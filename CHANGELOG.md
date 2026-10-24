@@ -3,6 +3,13 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.5.1 — 2026-10-24
+
+**Docs**
+- The README lists the Wi-Fi setup mode.
+- Research on making the CFW survive a factory reset: how the reset works per model, pickle's
+  replaceable restore package, why bergamot's is not ([docs/permanent-install.md](docs/permanent-install.md)).
+
 ## v0.5.0 — 2026-10-24
 
 **Operations**

@@ -49,7 +49,7 @@ NAND flash, UBI / UBIFS. `cat /proc/mtd`:
 | mtd4 | 2 MiB | `nv` | NV / calibration |
 | mtd5 | 232 MiB | `bkupgrade` | **`/dev/ubi1_0` → `/bkupgrade`** (rw data + OTA staging) |
 | mtd6 | 8 MiB | `recovery` | recovery kernel |
-| mtd7 | 51 MiB | `recovery_fs` | recovery rootfs |
+| mtd7 | 51 MiB | `recovery_fs` | continuation of the recovery boot image (encrypted ramdisk); later units have one 58.75 MiB `recovery` instead — see [permanent-install.md](permanent-install.md) |
 
 Mount reality:
 - **`/` (rootfs) is `ubifs ro`** — mounted read-only. Persisting changes to it needs
