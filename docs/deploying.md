@@ -25,6 +25,7 @@ don't touch Wi-Fi/boot without a fallback, and make sound only on the unit the u
 | `<cfw>/clips/*.scled` | the firmware's clock animations converted to text (`make clips`, firmware 0.369 only; others ship text clips the daemon reads in place) |
 | `<cfw>/scenarios/*.json` | your own display/ring scenarios (optional) |
 | `<cfw>/bin/yastationd.prev` | the previous agent, kept by every update; the supervisor swaps it back in if the new one crash-loops (the bad one is then kept as `.bad`) |
+| `<cfw>/egress.sh` | the egress lock, IPv4 + IPv6 (`make deploy-egress`; §0); `<cfw>/iptables/` = a bundled iptables-legacy where the firmware has none |
 | `<cfw>/yastationd_off` | kill switch: the supervisor stops respawning while it exists |
 | `/etc/init.d/S52zyastationd` | the only rootfs file: boot hook that starts the supervisor (copy kept in `<cfw>/init.d/`) |
 | `<cfw>/init.d/supervise.sh` | the supervisor (see below); without it the hook falls back to a plain 2 s respawn loop |
@@ -51,11 +52,29 @@ Check, and set up what's missing (keep an `.orig` of every file you change):
   <cfw>/maind_off`. Check after a reboot: `ps w | grep -c [m]aind` → 0. Leave `onboot.sh` and the
   init chain alone. The init layer (Wi-Fi, DHCP, ALSA, LEDs) does not depend on the stack (verified
   on bergamot and pickle; see their board docs). Never delete vendor binaries.
-- **Block updates.** `/system/vendor/quasar/device_ota_update.sh` → `exit 0`.
-- **Block the internet at two layers.** On the device, an iptables policy that allows loopback, the
-  LAN (RFC 1918), DHCP and the LAN NTP server and drops everything else outbound. On the router,
-  drop the speaker's MAC towards the WAN. Check from the device: `wget -q -T 5 -O- http://1.1.1.1`
-  must fail, while the HA host and the broker answer.
+- **Block updates.** `/system/vendor/quasar/device_ota_update.sh` → `exit 0`. A third, independent
+  guard: `make ota-block` replaces the OTA signing key `/system/vendor/quasar/ota_script.pub` with
+  `yastationd/init.d/ota-block.pub`, a public key whose private half was never kept, so no update
+  package can pass the signature check. The vendor key stays as `ota_script.pub.orig` (restore:
+  copy it back, rootfs remount). The key is used only by the update path, never at boot.
+- **Block the internet at two layers.** On the device, `<cfw>/egress.sh lock` (source:
+  `yastationd/init.d/egress.sh`, installed and applied by `make deploy-egress`; the running copy is
+  kept as `egress.sh.prev`), run at boot by `/etc/init.d/S99zzegress` after the vendor's own
+  iptables init. IPv4: loopback, RFC 1918, link-local, multicast, broadcast, DHCP and established
+  flows pass, everything else is dropped. IPv6, the same: loopback, `fe80::/10`, `fc00::/7`,
+  `ff00::/8` and established pass, global addresses are dropped; without any `ip6tables` it switches
+  IPv6 off on every interface but `lo` instead (not via `conf/all`, which the kernel copies onto
+  `lo`, and `unbound` listens on `::1`). A unit without a system iptables (bergamot fw 0.6.1.4) uses
+  the bundled Debian iptables-legacy in `<cfw>/iptables/`, whose `xtables-legacy-multi` is also its
+  `ip6tables`. `egress.sh status` shows both families; `open` lifts both, temporarily. On the
+  router, drop the speaker's MAC towards the WAN (make sure the rule covers IPv6 as well, if the
+  network ever gets it). Check from the device: `wget -q -T 5 -O- http://1.1.1.1` must fail, while
+  the HA host and the broker answer.
+- **DNS.** The firmware's resolver is `unbound` on `127.0.0.1:53` (`resolv.conf` points at it on
+  bergamot); it forwards to the router and to Yandex's DNS (`77.88.8.x`), and `quasar.cfg` carries a
+  `DnsFallbackMap` of hard-coded addresses for when DNS fails — so DNS alone never isolates a
+  speaker. The egress lock drops the Yandex resolvers and the fallback addresses like any other
+  public address.
 - **Wi-Fi.** `wpa_supplicant.conf` should list only the networks you mean it to use: a vendor
   stack that once ran may have stored extra ones. Editing it can cut your access, so only with a
   physical fallback ready and the user's go-ahead.
@@ -172,3 +191,26 @@ tweaks without a rebuild: `<cfw>/board.conf` (+ restart).
 - [ ] Keys: +/− change volume (shown on the display), the voice key starts a session, mute works.
 - [ ] Voice: push-to-talk → answer spoken; then the wake word (sound — only on the agreed unit).
 - [ ] Reboot survives (with the user's OK); no internet from the device; the HA/broker probes are fine.
+- [ ] `<cfw>/egress.sh status`: IPv4 `LOCKED` and `ipv6: LOCKED` (or `OFF`); `ota_script.pub` differs
+      from `ota_script.pub.orig`.
+
+## 7. Diagnostics and gotchas
+
+- **Why did it reboot?** `cat /sys/class/aml_info/reboot_reason` on bergamot (`cold_boot`, `normal`,
+  `watchdog_reboot` = the system hung and the watchdog reset it — almost always a kernel module or
+  a boot script). pickle has no such file.
+- **The last boot's kernel log is gone.** The firmware keeps a `ramoops` pstore for crash logs, but
+  `/etc/init.d/S98pstore-clear` wipes it on a normal boot. Catch a crash live instead:
+  `ssh root@<speaker> 'cat /proc/kmsg' | tee kmsg.log` while reproducing it. (If this is ever needed
+  often: copy `/sys/fs/pstore/*` into `<cfw>` from a hook that runs before `S98`.)
+- **Vendor daemon logs**, should the vendor stack ever be run: `/data/quasar/daemons_logs/`.
+- **ALSA does not re-read `/etc/asound.conf` in running players.** alsa-lib reloads its config only
+  when the top `/usr/share/alsa/alsa.conf` changes (`asound.conf` is pulled in by a hook from it):
+  after editing `asound.conf`, `touch /usr/share/alsa/alsa.conf`, or restart the players.
+- **A `softvol` makes its control on the card of its output.** If that is not card 0, a second
+  `Master` appears and the vendor volume path (hardvold, our `Master Playback Volume`) stops moving
+  the sound: give the `softvol` `control { name "…" card 0 }`.
+- **BusyBox:** no `timeout`, `awk` without math (`exp`, `log`), `tar` without `-z` (use
+  `gunzip -c | tar x`), `sync` takes no arguments, and `test -w` says "writable" on a read-only
+  mount — check `/proc/mounts` instead. A `sync` can hang behind a stuck `mount`; then `fsync`
+  single files and power-cycle.

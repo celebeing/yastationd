@@ -12,7 +12,8 @@ without a rebuild. Host-side per-unit deployment overrides stay in `local.mk` or
 | Board | Model | Status |
 |---|---|---|
 | [bergamot](bergamot.md) | Station Mini 3 | supported, verified on-device |
-| [midi (`yandexmidi`)](midi.md) | Station Midi | profiled from firmware `0.369.1.50` (no device yet) |
+| [cucumber](cucumber.md) | Station Midi | not profiled: community wiki data only (no unit, no dump) |
+| [yandexmidi](yandexmidi.md) | Station 2 (DT `yandex,station-midi`) | profiled from firmware `0.369.1.50` (no device yet) |
 | [orion](orion.md) | Station 3 | sound + circular controls + ring + 21×12 front-screen verified on-device; rear RGBW ambilight entity implemented, daemon smoke pending; wake pending |
 
 Known vendor codenames (the VQE presets compiled into `libyandex_evil.so`) — from the
@@ -23,6 +24,26 @@ immediates (`mov`/`movk`) and invisible to `strings`: `bergamot`, `cucumber`, `p
 list very likely needs **no audio-front-end reversing** — just `wake.vqe_preset = <codename>` and
 its own channel layout. (bergamot's sysfs also has a `cucumber:sync:clock-0` LED, i.e. the
 kernel/DT is shared across models.)
+
+Yandex's codenames cross over: the DT/quasar name "midi" (`yandexmidi`, `yandex,station-midi`) is
+the retail **Station 2**, while the retail **Station Midi** is `cucumber`. Go by SoC, kernel and RAM,
+not by the word "Midi".
+
+### Possible ports nobody here is doing
+
+Models we have no unit of and don't plan to port; a contributor with the speaker is welcome to.
+
+- **Station Mini 2** (`yandex,station-mini2`, Amlogic AXG, armhf, kernel 4.9.68): by the community
+  wiki ([yandex-station-extended](https://github.com/Marker284/yandex-station-extended),
+  `docs/devices/station-mini2.md`) it is close to bergamot — a white 7-segment clock
+  (`mini2:white:clock{A..G}{1..4}`, `clockDEGREE`, `clockMINUS`, `clockPLUS1..4`) and a 6-RGB ring
+  (`mini2:{red,green,blue}:ring{1..6}`), both per-LED sysfs on IS31FL3236 drivers; LTR-308 light
+  sensor; ES8156 DAC + SY6045S amp on `TDM-B`; PDM mics; touch via an AW96103 SAR (`sar0_pad0`), no
+  `gpio-keys`; a headphone jack. A profile modelled on `bergamot.conf` (seg7 + `sysfs-rgb` ring) is
+  the likely start; the VQE preset `yandexmini_2` is in `libyandex_evil.so`.
+- **Station Midi** (`cucumber`): see [cucumber.md](cucumber.md); start from orion's profile.
+- **Station 2** (`yandexmidi`): see [yandexmidi.md](yandexmidi.md); needs a front `display.Front`
+  for its 89×1 checkerboard panel.
 
 ## Procedure for a new station
 

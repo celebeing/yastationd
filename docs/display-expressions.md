@@ -67,7 +67,9 @@ one frame per line, `RRGGBB` per pixel (252 = 21×12, row-major) and the frame's
   down the frames above it are an intro played once: `call_incoming` (line 51), `configure`
   (line 368), `update_downloading` (60), `call_outgoing` (2).
 - `smooth N` (interpolation) appears only in the factory `qc` pattern; we ignore it.
-  `no_size_optimization` (in `volume`) means nothing for playback.
+  `no_size_optimization` (in `volume`) means nothing for playback. `gammacorrection` ("apply the
+  gamma", seen in bergamot's ring patterns and the Station Lite's) does not appear in orion's screen
+  patterns: there the gamma always comes from quasar.cfg.
 
 The files hold uncorrected levels: the firmware applies the screen's gamma (2.2, quasar.cfg
 `leds.screen.colorCorrection`) when it plays them. We do the same (board key `matrix.gamma`). All

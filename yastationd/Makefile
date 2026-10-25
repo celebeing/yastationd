@@ -26,7 +26,7 @@ VERSION  := $(shell git describe --tags --match 'v*' --dirty --always 2>/dev/nul
 GOFLAGS  := -trimpath -ldflags="-s -w -X github.com/celebeing/yastationd/yastationd/internal/version.Version=$(VERSION)"
 GOENV    := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds vqe-models deploy deploy-spotter deploy-sendspin clips
+.PHONY: all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds vqe-models deploy deploy-spotter deploy-sendspin clips deploy-egress ota-block
 
 
 all: test build
@@ -95,6 +95,28 @@ install-initd: stage
 	  cp $(DESTDIR)/init.d/S52zyastationd /etc/init.d/ && \
 	  chmod +x /etc/init.d/S52zyastationd && \
 	  sync && mount -o remount,ro /'
+
+# Install the egress lock (init.d/egress.sh -> $(DESTDIR)/egress.sh, IPv4 + IPv6) and apply it. The
+# running copy is kept as egress.sh.prev; the new one is first run read-only (status). The boot hook
+# /etc/init.d/S99zzegress that runs `lock` comes with the install kit (docs/deploying.md §0).
+deploy-egress:
+	$(SSH) 'cat > $(DESTDIR)/egress.sh.new' < init.d/egress.sh
+	printf '%s\n' 'set -e' 'D=$(DESTDIR)' 'sh $$D/egress.sh.new status >/dev/null' \
+	  '[ -f $$D/egress.sh ] && cp -p $$D/egress.sh $$D/egress.sh.prev' \
+	  'chmod +x $$D/egress.sh.new && mv $$D/egress.sh.new $$D/egress.sh' \
+	  'sh $$D/egress.sh lock' 'sh $$D/egress.sh status' | $(SSH) 'sh -s'
+
+# Third update guard: replace the OTA signing key with init.d/ota-block.pub, a public key whose
+# private half was never kept, so no update package can pass the signature check. The vendor key is
+# kept as ota_script.pub.orig (restore: copy it back). rootfs write, remount rw/ro around it.
+ota-block:
+	$(SSH) 'cat > /tmp/ota-block.pub' < init.d/ota-block.pub
+	printf '%s\n' 'set -e' 'Q=/system/vendor/quasar' 'mount -o remount,rw /' \
+	  'trap "sync; mount -o remount,ro /" EXIT' \
+	  '[ -f $$Q/ota_script.pub.orig ] || cp -p $$Q/ota_script.pub $$Q/ota_script.pub.orig' \
+	  'cp /tmp/ota-block.pub $$Q/ota_script.pub' 'rm -f /tmp/ota-block.pub' \
+	  'cmp -s $$Q/ota_script.pub $$Q/ota_script.pub.orig && { echo "ota-block: key unchanged"; exit 1; }' \
+	  'echo "ota-block: vendor key replaced (.orig kept)"' | $(SSH) 'sh -s'
 
 # Vendor sounds the daemon plays with aplay, which only does wav. The device copies are opus or
 # mp3 (bergamot 0.369: ru-RU/no_power.opus; pickle and bergamot 0.6.x: an Ogg/Opus file *named*

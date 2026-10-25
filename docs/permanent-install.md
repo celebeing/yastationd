@@ -34,7 +34,7 @@ static analysis of the local dumps and **read-only** reads on the units (`/proc/
   kernel, the DTB and the **recovery kernel + ramdisk** are signed and encrypted with the SoC key.
   They cannot be read or replaced. The **rootfs (UBIFS) is not authenticated** (no dm-verity), which
   is why rootfs edits work at all.
-- OTA does not touch the recovery (Midi `sw-description`: rootfs, boot, dtb and U-Boot only). OTA
+- OTA does not touch the recovery (the Station 2's (`yandexmidi`) `sw-description`: rootfs, boot, dtb and U-Boot only). OTA
   `.swu` files are RSA-signed (`sw-description.sig`, `ota_script.pub`), so the swupdate-in-recovery
   path cannot install our image either.
 

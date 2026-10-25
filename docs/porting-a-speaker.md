@@ -163,8 +163,8 @@ as webrtc AEC3 + an open wake-word engine) means a new host binary that speaks t
 
 - **New ring/display hardware** (a framebuffer LED panel, an SPI strip, a dot matrix): add a
   backend in `internal/hw`, a new `ring.kind`/`matrix.kind` in `internal/board` (+ `Validate`), and
-  make `internal/display` effects size from it. The Midi's framebuffer panel needs this
-  ([boards/midi.md](boards/midi.md)).
+  make `internal/display` effects size from it, and a `display.Front` for a new kind of front
+  display. The Station 2's 89×1 checkerboard panel needs this ([boards/yandexmidi.md](boards/yandexmidi.md)).
 - **New sensor or radio:** a new profile section + an `internal/hw` reader + an HA entity in
   `internal/mqtt/discovery.go`. Model it on `power.*` / `lux.*`.
 - Keep every model difference in the profile; code should only learn *kinds* of hardware.

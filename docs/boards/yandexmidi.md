@@ -1,8 +1,17 @@
-# midi — Station Midi (codename `yandexmidi`)
+# yandexmidi — Station 2 (DT `yandex,station-midi`)
 
 Profile: _not written yet_ (`yastationd/internal/board/profiles/yandexmidi.conf`) ·
-Source: **firmware dump only**, `dumps/fw-midi/` (SWU `0.369.1.50`, local only) ·
+Source: **firmware dump only**, `dumps/fw-midi/` (SWU `0.369.1.50`, local only; the directory name
+predates the correction below), plus the community wiki's live-unit data where marked [wiki] ·
 Status: **profiled from firmware — no device in hand, nothing verified on-device.**
+
+> **Which model this is.** Yandex's internal name "midi" belongs to the retail **Station 2**: quasar
+> `deviceType: yandexmidi`, DT `yandex,station-midi` (model "Yandex Station Midi"), hostname
+> `…-gen2`. The retail **Station Midi** is a different device, codename `cucumber` (Amlogic A5,
+> kernel 5.4, eMMC, aarch64): [cucumber.md](cucumber.md). This page was first written as "Station
+> Midi"; everything in the dump (AXG, kernel 4.9.68, NAND/UBIFS, armhf, the gowin panel, SY6045S)
+> matches the Station 2 as described by the community wiki
+> ([yandex-station-extended](https://github.com/Marker284/yandex-station-extended), `docs/devices/station-2.md`), not the Midi.
 
 > Everything here is read out of the firmware image (`rootfs.ubifs`, init scripts, configs, the
 > vendor blobs' strings). Boot/DT/U-Boot are AES-encrypted blobs — not inspectable. Treat all of
@@ -35,6 +44,18 @@ Status: **profiled from firmware — no device in hand, nothing verified on-devi
   `board = yandexmidi` in config or `/bkupgrade/cfw/board.conf` until the DT string is confirmed on a
   device.
 
+## Hardware facts from a live unit [wiki]
+- AXG, 4× Cortex-A53 @ 1.2 GHz, ~490 MB RAM, **512 MB Micron SLC NAND** (page 4096, erase 256 KB).
+  MTD: `bootloader` 4 MB, `tpl` 6 MB, `boot` 20 MB, `system` 176 MB (`ubi0:rootfs`, ubifs ro),
+  `nv` 1 MB (`/tee`, vfat ro), `bkupgrade` 233 MB (`ubi1`, rw, `/bkupgrade`), `recovery` 60 MB.
+- I²C: `0-0x08` HUSB238 (USB-C PD), `0-0x53` LTR-308 (light), `1-0x18` **TLV320ADC3101** (the mic
+  ADC; ALSA `TDM-C-tlv320adc3101-adc`), `1-0x2a` SY6045S (`TDM-B-sy6045s-hifi`), EEPROMs.
+- Inputs: `gpio-keys` (physical keys) and `midi_touch` (the touch panel).
+- Wi-Fi on that unit: Marvell/NXP (`mlan` + `moal`), BT over `hci_uart` (the firmware is multi-SKU,
+  see "Power, radios" below).
+- USB host mode works at runtime on this SoC (the same PHY registers as the Station Lite), not
+  something we plan to use.
+
 ## Front display — framebuffer dot-matrix (NOT per-pixel sysfs)
 - Driver `gowin_led_device` (**fbdev**, `drivers/video/fbdev/gowin_led_device.ko`), loaded by
   `S29led_panel_midi` (`modprobe gowin_led_device`). The panel is `/dev/fb0`; brightness via
@@ -44,10 +65,15 @@ Status: **profiled from firmware — no device in hand, nothing verified on-devi
   `ledpatterns/oknix/` (`alice_listening.led`, `alice_speaking.led`, `alice_thinking.led`,
   `bluetooth_connected.led`, `block.led`, …), plus gradient files `blink.grad`, `tts.grad`.
   Vendor tools: `led-play`, `led_util`, `frame_buffer_ledpattern_analyser`.
-- **yastandd implication:** bergamot's per-pixel sysfs ring/7-seg backend does not apply. Midi needs a
-  **framebuffer display backend** in `internal/hw` (render to `/dev/fb0`, dim via the backlight
-  sysfs). Panel geometry (W×H, colour format) must be read off `/dev/fb0` on a device — unknown from
-  the dump.
+- **Panel geometry [wiki]:** `/dev/fb0` "YNDX LED screen", logical **89×1**, 32 bpp (4 bytes a
+  pixel, 356-byte frame). 88 LEDs (indices 0–87; 88 never lights) under a diffuser, laid out in a
+  **checkerboard**: one frame pixel = one LED, so the 2-D picture needs an index map (the wiki has
+  it as an image: 0–83 the main field, 84–87 four centre LEDs). Channel order within a pixel is
+  unverified. The name is the same as orion's screen ("YNDX LED screen"), but orion's is a true
+  21×12 grid.
+- **yastationd implication:** `hw.DotMatrix` already discovers an "LED screen" fb and reads its
+  geometry by ioctl, but this panel needs a pixel→LED map and its own `display.Front` (the seg7
+  fallback cannot draw on 89×1). Its animations are `.led` files in `ledpatterns/oknix/`.
 
 ## Audio out
 - `/etc/asound.conf`: `default` playback = `dmix_spk_plug` → dmix (`ipc_key 1024`, `0666`) →
@@ -91,7 +117,7 @@ Status: **profiled from firmware — no device in hand, nothing verified on-devi
 ## Power, radios & smart-home extras
 - **USB-C PD input**: `S30pd_controller` drives a **HUSB238** sink (`husb238_pd`, sysfs
   `/sys/class/power_supply/ya_pd`); it negotiates the highest available PDO among **15 V / 12 V / 9 V /
-  5 V**. So Midi is USB-C-powered and wants a PD supply (≥15 V preferred) — a plain 5 V port may
+  5 V**. So the Station 2 is USB-C-powered and wants a PD supply (≥15 V preferred) — a plain 5 V port may
   brown it out.
 - **Zigbee**: Silicon-Labs NCP (`zigbee/yandexmidi_zigbee_ncp.signed.gbl` + `gateway.ybl`), reset/boot
   on `GPIOX_16`/`GPIOX_17` (`S30zigbee`). **Matter** controller present (`matter/` with a large PAA
@@ -112,7 +138,7 @@ Status: **profiled from firmware — no device in hand, nothing verified on-devi
   same update block applies.
 
 ## Open questions (need a device)
-- Framebuffer panel geometry and pixel format (`/dev/fb0` fix/var screeninfo); backlight range.
+- The panel's channel order and backlight range (geometry: see above [wiki]).
 - Input device names + key codes; which device has the mic-mute switch.
 - SY6045S/TAS5825M unmute control + whether `amixer cget` readback reflects writes.
 - Exact mic/feedback channel mapping into the `yandexmidi` VQE preset; mic gain control + a good value.

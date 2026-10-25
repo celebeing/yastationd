@@ -132,9 +132,10 @@ the light and the time window must carry the decision then.
 ## Other models
 
 pulsar's `AGENTS.md` has hardware notes for the Midi (`cucumber`: aarch64, glibc 2.36), the Lite 2
-(`plum`) and the Mini 2. Their Midi does not match our firmware-only Midi profile (`yandexmidi`:
-armhf, glibc 2.30), so there may be two Midi revisions. We don't port models without a unit in
-hand: ports are for contributors who have the speaker.
+(`plum`) and the Mini 2. Their Midi did not match our firmware-only profile (`yandexmidi`: armhf,
+glibc 2.30) because those are two models: `yandexmidi` is the retail Station 2 and the retail Midi is
+`cucumber` ([boards/README.md](boards/README.md)). We don't port models without a unit in hand:
+ports are for contributors who have the speaker (candidates: boards/README.md, "Possible ports").
 
 ## The supervisor draws a dead daemon
 
