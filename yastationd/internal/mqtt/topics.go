@@ -1,6 +1,9 @@
 package mqtt
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Topics centralises every topic string. prefix is the state/command root (default "yastation"),
 // disc is the HA discovery prefix (default "homeassistant"), id is the device id.
@@ -30,6 +33,19 @@ func (t Topics) Command(obj string) string { return fmt.Sprintf("%s/%s/%s/set", 
 func (t Topics) IntercomInfo() string         { return fmt.Sprintf("%s/%s/intercom/info", t.prefix, t.id) }
 func (t Topics) IntercomInfoAll() string      { return fmt.Sprintf("%s/+/intercom/info", t.prefix) }
 func (t Topics) IntercomSig(id string) string { return fmt.Sprintf("%s/%s/intercom/sig", t.prefix, id) }
+
+// IntercomInfoID is the device id in an IntercomInfoAll topic ("" if it isn't one).
+func (t Topics) IntercomInfoID(topic string) string {
+	rest, ok := strings.CutPrefix(topic, t.prefix+"/")
+	if !ok {
+		return ""
+	}
+	id, ok := strings.CutSuffix(rest, "/intercom/info")
+	if !ok || strings.Contains(id, "/") {
+		return ""
+	}
+	return id
+}
 
 // DisplayCmd is the one-shot overlay command topic (JSON {surface,op,args,ttl_ms,priority}).
 func (t Topics) DisplayCmd() string { return fmt.Sprintf("%s/%s/display/cmd", t.prefix, t.id) }

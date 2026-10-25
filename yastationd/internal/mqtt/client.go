@@ -101,4 +101,9 @@ func (c *Client) Subscribe(topic string, fn func(payload []byte)) {
 	c.c.Subscribe(topic, 1, func(_ paho.Client, m paho.Message) { fn(m.Payload()) })
 }
 
+// SubscribeTopic is Subscribe with the message's topic (for wildcard subscriptions).
+func (c *Client) SubscribeTopic(topic string, fn func(topic string, payload []byte)) {
+	c.c.Subscribe(topic, 1, func(_ paho.Client, m paho.Message) { fn(m.Topic(), m.Payload()) })
+}
+
 func (c *Client) Connected() bool { return c.c.IsConnected() }

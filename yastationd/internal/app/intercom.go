@@ -135,7 +135,7 @@ func (a *App) intercomSubscribe() {
 	info, _ := json.Marshal(icInfo{ID: a.cfg.DeviceID, Name: a.ic.name, Port: a.cfg.IntercomPort, V: 1})
 	a.mqtt.Publish(t.IntercomInfo(), string(info))
 	a.mqtt.Subscribe(t.IntercomSig(a.cfg.DeviceID), a.ic.m.Handle)
-	a.mqtt.Subscribe(t.IntercomInfoAll(), a.onIntercomInfo)
+	a.mqtt.SubscribeTopic(t.IntercomInfoAll(), a.onIntercomInfo)
 	a.mqtt.Subscribe(t.Command("intercom"), a.cmdIntercom)
 	a.mqtt.Subscribe(t.Command("intercom_target"), a.cmdIntercomTarget)
 	a.mqtt.Subscribe(t.Command("intercom_call"), func([]byte) { a.icCallOrAnswer("", "HA") })
@@ -143,26 +143,33 @@ func (a *App) intercomSubscribe() {
 	a.publishIntercom(a.ic.m.Status())
 }
 
-// onIntercomInfo tracks the other speakers (a retained info per speaker; empty = gone).
-func (a *App) onIntercomInfo(payload []byte) {
+// onIntercomInfo tracks the other speakers: a retained info per speaker, an empty one when it
+// turns the intercom off (or a test peer leaves).
+func (a *App) onIntercomInfo(topic string, payload []byte) {
+	id := a.topics.IntercomInfoID(topic)
+	if id == "" || id == a.cfg.DeviceID {
+		return
+	}
 	var in icInfo
-	if len(payload) > 0 && json.Unmarshal(payload, &in) != nil {
+	if len(payload) > 0 && (json.Unmarshal(payload, &in) != nil || in.ID != id || in.V != 1) {
 		return
 	}
 	ic := a.ic
 	ic.mu.Lock()
 	changed := false
-	if in.ID != "" && in.ID != a.cfg.DeviceID && in.V == 1 {
-		if p, ok := ic.peers[in.ID]; !ok || p.Name != in.Name {
-			ic.peers[in.ID] = intercom.Peer{ID: in.ID, Name: in.Name}
-			changed = true
+	if p, ok := ic.peers[id]; len(payload) == 0 && ok {
+		delete(ic.peers, id)
+		if ic.target == id {
+			ic.target = ""
 		}
+		changed = true
+	} else if len(payload) > 0 && (!ok || p.Name != in.Name) {
+		ic.peers[id] = intercom.Peer{ID: id, Name: in.Name}
+		changed = true
 	}
 	ic.mu.Unlock()
-	// An empty payload doesn't say whose it was; a speaker that turned the intercom off just
-	// stays listed (calling it is refused or times out) until we restart.
 	if changed {
-		a.log.Info("intercom: peer", "id", in.ID, "name", in.Name)
+		a.log.Info("intercom: peer", "id", id, "name", in.Name, "gone", len(payload) == 0)
 		a.publishIntercomDiscovery()
 	}
 }
@@ -203,7 +210,11 @@ func (a *App) publishIntercomDiscovery() {
 	}
 	a.builder.SetIntercomPeers(a.icPeerNames())
 	a.builder.Publish(a.mqtt)
+	peers := a.icPeers()
 	a.ic.mu.Lock()
+	if _, ok := a.ic.peers[a.ic.target]; !ok && len(peers) > 0 {
+		a.ic.target = peers[0].ID // a target from the start: the call button works at once
+	}
 	target := a.ic.peers[a.ic.target].Name
 	a.ic.mu.Unlock()
 	if target == "" {

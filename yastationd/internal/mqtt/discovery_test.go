@@ -83,3 +83,18 @@ func TestIntercomDiscovery(t *testing.T) {
 		}
 	}
 }
+
+func TestIntercomInfoID(t *testing.T) {
+	tp := NewTopics("yastation", "homeassistant", "me")
+	for topic, want := range map[string]string{
+		"yastation/mini3/intercom/info": "mini3",
+		"yastation/a/b/intercom/info":   "",
+		"other/mini3/intercom/info":     "",
+		"yastation/mini3/intercom/sig":  "",
+		tp.IntercomInfo():               "me",
+	} {
+		if got := tp.IntercomInfoID(topic); got != want {
+			t.Errorf("%s: %q, want %q", topic, got, want)
+		}
+	}
+}
