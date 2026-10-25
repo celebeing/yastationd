@@ -3,7 +3,9 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.8.1 — 2026-10-26
+
+Orion's visuals polished: a clock of its own, moments, the LED preview and a video party trick.
 
 **Features**
 - LED preview ([docs/led-preview.md](docs/led-preview.md)): `frametap_addr` streams the screen,
