@@ -8,68 +8,69 @@ import (
 
 // Guard is the cheap safety around the echo canceller (docs/intercom.md, "Echo and howling"):
 // both directions fade in at the start of a call (the AEC has not converged yet), the uplink is
-// turned down while the far end talks and our room doesn't (soft half-duplex: what the mic
-// picks up then is mostly the far end's own voice back), and both directions are limited.
-// The levels are first guesses until measured on a speaker.
+// raised to a call level and gated in pauses, it is turned down while the far end talks and our
+// room doesn't (soft half-duplex: what the mic picks up then is mostly the far end's own voice
+// back), and both directions are limited.
 type Guard struct {
+	// UpGainDB is the uplink's fixed gain (0 = upGainDefault).
+	UpGainDB float64
+
 	mu     sync.Mutex
 	farAt  time.Time // the far end was last heard in our playout
 	farRMS float64   // its recent level (linear, full scale 1)
 
 	up, down gainState
-	agc      agc
+	gate     gate
 }
 
-// agc brings the uplink to a call level. The VQE's output is tuned for speech recognition, not
-// ears: on a bergamot speech came out around -60 dBFS RMS over a -72 floor (2026-10-25). It
-// tracks the noise floor, raises speech toward agcTarget (at most agcMaxGain), and turns the
-// pauses down a little more (a soft expander), so the boosted floor doesn't hiss.
-type agc struct {
-	floor  float64 // noise floor (linear RMS)
-	speech float64 // recent speech level
-	gain   float64
-
-	frames, speechFrames int
-}
-
+// The uplink level. The VQE stream is made for speech recognition: on a bergamot (2026-10-25,
+// a 200 s recording with the speaker's own annotations) speech from mumbling at 1 m to
+// shouting across the room all came out within ~7 dB — median -54..-61 dBFS RMS per frame,
+// loud frames -42..-48 — over a -74 floor. The VQE already compresses, so an AGC only adds
+// harm (it raised pauses and street noise); a fixed gain brings speech to a call level, and a
+// gate keyed to the tracked floor takes the raised floor and small noises out of the pauses.
 const (
-	agcTarget     = 0.08 // -22 dBFS RMS
-	agcMaxGain    = 80   // +38 dB
-	agcStartGain  = 30   // +30 dB until speech has been heard
-	agcSpeechOver = 4    // a frame 12 dB above the floor is speech
-	agcPauseGain  = 0.18 // pauses: -15 dB more
+	upGainDefault = 30   // dB: speech -58 -> -28 dBFS, loud frames -45 -> -15
+	gateOverFloor = 2.5  // the gate opens 8 dB over the floor...
+	gateDepth     = 0.13 // ...and closed takes 18 dB more off
+	gateHold      = 15   // frames (300 ms) open after the last loud one: word tails stay
+	gateRelease   = 0.7  // per frame while closing (~120 ms to the full depth)
 )
 
-// level returns the gain for a frame of RMS r and whether it is speech (and updates the
-// estimates).
-func (a *agc) level(r float64) (float64, bool) {
-	if a.gain == 0 {
-		a.gain, a.floor = agcStartGain, r
+type gate struct {
+	floor float64 // tracked noise floor (linear RMS)
+	hold  int
+	gain  float64
+
+	frames, open int
+}
+
+// level returns the gate's gain for a frame of RMS r and whether it is open (speech).
+func (g *gate) level(r float64) (float64, bool) {
+	if g.gain == 0 {
+		g.floor, g.gain = r, gateDepth
 	}
-	// The floor follows quiet frames quickly and loud ones very slowly (minimum tracking).
-	if r < a.floor {
-		a.floor += 0.3 * (r - a.floor)
+	// Minimum tracking: quiet frames pull the floor down fast, loud ones push it up very slowly.
+	if r < g.floor {
+		g.floor += 0.3 * (r - g.floor)
 	} else {
-		a.floor *= 1.002 // ~+0.9 dB/s
+		g.floor *= 1.002 // ~+0.9 dB/s
 	}
-	if a.floor < 1e-5 {
-		a.floor = 1e-5
+	g.floor = math.Max(g.floor, 1e-5)
+	g.frames++
+	if r > g.floor*gateOverFloor {
+		g.hold = gateHold
+	} else if g.hold > 0 {
+		g.hold--
 	}
-	speech := r > a.floor*agcSpeechOver
-	a.frames++
-	if speech {
-		a.speechFrames++
-		if a.speech == 0 {
-			a.speech = r
-		}
-		a.speech += 0.05 * (r - a.speech)
-		want := math.Min(agcMaxGain, math.Max(1, agcTarget/a.speech))
-		a.gain += 0.1 * (want - a.gain) // ~0.2 s to settle
+	open := g.hold > 0
+	if open {
+		g.open++
+		g.gain = 1
+	} else {
+		g.gain = math.Max(gateDepth, g.gain*gateRelease)
 	}
-	if !speech && r < a.floor*2 {
-		return a.gain * agcPauseGain, false
-	}
-	return a.gain, speech
+	return g.gain, open
 }
 
 type gainState struct {
@@ -123,9 +124,14 @@ func (g *Guard) Up(f []int16, now time.Time) {
 	farActive := !g.farAt.IsZero() && now.Sub(g.farAt) < farHold
 	far := g.farRMS
 	g.mu.Unlock()
-	want, speech := g.agc.level(rms(f))
-	// While the far end talks, what isn't clearly our room's speech (12 dB over our floor) is
-	// most likely its own voice coming back through the echo canceller.
+	gainDB := g.UpGainDB
+	if gainDB == 0 {
+		gainDB = upGainDefault
+	}
+	want, speech := g.gate.level(rms(f))
+	want *= math.Pow(10, gainDB/20)
+	// While the far end talks, what doesn't open our gate is most likely its own voice coming
+	// back through the echo canceller.
 	if farActive && far >= farSpeechRMS && !speech {
 		want *= halfDuplexLow
 	}
@@ -172,10 +178,11 @@ func (st *gainState) apply(f []int16, want float64) {
 	st.lim = math.Min(1, lim*1.05) // release over ~0.3 s
 }
 
-// AGCStats is what the uplink AGC has measured (dBFS; gain in dB), for the log.
-type AGCStats struct {
-	FloorDB, SpeechDB, GainDB float64
-	SpeechFrames, Frames      int
+// UplinkStats is what the uplink gate has seen, for the log.
+type UplinkStats struct {
+	FloorDB    float64 // dBFS
+	OpenFrames int     // frames the gate was open (speech)
+	Frames     int
 }
 
 func db(x float64) float64 {
@@ -185,9 +192,7 @@ func db(x float64) float64 {
 	return math.Round(20*math.Log10(x)*10) / 10
 }
 
-// AGC reports the uplink AGC's estimates. Call it from the uplink goroutine (no locking).
-func (g *Guard) AGC() AGCStats {
-	a := g.agc
-	return AGCStats{FloorDB: db(a.floor), SpeechDB: db(a.speech), GainDB: db(a.gain),
-		SpeechFrames: a.speechFrames, Frames: a.frames}
+// Uplink reports the gate's estimates. Call it from the uplink goroutine (no locking).
+func (g *Guard) Uplink() UplinkStats {
+	return UplinkStats{FloorDB: db(g.gate.floor), OpenFrames: g.gate.open, Frames: g.gate.frames}
 }

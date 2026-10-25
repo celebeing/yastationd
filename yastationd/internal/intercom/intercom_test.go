@@ -203,7 +203,7 @@ func TestJitterDrift(t *testing.T) {
 	}
 }
 
-func TestGuardFadeAndHalfDuplex(t *testing.T) {
+func TestGuardLevelGateHalfDuplex(t *testing.T) {
 	var g Guard
 	now := time.Unix(100, 0)
 	up := sine(FrameSamples, 0, 0.5)
@@ -211,30 +211,53 @@ func TestGuardFadeAndHalfDuplex(t *testing.T) {
 	if math.Abs(float64(up[5])) > 200 {
 		t.Fatalf("no fade-in at the start: %d", up[5])
 	}
-	// a room at a -66 dBFS floor; the far end starts talking; a floor-level frame is ducked
-	for i := 0; i < 50; i++ {
-		g.Up(sine(FrameSamples, 0, 0.0007), now)
+	floor := func() []int16 { return sine(FrameSamples, 0, 0.0003) }  // -74 dBFS RMS
+	speech := func() []int16 { return sine(FrameSamples, 0, 0.0018) } // -58 dBFS RMS
+	for i := 0; i < 60; i++ {
+		g.Up(floor(), now)
+	}
+	f := floor()
+	g.Up(f, now)
+	if r := rms(f); r > 0.0003*0.707*31.6*gateDepth*1.2 {
+		t.Fatalf("pause not gated: %.5f", r)
+	}
+	var s []int16
+	for i := 0; i < 10; i++ {
+		s = speech()
+		g.Up(s, now)
+	}
+	if r := 20 * math.Log10(rms(s)); r < -31 || r > -25 {
+		t.Fatalf("speech at %.1f dBFS, want about -28", r)
+	}
+	// word tails: still open a little after the speech
+	f = floor()
+	g.Up(f, now)
+	if r := rms(f); r < 0.0003*0.707*31.6*0.9 {
+		t.Fatalf("gate closed at once: %.5f", r)
+	}
+	// the far end talks: a floor-level frame (its echo, say) is turned down more
+	for i := 0; i < 40; i++ {
+		g.Up(floor(), now)
 	}
 	for i := 0; i < 5; i++ {
 		g.Far(sine(FrameSamples, 0, 0.3), now)
 	}
-	quiet := sine(FrameSamples, 0, 0.0007)
-	g.Up(sine(FrameSamples, 0, 0.0007), now)
-	g.Up(quiet, now)
-	if r := rms(quiet); r > 0.0005*agcStartGain*agcPauseGain*0.5 {
-		t.Fatalf("uplink not ducked under far speech: rms %.4f", r)
+	f = floor()
+	g.Up(floor(), now)
+	g.Up(f, now)
+	if r := rms(f); r > 0.0003*0.707*31.6*gateDepth*halfDuplexLow*1.5 {
+		t.Fatalf("not ducked under far speech: %.6f", r)
 	}
 	if !g.FarSpokeWithin(now.Add(time.Second), 1500*time.Millisecond) || g.FarSpokeWithin(now.Add(2*time.Second), 1500*time.Millisecond) {
 		t.Fatal("far speech window")
 	}
-	// our room's speech (well over the floor) goes through, raised toward the call level
-	var loud []int16
-	for i := 0; i < 40; i++ {
-		loud = sine(FrameSamples, 0, 0.004) // -51 dBFS RMS, 15 dB over the floor: speech as the VQE gives it
-		g.Up(loud, now)
+	// our speech goes through even while the far end talks
+	for i := 0; i < 5; i++ {
+		s = speech()
+		g.Up(s, now)
 	}
-	if r := rms(loud); r < 0.03 || r > 0.12 {
-		t.Fatalf("speech not brought to the call level (or ducked): rms %.3f", r)
+	if r := 20 * math.Log10(rms(s)); r < -31 {
+		t.Fatalf("speech ducked under far speech: %.1f dBFS", r)
 	}
 }
 

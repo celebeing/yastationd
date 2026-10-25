@@ -360,7 +360,7 @@ func (a *App) icListenIfRinging() {
 
 func (a *App) icStartAudio() {
 	ic := a.ic
-	g := &intercom.Guard{}
+	g := &intercom.Guard{UpGainDB: a.cfg.IntercomGainDB}
 	out, err := hw.StartLiveOut(a.prof.Audio.Playback, icPlayRate)
 	if err != nil {
 		a.log.Error("intercom: playout", "err", err)
@@ -407,16 +407,15 @@ func (a *App) icStartAudio() {
 		report := time.NewTicker(5 * time.Second)
 		defer report.Stop()
 		logAGC := func(msg string) {
-			s := g.AGC()
-			a.log.Info(msg, "floor_dbfs", s.FloorDB, "speech_dbfs", s.SpeechDB, "gain_db", s.GainDB,
-				"speech_frames", s.SpeechFrames, "frames", s.Frames)
+			s := g.Uplink()
+			a.log.Info(msg, "floor_dbfs", s.FloorDB, "open_frames", s.OpenFrames, "frames", s.Frames)
 		}
 		for {
 			select {
 			case <-report.C:
-				logAGC("intercom: uplink agc")
+				logAGC("intercom: uplink")
 			case <-quit:
-				logAGC("intercom: uplink agc at the end")
+				logAGC("intercom: uplink at the end")
 				if rec != nil {
 					rec.Close()
 				}
