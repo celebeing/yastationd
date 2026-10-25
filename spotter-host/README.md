@@ -25,6 +25,8 @@ yastationd passes them from its board profile; see [`../docs/boards/README.md`](
 | `spotter_api.h` | The reconstructed spotter C API: signatures, the event enum and the channel types. Built from shim disassembly and confirmed by runs |
 | `vqe_api.h` | The reconstructed VQE C API (`YandexVqeC_*`), from disassembly of the exported wrappers. Confirmed by device runs except where marked (?) |
 | `spotter_host.c` | The host. `probe` = model channel requirements; `run` = PCM on stdin to events; `vqe` = raw `hw:0,1` capture through the VQE to 16 kHz PCM; `listen` = raw `hw:0,1` capture, then VQE, then wake + command spotters, then event lines |
+
+`-m DIR` points the VQE at its model directory (default `/system/vendor/quasar/vqe_models`); the call mode (`-C 1`) loads `DIR/noise_reducer/model.nnet`, which firmware 3.21 doesn't ship (docs/intercom.md, "The VQE call mode").
 | `build.sh` | Cross-build: `ARCH=armhf` (bergamot, links the **device's** glibc 2.30, see below) or `ARCH=aarch64` (pickle; plain dynamic link, RPATH so the lib's `libtflite.so` resolves) |
 | `tools/listen.sh` | The on-device live test (wraps `arecord` + `listen`, adds wall-clock timestamps) |
 | `tools/hwfree.sh` | Checks that `hw:0,1` is free: no `arecord` running, and `yastationd` doesn't hold `pcmC0D1c` |

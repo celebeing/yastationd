@@ -376,16 +376,13 @@ func (a *App) icClip() display.RenderFunc[display.MatrixFrame] {
 	return display.PlayClip(c, true, a.brightness)
 }
 
-// icInCallFront alternates "CALL" with the call's duration (m:ss), 2 s each.
+// icInCallFront shows the call's duration (m:ss).
 func (a *App) icInCallFront(start time.Time) display.RenderFunc[display.MatrixFrame] {
 	if a.matrix == nil || a.screen != nil {
 		return nil
 	}
 	return func(now time.Time, _ display.MatrixFrame) (display.MatrixFrame, bool) {
 		d := now.Sub(start)
-		if int(d.Seconds())/2%2 == 0 {
-			return display.Text("CALL", a.brightness()), false
-		}
 		m, sec := int(d.Minutes()), int(d.Seconds())%60
 		if m > 99 {
 			m = 99

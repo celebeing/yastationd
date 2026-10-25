@@ -152,7 +152,7 @@ the invite from the lower device id wins (the other side treats it as its call).
   |---|---|---|---|
   | incoming | green blink, 1 s, until answered | the `ringing` clip, looped | the vendor ringtone `calls_ringing_incoming`, repeated (else the announce chime) |
   | outgoing | green comet | the `ringing` clip | `calls_ringing_outgoing`, repeated |
-  | in a call | slow blue breath (no other state's colour); an Assist session's stages show over it | "CALL" and the duration `m:ss`, 2 s each | `calls_connected` at the start |
+  | in a call | slow blue breath (no other state's colour); an Assist session's stages show over it | the call's duration `m:ss` | `calls_connected` at the start |
   | ended | a white flash | the clock | `calls_ended` (after a call), `calls_busy` (refused / no answer) |
 
   The call sounds are vendor files decoded onto the unit by `make sounds` (never in the repo).
@@ -313,6 +313,23 @@ Commits land on `main` meanwhile; `intercom` stays off by default.
 - **Wi-Fi from that room:** speaker → host lost 72 and delayed 67 of 2000 packets in 40 s, two
   500 ms gaps, the host's jitter target went up to 160 ms; host → speaker lost 1. The
   speaker's transmit side is the weak one.
+
+## The VQE call mode, first measurements (2026-10-25, bergamot unit A)
+
+The same 82 s call (raw 8-channel capture recorded by the daemon; far-end speech played through
+the speaker) replayed on the speaker through `spotter-host vqe` with `-C 0` and `-C 1`:
+- **The AEC reference carries our playback** (bergamot ch6: −46…−58 dBFS while the far end
+  played, nothing otherwise), and **the ASR-mode AEC already removes the far end's echo** to
+  below the room's floor (mics −41…−47 dBFS of echo → vqe_0 −75…−80, vs −71…−73 in silence).
+- `-C 1` without a model fails to load `noise_reducer/model.nnet` (that name, not
+  `model_call.nnet`) and changes nothing on vqe_0. The firmware on this unit (3.21) ships no
+  `vqe_models` at all; with the model from the 0.369 dump under both names in
+  `<cfw>/vendor/vqe_models/noise_reducer/` and `spotter-host -m <dir>`, the call mode works.
+- **The call-processed audio is the `vqe_gain` channel** (type 9): speech −44 / −19 dBFS
+  (median / p95; the vendor AGC targets −18), silence −79…−86 median (neural NR; the ASR-mode
+  gain channel sat at −37…−40 there), far-end-only −84. **vqe_0 is bit-identical in both
+  modes**, and vqe_bnr changes slightly (max 678 / 32768): one VQE instance can feed the wake
+  word and the call at once.
 
 ## Testing with one speaker: `intercom-peer`
 

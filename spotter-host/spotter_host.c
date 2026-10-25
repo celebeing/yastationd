@@ -19,6 +19,8 @@
  *       -b feeds vqe_0 (not vqe_bnr) into the model's BNR input
  *       -g feeds vqe_gain (vqe_0 x50, clipped) instead of vqe_0 into the command spotter
  *   capture layout (vqe/listen/serve): -P PRESET (vendor VQE preset, default bergamot)
+ *       -m DIR (the VQE's model dir, default /system/vendor/quasar/vqe_models; its noise reducer
+ *       models are loaded from DIR/noise_reducer/, e.g. for -C 1, the call mode)
  *       -N CHANNELS (interleaved capture channels, default 8) -M MICS (comma list of mic channels in
  *       preset order, default 0,1,2) -R REF (speaker-feedback channel, default 6; -1 = none)
  *   spotter-host serve [listen flags, VQE path only] -a <activation_model> [-k <command_model>]
@@ -224,6 +226,7 @@ out:
 #define MAX_MICS 8
 #define MAX_SPK 8
 static const char *vqe_preset = "bergamot";
+static const char *vqe_models = "/system/vendor/quasar/vqe_models"; /* -m: the VQE's model dir */
 static int HW_CH = 8;      /* interleaved channels in the capture */
 static int HW_SPK_CH = 6;  /* speaker feedback (AEC reference); -1 = none (zeros) */
 static int hw_mic_ch[MAX_MICS] = {0, 1, 2};
@@ -285,7 +288,7 @@ static int fe_open(struct fe *f, float scale, int asr_mode, int comm_mode)
             fprintf(stderr, "vqe: -Q ref channel %d out of range\n", hw_spk_ch[i]);
             return 1;
         }
-    if (vqe_err("Create", YandexVqeC_Create(f->conf, "/system/vendor/quasar/vqe_models", 0, NULL, &f->vqe)))
+    if (vqe_err("Create", YandexVqeC_Create(f->conf, vqe_models, 0, NULL, &f->vqe)))
         return 1;
     if (asr_mode >= 0)
         vqe_err("SetASRMode", YandexVqeC_SetASRMode(f->vqe, asr_mode));
@@ -652,7 +655,7 @@ int main(int argc, char **argv)
         return cmd_probe(argv[2]);
     optind = 2;
     if (strcmp(argv[1], "vqe") == 0 || strcmp(argv[1], "listen") == 0 || strcmp(argv[1], "serve") == 0) {
-        while ((opt = getopt(argc, argv, "s:A:C:a:k:x:vbgP:N:M:R:Q:")) != -1) {
+        while ((opt = getopt(argc, argv, "s:A:C:a:k:x:vbgP:N:M:R:Q:m:")) != -1) {
             switch (opt) {
             case 's': scale = (float)atof(optarg); break;
             case 'A': asr = atoi(optarg); break;
@@ -664,6 +667,7 @@ int main(int argc, char **argv)
             case 'b': bnr_from_vqe = 1; break;
             case 'g': cmd_gain = 1; break;
             case 'P': vqe_preset = optarg; break;
+            case 'm': vqe_models = optarg; break;
             case 'N': HW_CH = atoi(optarg); break;
             case 'M': hw_nmic = parse_types(optarg, hw_mic_ch, MAX_MICS); break;
             case 'R': HW_SPK_CH = atoi(optarg); break;
