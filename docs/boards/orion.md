@@ -349,6 +349,18 @@ Three surfaces, every LED a Linux LED class device each mirrored by a framebuffe
   `<cfw>/board.conf`, e.g. `1`), smoothness at the 15 Hz render loop, the voice stages
   (`express/set listening`, `thinking`, `speaking`) and the call/alarm patterns.
 
+## Screen work list (from the first days on glass, 2026-10-26)
+
+- **Clock:** readable but ugly — the seg7 font drawn as pixels; needs a real pixel font.
+- **Volume:** a number redrawn on every step flickers and does not match the fine-grained
+  rotary gesture on the touch ring. Wanted: an orion override of the volume scene — properly
+  drawn digits that blend from one value to the next, plus a horizontal volume bar.
+- **Low brightness:** gamma 2.2 and then the brightness scale, both in 8 bits, can collapse the
+  dark half-tones; the vendor keeps the screen at `minBrightness` 127 or more and has a
+  backlight node (`/sys/class/backlight/fb1/brightness`) — consider brightness there instead.
+- **Tooling:** the browser preview and its comparison with the unit
+  ([wishlist.md](../wishlist.md), "A browser preview for the orion screen and LEDs").
+
 ## Boot / egress
 
 - FW 3.21 keeps the same init.d chain as 3.x: S94alsa, S95hardvold, S97quasar (starts
