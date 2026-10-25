@@ -90,7 +90,7 @@ func TestIntercomVoiceScenario(t *testing.T) {
 	if bedroom.ic.m.Status().State != intercom.Ringing {
 		t.Fatal("«выключи свет» touched the call")
 	}
-	cmd(bedroom, "включи") // answers, with or without «Алиса»
+	cmd(bedroom, "продолжи") // answers, with or without «Алиса»
 	wait(office, intercom.InCall)
 	wait(bedroom, intercom.InCall)
 	time.Sleep(200 * time.Millisecond) // a little audio both ways

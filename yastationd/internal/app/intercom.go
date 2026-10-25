@@ -707,9 +707,9 @@ const icWakeCommandWindow = 4 * time.Second
 
 // icCommand: voice control of a call, all on the speaker's own spotters (the vendor command
 // model has no «да»/«нет»; docs/intercom.md, "Voice control"). false = not the intercom's.
-//   - ringing: «включи» answers, «стоп / хватит / выключи» decline — with «Алиса» before them
-//     or without;
-//   - in a call, only right after «Алиса»: «стоп / хватит / выключи» hang up, «громче / тише»
+//   - ringing: «продолжи / играй» answer, «стоп / хватит / пауза» decline — with «Алиса» before
+//     them or without;
+//   - in a call, only right after «Алиса»: «стоп / хватит / пауза» hang up, «громче / тише»
 //     set the volume. Without the wake word they are ignored (they come up in conversation),
 //     and so is a wake word right after the far end spoke (its voice through the AEC).
 func (a *App) icCommand(phrase string) bool {
@@ -724,7 +724,7 @@ func (a *App) icCommand(phrase string) bool {
 	switch st {
 	case intercom.Ringing:
 		switch {
-		case p == "включи":
+		case intercom.IsAnswerCommand(p):
 			a.log.Info("intercom: answered by voice", "phrase", phrase)
 			a.unexpress("voice")
 			a.ic.m.Answer()

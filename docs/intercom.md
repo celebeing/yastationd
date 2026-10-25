@@ -197,13 +197,16 @@ nothing leaves it. The vendor command model has no «да» or «нет» (the f
 model in the dumps: «Алиса», «Яндекс», стоп, хватит, пауза, громче, тише, включи, выключи,
 дальше, назад, домой, играй, продолжи, вверх/вниз/влево/вправо, выше/ниже, следующий, свет,
 телевизор, блютуз, лайк/дизлайк, and combinations such as «выключи свет»), so the words are
-these (the user's choice):
+these (the user's choice). The model's `commands` line also matters: «включи» and «выключи»
+count only with an object («включи свет», «выключи телевизор», «включи блютуз»); the single
+commands are дальше, назад, выше, ниже, вправо, влево, вверх, вниз, домой, продолжи, играй, стоп,
+хватит, пауза, следующий, громче, тише. A first try with «включи» to answer heard nothing.
 
 | When | Say | Does |
 |---|---|---|
-| ringing | «включи» or «Алиса, включи» | answer |
-| ringing | «стоп» / «хватит» / «выключи», with «Алиса» or without | decline |
-| in a call | «Алиса, стоп» / «Алиса, хватит» / «Алиса, выключи» | hang up |
+| ringing | «продолжи» / «играй», with «Алиса» or without | answer |
+| ringing | «стоп» / «хватит» / «пауза», with «Алиса» or without | decline |
+| in a call | «Алиса, стоп» / «Алиса, хватит» / «Алиса, пауза» | hang up |
 | in a call | «Алиса, громче» / «Алиса, тише» | volume |
 
 - **Chaining:** both spotters run on the same stream, so «Алиса, громче» is a WAKE and, half a

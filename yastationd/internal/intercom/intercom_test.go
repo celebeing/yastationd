@@ -277,10 +277,15 @@ func TestVoice(t *testing.T) {
 			t.Errorf("%q: %v %v, want %q", text, p, ok, want)
 		}
 	}
-	for phrase, want := range map[string]bool{"стоп": true, "Хватит": true, "выключи": true,
-		"выключи свет": false, "включи": false, "громче": false} {
+	for phrase, want := range map[string]bool{"стоп": true, "Хватит": true, "пауза": true,
+		"выключи свет": false, "играй": false, "громче": false} {
 		if IsDeclineCommand(phrase) != want {
 			t.Errorf("IsDeclineCommand(%q) != %v", phrase, want)
+		}
+	}
+	for phrase, want := range map[string]bool{"продолжи": true, "Играй": true, "включи свет": false, "стоп": false} {
+		if IsAnswerCommand(phrase) != want {
+			t.Errorf("IsAnswerCommand(%q) != %v", phrase, want)
 		}
 	}
 }
