@@ -10,6 +10,8 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
   ring and ambilight exactly as drawn and takes the daemon's commands over HTTP, with a viewer
   page; `cmd/ledsim` runs the daemon on the host with simulated surfaces and the firmware's screen
   patterns, so scenes can be developed in a browser and compared with a unit frame by frame.
+- Orion's clock has its own pixel font: thin 4×9 digits, no leading zero, a cross-fade when the
+  minute changes. New display mode `clock_date`: the time over the date.
 - Moments: the app announces what happened (`startup`, `dialog_end`, …) and a per-platform table
   picks the picture — an expression, a scenario or a native animation, with fallbacks; boards and
   `<cfw>/board.conf` override it with `moment.<name>`. Orion ends a dialog with a blink instead of

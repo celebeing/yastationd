@@ -48,6 +48,9 @@ type Front interface {
 	Kind() string
 
 	Clock(now time.Time, loc *time.Location, brightness int) FrontFrame
+	// ClockDate is the clock with the date (the clock_date display mode); a display without room
+	// for both shows the clock.
+	ClockDate(now time.Time, loc *time.Location, brightness int) FrontFrame
 	// Unsynced is the clock before the first time sync: no digits, a blinking colon.
 	Unsynced(now time.Time, brightness int) FrontFrame
 	Text(s string, brightness int) FrontFrame
@@ -74,6 +77,11 @@ func (Seg7Front) Kind() string { return "seg7" }
 
 func (Seg7Front) Clock(now time.Time, loc *time.Location, brightness int) FrontFrame {
 	return FrontFrame{Seg: Clock(now, loc, brightness)}
+}
+
+// ClockDate: four digits have no room for the date as well.
+func (f Seg7Front) ClockDate(now time.Time, loc *time.Location, brightness int) FrontFrame {
+	return f.Clock(now, loc, brightness)
 }
 
 func (Seg7Front) Unsynced(now time.Time, brightness int) FrontFrame {
@@ -156,14 +164,15 @@ func (f Seg7Front) Anims() []string {
 	return f.Clips.Names()
 }
 
-// PixelFront is a dot-matrix screen. Its animations are the firmware's own screen patterns.
-// Scenes it has no drawing for yet (the clock, text, numbers, countdowns, the setup face) come
-// from the embedded Seg7Front and are drawn by Seg7ToPixels: override a method here to give a
-// scene a proper pixel drawing.
+// PixelFront is a dot-matrix screen. Its animations are the firmware's own screen patterns; the
+// clock is drawn natively (pixelclock.go). Scenes it has no drawing for yet (text, numbers,
+// countdowns, the setup face) come from the embedded Seg7Front and are drawn by Seg7ToPixels:
+// override a method here to give a scene a proper pixel drawing.
 type PixelFront struct {
 	Seg7Front
 	W, H     int
 	Patterns *PixelLibrary
+	Gamma    float64 // the screen's gamma for our own drawings (the patterns carry their own)
 }
 
 func (f PixelFront) Kind() string { return fmt.Sprintf("pixels %dx%d", f.W, f.H) }

@@ -129,7 +129,7 @@ func (a *App) newFront() display.Front {
 	switch {
 	case a.screen != nil:
 		w, h := a.screen.Size()
-		return display.PixelFront{W: w, H: h,
+		return display.PixelFront{W: w, H: h, Gamma: a.prof.Matrix.Gamma,
 			Patterns: &display.PixelLibrary{Dirs: dirs, W: w, H: h, Gamma: a.prof.Matrix.Gamma}}
 	case a.matrix != nil:
 		return display.Seg7Front{Clips: &display.ClipLibrary{Dirs: dirs}}

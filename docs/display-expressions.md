@@ -51,7 +51,7 @@ onto the front stack:
 | Kind | Scenes | Animations |
 |---|---|---|
 | `Seg7Front` (bergamot, pickle) | 4-digit seg7 pictures | the stock clock clips (`.scled`, below) and ours, via the candidate names in `seg7Anims` |
-| `PixelFront` (orion) | **fallback:** inherited from `Seg7Front`, drawn by `Seg7ToPixels` (3×5 font doubled vertically) | the firmware's screen patterns (`.led`, below), via `pixelAnims` |
+| `PixelFront` (orion) | the clock natively ("The pixel clock" below); **fallback** for the rest: inherited from `Seg7Front`, drawn by `Seg7ToPixels` (3×5 font doubled vertically) | the firmware's screen patterns (`.led`, below), via `pixelAnims` |
 
 A layer's frame (`FrontFrame`) is either a seg7 picture or native pixels. A pixel screen draws a
 seg7 picture through `Seg7ToPixels`; that is the fallback for every scene that has no pixel drawing
@@ -60,6 +60,20 @@ yet. To draw a scene properly on a pixel screen (a real pixel clock, a volume ar
 Animations are never converted from seg7 to pixels: a semantic animation the screen has no pattern
 for is simply not shown. The only seg7 content a pixel screen draws as pixels besides the scenes is
 HA's hand-made seg7 `frames`.
+
+## The pixel clock (orion)
+
+`internal/display/pixelclock.go`, chosen in the LED preview (2026-10-26). Our own bitmap fonts,
+drawn in perceived intensity and turned into drive values with `matrix.gamma` and the display
+brightness at the end, so half-tones look half as bright on the glass.
+
+- `clock`: `H:MM` in thin 4×9 digits (1-px strokes); with two hour digits the line is exactly the
+  21 columns (4+1+4 +1+1+1 +4+1+4); no leading zero, the line is centred. The colon is steady.
+- `clock_date` (a display mode of its own): `H:MM` over `DD.MM` in 3×5 digits, the date at 45 %.
+  A seg7 display has no room for both and shows the clock.
+- A minute change cross-fades the old picture into the new one over 600 ms. It needs no state:
+  in the first 600 ms of a minute the frame mixes the previous minute's picture in.
+- Before the first time sync: only the colon, blinking.
 
 ## Screen patterns (pixel, orion)
 

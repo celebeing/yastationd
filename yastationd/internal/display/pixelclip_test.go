@@ -143,9 +143,12 @@ func TestPixelFrontResolves(t *testing.T) {
 	if f.Kind() != "pixels 21x12" {
 		t.Fatal(f.Kind())
 	}
-	// Scenes without a pixel drawing fall back to the seg7 picture.
-	if c := f.Clock(time.Date(2026, 1, 1, 12, 34, 0, 0, time.UTC), time.UTC, 255); c.Px != nil || c.Seg.Seg[0] == 0 {
-		t.Fatalf("clock fallback: %+v", c)
+	// The clock is drawn natively; scenes without a pixel drawing fall back to the seg7 picture.
+	if c := f.Clock(time.Date(2026, 1, 1, 12, 34, 0, 0, time.UTC), time.UTC, 255); len(c.Px) != 252 {
+		t.Fatalf("pixel clock: %d px", len(c.Px))
+	}
+	if c := f.Number(42, 255); c.Px != nil || c.Seg.Seg[3] == 0 {
+		t.Fatalf("number fallback: %+v", c)
 	}
 	if px := ScreenPixels(f.Number(42, 255), 21, 12, 1); len(px) != 252 {
 		t.Fatalf("fallback render: %d px", len(px))

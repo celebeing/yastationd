@@ -129,7 +129,7 @@ func (a *App) cmdAmbilight(payload []byte) {
 func (a *App) cmdDisplayMode(payload []byte) {
 	mode := strings.TrimSpace(string(payload))
 	switch mode {
-	case "clock", "off", "message":
+	case "clock", "clock_date", "off", "message":
 	default:
 		a.log.Warn("unknown display_mode", "mode", mode)
 		return

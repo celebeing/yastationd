@@ -351,7 +351,8 @@ Three surfaces, every LED a Linux LED class device each mirrored by a framebuffe
 
 ## Screen work list (from the first days on glass, 2026-10-26)
 
-- **Clock:** readable but ugly — the seg7 font drawn as pixels; needs a real pixel font.
+- **Clock:** done — our own pixel font, plus the two-line `clock_date` mode
+  ([display-expressions.md](../display-expressions.md), "The pixel clock").
 - **Volume:** a number redrawn on every step flickers and does not match the fine-grained
   rotary gesture on the touch ring. Wanted: an orion override of the volume scene — properly
   drawn digits that blend from one value to the next, plus a horizontal volume bar.

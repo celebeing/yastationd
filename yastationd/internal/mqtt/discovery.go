@@ -86,7 +86,7 @@ func (b *builder) Entities() []Entity {
 			"name":          "Display",
 			"state_topic":   t.State("display_mode"),
 			"command_topic": t.Command("display_mode"),
-			"options":       []string{"clock", "off", "message"},
+			"options":       []string{"clock", "clock_date", "off", "message"},
 			"icon":          "mdi:clock-digital",
 		}},
 		{"text", "display_message", map[string]any{

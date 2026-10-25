@@ -275,6 +275,9 @@ func (a *App) matrixBase(now time.Time) display.FrontFrame {
 		if a.clock != nil && !a.clock.Synced() {
 			return a.front.Unsynced(now, a.brightness())
 		}
+		if s.Mode == "clock_date" {
+			return a.front.ClockDate(now, a.loc, a.brightness())
+		}
 		return a.front.Clock(now, a.loc, a.brightness())
 	}
 }
