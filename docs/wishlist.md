@@ -28,6 +28,25 @@ pulsar's scheme, for reference:
   of the last 1.5 s of frames.
 - HA's `duplicate_wake_up_detected` error is then handled silently (no error ring or sound).
 
+Refinements from another DIY multi-speaker project (where several rooted speakers share one
+apartment), each one found on a real failure:
+- **A quiet first claim waits for louder ones.** A fixed window favoured the far speaker: it
+  claimed first, and the room it was in got the command (the wrong room's light was switched).
+  A quiet claim (low level) now waits up to ~1.5 s for a louder one; a loud claim decides at once.
+  For us that is an adaptive window instead of pulsar's fixed 250 ms: short when the claim is
+  loud, long when it is quiet.
+- **Claims that arrive together are one round,** even if the speakers' timestamps for the phrase
+  start differ by seconds. They do differ, because of a different number of segments or an
+  utterance opened by loud music. Decided phrases are remembered in a ring for ~1 min, not as a
+  single "last" that the next claim overwrites, and a round's timer never closes another round.
+  Log every claim (`claim: <speaker> <level> <decision>`); without that, double answers can't be
+  explained afterwards.
+- **A neighbour's reply is not a new command.** A speaker that hears the next room's spoken
+  answer («включил свет на кухне») can take it as a command. Their filter: a phrase is an echo of
+  a reply only if it has no long word the reply didn't have. For us this matters less, since we
+  need a wake word before every command, but it applies to HA's `continue_conversation` reopening
+  the mic.
+
 For us: it is protocol-independent and would fit next to the Wyoming satellite. Open questions: how
 much the near/far level gap really is on our units (not measured anywhere), and whether the
 on-device firewall and the access point pass LAN broadcast.

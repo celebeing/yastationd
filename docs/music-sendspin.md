@@ -148,10 +148,68 @@ until it has played. **Not tested on the device yet.**
 ## Open items
 
 1. Wake-word test matrix over music (30/60/80 % × 1/3 m: hit rate, false triggers).
-2. A synchronized group of two speakers (echo-free?) — needs the second unit rolled out.
+2. A synchronized group of two speakers (echo-free?) — needs the second unit rolled out. Tune it
+   by measurement, not by ear: [Group sync by measurement](#group-sync-by-measurement-plan).
 3. pickle and the second bergamot: play music; on pickle check the ducking and the AEC.
 4. The announce chime by ear (length, loudness).
 5. mDNS advertisement (`_sendspin._tcp`) so MA finds the speakers without manual IPs or
    `sendspin_server`.
 6. Pairing instead of unpaired access.
 7. Local media keys (e.g. a long press = pause) would need the controller role.
+
+## Group sync by measurement (plan)
+
+**Status:** plan, not started. The idea comes from another DIY project that put rooted Stations and
+PCs into one Sendspin group: by ear their group looked fine, but a measurement showed 328 ms of
+spread between players. After calibration it was 2–3 ms.
+
+### What we already account for
+
+- The sink reports each write's finish time as `now + snd_pcm_delay()` (`alsa_sink.cpp`) to
+  `notify_audio_played`. That delay covers our ring, the plug/rate converter and the dmix ring, so
+  the library schedules against the real queue depth, not "as received". (The other project's
+  player missed this and played ~200 ms early. Check that we don't.)
+- `set_output_delay_adjustable(true)`: MA's per-player output delay (0–5000 ms) is applied to
+  sync timing, so a measured offset can be set from MA without a firmware change.
+
+### What it does not cover, so it has to be measured
+
+- Whatever `snd_pcm_delay()` doesn't see: dmix reports the delay approximately, and the codec, DSP
+  and amplifier after the DMA pointer aren't counted at all. bergamot and pickle have different
+  chains, so expect a constant offset per board.
+- Any mismatch between the players' clocks and MA's that the library's time filter leaves.
+- Other players in the same group (a PC, the SHIELD through a Sendspin bridge), whose chains we
+  don't control.
+
+### Method: chirps heard by every microphone
+
+1. Each player in turn plays a short chirp (sweep 1→6 kHz, 100 ms, 10 ms raised-cosine edges) at a
+   known time T_i on the Sendspin server clock, through the same path as music (sendspin-host →
+   dmix), not through aplay. Gaps of ~0.8 s plus random jitter up to ~0.45 s keep chirps from
+   different players from overlapping; the first one starts ~3 s after the command so the output
+   is open and the delay estimate has settled.
+2. Every microphone in the house records the whole sequence at once: each speaker's own mic array
+   (one raw channel or the VQE omni output, **not** an AGC'd channel) and, optionally, a PC mic.
+3. Per microphone: matched filter against the chirp, then the analytic-signal envelope, so the peak
+   doesn't depend on the phase the speaker introduces. The arrival is the first peak ≥ 0.5 × the
+   strongest one in the search window (reflections arrive later and can be louder). SNR floor ~8.
+4. For mic m and player p: `arrival − T_p = c_m + d_p (+ sound path)`. The mic's own latency `c_m`
+   is the same for every chirp it hears and cancels out. Least squares over all heard
+   (mic, player) pairs gives `d_p`, the lateness of each player relative to the others. Speakers
+   hear each other in both directions, so the ~3 ms/m path mostly cancels on average. Rooms that
+   don't hear each other are linked through players that both can hear. A player nobody hears stays
+   unmeasured.
+5. Apply `−d_p` as each player's output delay in MA (or as a firmware-side calibration that the
+   sink approaches gradually, inserting or dropping a frame per block, and persists). Iterate until
+   the spread is below ~4 ms; measurement noise is about ±2 ms.
+
+### What the firmware would need
+
+- A way to play a chirp at server time T through sendspin-host (a stdin command next to `duck`
+  and `volume`, using the library's server-clock conversion). The host already has the PCM path
+  and the clock.
+- A timestamped raw mic capture on request (the intercom's `intercom_record_dir` already records
+  the raw array capture). It needs a server-clock timestamp for its first sample, so the solver can
+  align recordings.
+- The solver itself (numpy, ~500 lines) runs off-device on the HA or PC side; it is not firmware.
+- Emitting sound on demand follows the doctrine: only when the user expects it.
