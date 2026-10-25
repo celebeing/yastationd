@@ -717,7 +717,11 @@ func (a *App) icCommand(phrase string) bool {
 		return false
 	}
 	p := strings.ToLower(phrase)
-	switch a.ic.m.Status().State {
+	st := a.ic.m.Status().State
+	if st == intercom.Ringing || st == intercom.InCall {
+		a.log.Info("intercom: command heard", "phrase", phrase, "state", st, "window", a.icWindow())
+	}
+	switch st {
 	case intercom.Ringing:
 		switch {
 		case p == "включи":
