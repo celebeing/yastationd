@@ -188,7 +188,9 @@ func (a *App) readSwitches(f *os.File) {
 func (a *App) micMuted() bool { return a.muted.Load() }
 
 func (a *App) setMute(muted bool) {
-	a.muted.Store(muted)
+	if a.muted.Swap(muted) != muted {
+		a.log.Info("mic mute", "on", muted)
+	}
 	if muted && a.icActive() {
 		a.ic.m.Hangup("mic muted") // declines a ringing call, ends any other
 	}
@@ -320,7 +322,11 @@ func (a *App) applyVolumeEdge(v, edge int) {
 	}
 	a.volOnce.Do(func() { a.vol = a.front.Volume(a.brightness) })
 	a.vol.Set(pct, edge)
-	a.matrixStack.Push("volbubble", display.PrioLocal, volumeBubbleTTL, a.vol.Render)
+	// Extend the bubble that is up rather than push it again: a new layer is a new top, and the
+	// screen would fade it in from black on every step of the ring.
+	if !a.matrixStack.Keep("volbubble", volumeBubbleTTL) {
+		a.matrixStack.Push("volbubble", display.PrioLocal, volumeBubbleTTL, a.vol.Render)
+	}
 }
 
 // unmute applies the configured unmute sequence (before any playback).

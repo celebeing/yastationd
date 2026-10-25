@@ -78,6 +78,19 @@ func (s *Stack[F]) Push(name string, prio int, ttl time.Duration, r RenderFunc[F
 	s.layers[name] = l
 }
 
+// Keep extends the layer `name` to expire ttl from now, keeping its render func and its place
+// (the same Top, so a Fader does not fade it in again). False if there is no such layer.
+func (s *Stack[F]) Keep(name string, ttl time.Duration) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	l, ok := s.layers[name]
+	if !ok || (!l.expires.IsZero() && time.Now().After(l.expires)) {
+		return false
+	}
+	l.expires = time.Now().Add(ttl)
+	return true
+}
+
 func (s *Stack[F]) Remove(name string) {
 	s.mu.Lock()
 	delete(s.layers, name)

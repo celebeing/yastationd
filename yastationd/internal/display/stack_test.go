@@ -88,3 +88,20 @@ func TestStackTopAndFader(t *testing.T) {
 		t.Fatalf("down fade halfway = %v, want ~0.5", k)
 	}
 }
+
+func TestStackKeep(t *testing.T) {
+	s := NewStack(func(time.Time) int { return 0 })
+	if s.Keep("x", time.Second) {
+		t.Fatal("kept a missing layer")
+	}
+	s.Push("x", 10, 50*time.Millisecond, func(time.Time, int) (int, bool) { return 1, false })
+	s.Frame(time.Now())
+	top := s.Top()
+	if !s.Keep("x", time.Hour) {
+		t.Fatal("Keep of a live layer failed")
+	}
+	time.Sleep(80 * time.Millisecond)
+	if s.Frame(time.Now()) != 1 || s.Top() != top {
+		t.Errorf("kept layer expired or changed its Top: %+v vs %+v", s.Top(), top)
+	}
+}
