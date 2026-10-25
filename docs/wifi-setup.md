@@ -19,8 +19,9 @@ removed.
 
 ## Using it
 
-1. **Mute the mic, then hold the voice key (Alice) for 5 s.** The same on every board: orion has
-   no volume keys and its mute is a switch that can't be held, so the combo is "muted + voice".
+1. **Mute the mic, then hold the voice key (Alice) for 5 s.** The same on every board (orion has
+   no volume keys, so the old volume-down + voice + mute could not be pressed there). Holding the
+   mute through it is fine too.
    - While you hold, the ring fills with yellow; when it is full, the mode starts.
    - The ring runs a yellow comet.
    - The front display shows wide-open eyes with a dot, `O  O°`.
@@ -173,8 +174,9 @@ Init runs `S40wifi` → `S41dhcpcd` → … → `S52zyastationd` in order:
 
 - **bergamot:** working (the mute latch is `switch.14`, the voice key `key.582`).
 - **pickle:** working (same keys, same driver family; kernel 5.4, the 32-bit hostapd runs fine).
-- **orion:** prerequisites present (hostapd deployed, the Wi-Fi chip lists AP mode, same keys);
-  not yet tried on a unit. The combo became "muted + voice" for it (2026-10-26).
+- **orion:** working (2026-10-26: the access point came up, a phone joined and got its address,
+  "Connect now" restored the Wi-Fi client). The combo became "muted + voice" for it; its mute
+  flips back by itself ~2 s into a hold, so only the voice press needs it.
 
 ## Not done
 

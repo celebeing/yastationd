@@ -12,7 +12,8 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
   sweep through the tens only. Other displays keep the number.
 - The Wi-Fi setup mode's key combo is now the same on every board: **mic muted + the voice key
   held for 5 s** (it was volume-down + voice + mute, impossible on orion); the ring fills with
-  yellow while it is held.
+  yellow while it is held. Only the voice press needs the mute (orion's held mute flips back by
+  itself). Verified on orion: the access point, a phone joining, "Connect now".
 
 ## v0.8.1 — 2026-10-26
 

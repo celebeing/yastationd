@@ -78,7 +78,8 @@ HA, from single expressions to timed scenarios across the ring and the display.
   stale clock after power-on is corrected right away.
 
 **Recovery when the Wi-Fi changes**
-- Hold volume-down, the voice key and mute for 5 s: the speaker becomes its own access point with
+- Mute the mic, then hold the voice key for 5 s (the ring fills with yellow): the speaker becomes
+  its own access point with
   a setup page that phones open by themselves. On it you list, add, edit and remove the saved Wi-Fi
   networks and set the home settings (broker, health probes, time servers and zone, Music
   Assistant). Nothing about the mode is persistent: leaving it, or a reboot, brings the normal

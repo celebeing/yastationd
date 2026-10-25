@@ -164,7 +164,8 @@ reports local changes back. Volume key ticks are skipped while music plays. Desi
 
 - Volume keys → `amixer Master` ± and a transient 6-pixel level bar.
 - Mic-mute switch → steady amber ring + `binary_sensor`.
-- Volume-down + voice + mute held 5 s → Wi-Fi setup mode: the speaker becomes an open access point
+- Mic muted + the voice key held 5 s (the ring fills with yellow) → Wi-Fi setup mode: the speaker
+  becomes an open access point
   with a page for its saved networks (yellow comet, `O  O°`); the same again, the page or a reboot
   leaves it. See [docs/wifi-setup.md](../docs/wifi-setup.md).
 - Broker/LAN down → health state machine drops to degraded/offline, shows a dim-red ring dot, keeps
