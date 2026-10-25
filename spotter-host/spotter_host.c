@@ -36,7 +36,8 @@
  *       reader lags, so the VQE never stalls). Exits on stdin EOF.
  *       fd 4, if open: vqe_gain the same way — in the call mode (SetCommunicationMode 1: neural
  *       NR + AGC) the call's uplink. SIGUSR1 switches the call mode on, SIGUSR2 off (0, the ASR
- *       mode); vqe_0 (the spotters' input) is the same in both (docs/intercom.md).
+ *       mode); vqe_0 (the spotters' input) is the same in both (docs/intercom.md). The command
+ *       spotter pauses in the call mode (CPU); the activation spotter keeps running.
  *
  * TYPES is a comma list of channel types, one per interleaved channel (default "0" = omni).
  */
@@ -621,6 +622,10 @@ static int cmd_listen(const char *amodel, const char *kmodel, float scale, int a
         }
         for (int k = 0; k < nd; k++) {
             struct det *d = &dets[k];
+            /* In the call mode the command spotter rests: a call doesn't use it, and the VQE's
+             * neural NR takes its share of this single core (the stream fell behind real time). */
+            if (cur_comm == 1 && d->tag[0] == 'C')
+                continue;
             for (size_t i = 0; i < n; i++)
                 for (int c = 0; c < d->ntypes; c++)
                     d->buf[i * d->ntypes + c] = out[i * 4 + vqe_col(d, d->types[c])];
