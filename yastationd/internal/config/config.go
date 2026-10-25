@@ -120,6 +120,7 @@ type Config struct {
 	IntercomRing       time.Duration // an unanswered call gives up
 	IntercomMax        time.Duration // hard cap of a call
 	IntercomJitterMs   int
+	IntercomRecordDir  string // testing: each call's raw uplink (before the guard) is saved here
 
 	// Clock: SNTP sync when no chronyd/ntpd runs (internal/timesync). ntp_server entries are tried
 	// first, then the servers in chrony_conf, then the default gateway.
@@ -416,6 +417,8 @@ func (c *Config) set(k, v string) error {
 		var n int
 		n, err = atoiRange(v, 0, 24*3600)
 		c.IntercomMax = time.Duration(n) * time.Second
+	case "intercom_record_dir":
+		c.IntercomRecordDir = v
 	case "intercom_jitter_ms":
 		c.IntercomJitterMs, err = atoiRange(v, 20, 160)
 	case "music_duck_db":

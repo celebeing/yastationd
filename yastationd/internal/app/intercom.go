@@ -3,6 +3,8 @@ package app
 import (
 	"encoding/json"
 	"net"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -311,6 +313,7 @@ func (a *App) onIntercomState(st intercom.Status) {
 		go a.icRing()
 	case intercom.InCall:
 		a.ringStack.Push("intercom", display.PrioCall, 0, a.icInCallRing)
+		a.announceChime() // the call is up (an auto-answered one never rang)
 		a.icStartAudio()
 	case intercom.Idle:
 		a.icStopAudio()
@@ -381,6 +384,15 @@ func (a *App) icStartAudio() {
 			}
 		})
 	}
+	var rec *os.File // testing (intercom_record_dir): the raw uplink, S16LE 16 kHz mono
+	if d := a.cfg.IntercomRecordDir; d != "" {
+		name := filepath.Join(d, "intercom-up-"+time.Now().UTC().Format("20060102-150405")+".raw")
+		if rec, err = os.Create(name); err != nil {
+			a.log.Warn("intercom: record", "err", err)
+		} else {
+			a.log.Info("intercom: recording the raw uplink", "file", name)
+		}
+	}
 	var unsub func()
 	if a.spot != nil && a.spot.Running() {
 		unsub = a.spot.SubscribeVQE(0, feed) // echo-cancelled against our playback
@@ -405,10 +417,20 @@ func (a *App) icStartAudio() {
 				logAGC("intercom: uplink agc")
 			case <-quit:
 				logAGC("intercom: uplink agc at the end")
+				if rec != nil {
+					rec.Close()
+				}
 				return
 			case f := <-frames:
 				if a.micMuted() || a.sat.inDialog() { // the hardware mute; or talking to Alice
 					clear(f)
+				}
+				if rec != nil {
+					b := make([]byte, 2*len(f))
+					for i, v := range f {
+						b[2*i], b[2*i+1] = byte(v), byte(v>>8)
+					}
+					rec.Write(b)
 				}
 				g.Up(f, time.Now())
 				ic.m.Uplink(f)

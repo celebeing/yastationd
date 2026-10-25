@@ -37,7 +37,7 @@ const (
 	agcMaxGain    = 80   // +38 dB
 	agcStartGain  = 30   // +30 dB until speech has been heard
 	agcSpeechOver = 4    // a frame 12 dB above the floor is speech
-	agcPauseGain  = 0.4  // pauses: -8 dB more
+	agcPauseGain  = 0.18 // pauses: -15 dB more
 )
 
 // level returns the gain for a frame of RMS r and whether it is speech (and updates the
