@@ -342,7 +342,10 @@ Three surfaces, every LED a Linux LED class device each mirrored by a framebuffe
 - **Screen animations (2026-10-25, blind):** the daemon's `PixelFront` resolves every
   expression to a pattern under `ledpatterns/screen/` (`clips.dir`), gamma-corrected by
   `matrix.gamma = 2.2`; the clock, text and numbers stay on the seg7 fallback above.
-  On glass, check: the gamma (too dark or washed out → `matrix.gamma` in
+  The screen has its own 20 ms render tick (the patterns' frame time); at the shared 15 Hz
+  loop two of three frames were dropped, and the wink's one-frame sparkles around the left
+  eye (deliberate: a glint in the eye and particles flying off it, every frame of the file
+  checked) were held three times too long and read as noise. On glass, check: the gamma (too dark or washed out → `matrix.gamma` in
   `<cfw>/board.conf`, e.g. `1`), smoothness at the 15 Hz render loop, the voice stages
   (`express/set listening`, `thinking`, `speaking`) and the call/alarm patterns.
 

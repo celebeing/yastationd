@@ -27,7 +27,11 @@ import (
 )
 
 const (
-	frameInterval   = 66 * time.Millisecond // ~15 Hz render loop
+	frameInterval = 66 * time.Millisecond // ~15 Hz render loop
+	// The pixel screen runs at the stock patterns' own frame time (20 ms in every orion .led):
+	// at 15 Hz two of three frames were dropped and one-frame details (the wink's sparkles) were
+	// held three times too long, which reads as noise.
+	screenInterval  = 20 * time.Millisecond
 	volumeBubbleTTL = 2 * time.Second
 	marqueeStep     = 350 * time.Millisecond // one character per step
 )
@@ -425,12 +429,22 @@ const (
 func (a *App) renderLoop(stop <-chan struct{}) {
 	t := time.NewTicker(frameInterval)
 	defer t.Stop()
+	var screenTick <-chan time.Time // nil (never fires) without a pixel screen
+	if a.screen != nil && a.front != nil {
+		st := time.NewTicker(screenInterval)
+		defer st.Stop()
+		screenTick = st.C
+	}
 	fade := display.Fader{Up: frontFadeUp, Down: frontFadeDown}                             // pixel screens
 	smooth := display.Seg7Smoother{Up: frontFadeUp, Down: frontFadeDown, Morph: frontMorph} // seg7
 	for {
 		select {
 		case <-stop:
 			return
+		case now := <-screenTick:
+			if err := a.showScreen(a.matrixStack.Frame(now), fade.Level(now, a.matrixStack.Top())); err != nil {
+				a.log.Debug("matrix show", "err", err)
+			}
 		case now := <-t.C:
 			if err := a.ring.Show(a.ringStack.Frame(now)); err != nil {
 				a.log.Debug("ring show", "err", err)
@@ -440,17 +454,11 @@ func (a *App) renderLoop(stop <-chan struct{}) {
 					a.log.Debug("ambilight show", "err", err)
 				}
 			}
-			if a.front == nil {
+			if a.front == nil || a.screen != nil {
 				continue
 			}
 			frame := a.matrixStack.Frame(now)
-			var err error
-			if a.screen == nil {
-				err = a.matrix.Show(smooth.Frame(now, frame.Seg, a.matrixStack.Top()))
-			} else {
-				err = a.showScreen(frame, fade.Level(now, a.matrixStack.Top()))
-			}
-			if err != nil {
+			if err := a.matrix.Show(smooth.Frame(now, frame.Seg, a.matrixStack.Top())); err != nil {
 				a.log.Debug("matrix show", "err", err)
 			}
 		}
