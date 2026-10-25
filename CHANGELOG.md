@@ -3,15 +3,32 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.6.0 — 2026-10-25
 
 **Features**
-- Intercom (not yet checked on speakers; off by default): 1-to-1 calls between speakers
-  ([docs/intercom.md](docs/intercom.md)). «Алиса, соедини со спальней» on one, «да» on the other,
-  «Алиса, заверши звонок» or the voice key to end; also from HA (target select, call and hang-up
-  buttons, a state sensor). The uplink is the echo-cancelled VQE stream; media is L16 over UDP
-  sealed with AES-GCM, with a jitter buffer that also absorbs the drift between the two speakers'
-  clocks; signalling over MQTT, signed with a shared secret.
+- Intercom, off by default: 1-to-1 calls between speakers in different rooms
+  ([docs/intercom.md](docs/intercom.md), HA setup [docs/ha-intercom-setup.md](docs/ha-intercom-setup.md)).
+  - «Алиса, позвони в спальню» through an HA script the LLM calls (template in `hass/intercom/`),
+    or the HA target select and call button.
+  - Answer with «продолжи / играй» or the voice key, decline with «стоп / хватит / пауза» or the
+    mute switch; in a call «Алиса, стоп / хватит» hangs up, «Алиса, громче / тише» sets the
+    volume — all on the speaker's own spotters, nothing goes to HA.
+  - The uplink is the vendor VQE's call mode (neural noise reduction and AGC; `make vqe-models`
+    puts its model on the unit); L16 over UDP sealed with AES-GCM; a jitter buffer that also
+    absorbs the two speakers' clock drift; signalling over MQTT, signed with a shared secret.
+  - The vendor's call sounds and ringing animation, a call timer on the front display, a blue
+    ring while the mic streams to the other room.
+  - `intercom-peer` (a stand-in second speaker for tests) and `intercom-replay` (tune the uplink
+    on a recorded call).
+
+**Fixes and operations**
+- spotter-host runs each spotter in its own thread, the VQE loop never waiting for them; it
+  switches the VQE's communication mode at runtime and takes `-m <model dir>`.
+- `make sounds` also decodes the vendor's call sounds.
+
+**Docs**
+- An orion firmware dump sorted locally; QEMU boot rig for bergamot and pickle; rootfs hardening
+  research; wishlist: "someone is asleep here" detection.
 
 ## v0.5.1 — 2026-10-24
 

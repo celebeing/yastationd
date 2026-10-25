@@ -1,0 +1,33 @@
+# Template — see docs/ha-intercom-setup.md. Replace the <PLACEHOLDERS> (your rooms and the
+# speakers' device_id), then paste into the HA UI (Settings → Automations & scenes → Scripts →
+# ⋮ → Edit in YAML) or POST it to /api/config/script/config/intercom_call, and expose the script
+# to Assist (Settings → Voice assistants → Expose). The LLM calls it for «позвони в спальню»,
+# «свяжи с <name>», like a room announcement.
+alias: Позвонить в комнату
+icon: mdi:phone
+description: >-
+  Позвонить с этой колонки на колонку в другой комнате (интерком, живой разговор). Для
+  «позвони/набери/соедини с/свяжи меня с <комнатой или человеком>». Звонок начинается сам;
+  ответь коротко («Звоню.»).
+mode: single
+fields:
+  room:
+    name: Комната
+    description: 'Куда звонить: <room-1> (= <person-1>), <room-2> (= <person-2>), <room-3> (= <room-3-alias>).'
+    required: true
+    selector:
+      select:
+        options:
+          - <room-1>
+          - <room-2>
+          - <room-3>
+sequence:
+  # Every speaker gets this; the one that sent HA the request just now places the call.
+  - action: mqtt.publish
+    data:
+      topic: yastation/intercom/call
+      payload: >-
+        {"to": "{{ {'<room-1>': '<device-id-1>', '<person-1>': '<device-id-1>',
+                    '<room-2>': '<device-id-2>', '<person-2>': '<device-id-2>',
+                    '<room-3>': '<device-id-3>', '<room-3-alias>': '<device-id-3>'}
+                   .get(room | lower | trim, room) }}"}

@@ -1,17 +1,17 @@
 # Intercom between speakers
 
-Status (2026-10-25): **v1 implemented and tested on the host only** (unit tests, and two daemons
-in one process with fake audio talking over loopback UDP); **nothing checked on a speaker yet**.
-Off by default (`intercom = false`).
+Status (2026-10-25): **released in v0.6.0.** Checked on two bergamots (calls both ways, the
+VQE call mode, voice control on the spotters, HA's "call a room" script); pickle and orion not
+yet. Off by default (`intercom = false`). Setting it up in HA: [ha-intercom-setup.md](ha-intercom-setup.md).
 
 A live two-way voice call from one speaker to another over the home LAN: one room talks to another
 hands-free, like a phone call. Scope (decided): **strictly 1-to-1**, plain VoIP-style media, no
-group calls, no PBX. How a call is started, answered and ended is **not decided yet** (options
-below); v1 ships a neutral control surface for testing that rules none of them out.
+group calls, no PBX.
 
-The research behind this plan (three passes: audio path/AEC, transport, daemon/HA/UX) is
-summarised in the sections below; the decisions are marked **(v1)**, things to settle on a
-device **(verify)**.
+This page started as the plan (three research passes: audio path/AEC, transport, daemon/HA/UX);
+the sections marked **(v1)** are that design, the dated sections after "Release gate" what the
+speakers showed, and where they differ the dated sections win (e.g. the uplink is the VQE's call
+mode, not vqe_0 with our gain; voice control is on the spotters, not on HA's transcript).
 
 ## Architecture
 
@@ -173,7 +173,9 @@ Per speaker, by MQTT discovery:
 | `sensor` Intercom | `idle` / `calling` / `ringing` / `in_call`; attributes `peer`, `since` |
 
 Plus a JSON command topic for scripts: `<prefix>/<id>/intercom/set` with
-`{"action":"call","to":"<device_id or name>"}`, `{"action":"answer"}`, `{"action":"hangup"}`.
+`{"action":"call","to":"<device_id or name>"}`, `{"action":"answer"}`, `{"action":"hangup"}`,
+and the shared `<prefix>/intercom/call` (`{"to":"<device_id or name>"}`) that HA's "call a room"
+script publishes: the speaker that sent HA a request in the last 60 s places the call.
 
 ## Config (yastationd.conf)
 
@@ -186,6 +188,9 @@ intercom_auto_answer = false   # true: an incoming call opens at once (after the
 intercom_ring_secs   = 30
 intercom_max_secs    = 1800
 intercom_jitter_ms   = 40
+intercom_gain_db     = 30      # the fallback uplink's gain (a unit without the call-mode model)
+vqe_models           =         # the VQE's model dir; default <cfw>/vendor/vqe_models if there (make vqe-models)
+intercom_record_dir  =         # testing: record each call's raw audio there
 ```
 
 ## Voice control (2026-10-25): the speaker's own spotters
@@ -228,8 +233,12 @@ commands are дальше, назад, выше, ниже, вправо, вле�
   the call mode (the 2 s wait bug) and ran on vqe_0 with our +30 dB. On the call mode the same
   loop stayed steady (−20…−25 dBFS, no rise). A howl guard is only worth it for the fallback
   path (a unit without the model).
-- **Outgoing calls by voice** still go through HA: «Алиса, соедини со спальней» (room names are
-  in no spotter's vocabulary). The daemon reads that transcript and cuts HA's own reply.
+- **Outgoing calls by voice** go through HA (room names are in no spotter's vocabulary): «Алиса,
+  позвони в спальню» reaches HA's LLM, which calls the script "Позвонить в комнату" (built like
+  the room-announcement script: a `room` field with the rooms and their aliases → device ids);
+  the script publishes `{"to":"<id>"}` on `<prefix>/intercom/call`, and the speaker that sent HA
+  a request in the last 60 s takes it — the script can't tell which satellite asked. Checked by
+  the user (2026-10-25). The daemon's own transcript matcher is gone.
 - The voice key and the mute switch work as before (answer / end; decline / end).
 - Cost: no Assist requests during a call («Алиса» there is for the call only).
 
@@ -286,10 +295,9 @@ nominative, so «вызывают из кабинета» would need a name map)
 
 ## Release gate
 
-No release tag until all of these are done (the user's call, 2026-10-25): the VQE call mode
+No release tag until all of these were done (the user's call, 2026-10-25): the VQE call mode
 tried, voice control of calls checked on it, a test on **two speakers**, and the HA integration
-with its guide (how to set it up in HA: entities, voice sentences, the callee question).
-Commits land on `main` meanwhile; `intercom` stays off by default.
+with its guide. All done the same day; released as v0.6.0.
 
 ## Phases
 
@@ -301,9 +309,8 @@ Commits land on `main` meanwhile; `intercom` stays off by default.
 3. **VQE call mode** — done on bergamot (2026-10-25); `make vqe-models` puts the NR model on a
    unit (from its own firmware, else `VQE_MODEL=<file>` from a dump). Still to do: pickle and
    orion.
-4. **The rest of the UX** (HA sentence triggers and the callee question, tested and written up;
-   the other options above); Opus if Wi-Fi needs it;
-   push-to-talk fallback; front-display states.
+4. **Later:** pickle and orion; the indication's "listening" window looks like an Assist
+   session; a howl guard for the fallback path; Opus if Wi-Fi needs it; the other options above.
 
 ## Findings on a speaker (2026-10-25, bergamot unit A in a room with poor Wi-Fi, a host peer)
 
@@ -365,7 +372,7 @@ The first real call: started on unit A by an MQTT command (`<prefix>/<id>/interc
 «продолжи» after 3 s; the call mode on both (`MODE 1 ok` within 40 ms); «Алиса, громче» ×3 on
 one side, «Алиса, тише» on the other; hung up after 83 s with «Алиса, хватит». Per side 6–7 of
 4170 packets lost or late, no rebuffering, the jitter target 40–60 ms. The user: "все отлично".
-unit B's firmware ships `model_call.nnet`, so `make vqe-models` took it from there.
+Unit B's firmware ships `model_call.nnet`, so `make vqe-models` took it from there.
 
 ## Testing with one speaker: `intercom-peer`
 
