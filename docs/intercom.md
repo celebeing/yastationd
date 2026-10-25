@@ -213,9 +213,11 @@ commands are дальше, назад, выше, ниже, вправо, вле�
   second later, a CMD; a command counts in a call when it comes within 4 s of «Алиса» (one
   command per «Алиса»). During a call (and while ringing) «Алиса» opens only that window — the
   ring shows "listening" — and starts **no Assist session**.
-- In a call, commands without «Алиса» are ignored (they come up in conversation), and so is a
-  wake word right after the far end spoke (its voice through the AEC). «выключи свет» and other
-  combinations are not call commands.
+- In a call, commands without «Алиса» are ignored (they come up in conversation). There is no
+  guard against the far end's own «Алиса»: the AEC takes the far end below the room's floor on
+  the spotters' input (vqe_0, measured), and a first guard ("ignore a wake word within 1.5 s of
+  far-end speech") blocked our own «Алиса» whenever the other room talked. Combinations such as
+  «включи свет» are not call commands.
 - **Outgoing calls by voice** still go through HA: «Алиса, соедини со спальней» (room names are
   in no spotter's vocabulary). The daemon reads that transcript and cuts HA's own reply.
 - The voice key and the mute switch work as before (answer / end; decline / end).

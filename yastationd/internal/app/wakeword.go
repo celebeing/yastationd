@@ -70,9 +70,6 @@ func (a *App) onWakeEvent(ev wake.Event) {
 		switch {
 		case a.micMuted():
 			a.log.Info("wake: ignored, mic muted")
-		case a.icInCall() && a.icFarSpoke():
-			// The other room just talked: an «Алиса» from there, leaking through the AEC.
-			a.log.Info("wake: ignored, the far end of the call was talking", "phrase", ev.Phrase)
 		case a.icRinging() || a.icInCall():
 			// During a call «Алиса» only opens a short window for a command (docs/intercom.md):
 			// no Assist session, nothing leaves the speaker.

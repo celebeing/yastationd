@@ -25,9 +25,8 @@ import (
 const (
 	icPlayRate     = 48000 // the playout runs at dmix's rate (see intercom.Upsampler3)
 	icUplinkQueue  = 5     // 20 ms frames (~100 ms): older uplink audio is dropped
-	icWakeGuard    = 1500 * time.Millisecond
-	icAssistDuck   = 0.3 // the far end's level while an Assist session or a reply runs in a call
-	icCallTargetNA = "—" // the target select's only option while no other speaker is known
+	icAssistDuck   = 0.3   // the far end's level while an Assist session or a reply runs in a call
+	icCallTargetNA = "—"   // the target select's only option while no other speaker is known
 	icToneGap      = 1500 * time.Millisecond
 )
 
@@ -124,17 +123,6 @@ func (a *App) intercomPolicy(from string) string {
 func (a *App) icActive() bool { return a.ic != nil && a.ic.m.Status().State != intercom.Idle }
 
 func (a *App) icInCall() bool { return a.ic != nil && a.ic.m.Status().State == intercom.InCall }
-
-// icFarSpoke: the far end was heard just now (the wake-word guard during a call).
-func (a *App) icFarSpoke() bool {
-	if a.ic == nil {
-		return false
-	}
-	a.ic.mu.Lock()
-	g := a.ic.guard
-	a.ic.mu.Unlock()
-	return g != nil && g.FarSpokeWithin(time.Now(), icWakeGuard)
-}
 
 // ---- MQTT ----
 
@@ -710,8 +698,10 @@ const icWakeCommandWindow = 4 * time.Second
 //   - ringing: «продолжи / играй» answer, «стоп / хватит / пауза» decline — with «Алиса» before
 //     them or without;
 //   - in a call, only right after «Алиса»: «стоп / хватит / пауза» hang up, «громче / тише»
-//     set the volume. Without the wake word they are ignored (they come up in conversation),
-//     and so is a wake word right after the far end spoke (its voice through the AEC).
+//     set the volume. Without the wake word they are ignored (they come up in conversation).
+//     No guard against the far end's voice: the AEC takes it below the room's floor on the
+//     spotters' input (measured), and a guard on "the far end just spoke" blocked our own
+//     «Алиса» whenever the other room talked.
 func (a *App) icCommand(phrase string) bool {
 	if a.ic == nil {
 		return false
