@@ -120,6 +120,7 @@ type Config struct {
 	IntercomRing       time.Duration // an unanswered call gives up
 	IntercomMax        time.Duration // hard cap of a call
 	IntercomJitterMs   int
+	VQEModels          string  // the VQE's model dir ("" = <cfw>/vendor/vqe_models if there, else the firmware's)
 	IntercomGainDB     float64 // the uplink's fixed gain over the VQE stream (0 = the default, 30)
 	IntercomRecordDir  string  // testing: each call's raw uplink (before the guard) is saved here
 
@@ -418,6 +419,8 @@ func (c *Config) set(k, v string) error {
 		var n int
 		n, err = atoiRange(v, 0, 24*3600)
 		c.IntercomMax = time.Duration(n) * time.Second
+	case "vqe_models":
+		c.VQEModels = v
 	case "intercom_gain_db":
 		var n int
 		n, err = atoiRange(v, 0, 50)

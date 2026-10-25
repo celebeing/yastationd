@@ -480,7 +480,10 @@ func (a *App) icListenIfRinging() {
 
 func (a *App) icStartAudio() {
 	ic := a.ic
-	g := &intercom.Guard{UpGainDB: a.cfg.IntercomGainDB}
+	// The uplink: the VQE in its call mode (neural NR + AGC on vqe_gain; vqe_0, the wake word's
+	// input, stays as it is) when this unit has it, else vqe_0 through our own gain and gate.
+	callMode := a.spot != nil && a.spot.Running() && a.spot.CallMode(true)
+	g := &intercom.Guard{UpGainDB: a.cfg.IntercomGainDB, Processed: callMode}
 	out, err := hw.StartLiveOut(a.prof.Audio.Playback, icPlayRate)
 	if err != nil {
 		a.log.Error("intercom: playout", "err", err)
@@ -536,9 +539,14 @@ func (a *App) icStartAudio() {
 		a.log.Info("intercom: recording", "dir", d, "stamp", stamp)
 	}
 	var unsub func()
-	if a.spot != nil && a.spot.Running() {
+	switch {
+	case callMode:
+		a.log.Info("intercom: uplink from the VQE call mode")
+		unsub = a.spot.SubscribeCall(feed)
+	case a.spot != nil && a.spot.Running():
+		a.log.Info("intercom: no VQE call mode here (model missing?), uplink from vqe_0")
 		unsub = a.spot.SubscribeVQE(0, feed) // echo-cancelled against our playback
-	} else {
+	default:
 		a.log.Warn("intercom: no spotter-host, so no echo cancellation: expect echo")
 		unsub = a.mic.Subscribe(feed)
 	}
@@ -613,6 +621,9 @@ func (a *App) icStartAudio() {
 	ic.guard = g
 	ic.stop = func() {
 		unsub()
+		if callMode {
+			go a.spot.CallMode(false) // back to ASR (it waits for the child's confirmation)
+		}
 		unsubMics()
 		close(quit)
 		out.Close() // unblocks a pending write

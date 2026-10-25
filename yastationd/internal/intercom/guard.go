@@ -14,6 +14,9 @@ import (
 type Guard struct {
 	// UpGainDB is the uplink's fixed gain (0 = upGainDefault).
 	UpGainDB float64
+	// Processed: the uplink is the VQE's call mode (its own NR, AGC and echo suppression), so
+	// it gets no gain, gate or half-duplex here — only the fade-in and the limiter.
+	Processed bool
 
 	mu     sync.Mutex
 	farAt  time.Time // the far end was last heard in our playout
@@ -124,6 +127,10 @@ func (g *Guard) Up(f []int16, now time.Time) {
 	farActive := !g.farAt.IsZero() && now.Sub(g.farAt) < farHold
 	far := g.farRMS
 	g.mu.Unlock()
+	if g.Processed {
+		g.up.apply(f, 1)
+		return
+	}
 	gainDB := g.UpGainDB
 	if gainDB == 0 {
 		gainDB = upGainDefault

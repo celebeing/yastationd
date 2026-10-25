@@ -1,7 +1,8 @@
 // Package wake runs the vendor wake-word/command spotter (spotter-host serve, which dlopens
 // libyandex_evil.so) as a child process, so the blob never enters the daemon. The daemon feeds it
 // raw mic frames on stdin and gets event lines on stdout plus the VQE-processed 16 kHz mono
-// stream (vqe_0) on fd 3.
+// stream (vqe_0) on fd 3, and vqe_gain on fd 4 — in the VQE's call mode (CallMode) the
+// intercom's uplink.
 package wake
 
 import (
@@ -13,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -39,12 +41,17 @@ type Spotter struct {
 
 	feed chan []byte
 
-	mu      sync.Mutex
-	vqeSubs map[int]func([]byte)
-	next    int
-	ring    []byte // last prerollMax bytes of vqe_0
-	running bool
-	drops   int
+	mu       sync.Mutex
+	vqeSubs  map[int]func([]byte)
+	callSubs map[int]func([]byte)
+	next     int
+	proc     *os.Process
+	canMode  bool        // the child said "READY call-mode": it handles SIGUSR1/2 (else they kill it)
+	callMode bool        // wanted; re-applied when the child restarts
+	modeAck  chan string // the child's MODE line, for CallMode
+	ring     []byte      // last prerollMax bytes of vqe_0
+	running  bool
+	drops    int
 }
 
 // Run supervises the child until stop closes, restarting it with backoff.
@@ -89,18 +96,31 @@ func (s *Spotter) runOnce(stop <-chan struct{}) error {
 	if err != nil {
 		return err
 	}
-	cmd.ExtraFiles = []*os.File{vw} // fd 3
-	if err := cmd.Start(); err != nil {
+	gr, gw, err := os.Pipe()
+	if err != nil {
 		vr.Close()
 		vw.Close()
 		return err
 	}
-	vw.Close() // the child holds its end
+	cmd.ExtraFiles = []*os.File{vw, gw} // fd 3, fd 4
+	if err := cmd.Start(); err != nil {
+		vr.Close()
+		vw.Close()
+		gr.Close()
+		gw.Close()
+		return err
+	}
+	vw.Close() // the child holds its ends
+	gw.Close()
+	s.mu.Lock()
+	s.proc, s.canMode = cmd.Process, false
+	s.mu.Unlock()
 	s.setRunning(true)
 	defer s.setRunning(false)
 
 	done := make(chan struct{})
 	go s.readVQE(vr)
+	go s.readCall(gr)
 	go func() { // stdin writer
 		defer stdin.Close()
 		for {
@@ -146,7 +166,18 @@ func (s *Spotter) line(l string) {
 	}
 	switch f[0] {
 	case "READY":
-		s.Log.Info("wake: spotter ready")
+		s.Log.Info("wake: spotter ready", "caps", strings.Join(f[1:], " "))
+		s.mu.Lock()
+		s.canMode = false
+		for _, c := range f[1:] {
+			s.canMode = s.canMode || c == "call-mode"
+		}
+		again := s.canMode && s.callMode && s.proc != nil
+		p := s.proc
+		s.mu.Unlock()
+		if again {
+			p.Signal(syscall.SIGUSR1) // restarted during a call
+		}
 	case "WAKE", "CMD":
 		if ev, ok := parseEvent(f[0], f[1:]); ok && s.OnEvent != nil {
 			s.OnEvent(ev)
@@ -155,6 +186,17 @@ func (s *Spotter) line(l string) {
 		if len(f) >= 2 {
 			if ev, ok := parseEvent("SUBHIT:"+f[1], f[2:]); ok && s.OnEvent != nil {
 				s.OnEvent(ev)
+			}
+		}
+	case "MODE":
+		s.Log.Info("wake: vqe communication mode", "line", l)
+		s.mu.Lock()
+		ack := s.modeAck
+		s.mu.Unlock()
+		if ack != nil {
+			select {
+			case ack <- l:
+			default:
 			}
 		}
 	case "LEVEL":
@@ -215,6 +257,75 @@ func (s *Spotter) readVQE(r io.ReadCloser) {
 		if err != nil {
 			return
 		}
+	}
+}
+
+func (s *Spotter) readCall(r io.ReadCloser) {
+	defer r.Close()
+	buf := make([]byte, 640) // 20 ms
+	for {
+		n, err := io.ReadFull(r, buf)
+		if n > 0 {
+			b := append([]byte(nil), buf[:n]...)
+			s.mu.Lock()
+			for _, fn := range s.callSubs {
+				fn(b)
+			}
+			s.mu.Unlock()
+		}
+		if err != nil {
+			return
+		}
+	}
+}
+
+// SubscribeCall delivers vqe_gain (16 kHz mono S16LE): with CallMode on, the VQE's call-processed
+// audio (neural NR, AGC). fn must not block or call back into the Spotter.
+func (s *Spotter) SubscribeCall(fn func([]byte)) (unsubscribe func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.callSubs == nil {
+		s.callSubs = map[int]func([]byte){}
+	}
+	id := s.next
+	s.next++
+	s.callSubs[id] = fn
+	return func() {
+		s.mu.Lock()
+		delete(s.callSubs, id)
+		s.mu.Unlock()
+	}
+}
+
+// CallMode switches the VQE's communication mode (on: the call mode, off: ASR) and waits for the
+// child to confirm; false when it didn't (no model on this unit, an old spotter-host, no child).
+func (s *Spotter) CallMode(on bool) bool {
+	sig := syscall.SIGUSR2
+	if on {
+		sig = syscall.SIGUSR1
+	}
+	ack := make(chan string, 1)
+	s.mu.Lock()
+	s.callMode = on
+	p := s.proc
+	can := s.running && s.canMode
+	s.modeAck = ack
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		if s.modeAck == ack {
+			s.modeAck = nil
+		}
+		s.mu.Unlock()
+	}()
+	if p == nil || !can || p.Signal(sig) != nil {
+		return false
+	}
+	select {
+	case l := <-ack:
+		return strings.HasSuffix(l, " ok")
+	case <-time.After(2 * time.Second): // the first switch loads the NR model
+		return false
 	}
 }
 

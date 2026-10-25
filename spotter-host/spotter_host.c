@@ -26,13 +26,17 @@
  *   spotter-host serve [listen flags, VQE path only] -a <activation_model> [-k <command_model>]
  *       the yastationd child: stdin = raw hw:0,1 frames (8ch S16 48 kHz, as arecord gives them);
  *       stdout = machine lines, one per event (the daemon ignores lines it doesn't know):
- *         READY
+ *         READY call-mode                (capabilities; signals are safe from now on)
  *         WAKE <stream_ms> <phrase>      activation CONFIRMATION_1ST_STAGE
  *         CMD <stream_ms> <phrase>       command CONFIRMATION_1ST_STAGE (always on; the daemon arms)
  *         SUBHIT <WAKE|CMD> <stream_ms> <phrase>
  *         LEVEL <stream_ms> vqe=<dB> raw=<dB> spk=<dB>   (with -v, 1/s)
+ *         MODE <n> ok|err                the communication mode switched (SIGUSR1 / SIGUSR2)
  *       fd 3, if open: continuous vqe_0 16 kHz mono S16LE, written non-blocking (dropped when the
  *       reader lags, so the VQE never stalls). Exits on stdin EOF.
+ *       fd 4, if open: vqe_gain the same way — in the call mode (SetCommunicationMode 1: neural
+ *       NR + AGC) the call's uplink. SIGUSR1 switches the call mode on, SIGUSR2 off (0, the ASR
+ *       mode); vqe_0 (the spotters' input) is the same in both (docs/intercom.md).
  *
  * TYPES is a comma list of channel types, one per interleaved channel (default "0" = omni).
  */
@@ -432,6 +436,9 @@ static int cmd_vqe(float scale, int asr_mode, int comm_mode)
 /* ---------------------------------------------------------------- listen */
 
 static int serve_mode; /* serve: machine-readable lines + vqe_0 on fd 3 */
+static volatile sig_atomic_t want_comm = -1; /* serve: SIGUSR1 = 1 (call), SIGUSR2 = 0 (ASR) */
+
+static void on_usr(int sig) { want_comm = sig == SIGUSR1 ? 1 : 0; }
 
 struct det {
     const char *tag;
@@ -575,16 +582,29 @@ static int cmd_listen(const char *amodel, const char *kmodel, float scale, int a
         return 1;
     short out[4 * 1024], mono[1024];
     int om = 0;
-    int vfd = -1;
+    int vfd = -1, gfd = -1, cur_comm = comm_mode;
     if (serve_mode) {
         if (fcntl(3, F_GETFD) != -1) { /* the daemon passed a pipe for vqe_0 */
             vfd = 3;
             fcntl(vfd, F_SETFL, fcntl(vfd, F_GETFL) | O_NONBLOCK);
             signal(SIGPIPE, SIG_IGN);
         }
-        printf("READY\n");
+        if (fcntl(4, F_GETFD) != -1) { /* ... and one for vqe_gain (the intercom's uplink) */
+            gfd = 4;
+            fcntl(gfd, F_SETFL, fcntl(gfd, F_GETFL) | O_NONBLOCK);
+            signal(SIGPIPE, SIG_IGN);
+        }
+        signal(SIGUSR1, on_usr);
+        signal(SIGUSR2, on_usr);
+        printf("READY call-mode\n"); /* the handlers are in: the daemon may signal now */
     }
     while (!fe_step(&f)) {
+        if (serve_mode && want_comm >= 0 && want_comm != cur_comm) {
+            /* between chunks: the VQE reconfigures itself (the NR model loads on the first switch) */
+            cur_comm = want_comm;
+            int bad = vqe_err("SetCommunicationMode", YandexVqeC_SetCommunicationMode(f.vqe, cur_comm));
+            printf("MODE %d %s\n", cur_comm, bad ? "err" : "ok");
+        }
         size_t n = fe_collect(&f, out, 1024, &om);
         frames += n;
         if (vfd >= 0) {
@@ -592,6 +612,12 @@ static int cmd_listen(const char *amodel, const char *kmodel, float scale, int a
                 mono[i] = out[i * 4 + 0];
             if (write(vfd, mono, n * sizeof(short)) < 0 && errno != EAGAIN)
                 vfd = -1; /* reader gone: stop writing, keep spotting */
+        }
+        if (gfd >= 0) {
+            for (size_t i = 0; i < n; i++)
+                mono[i] = out[i * 4 + 2];
+            if (write(gfd, mono, n * sizeof(short)) < 0 && errno != EAGAIN)
+                gfd = -1;
         }
         for (int k = 0; k < nd; k++) {
             struct det *d = &dets[k];

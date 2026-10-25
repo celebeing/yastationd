@@ -32,6 +32,17 @@ func (a *App) newSpotter() *wake.Spotter {
 	} else {
 		args = append(args, "-R", strconv.Itoa(w.Ref))
 	}
+	// The VQE's models (the call mode's neural noise reducer, docs/intercom.md): ours under
+	// <cfw>/vendor/vqe_models when there (firmware 3.21 ships none), else the firmware's own.
+	models := c.VQEModels
+	if models == "" {
+		if d := a.prof.Platform.CFWRoot + "/vendor/vqe_models"; dirExists(c.Path(d)) {
+			models = d
+		}
+	}
+	if models != "" {
+		args = append(args, "-m", models)
+	}
 	args = append(args, "-a", w.Model)
 	if w.CommandModel != "" {
 		args = append(args, "-k", w.CommandModel)
@@ -145,4 +156,9 @@ func (a *App) wakeAudio(fn func([]byte)) (unsubscribe func()) {
 		return a.spot.SubscribeVQE(time.Duration(a.cfg.PrerollMs)*time.Millisecond, fn)
 	}
 	return a.mic.Subscribe(fn)
+}
+
+func dirExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && st.IsDir()
 }
