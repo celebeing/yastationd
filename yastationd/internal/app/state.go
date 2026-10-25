@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/celebeing/yastationd/yastationd/internal/board"
 	"github.com/celebeing/yastationd/yastationd/internal/config"
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
 )
@@ -51,9 +52,12 @@ func defaultState(ringBright, ambilightBright, clockBright int, clockAuto bool) 
 }
 
 // initialState is the first-start state from the config's initial values.
-func initialState(cfg config.Config) persistState {
+func initialState(cfg config.Config, prof board.Profile) persistState {
 	s := defaultState(cfg.RingBrightness, cfg.AmbilightBrightness, cfg.ClockBrightness, cfg.AutoBrightness)
 	s.Faces = cfg.DisplayFaces
+	if m := prof.Matrix.DefaultMode; m != "" {
+		s.Mode = m
+	}
 	return s
 }
 

@@ -155,7 +155,7 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 		screen:    screen,
 		mixer:     hw.NewMixer(prof.Audio.Card),
 		topics:    mqtt.NewTopics(cfg.TopicPrefix, cfg.DiscoveryPrefix, cfg.DeviceID),
-		store:     newStateStore(cfg.Path(cfg.StateFile), initialState(cfg)),
+		store:     newStateStore(cfg.Path(cfg.StateFile), initialState(cfg, prof)),
 		luxPath:   cfg.LuxPath,
 	}
 	if a.luxPath == "" {

@@ -67,10 +67,14 @@ HA's hand-made seg7 `frames`.
 drawn in perceived intensity and turned into drive values with `matrix.gamma` and the display
 brightness at the end, so half-tones look half as bright on the glass.
 
-- `clock`: `H:MM` in thin 4×9 digits (1-px strokes); with two hour digits the line is exactly the
-  21 columns (4+1+4 +1+1+1 +4+1+4); no leading zero, the line is centred. The colon is steady.
+- `clock`: `H:MM` in square 4×9 digits — 1-px strokes, right angles, no serifs, the 1 a single
+  right-hand stroke, the plain look of the Mini's seg7 clock; with two hour digits the line is
+  exactly the 21 columns (4+1+4 +1+1+1 +4+1+4); no leading zero, the line is centred. The colon
+  is steady.
 - `clock_date` (a display mode of its own): `H:MM` over `DD.MM` in 3×5 digits, the date at 45 %.
-  A seg7 display has no room for both and shows the clock.
+  A seg7 display has no room for both and shows the clock. Orion's default face
+  (`matrix.default_mode = clock_date` in its profile: the mode of a fresh state, before HA sets
+  one).
 - A minute change cross-fades the old picture into the new one over 600 ms. It needs no state:
   in the first 600 ms of a minute the frame mixes the previous minute's picture in.
 - Before the first time sync: only the colon, blinking.

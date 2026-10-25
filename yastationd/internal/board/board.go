@@ -97,6 +97,8 @@ type MatrixSpec struct {
 	Dot     string
 	Degree  string
 	Gamma   float64 // dotmatrix-fb: gamma applied to the firmware's screen patterns; 0 = none
+	// DefaultMode is the display mode of a fresh state (before HA sets one); "" = clock.
+	DefaultMode string
 }
 
 // InputSpec: evdev devices by their kernel name (from /proc/bus/input/devices) and what their
@@ -322,6 +324,13 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Matrix.Degree = v
 	case k == "matrix.gamma":
 		p.Matrix.Gamma, err = strconv.ParseFloat(v, 64)
+	case k == "matrix.default_mode":
+		switch v {
+		case "clock", "clock_date", "off":
+			p.Matrix.DefaultMode = v
+		default:
+			err = fmt.Errorf("display mode %q: clock, clock_date or off", v)
+		}
 	case k == "input.device":
 		list(&p.Input.Devices)
 	case strings.HasPrefix(k, "key."):

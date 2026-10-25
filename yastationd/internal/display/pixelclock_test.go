@@ -28,18 +28,18 @@ func TestPixelClock(t *testing.T) {
 	at := func(h, m, s int) time.Time { return time.Date(2026, 10, 26, h, m, s, 0, time.UTC) }
 
 	r := rows(f.Clock(at(12, 34, 30), time.UTC, 255), 21)
-	if r[0] != strings.Repeat(".", 21) || r[1] != "..#...##.....##....##" {
+	if r[0] != strings.Repeat(".", 21) || r[1] != "...#.####...####.#..#" {
 		t.Errorf("12:34 top rows:\n%s", strings.Join(r, "\n"))
 	}
 	// no leading zero: "8:59" is 16 columns, centred (2 columns left of it)
 	r = rows(f.Clock(at(8, 59, 30), time.UTC, 255), 21)
-	if !strings.HasPrefix(r[1], "...##.") {
+	if !strings.HasPrefix(r[1], "..####.") {
 		t.Errorf("8:59 not centred:\n%s", strings.Join(r, "\n"))
 	}
 	// full brightness, full level: drive 255
 	px := f.Clock(at(12, 34, 30), time.UTC, 255).Px
-	if px[1*21+2].R != 255 {
-		t.Errorf("lit pixel = %d", px[1*21+2].R)
+	if px[1*21+3].R != 255 {
+		t.Errorf("lit pixel = %d", px[1*21+3].R)
 	}
 	// the cross-fade: mid-way, a pixel lit only in the old minute is half (perceived) -> gamma
 	mid := f.Clock(at(12, 35, 0).Add(clockFade/2), time.UTC, 255).Px
