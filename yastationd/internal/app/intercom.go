@@ -507,14 +507,36 @@ func (a *App) icStartAudio() {
 			}
 		})
 	}
-	var rec *os.File // testing (intercom_record_dir): the raw uplink, S16LE 16 kHz mono
+	// Testing (intercom_record_dir): the uplink before the guard (S16LE 16 kHz mono), and the raw
+	// mic-array capture as arecord gives it (to replay it through the VQE in other modes).
+	var rec, recMics *os.File
+	unsubMics := func() {}
 	if d := a.cfg.IntercomRecordDir; d != "" {
-		name := filepath.Join(d, "intercom-up-"+time.Now().UTC().Format("20060102-150405")+".raw")
-		if rec, err = os.Create(name); err != nil {
+		stamp := time.Now().UTC().Format("20060102-150405")
+		if rec, err = os.Create(filepath.Join(d, "intercom-up-"+stamp+".raw")); err != nil {
+			a.log.Warn("intercom: record", "err", err)
+		}
+		if recMics, err = os.Create(filepath.Join(d, "intercom-mics-"+stamp+".raw")); err != nil {
 			a.log.Warn("intercom: record", "err", err)
 		} else {
-			a.log.Info("intercom: recording the raw uplink", "file", name)
+			mics := make(chan []byte, 64)
+			unsubRaw := a.mic.SubscribeRaw(func(b []byte) {
+				select {
+				case mics <- append([]byte(nil), b...):
+				default:
+				}
+			})
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				for b := range mics {
+					recMics.Write(b)
+				}
+				recMics.Close()
+			}()
+			unsubMics = func() { unsubRaw(); close(mics); <-done }
 		}
+		a.log.Info("intercom: recording", "dir", d, "stamp", stamp)
 	}
 	var unsub func()
 	if a.spot != nil && a.spot.Running() {
@@ -594,6 +616,7 @@ func (a *App) icStartAudio() {
 	ic.guard = g
 	ic.stop = func() {
 		unsub()
+		unsubMics()
 		close(quit)
 		out.Close() // unblocks a pending write
 		wg.Wait()
