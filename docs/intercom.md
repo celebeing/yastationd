@@ -297,7 +297,7 @@ Commits land on `main` meanwhile; `intercom` stays off by default.
    loopback UDP; simulated loss, reordering and ±300 ppm drift; crypto and signalling tables),
    daemon wiring, the voice scenario's transcript matcher, HA entities, config. Off by default;
    not released until checked on speakers.
-2. **On two speakers** (needs the user): the checklist below; tune jitter, guard, volume.
+2. **On two speakers** — first call done (2026-10-25, two bergamots); pickle still to check.
 3. **VQE call mode** — done on bergamot (2026-10-25); `make vqe-models` puts the NR model on a
    unit (from its own firmware, else `VQE_MODEL=<file>` from a dump). Still to do: pickle and
    orion.
@@ -357,6 +357,15 @@ voice came through.
   calls again: per-thread on a bergamot in a call with far-end speech — VQE + NR 46 % of a core,
   «Алиса» 39 %, commands 16 %; the uplink at real time (3001 frames in 60 s), the far end lost
   nothing, no spotter fell behind.
+
+## Two speakers (2026-10-25, bergamot unit A → bergamot unit B, another room)
+
+The first real call: started on unit A by an MQTT command (`<prefix>/<id>/intercom/set`
+`{"action":"call","to":"<id>"}`, as an HA automation would); answered in the other room with
+«продолжи» after 3 s; the call mode on both (`MODE 1 ok` within 40 ms); «Алиса, громче» ×3 on
+one side, «Алиса, тише» on the other; hung up after 83 s with «Алиса, хватит». Per side 6–7 of
+4170 packets lost or late, no rebuffering, the jitter target 40–60 ms. The user: "все отлично".
+unit B's firmware ships `model_call.nnet`, so `make vqe-models` took it from there.
 
 ## Testing with one speaker: `intercom-peer`
 
