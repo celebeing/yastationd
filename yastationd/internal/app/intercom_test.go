@@ -41,7 +41,7 @@ func testIntercomApp(t *testing.T, id, name string) *App {
 	cfg.IntercomPort = freeUDPPort(t)
 	a := &App{cfg: cfg, log: log,
 		ringStack:   display.NewStack(func(time.Time) display.RingFrame { return display.Blank(12) }),
-		matrixStack: display.NewStack(func(time.Time) display.MatrixFrame { return display.MatrixFrame{} }),
+		matrixStack: display.NewStack(func(time.Time) display.FrontFrame { return display.FrontFrame{} }),
 		mixer:       hw.NewMixer("0"),
 		mic:         &hw.Mic{Device: "fake", Channels: 1, Rate: 16000, Log: log},
 		store:       newStateStore(filepath.Join(t.TempDir(), "state"), defaultState(128, 128, 128, false)),

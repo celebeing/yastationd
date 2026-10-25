@@ -101,7 +101,7 @@ plays, the white "thinking" comet while it waits for audio, and nothing once apl
 `notify` show_text + `number` text_duration (s) · `select` ring_animation + `number`
 animation_duration (s) · `binary_sensor` mic_mute · `sensor` lux/health/uptime ·
 `binary_sensor` pipeline_ok · `event` button (volume_up/down, voice_command, panel_gesture) ·
-`select` expression (attributes: the display capabilities) · `switch` display_faces (seg7 fronts) ·
+`select` expression (attributes: the display capabilities) · `switch` display_faces ·
 with `intercom = true`: `sensor` intercom (idle/calling/ringing/in_call; attributes peer, ended) ·
 `select` intercom_target (the other speakers) · `button` intercom_call (also answers) ·
 `button` intercom_hangup ([docs/intercom.md](../docs/intercom.md)).

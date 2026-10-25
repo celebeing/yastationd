@@ -10,33 +10,35 @@ import (
 // stack (docs/display-expressions.md). Callers name the state and a slot; all of the slot's
 // layers are replaced or removed together.
 
-// expression says what one state shows per surface.
+// expression says what one state shows on the ring and how its front part plays. Which animation
+// the front part is, is the front display's business (display.Front.Anim resolves the name): a
+// seg7 display plays a clock clip, a pixel screen its own screen pattern, and a display without
+// one shows nothing.
 type expression struct {
-	ring     string   // ring effect (effects.go); "" = leaves the ring alone
-	ringPrio int      // its priority on the ring
-	clips    []string // front-display clip candidates (stock names across firmwares, then ours)
-	loop     bool     // the clip repeats until the slot is cleared
+	ring     string // ring effect (effects.go); "" = leaves the ring alone
+	ringPrio int    // its priority on the ring
+	loop     bool   // the front animation repeats until the slot is cleared
 }
 
 var expressions = map[string]expression{
-	"listening": {ring: "listening", ringPrio: display.PrioVoice, clips: []string{"alice_listening", "listening"}, loop: true},
-	"thinking":  {ring: "thinking", ringPrio: display.PrioVoice, clips: []string{"alice_thinking", "thinking"}, loop: true},
-	"speaking":  {ring: "speaking", ringPrio: display.PrioVoice, clips: []string{"alice_speaking", "speaking"}, loop: true},
-	"waiting":   {ring: "waiting", ringPrio: display.PrioVoice, clips: []string{"waiting"}, loop: true},
-	"busy":      {ring: "busy", ringPrio: display.PrioVoice, clips: []string{"blink"}},
+	"listening": {ring: "listening", ringPrio: display.PrioVoice, loop: true},
+	"thinking":  {ring: "thinking", ringPrio: display.PrioVoice, loop: true},
+	"speaking":  {ring: "speaking", ringPrio: display.PrioVoice, loop: true},
+	"waiting":   {ring: "waiting", ringPrio: display.PrioVoice, loop: true},
+	"busy":      {ring: "busy", ringPrio: display.PrioVoice},
 	"error":     {ring: "error", ringPrio: display.PrioVoice},
 	"mute":      {ring: "mute", ringPrio: display.PrioVoice},
-	"boot":      {ring: "boot", ringPrio: display.PrioScenario, clips: []string{"boot"}},
-	"ringing":   {clips: []string{"ringing"}, loop: true},
-	"pause":     {clips: []string{"player_pause", "pause"}},
-	"next":      {clips: []string{"player_next_track", "next_track"}},
-	"previous":  {clips: []string{"player_previous_track", "previous_track"}},
-	"eyes":      {clips: []string{"eyes", "configuring"}, loop: true},
-	"blink":     {clips: []string{"blink"}},
-	"happy":     {ring: "success", ringPrio: display.PrioScenario, clips: []string{"happy"}},
-	"sad":       {clips: []string{"sad"}},
-	"wink":      {clips: []string{"wink"}},
-	"sleep":     {clips: []string{"sleep"}, loop: true},
+	"boot":      {ring: "boot", ringPrio: display.PrioScenario},
+	"ringing":   {loop: true},
+	"pause":     {},
+	"next":      {},
+	"previous":  {},
+	"eyes":      {loop: true},
+	"blink":     {},
+	"happy":     {ring: "success", ringPrio: display.PrioScenario},
+	"sad":       {},
+	"wink":      {},
+	"sleep":     {loop: true},
 }
 
 // oneShotRing is how long a one-shot expression's ring part lasts when it has no clip to end with.
@@ -56,35 +58,36 @@ func ringHolds(name string) bool {
 var expressionNames = []string{"listening", "thinking", "speaking", "happy", "sad", "wink", "eyes",
 	"blink", "sleep", "ringing", "pause", "next", "previous", "error"}
 
-// frontClips: the front display takes clip layers. Only 7-segment displays for now: pixel
-// screens get their own scenes once explored on a device, and show none of these meanwhile.
+// frontClips: the front display takes animation layers (it has one, and the faces switch is on).
 func (a *App) frontClips() bool {
-	return a.matrix != nil && a.screen == nil && a.store.get().Faces
+	return a.front != nil && a.store.get().Faces
+}
+
+// frontAnim resolves name to the front display's own animation (display.Front.Anim).
+func (a *App) frontAnim(name string) (display.Anim, bool) {
+	if a.front == nil {
+		return nil, false
+	}
+	return a.front.Anim(name)
 }
 
 // express shows state name in slot on every surface it has a part for; ttl 0 = until replaced,
 // removed or (for a one-shot clip) played out. A name that is no expression but a clip plays
 // that clip once. It reports whether anything was shown.
 func (a *App) express(slot, name string, ttl time.Duration) bool {
-	e, ok := expressions[name]
-	if !ok {
-		e = expression{clips: []string{name}}
-	}
+	e := expressions[name] // no expression: an animation name, front only
 	shown := false
-	var clip display.Clip
+	var clip display.Anim
 	haveClip := false
-	if len(e.clips) > 0 && a.frontClips() {
-		clip, haveClip = a.clips.Load(e.clips...)
+	if a.frontClips() {
+		clip, haveClip = a.front.Anim(name)
 	}
 	// Replace in place (Push over the same slot), never remove-then-push: a render between the two
 	// would show the layer below for a frame. A state without a front part (speaking -> error)
 	// removes the previous state's clip.
 	if haveClip {
-		r := display.PlayClip(clip, e.loop, a.brightness)
-		if !e.loop && ttl > 0 { // a short clip asked for ttl keeps its last frame
-			r = display.HoldClip(clip, a.brightness)
-		}
-		a.matrixStack.Push(slot, display.PrioExpression, ttl, r)
+		// A short clip asked for ttl keeps its last frame.
+		a.matrixStack.Push(slot, display.PrioExpression, ttl, clip.Play(e.loop, !e.loop && ttl > 0, a.brightness))
 		shown = true
 	} else {
 		a.matrixStack.Remove(slot)
@@ -116,11 +119,20 @@ func (a *App) unexpress(slot string) {
 	a.matrixStack.Remove(slot)
 }
 
-// newClipLibrary searches the CFW's converted clips, then the firmware's own, then ours.
-func (a *App) newClipLibrary() *display.ClipLibrary {
+// newFront picks the front display's scene catalogue by its kind. Animations are searched in the
+// CFW's clips directory, then the firmware's (then, on seg7, among our embedded clips).
+func (a *App) newFront() display.Front {
 	dirs := []string{a.cfg.Path(a.cfg.ClipsDir)}
 	if d := a.prof.Clips.Dir; d != "" {
 		dirs = append(dirs, a.cfg.Path(d))
 	}
-	return &display.ClipLibrary{Dirs: dirs}
+	switch {
+	case a.screen != nil:
+		w, h := a.screen.Size()
+		return display.PixelFront{W: w, H: h,
+			Patterns: &display.PixelLibrary{Dirs: dirs, W: w, H: h, Gamma: a.prof.Matrix.Gamma}}
+	case a.matrix != nil:
+		return display.Seg7Front{Clips: &display.ClipLibrary{Dirs: dirs}}
+	}
+	return nil
 }

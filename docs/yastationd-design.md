@@ -36,9 +36,11 @@ Brightness source `/bkupgrade/cfw/clock_brightness` (currently 128). Reference i
 by name (or `matrix.dev` pins the path) and reads geometry, row stride and RGB byte
 offsets via fbdev ioctls — no hard-coded packing. The panel latches one write behind:
 the 15 Hz display loop continuously re-sends the current frame, making it stable with no
-visible flash; shutdown writes blank then flushes once. The same `MatrixFrame` stack is
-rendered as a compact 3×5 segment font doubled vertically to 3×10, so clock, countdown,
-messages, marquee, brightness and overlay priority are board-independent.
+visible flash; shutdown writes blank then flushes once. The front stack's layers come from
+a per-display catalogue (`display.Front`, [display-expressions.md](display-expressions.md)
+"Front displays"): animations are the firmware's own screen patterns, while clock,
+countdown, messages and marquee are still the seg7 picture drawn as a compact 3×5 font
+doubled vertically to 3×10 (the fallback until they get pixel drawings).
 
 ### Orion rear ambilight — 12 RGBW positions
 `orion:{red,green,blue,white}:ambilight{i}{a,b}` exposes two co-located dies for each

@@ -1,8 +1,9 @@
 # Display expressions: surfaces, expressions, scenarios
 
-Status (2026-10-24): working on the seg7 front display (bergamot, pickle) and the ring; checked by
-eye on bergamot. Pixel screens (orion's 21×12, Midi's panel) come later: until they are explored on
-a device, their boards show no expression layers on the front screen.
+Status (2026-10-25): working on the seg7 front display (bergamot, pickle) and the ring; checked by
+eye on bergamot. Orion's 21×12 pixel screen plays the firmware's own screen animations for the
+expressions (host-tested against the 3.21 dump, **not yet seen on glass**); its clock, text and
+numbers are still the seg7 picture drawn as pixels (see "Front displays").
 
 ## Three layers
 
@@ -28,6 +29,79 @@ removes them everywhere. Conflicts are resolved per surface: a timer ring that p
 on the front leaves its ring part running, and the front returns to the scenario afterwards. The
 rear ambilight is never part of an expression (it is the user's lamp); only a scenario that names
 it explicitly drives it.
+
+## Front displays
+
+The app never draws the front display itself. It asks a `display.Front` (`internal/display/front.go`),
+the catalogue of one kind of display, for a **scene** or an **animation**, and pushes what it gets
+onto the front stack:
+
+- **Scenes**: the clock (and the clock before the first time sync), static or scrolling text, a
+  number, a countdown, the Wi-Fi setup face. Each kind of display draws them its own way.
+- **Animations**: `Anim(name)` resolves a semantic name (every expression, plus `booting`,
+  `call_incoming`, `call_outgoing`, `setup`) or a plain animation name to an animation native to
+  the display. An entry with no candidates means "this display has none": the expression then has
+  no front part there (as `error` on seg7, or `sad` on orion).
+
+| Kind | Scenes | Animations |
+|---|---|---|
+| `Seg7Front` (bergamot, pickle) | 4-digit seg7 pictures | the stock clock clips (`.scled`, below) and ours, via the candidate names in `seg7Anims` |
+| `PixelFront` (orion) | **fallback:** inherited from `Seg7Front`, drawn by `Seg7ToPixels` (3×5 font doubled vertically) | the firmware's screen patterns (`.led`, below), via `pixelAnims` |
+
+A layer's frame (`FrontFrame`) is either a seg7 picture or native pixels. A pixel screen draws a
+seg7 picture through `Seg7ToPixels`; that is the fallback for every scene that has no pixel drawing
+yet. To draw a scene properly on a pixel screen (a real pixel clock, a volume arc from the stock
+`rcu_volume/` patterns), override that method on `PixelFront`; nothing in the app changes.
+Animations are never converted from seg7 to pixels: a semantic animation the screen has no pattern
+for is simply not shown. The only seg7 content a pixel screen draws as pixels besides the scenes is
+HA's hand-made seg7 `frames`.
+
+## Screen patterns (pixel, orion)
+
+The 3.21 firmware ships its screen animations in `/system/vendor/quasar/ledpatterns/screen/`
+(26 top-level files and subdirectories, 90 patterns), the same text format as its ring patterns:
+one frame per line, `RRGGBB` per pixel (252 = 21×12, row-major) and the frame's duration in ms
+(20 ms almost everywhere, i.e. 50 fps). Directive lines can stand between frames:
+
+- `loop` marks where the **repeating part starts**. On the first line the whole file loops; further
+  down the frames above it are an intro played once: `call_incoming` (line 51), `configure`
+  (line 368), `update_downloading` (60), `call_outgoing` (2).
+- `smooth N` (interpolation) appears only in the factory `qc` pattern; we ignore it.
+  `no_size_optimization` (in `volume`) means nothing for playback.
+
+The files hold uncorrected levels: the firmware applies the screen's gamma (2.2, quasar.cfg
+`leds.screen.colorCorrection`) when it plays them. We do the same (board key `matrix.gamma`). All
+patterns are grey (R = G = B). Names are paths relative to the directory without `.led`; `a+b`
+chains patterns (the frames of all but the last are the intro). `maind` names only the
+subdirectories (`oknix`), not the files, so the stage order comes from the numbered file names.
+
+| Expression / name | Pattern |
+|---|---|
+| listening | `oknix/01-activation` + `02-activation-to-listening` + `03-listening-loop` (a pulsing disc) |
+| thinking | `oknix/04-listening-to-answer` + `05-thinking-loop` (a running dot) |
+| speaking | `oknix/06-answer-loop` (a wave) |
+| waiting | `oknix/05-thinking-loop` |
+| error | `error` (two crosses, loops) |
+| mute | `mute` (a crossed-out microphone) |
+| boot / booting | `boot` / `boot/FirstBoot_LoadLoop01` (the boot-phase layer) |
+| ringing (alarm, timer) | `alarm/alarm_loop` |
+| call_incoming / call_outgoing | `call_incoming` / `call_outgoing` (a handset, intro + loop) |
+| setup (Wi-Fi setup mode) | `configure` |
+| pause / next / previous | `media/Pause` / `media/Next` / `media/Previous` |
+| eyes, blink / wink / happy | `scenario_emotion/Smile_Neutral_Output` / `Smile_Wink_Output` / `emotion/joy` |
+| busy, sad, sleep | none |
+
+Unused so far, for later scenes: `media/Like`, `Dislike`, `Resume`; `rcu_volume/` (per-level volume
+arcs: `volume_edge`, `volume_pulse/{up,down}/<0..10>`, `volume_rotation/…`), `volume`, `timer` and
+`timer/timer_bell`, `calls/call_hold`, `call_connected`/`call_ended`, `bluetooth_*`, `block`,
+`unmute`/`sound_mute`, `scenario_emotion/` (activation, listening, confirmation variants),
+`emotion/surprise`. HA can play any of them by name (`display/cmd` `clip`, e.g. `media/Like`).
+
+Not yet checked on glass: whether gamma 2.2 is right for our fb writes (the driver might correct
+too), how the 50 fps patterns look on our 15 Hz render loop (frames are picked by time, so the
+timing is right but in-between frames are skipped), and how they sit with auto-brightness.
+`TestPixelAnimsOnFirmware` (`YASTATIOND_SCREEN_PATTERNS=<…>/ledpatterns/screen go test
+./internal/display`) checks every mapped pattern against a firmware tree.
 
 ## Priorities (high → low), per surface
 
@@ -97,13 +171,16 @@ a layer 120 ms (digits morphing, scrolling text); frames inside one clip are pas
 carry their own timing. Elements two pictures share stay lit, so back-to-back animations join
 without a blank. Layers are replaced in place (a push over the same slot, never remove-then-push),
 and scenario steps replace the previous step's layers. Pixel screens keep a plain fade-in on a
-change of the top layer until they get their own scenes.
+change of the top layer (80 ms up, 400 ms back down); their patterns carry their own transitions
+(the `oknix/` intros, the `loop` intros).
 
 ## HA exposure
 
 - `display_mode` select keeps clock / message / off (later: idle, music on pixel screens).
 - `display/cmd` gains `{"surface":"matrix","op":"clip","args":{"name":…,"loop":…}}` and
-  `"op":"frames"` with raw seg7 frames, next to the existing text / number / countdown.
+  `"op":"frames"` with raw seg7 frames, next to the existing text / number / countdown. `clip`
+  takes a semantic name too (`listening`) and, on a pixel screen, a pattern path (`media/Like`);
+  `frames` on a pixel screen go through the seg7 fallback.
 - `express/set` `{"name":…, "ttl_ms":…}` and `scenario/set` `{"name":…}` or an inline scenario.
 - A select of the clips available on this speaker, a switch for the voice expressions on the front
   display, and the surfaces' capabilities as attributes, so HA scripts and an LLM agent know what a
@@ -117,4 +194,7 @@ change of the top layer until they get their own scenes.
 3. Clips + voice on the front — done (see "How the expressions are used"); `make clips`.
 4. HA — done: the topics and entities above, scenarios.
 5. Music: pause / next / previous clips; levels and metadata from sendspin-host for a visualiser.
-6. Pixel screens (orion first): their own scenes, once a unit is on the desk.
+6. Pixel screens (orion first): the `Front` catalogue and the firmware's screen patterns for every
+   expression and the call / alarm / boot / setup states — done blind (host-tested on the 3.21
+   dump). Left: check on glass (gamma, frame rate), then proper pixel scenes in place of the seg7
+   fallback (clock, text, volume from `rcu_volume/`).

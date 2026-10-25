@@ -128,17 +128,13 @@ func (a *App) showStep(st scenarioStep, d time.Duration) {
 		}
 	}
 	if st.Matrix != "" && a.frontClips() {
-		if c, ok := a.clips.Load(st.Matrix); ok {
-			r := display.PlayClip(c, c.Loop, a.brightness)
-			if !c.Loop {
-				r = display.HoldClip(c, a.brightness)
-			}
-			a.matrixStack.Push(scenarioSlot, display.PrioExpression, d, r)
+		if c, ok := a.front.Anim(st.Matrix); ok {
+			a.matrixStack.Push(scenarioSlot, display.PrioExpression, d, c.Play(c.Looping(), !c.Looping(), a.brightness))
 			front = true
 		}
 	}
-	if st.Text != "" {
-		a.matrixStack.Push(scenarioSlot, display.PrioExpression, d, display.Marquee(st.Text, marqueeStep, a.brightness))
+	if st.Text != "" && a.front != nil {
+		a.matrixStack.Push(scenarioSlot, display.PrioExpression, d, a.front.Marquee(st.Text, marqueeStep, a.brightness))
 		front = true
 	}
 	if !ring {

@@ -184,20 +184,24 @@ func (a *App) cmdDisplay(payload []byte) {
 
 func (a *App) matrixOverlay(op string, args json.RawMessage, prio int, ttl time.Duration) {
 	name := "ov_matrix"
+	if a.front == nil {
+		a.log.Info("display/cmd: no front display", "op", op)
+		return
+	}
 	switch op {
 	case "text", "message":
 		var v struct {
 			Text string `json:"text"`
 		}
 		json.Unmarshal(args, &v)
-		a.matrixStack.Push(name, prio, ttl, display.Marquee(v.Text, marqueeStep, a.brightness))
+		a.matrixStack.Push(name, prio, ttl, a.front.Marquee(v.Text, marqueeStep, a.brightness))
 	case "number":
 		var v struct {
 			N int `json:"n"`
 		}
 		json.Unmarshal(args, &v)
-		a.matrixStack.Push(name, prio, ttl, func(time.Time, display.MatrixFrame) (display.MatrixFrame, bool) {
-			return display.Number(v.N, a.brightness()), false
+		a.matrixStack.Push(name, prio, ttl, func(time.Time, display.FrontFrame) (display.FrontFrame, bool) {
+			return a.front.Number(v.N, a.brightness()), false
 		})
 	case "countdown":
 		var v struct {
@@ -211,15 +215,13 @@ func (a *App) matrixOverlay(op string, args json.RawMessage, prio int, ttl time.
 				deadline = dl
 			}
 		}
-		a.matrixStack.Push("countdown", prio, 0, display.Countdown(deadline, a.brightness))
+		a.matrixStack.Push("countdown", prio, 0, a.front.Countdown(deadline, a.brightness))
 	case "clear":
 		a.matrixStack.Remove(name)
 		a.matrixStack.Remove("countdown")
 	case "clip", "frames":
-		if !a.frontClipsPossible() {
-			a.log.Info("display/cmd: this front display takes no clips", "op", op)
-			return
-		}
+		// "clip" names an animation of this display (or a semantic one: "listening"); "frames"
+		// are hand-made seg7 frames, which a pixel screen draws through its seg7 fallback.
 		var v struct {
 			Name   string             `json:"name"`
 			Loop   *bool              `json:"loop"`
@@ -229,25 +231,26 @@ func (a *App) matrixOverlay(op string, args json.RawMessage, prio int, ttl time.
 			a.log.Warn("display/cmd: bad clip args", "err", err)
 			return
 		}
-		var c display.Clip
+		var c display.Anim
 		if op == "clip" {
 			var ok bool
-			if c, ok = a.clips.Load(v.Name); !ok {
+			if c, ok = a.front.Anim(v.Name); !ok {
 				a.log.Info("display/cmd: no such clip", "name", v.Name)
 				return
 			}
 		} else {
-			var err error
-			if c, err = display.ClipFromRaw(v.Frames); err != nil {
+			raw, err := display.ClipFromRaw(v.Frames)
+			if err != nil {
 				a.log.Warn("display/cmd: bad frames", "err", err)
 				return
 			}
+			c = raw
 		}
-		loop := c.Loop
+		loop := c.Looping()
 		if v.Loop != nil {
 			loop = *v.Loop
 		}
-		a.matrixStack.Push(name, prio, ttl, display.PlayClip(c, loop, a.brightness))
+		a.matrixStack.Push(name, prio, ttl, c.Play(loop, false, a.brightness))
 	default:
 		a.log.Warn("matrix op unknown", "op", op)
 	}
@@ -348,9 +351,12 @@ func (a *App) playRingEffect(name string, color *hw.RGB, brightness *int, prio i
 
 // show_text (notify): the message on the matrix for TextSecs, scrolling if long.
 func (a *App) cmdShowText(payload []byte) {
+	if a.front == nil {
+		return
+	}
 	secs := a.store.get().TextSecs
 	a.matrixStack.Push("ov_matrix", display.PrioScenario, time.Duration(secs)*time.Second,
-		display.Marquee(string(payload), marqueeStep, a.brightness))
+		a.front.Marquee(string(payload), marqueeStep, a.brightness))
 }
 
 // ring_animation (select): play the chosen effect for AnimSecs, then report "off" again.

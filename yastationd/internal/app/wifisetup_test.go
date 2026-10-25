@@ -14,7 +14,7 @@ func TestSetupKeyCombo(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	a := &App{log: log,
 		ringStack:   display.NewStack(func(time.Time) display.RingFrame { return nil }),
-		matrixStack: display.NewStack(func(time.Time) display.MatrixFrame { return display.MatrixFrame{} }),
+		matrixStack: display.NewStack(func(time.Time) display.FrontFrame { return display.FrontFrame{} }),
 		setup:       wifisetup.New(wifisetup.Options{Log: log})}
 	a.sat = &satellite{a: a}
 

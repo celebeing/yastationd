@@ -214,6 +214,14 @@ func writeLevels(b *bytes.Buffer, l []uint8) {
 	}
 }
 
+// Looping: the clip is drawn to repeat (the "loop" line).
+func (c Clip) Looping() bool { return c.Loop }
+
+// Play makes the clip a front-display Anim.
+func (c Clip) Play(loop, hold bool, brightness func() int) RenderFunc[FrontFrame] {
+	return SegLayer(playClip(c, loop && !hold, hold, brightness))
+}
+
 // PlayClip renders c from the first frame it is asked for. With loop it repeats until the
 // layer is removed; otherwise the layer pops after one pass. Brightness scales every level,
 // so a clip follows the clock's auto-brightness.

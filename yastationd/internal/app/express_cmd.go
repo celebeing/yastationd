@@ -2,7 +2,6 @@ package app
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 )
@@ -16,8 +15,8 @@ const haSlot = "ha"
 func (a *App) expressionOptions() []string {
 	opts := []string{animOff}
 	for _, n := range expressionNames {
-		e := expressions[n]
-		if e.ring != "" || (a.matrix != nil && a.screen == nil && len(e.clips) > 0) {
+		_, front := a.frontAnim(n)
+		if expressions[n].ring != "" || front {
 			opts = append(opts, n)
 		}
 	}
@@ -110,12 +109,8 @@ func (a *App) cmdFaces(payload []byte) {
 // displayCaps tells HA scripts and an LLM agent what this speaker can show.
 func (a *App) displayCaps() string {
 	front := "none"
-	switch {
-	case a.screen != nil:
-		w, h := a.screen.Size()
-		front = fmt.Sprintf("pixels %dx%d", w, h)
-	case a.matrix != nil:
-		front = "seg7"
+	if a.front != nil {
+		front = a.front.Kind()
 	}
 	m := map[string]any{
 		"front":       front,
@@ -125,11 +120,12 @@ func (a *App) displayCaps() string {
 		"scenarios":   a.scenarioNames(),
 	}
 	if a.frontClipsPossible() {
-		m["clips"] = a.clips.Names()
+		m["clips"] = a.front.Anims()
 	}
 	b, _ := json.Marshal(m)
 	return string(b)
 }
 
-// frontClipsPossible: the board's front display takes clips (whatever the faces switch says).
-func (a *App) frontClipsPossible() bool { return a.matrix != nil && a.screen == nil }
+// frontClipsPossible: the board has a front display to play animations on (whatever the faces
+// switch says).
+func (a *App) frontClipsPossible() bool { return a.front != nil }

@@ -107,15 +107,13 @@ func (a *App) showLife(s life) {
 			c = display.Red
 		}
 		a.ringStack.Push(lifeSlot, display.PrioDegraded, 0, display.Pulse(c, 2*time.Second))
-		if a.frontClipsPossible() {
-			if clip, ok := a.clips.Load("sleep"); ok {
-				a.matrixStack.Push(lifeSlot, display.PrioDegraded, 0, display.PlayClip(clip, true, a.brightness))
-				return
-			}
+		if clip, ok := a.frontAnim("booting"); ok {
+			a.matrixStack.Push(lifeSlot, display.PrioDegraded, 0, clip.Play(true, false, a.brightness))
+			return
 		}
-		// No clips: a blank front (the time is unknown anyway).
-		a.matrixStack.Push(lifeSlot, display.PrioDegraded, 0, func(time.Time, display.MatrixFrame) (display.MatrixFrame, bool) {
-			return display.MatrixFrame{}, false
+		// No animation: a blank front (the time is unknown anyway).
+		a.matrixStack.Push(lifeSlot, display.PrioDegraded, 0, func(time.Time, display.FrontFrame) (display.FrontFrame, bool) {
+			return display.FrontFrame{}, false
 		})
 	case lifeReady:
 		a.unexpress(lifeSlot)

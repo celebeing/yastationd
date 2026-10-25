@@ -43,8 +43,9 @@ type Profile struct {
 	Clips     ClipsSpec
 }
 
-// ClipsSpec: where the firmware keeps its clock animation clips (text .scled; see
-// docs/display-expressions.md). "" = none; the CFW's converted clips and our own still work.
+// ClipsSpec: where the firmware keeps the front display's animations (docs/display-expressions.md):
+// the clock clips (text .scled) for a seg7 display, the screen patterns (.led, in subdirectories)
+// for a dot matrix. "" = none; the CFW's own clips and our embedded seg7 ones still work.
 type ClipsSpec struct {
 	Dir string
 }
@@ -87,6 +88,7 @@ type MatrixSpec struct {
 	Colon   []string
 	Dot     string
 	Degree  string
+	Gamma   float64 // dotmatrix-fb: gamma applied to the firmware's screen patterns; 0 = none
 }
 
 // InputSpec: evdev devices by their kernel name (from /proc/bus/input/devices) and what their
@@ -308,6 +310,8 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Matrix.Dot = v
 	case k == "matrix.degree":
 		p.Matrix.Degree = v
+	case k == "matrix.gamma":
+		p.Matrix.Gamma, err = strconv.ParseFloat(v, 64)
 	case k == "input.device":
 		list(&p.Input.Devices)
 	case strings.HasPrefix(k, "key."):

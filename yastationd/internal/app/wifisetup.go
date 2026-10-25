@@ -136,12 +136,15 @@ func (a *App) showSetup(on bool) {
 		return
 	}
 	a.ringStack.Push("wifisetup", display.PrioSetup, 0, display.Comet(display.Yellow, 1200*time.Millisecond))
-	a.matrixStack.Push("wifisetup", display.PrioSetup, 0,
-		func(time.Time, display.MatrixFrame) (display.MatrixFrame, bool) {
-			f := display.Text("O  O", a.brightness())
-			f.Degree = true
-			return f, false
-		})
+	switch c, ok := a.frontAnim("setup"); {
+	case ok:
+		a.matrixStack.Push("wifisetup", display.PrioSetup, 0, c.Play(true, false, a.brightness))
+	case a.front != nil:
+		a.matrixStack.Push("wifisetup", display.PrioSetup, 0,
+			func(time.Time, display.FrontFrame) (display.FrontFrame, bool) {
+				return a.front.SetupMode(a.brightness()), false
+			})
+	}
 }
 
 // setupSignalLoop: SIGUSR1 toggles setup mode like the key combo, for testing over SSH

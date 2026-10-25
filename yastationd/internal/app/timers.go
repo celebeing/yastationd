@@ -75,6 +75,9 @@ func (a *App) onTimerEvent(ev wyoming.Event) {
 // refreshTimerDisplay shows the soonest active timer, else the first paused one frozen and
 // blinking for pausedShowFor.
 func (a *App) refreshTimerDisplay() {
+	if a.front == nil {
+		return
+	}
 	t := &a.timers
 	t.mu.Lock()
 	var active, paused []*voiceTimer
@@ -89,14 +92,14 @@ func (a *App) refreshTimerDisplay() {
 	switch {
 	case len(active) > 0:
 		sort.Slice(active, func(i, j int) bool { return active[i].deadline.Before(active[j].deadline) })
-		a.matrixStack.Push("timer", display.PrioScenario, 0, display.Countdown(active[0].deadline, a.brightness))
+		a.matrixStack.Push("timer", display.PrioScenario, 0, a.front.Countdown(active[0].deadline, a.brightness))
 	case len(paused) > 0:
 		left := paused[0].left
-		a.matrixStack.Push("timer", display.PrioScenario, pausedShowFor, func(now time.Time, _ display.MatrixFrame) (display.MatrixFrame, bool) {
+		a.matrixStack.Push("timer", display.PrioScenario, pausedShowFor, func(now time.Time, _ display.FrontFrame) (display.FrontFrame, bool) {
 			if now.UnixMilli()/500%2 == 1 {
-				return display.MatrixFrame{}, false
+				return display.FrontFrame{}, false
 			}
-			f, _ := display.Countdown(now.Add(left), a.brightness)(now, display.MatrixFrame{})
+			f, _ := a.front.Countdown(now.Add(left), a.brightness)(now, display.FrontFrame{})
 			return f, false
 		})
 	default:
@@ -117,14 +120,14 @@ func (a *App) startAlarm() {
 	t.mu.Unlock()
 
 	a.ringStack.Push("alarm", display.PrioError, 0, display.Blink(display.Amber, 400*time.Millisecond))
-	if c, ok := a.clips.Load("ringing"); ok && a.frontClipsPossible() {
-		a.matrixStack.Push("alarm", display.PrioLocal, 0, display.PlayClip(c, true, a.brightness))
-	} else {
-		a.matrixStack.Push("alarm", display.PrioLocal, 0, func(now time.Time, _ display.MatrixFrame) (display.MatrixFrame, bool) {
+	if c, ok := a.frontAnim("ringing"); ok {
+		a.matrixStack.Push("alarm", display.PrioLocal, 0, c.Play(true, false, a.brightness))
+	} else if a.front != nil {
+		a.matrixStack.Push("alarm", display.PrioLocal, 0, func(now time.Time, _ display.FrontFrame) (display.FrontFrame, bool) {
 			if now.UnixMilli()/400%2 == 0 {
-				return display.Text("00:00", a.brightness()), false
+				return a.front.Text("00:00", a.brightness()), false
 			}
-			return display.MatrixFrame{}, false
+			return display.FrontFrame{}, false
 		})
 	}
 	go func() {

@@ -316,7 +316,7 @@ func (a *App) onIntercomState(st intercom.Status) {
 	switch st.State {
 	case intercom.Calling:
 		a.ringStack.Push("intercom", display.PrioCall, 0, display.Comet(display.Green, 1200*time.Millisecond))
-		a.icFront(a.icClip())
+		a.icFront(a.icClip("call_outgoing"))
 		a.icTone("calls_ringing_outgoing")
 	case intercom.Ringing:
 		blink := display.Blink(display.Green, time.Second)
@@ -326,7 +326,7 @@ func (a *App) onIntercomState(st intercom.Status) {
 			}
 			return blink(now, below)
 		})
-		a.icFront(a.icClip())
+		a.icFront(a.icClip("call_incoming"))
 		if !a.icTone("calls_ringing_incoming") {
 			a.icTone("") // the announce chime, repeated
 		}
@@ -363,7 +363,7 @@ func (a *App) onIntercomState(st intercom.Status) {
 // its stages on the ring) and below the local reflexes, so the volume bubble stays readable.
 const prioCallFront = display.PrioExpression + 2
 
-func (a *App) icFront(r display.RenderFunc[display.MatrixFrame]) {
+func (a *App) icFront(r display.RenderFunc[display.FrontFrame]) {
 	if r == nil {
 		a.matrixStack.Remove("intercom")
 		return
@@ -371,30 +371,31 @@ func (a *App) icFront(r display.RenderFunc[display.MatrixFrame]) {
 	a.matrixStack.Push("intercom", prioCallFront, 0, r)
 }
 
-// icClip is the stock "ringing" clip (the vendor's calling animation), looped; nil without one.
-func (a *App) icClip() display.RenderFunc[display.MatrixFrame] {
+// icClip is the front display's calling animation ("call_incoming" / "call_outgoing": the stock
+// "ringing" clip on seg7, the screen's call patterns on a pixel screen), looped; nil without one.
+func (a *App) icClip(name string) display.RenderFunc[display.FrontFrame] {
 	if !a.frontClips() {
 		return nil
 	}
-	c, ok := a.clips.Load("ringing")
+	c, ok := a.front.Anim(name)
 	if !ok {
 		return nil
 	}
-	return display.PlayClip(c, true, a.brightness)
+	return c.Play(true, false, a.brightness)
 }
 
 // icInCallFront shows the call's duration (m:ss).
-func (a *App) icInCallFront(start time.Time) display.RenderFunc[display.MatrixFrame] {
-	if a.matrix == nil || a.screen != nil {
+func (a *App) icInCallFront(start time.Time) display.RenderFunc[display.FrontFrame] {
+	if a.front == nil {
 		return nil
 	}
-	return func(now time.Time, _ display.MatrixFrame) (display.MatrixFrame, bool) {
+	return func(now time.Time, _ display.FrontFrame) (display.FrontFrame, bool) {
 		d := now.Sub(start)
 		m, sec := int(d.Minutes()), int(d.Seconds())%60
 		if m > 99 {
 			m = 99
 		}
-		return display.Text(fmt.Sprintf("%2d:%02d", m, sec), a.brightness()), false
+		return a.front.Text(fmt.Sprintf("%2d:%02d", m, sec), a.brightness()), false
 	}
 }
 

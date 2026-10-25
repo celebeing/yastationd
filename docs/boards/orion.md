@@ -12,6 +12,9 @@ front-screen daemon backend **verified on device 2026-10-23/24**. Both `fbleddem
 and the production clock renderer remain stable with no flashing; the clock advances normally.
 Rear ambilight hardware is verified and its daemon entity is implemented but not yet
 smoke-tested on-device. Wake is verified offline; on-device spotter remains open.
+The screen plays the firmware's own patterns for the expressions and the call / alarm / boot /
+setup states (2026-10-25, host-tested against the dump, not yet seen on glass; see
+[display-expressions.md](../display-expressions.md), "Screen patterns").
 **Mic retest 2026-10-24 (both tested units; two 30 s pure-capture passes each): all
 six channels are healthy.** The earlier "dead capsule" reading from one 4 s clip was a
 transient (see "Mic capture"); it does not block on-device wake/VQE work.
@@ -225,8 +228,11 @@ Three surfaces, every LED a Linux LED class device each mirrored by a framebuffe
   before the daemon relies on it.
 - **Vendor pattern files** (`/system/vendor/quasar/ledpatterns/`, dumped): plain text,
   one frame per line — `RRGGBB` per pixel + trailing frame duration in **ms** (usually
-  `20`; `ring/block.led` holds `10000`). A global first line may be `loop`,
-  `smooth <N>` (interpolation on) or `no_size_optimization`; `ring/` = 36 px + duration,
+  `20`; `ring/block.led` holds `10000`). Directive lines: `loop` marks where the
+  repeating part starts — on the first line the whole file loops, further down the
+  frames above it are a one-shot intro (`screen/call_incoming.led` line 51,
+  `configure.led` line 368); `smooth <N>` (interpolation on, only the factory `qc`
+  pattern on the screen); `no_size_optimization`. `ring/` = 36 px + duration,
   `ambilight/` = 12 px + duration, `screen/` = 252 px (21×12 row-major) + duration.
   No gamma in the files — the surfaces' gamma (ambilight 2.0, screen 2.2) comes from
   quasar.cfg's `leds` block.
@@ -261,6 +267,12 @@ Three surfaces, every LED a Linux LED class device each mirrored by a framebuffe
   so the stale frame does not remain. `fbleddemo -clock` verified that exact renderer
   and cadence on glass: correct orientation, stable image, live clock updates; `-uwu`
   remains the lower-level framebuffer diagnostic.
+- **Screen animations (2026-10-25, blind):** the daemon's `PixelFront` resolves every
+  expression to a pattern under `ledpatterns/screen/` (`clips.dir`), gamma-corrected by
+  `matrix.gamma = 2.2`; the clock, text and numbers stay on the seg7 fallback above.
+  On glass, check: the gamma (too dark or washed out → `matrix.gamma` in
+  `<cfw>/board.conf`, e.g. `1`), smoothness at the 15 Hz render loop, the voice stages
+  (`express/set listening`, `thinking`, `speaking`) and the call/alarm patterns.
 
 ## Boot / egress
 

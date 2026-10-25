@@ -303,9 +303,12 @@ func (a *App) applyVolume(v int) {
 	}
 	// Local reflex: the percentage on the matrix for a moment. The "ring" is ~12 mm across, too
 	// small to read as a level bar, so it stays for colour/animation only.
+	if a.front == nil {
+		return
+	}
 	a.matrixStack.Push("volbubble", display.PrioLocal, volumeBubbleTTL,
-		func(time.Time, display.MatrixFrame) (display.MatrixFrame, bool) {
-			return display.Number(pct, a.brightness()), false
+		func(time.Time, display.FrontFrame) (display.FrontFrame, bool) {
+			return a.front.Number(pct, a.brightness()), false
 		})
 }
 

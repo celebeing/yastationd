@@ -47,7 +47,7 @@ type App struct {
 	mic       *hw.Mic
 	spot      *wake.Spotter // nil when the wake word is off
 	lifeState atomic.Int32  // lifecycle (lifecycle.go)
-	clips     *display.ClipLibrary
+	front     display.Front // the front display's scenes and animations; nil = no front display
 	scen      scenarioRunner
 	music     musicState  // Music Assistant player; music.host nil when off
 	playing   atomic.Bool // our aplay is running
@@ -59,7 +59,7 @@ type App struct {
 	ic        *icState // intercom; nil when off
 
 	ringStack   *display.Stack[display.RingFrame]
-	matrixStack *display.Stack[display.MatrixFrame]
+	matrixStack *display.Stack[display.FrontFrame]
 
 	topics  mqtt.Topics
 	mqtt    *mqtt.Client
@@ -88,7 +88,7 @@ type App struct {
 
 	quit context.CancelFunc // ends Run: a deliberate restart (the supervisor starts us again)
 
-	marquee     display.RenderFunc[display.MatrixFrame] // message-mode layer; render goroutine only
+	marquee     display.RenderFunc[display.FrontFrame] // message-mode layer; render goroutine only
 	marqueeText string
 }
 
@@ -168,7 +168,7 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 	a.mic = &hw.Mic{Device: prof.Mic.Device, Channels: prof.Mic.Channels, Rate: prof.Mic.Rate,
 		Channel: prof.Mic.Voice, Log: log}
 	a.sat = &satellite{a: a}
-	a.clips = a.newClipLibrary()
+	a.front = a.newFront()
 	a.spot = a.newSpotter()
 	a.music.host = a.newMusic()
 	a.setup = a.newWifiSetup()
@@ -186,25 +186,26 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 
 // ---- base layers ----
 
-func (a *App) matrixBase(now time.Time) display.MatrixFrame {
+func (a *App) matrixBase(now time.Time) display.FrontFrame {
 	s := a.store.get()
+	if a.front == nil || s.Mode == "off" {
+		return display.FrontFrame{}
+	}
 	switch s.Mode {
-	case "off":
-		return display.MatrixFrame{}
 	case "message":
 		// Long messages scroll; keep the marquee's phase across frames until the text changes.
 		if s.Message != a.marqueeText || a.marquee == nil {
-			a.marqueeText, a.marquee = s.Message, display.Marquee(s.Message, marqueeStep, a.brightness)
+			a.marqueeText, a.marquee = s.Message, a.front.Marquee(s.Message, marqueeStep, a.brightness)
 		}
-		f, _ := a.marquee(now, display.MatrixFrame{})
+		f, _ := a.marquee(now, display.FrontFrame{})
 		return f
 	default:
 		// Until the first sync the time is nonsense (a stale or zero clock): no digits, only a
 		// blinking colon. The digits appear once the time is confirmed.
 		if a.clock != nil && !a.clock.Synced() {
-			return display.MatrixFrame{Colon: now.Second()%2 == 0, Brightness: a.brightness()}
+			return a.front.Unsynced(now, a.brightness())
 		}
-		return display.Clock(now, a.loc, a.brightness())
+		return a.front.Clock(now, a.loc, a.brightness())
 	}
 }
 
@@ -424,25 +425,27 @@ func (a *App) renderLoop(stop <-chan struct{}) {
 					a.log.Debug("ambilight show", "err", err)
 				}
 			}
-			frame := a.matrixStack.Frame(now)
-			if a.screen == nil {
-				frame = smooth.Frame(now, frame, a.matrixStack.Top())
-			} else if k := fade.Level(now, a.matrixStack.Top()); k < 1 {
-				frame.Brightness = int(float64(frame.Brightness) * k)
+			if a.front == nil {
+				continue
 			}
-			if err := a.showMatrix(frame); err != nil {
+			frame := a.matrixStack.Frame(now)
+			var err error
+			if a.screen == nil {
+				err = a.matrix.Show(smooth.Frame(now, frame.Seg, a.matrixStack.Top()))
+			} else {
+				err = a.showScreen(frame, fade.Level(now, a.matrixStack.Top()))
+			}
+			if err != nil {
 				a.log.Debug("matrix show", "err", err)
 			}
 		}
 	}
 }
 
-func (a *App) showMatrix(frame hw.MatrixFrame) error {
-	if a.screen == nil {
-		return a.matrix.Show(frame)
-	}
+// showScreen draws a front frame on the pixel screen, k (0..1) being the fade-in level.
+func (a *App) showScreen(frame display.FrontFrame, k float64) error {
 	w, h := a.screen.Size()
-	px := display.Seg7ToPixels(frame, w, h, hw.RGB{R: 255, G: 255, B: 255})
+	px := display.ScreenPixels(frame, w, h, k)
 	if px == nil {
 		return fmt.Errorf("dot-matrix %dx%d is too small for display font", w, h)
 	}
