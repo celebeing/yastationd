@@ -26,7 +26,7 @@ VERSION  := $(shell git describe --tags --match 'v*' --dirty --always 2>/dev/nul
 GOFLAGS  := -trimpath -ldflags="-s -w -X github.com/celebeing/yastationd/yastationd/internal/version.Version=$(VERSION)"
 GOENV    := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds deploy deploy-spotter deploy-sendspin clips
+.PHONY: all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds vqe-models deploy deploy-spotter deploy-sendspin clips
 
 
 all: test build
@@ -119,6 +119,28 @@ sounds:
 	  $(SSH) "cat > $(DESTDIR)/sounds/$$s.wav.new && mv $(DESTDIR)/sounds/$$s.wav.new $(DESTDIR)/sounds/$$s.wav" < build/$$s.wav; \
 	  rm -f build/$$s.src build/$$s.wav; \
 	done
+
+# The VQE's call-mode noise reducer (docs/intercom.md, "The VQE call mode"). spotter-host loads it
+# as <models>/noise_reducer/model.nnet; firmware 0.369 ships it as model_call.nnet, 3.21 ships
+# none. Copied from the unit's own firmware when it has one, else from VQE_MODEL (a local file,
+# e.g. from your own firmware dump). Vendor data, never stored in the repo.
+VQE_MODEL ?=
+vqe-models:
+	$(SSH) 'mkdir -p $(DESTDIR)/vendor/vqe_models/noise_reducer'
+	set -e; d=/system/vendor/quasar/vqe_models/noise_reducer; t=$(DESTDIR)/vendor/vqe_models/noise_reducer; \
+	if $(SSH) "[ -f $$d/model_call.nnet ]"; then \
+	  $(SSH) "cp $$d/model_call.nnet $$t/model.nnet.new && mv $$t/model.nnet.new $$t/model.nnet && \
+	    { [ -f $$d/model_call_meta.json ] && cp $$d/model_call_meta.json $$t/model_meta.json || true; }"; \
+	  echo "  from the unit's firmware"; \
+	elif [ -n "$(VQE_MODEL)" ]; then \
+	  $(SSH) "cat > $$t/model.nnet.new && mv $$t/model.nnet.new $$t/model.nnet" < "$(VQE_MODEL)"; \
+	  m=$$(dirname "$(VQE_MODEL)")/model_call_meta.json; \
+	  [ -f "$$m" ] && $(SSH) "cat > $$t/model_meta.json" < "$$m" || true; \
+	  echo "  from $(VQE_MODEL)"; \
+	else \
+	  echo "  no call-mode model on this firmware: pass VQE_MODEL=<model_call.nnet>"; exit 1; \
+	fi; \
+	$(SSH) "ls -la $$t"
 
 # Stock clock animation clips (docs/display-expressions.md). Firmware 0.369 ships them as
 # zstd-compressed binary .binscled, and the device has no zstd: pull, decompress and convert to the

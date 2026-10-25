@@ -224,9 +224,10 @@ commands are дальше, назад, выше, ниже, вправо, вле�
   loads the NR model (~2 s; later switches ~45 ms), so the daemon follows the mode spotter-host
   reports and takes each uplink frame from the stream that fits it.
 - **Howling with a looped peer:** with `intercom-peer -echo` the speaker's own voice comes back
-  through its speaker — a lossless loop — and it rang up into feedback. A real two-room call
-  has two AECs and two rooms in the loop, but a howl guard (a sustained rise on both directions
-  → turn the uplink down) is still to do.
+  through its speaker — a lossless loop. It rang up into feedback once: that call had missed
+  the call mode (the 2 s wait bug) and ran on vqe_0 with our +30 dB. On the call mode the same
+  loop stayed steady (−20…−25 dBFS, no rise). A howl guard is only worth it for the fallback
+  path (a unit without the model).
 - **Outgoing calls by voice** still go through HA: «Алиса, соедини со спальней» (room names are
   in no spotter's vocabulary). The daemon reads that transcript and cuts HA's own reply.
 - The voice key and the mute switch work as before (answer / end; decline / end).
@@ -297,8 +298,9 @@ Commits land on `main` meanwhile; `intercom` stays off by default.
    daemon wiring, the voice scenario's transcript matcher, HA entities, config. Off by default;
    not released until checked on speakers.
 2. **On two speakers** (needs the user): the checklist below; tune jitter, guard, volume.
-3. **VQE call mode** — done on bergamot (2026-10-25); still to do: putting the NR model on units
-   (a `make` target like `sounds`, from the unit's own firmware or a dump), pickle and orion.
+3. **VQE call mode** — done on bergamot (2026-10-25); `make vqe-models` puts the NR model on a
+   unit (from its own firmware, else `VQE_MODEL=<file>` from a dump). Still to do: pickle and
+   orion.
 4. **The rest of the UX** (HA sentence triggers and the callee question, tested and written up;
    the other options above); Opus if Wi-Fi needs it;
    push-to-talk fallback; front-display states.

@@ -20,7 +20,8 @@ don't touch Wi-Fi/boot without a fallback, and make sound only on the unit the u
 | `<cfw>/yastationd.conf` | config (generic `yastationd/configs/yastationd.conf.example`; Orion bring-up `orion.conf.example`) |
 | `<cfw>/board.conf` | optional per-unit overrides of board-profile keys |
 | `<cfw>/yastationd.state` | persisted UI state (ring, display, volume, brightness…), written by the daemon |
-| `<cfw>/sounds/*.wav` | decoded vendor voice lines (`make sounds`) |
+| `<cfw>/sounds/*.wav` | decoded vendor voice lines and call sounds (`make sounds`) |
+| `<cfw>/vendor/vqe_models/noise_reducer/model.nnet` | the VQE's call-mode noise reducer, for the intercom (`make vqe-models`) |
 | `<cfw>/clips/*.scled` | the firmware's clock animations converted to text (`make clips`, firmware 0.369 only; others ship text clips the daemon reads in place) |
 | `<cfw>/scenarios/*.json` | your own display/ring scenarios (optional) |
 | `<cfw>/bin/yastationd.prev` | the previous agent, kept by every update; the supervisor swaps it back in if the new one crash-loops (the bad one is then kept as `.bad`) |
@@ -93,6 +94,7 @@ make stage                                         # binary + init hook copy int
 make deploy-spotter                                # profile selects build/<helper-arch>/spotter-host
 make deploy-sendspin                               # optional; profile selects helper architecture
 make sounds                                        # vendor sounds -> <cfw>/sounds/*.wav
+make vqe-models [VQE_MODEL=<model_call.nnet>]      # intercom: the call-mode NR model (from the unit's firmware, else the file)
 make clips                                         # firmware 0.369 only: its binary clock clips -> <cfw>/clips/*.scled
 ```
 
