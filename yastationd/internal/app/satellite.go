@@ -374,7 +374,7 @@ func (s *satellite) endStream(c *wyoming.Conn, played bool) {
 		switch {
 		case !idle:
 		case played && !follow && !st.announce:
-			s.a.express("voice", "wink", dialogEndWink) // the dialog is over: a wink, then the clock
+			s.a.moment("voice", "dialog_end", dialogEndWink) // the dialog is over: a wink (blink), then the clock
 		default:
 			s.a.unexpress("voice")
 		}

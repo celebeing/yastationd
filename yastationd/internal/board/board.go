@@ -41,6 +41,10 @@ type Profile struct {
 	Lux       LuxSpec
 	Power     PowerSpec
 	Clips     ClipsSpec
+
+	// Moments maps a moment (docs/display-expressions.md, "Moments") to its candidates in order:
+	// expressions or animation names, or "scenario:<name>". Overrides the display kind's defaults.
+	Moments map[string][]string
 }
 
 // ClipsSpec: where the firmware keeps the front display's animations (docs/display-expressions.md):
@@ -386,6 +390,15 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Lux.Gain = v
 	case k == "lux.integration_time":
 		p.Lux.IntegrationTime = v
+	case strings.HasPrefix(k, "moment."):
+		name := strings.TrimPrefix(k, "moment.")
+		if name == "" {
+			return fmt.Errorf("moment name missing")
+		}
+		if p.Moments == nil {
+			p.Moments = map[string][]string{}
+		}
+		p.Moments[name] = splitList(v) // empty = no picture for this moment on this board
 	default:
 		return fmt.Errorf("unknown key")
 	}

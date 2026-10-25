@@ -142,9 +142,7 @@ func (a *App) greetOncePerBoot() {
 		return
 	}
 	os.WriteFile(marker, nil, 0o644)
-	if s, err := a.loadScenario("startup"); err == nil {
-		a.runScenario(s)
-	}
+	a.moment(lifeSlot, "startup", 0)
 }
 
 // voiceUnavailable: a voice attempt with no HA to talk to — a bright red pulse and the stock

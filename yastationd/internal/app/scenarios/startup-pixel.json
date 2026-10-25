@@ -1,0 +1,4 @@
+{"steps": [
+  {"express": "eyes", "ms": 2500},
+  {"express": "blink", "ms": 1800}
+]}

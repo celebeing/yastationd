@@ -1,4 +1,4 @@
-# Display expressions: surfaces, expressions, scenarios
+# Display expressions: surfaces, expressions, scenarios, moments
 
 Status (2026-10-25): working on the seg7 front display (bergamot, pickle) and the ring; checked by
 eye on bergamot. Orion's 21×12 pixel screen plays the firmware's own screen animations for the
@@ -21,6 +21,11 @@ numbers are still the seg7 picture drawn as pixels (see "Front displays").
 3. **Scenarios** — named compositions in time: steps in sequence or in parallel, each a surface +
    scene + duration or a whole expression. Callable from HA by name or as inline JSON. Built-in ones
    live in the repo; the user's in `<cfw>/scenarios/`.
+
+4. **Moments** — what happens in the CFW's life that the speaker reacts to: `startup`,
+   `dialog_end`, `alarm`, `volume`, `call_connected`, `bluetooth_connected`, … The app announces a
+   moment and never picks the picture: a per-platform table maps the moment to an expression, a
+   scenario or a display-native animation (section "Moments").
 
 Synchronisation without coupling: every surface renders from the same render-loop tick, and a
 scenario starts its layers with one start time, so animations on the ring and the front stay
@@ -105,6 +110,60 @@ timing is right but in-between frames are skipped), and how they sit with auto-b
 `TestPixelAnimsOnFirmware` (`YASTATIOND_SCREEN_PATTERNS=<…>/ledpatterns/screen go test
 ./internal/display`) checks every mapped pattern against a firmware tree.
 
+## Moments
+
+Why a fourth layer: the platforms differ by orders of magnitude in what they can show. A Mini 3
+has a handful of seg7 clips (eyes, wink, happy, the voice stages); orion's firmware ships about a
+hundred screen patterns — calls, media, Bluetooth, timers, volume, several activation and
+confirmation variants. An expression is a *picture* (`wink`), and the per-display maps already say
+how each display draws it; but *which* picture fits a situation is a per-platform choice too:
+the end of a dialog is a `wink` on a Mini 3 and a `blink` on orion, a Bluetooth connection is
+nothing on a Mini 3 and the stock `bluetooth_connected` pattern on orion. Hard-coding
+`express("wink")` at the call site makes every platform play the poorest common denominator.
+
+**The rule:** code that reacts to an event calls `a.moment(name)`, never `express(…)` with a
+picture. A moment resolves through, first match wins:
+
+1. `<cfw>/board.conf` and the board profile: `moment.<name> = <candidate>, <candidate>, …` (the
+   board.conf override already covers every profile key, so a user re-maps a moment there);
+2. the defaults of the front display's kind in code (`seg7`, `pixels`), next to the per-display
+   animation maps;
+3. an expression of the same name, if there is one (so the voice stages need no entries);
+4. nothing — the moment has no picture on this platform (not an error).
+
+A candidate is an expression (`blink`), a scenario (`scenario:startup`), or a native animation of
+the front display by its name or path (`anim:media/Like`); it counts only if it exists on this
+speaker (the expression has a part on one of its surfaces, the pattern is in the firmware), so a
+list is a fallback chain from the richest to the plainest. Later: `random(a, b, c)` picks one of the
+available ones for variety (never the same twice in a row), and parameters for moments that carry
+a value (`volume` → the level, `timer` → the time left) are passed through to scenes that take them.
+
+Moments stay above the layers they use: priorities, slots and TTLs are those of the expression
+or scenario a moment resolves to, and the ring and the ambilight follow the same rules as before.
+HA keeps its direct access to expressions, scenarios and patterns; a moment can also be triggered
+from HA (`moment/set`, later) to preview a mapping.
+
+### The moment catalogue
+
+Status: **in code** = called by the app through `moment()`; **planned** = the event exists, the
+call site does not use a moment yet; the orion column is a first proposal from the pattern names,
+to be reviewed on glass (the stock patterns are still being watched through).
+
+| Moment | When | seg7 (Mini 3, Mini 3 Pro) | pixels (orion) | Status |
+|---|---|---|---|---|
+| `startup` | once per device boot | `scenario:startup` (eyes, wink) | `scenario:startup-pixel` (eyes, blink) | in code |
+| `dialog_end` | a reply played and no follow-up listening | `wink` | `blink` | in code |
+| `listening`, `thinking`, `speaking` | voice stages | the expressions | the expressions (`oknix/`) | via rule 3 |
+| `error` | voice / network failure | the expression | `error` | via rule 3 |
+| `mute`, `unmute` | the mic switch | — | `anim:mute`, `anim:unmute` | planned |
+| `volume` | volume changed (value) | the number | a volume scene (`rcu_volume/` patterns or our own bar) | planned |
+| `alarm`, `timer_done` | an alarm / a timer rings | `ringing` | `alarm/alarm_loop`, `timer/timer_bell` | planned |
+| `call_incoming`, `call_outgoing`, `call_connected`, `call_ended`, `call_hold` | intercom | `ringing` for incoming | the stock `call_*` / `calls/*` patterns | planned |
+| `media_pause`, `media_resume`, `media_next`, `media_previous`, `like`, `dislike` | music controls | `pause`, `next`, `previous` | `media/*` | planned |
+| `bluetooth_connected`, `bluetooth_disconnected` | A2DP | — | the stock patterns | planned |
+| `setup` | Wi-Fi setup mode | the setup face | `configure` | planned |
+| `update_downloading`, `block` | not ours (updates are blocked) | — | — | not used |
+
 ## Priorities (high → low), per surface
 
 error → timer ring → volume bubble → voice expressions → HA overlay / scenario → music → base
@@ -151,11 +210,12 @@ wins over ours.
 ## How the expressions are used
 
 - Voice: `listening` → `thinking` → `speaking` on the ring and the front display; when a reply has
-  played and no follow-up listening comes, `wink` for 1.5 s, then the clock (not after an
-  announcement). Pickle's stock voice clips are a single dark frame (its firmware blanks the clock
+  played and no follow-up listening comes, the `dialog_end` moment for 1.5 s (`wink` on seg7,
+  `blink` on orion), then the clock (not after an announcement). Pickle's stock voice clips are a single dark frame (its firmware blanks the clock
   while it talks), so a blank clip is skipped and our own bars play instead. Our `speaking` looks
   much like `thinking`; worth redrawing.
-- Startup: the `startup` scenario (eyes, then wink) once per device boot. The stock `boot` clip is
+- Startup: the `startup` moment once per device boot (the `startup` scenario: eyes, then wink;
+  `startup-pixel` on orion: eyes, then blink). The stock `boot` clip is
   not used: it is timed to a boot jingle and runs ~10 s with a 3 s dark start.
 - Timer and alarm ring: the stock `ringing` clip on the front display (the blinking "00:00" where a
   board has no clips).
