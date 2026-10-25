@@ -15,7 +15,7 @@ case $ARCH in
 aarch64)
   CC=${CC:-aarch64-linux-gnu-gcc}
   $CC -O2 -Wall -Wextra -o "$OUT" "$HERE/spotter_host.c" \
-    -L"$V" -lyandex_evil -lm -Wl,-rpath-link,"$V:$L" \
+    -L"$V" -lyandex_evil -lm -lpthread -Wl,-rpath-link,"$V:$L" \
     -Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1 -Wl,--disable-new-dtags \
     -Wl,-rpath,/system/vendor/quasar/libs
   ;;
@@ -26,7 +26,7 @@ armhf)
   $CC -O2 -Wall -Wextra -c "$HERE/spotter_host.c" -o "$OUT.o"
   $CC -nostdlib -no-pie -o "$OUT" \
     "$U/crt1.o" "$U/crti.o" "$($CC -print-file-name=crtbegin.o)" "$OUT.o" \
-    -L"$V" -lyandex_evil "$L/libm.so.6" "$L/libc.so.6" "$L/libgcc_s.so.1" "$L/ld-linux-armhf.so.3" \
+    -L"$V" -lyandex_evil "$L/libm.so.6" "$L/libpthread.so.0" "$L/libc.so.6" "$L/libgcc_s.so.1" "$L/ld-linux-armhf.so.3" \
     "$($CC -print-libgcc-file-name)" "$($CC -print-file-name=crtend.o)" "$U/crtn.o" \
     -Wl,--dynamic-linker=/lib/ld-linux-armhf.so.3 -Wl,-rpath-link,"$V:$L" \
     -Wl,-rpath,/system/vendor/quasar/libs

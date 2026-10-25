@@ -36,15 +36,18 @@
  *       reader lags, so the VQE never stalls). Exits on stdin EOF.
  *       fd 4, if open: vqe_gain the same way — in the call mode (SetCommunicationMode 1: neural
  *       NR + AGC) the call's uplink. SIGUSR1 switches the call mode on, SIGUSR2 off (0, the ASR
- *       mode); vqe_0 (the spotters' input) is the same in both (docs/intercom.md). The command
- *       spotter pauses in the call mode (CPU); the activation spotter keeps running.
+ *       mode); vqe_0 (the spotters' input) is the same in both (docs/intercom.md).
+ *   On the VQE path each spotter runs in its own thread behind a queue (the VQE loop never waits
+ *   for one): with the call mode's neural NR one core could not carry it all in real time.
  *
  * TYPES is a comma list of channel types, one per interleaved channel (default "0" = omni).
  */
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
+#include <pthread.h>
 #include <signal.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -441,6 +444,19 @@ static volatile sig_atomic_t want_comm = -1; /* serve: SIGUSR1 = 1 (call), SIGUS
 
 static void on_usr(int sig) { want_comm = sig == SIGUSR1 ? 1 : 0; }
 
+/* stdout lines come from the VQE loop and from the spotter threads: one line at a time. */
+static pthread_mutex_t out_mu = PTHREAD_MUTEX_INITIALIZER;
+
+static void outf(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    pthread_mutex_lock(&out_mu);
+    vprintf(fmt, ap);
+    pthread_mutex_unlock(&out_mu);
+    va_end(ap);
+}
+
 struct det {
     const char *tag;
     spotter_conf *conf;
@@ -497,12 +513,12 @@ static void det_feed(struct det *d, size_t nframes, double t)
         if (serve_mode) {
             long ms = (long)(t * 1000);
             if (ev == SPOTTER_CONFIRMATION_1ST_STAGE)
-                printf("%s %ld %s\n", d->tag, ms, phrase ? phrase : "");
+                outf("%s %ld %s\n", d->tag, ms, phrase ? phrase : "");
             else if (ev == SPOTTER_SUBHIT)
-                printf("SUBHIT %s %ld %s\n", d->tag, ms, phrase ? phrase : "");
+                outf("SUBHIT %s %ld %s\n", d->tag, ms, phrase ? phrase : "");
             continue;
         }
-        printf("%.2f %s %s%s%s\n", t, d->tag, event_name(ev), phrase ? " " : "", phrase ? phrase : "");
+        outf("%.2f %s %s%s%s\n", t, d->tag, event_name(ev), phrase ? " " : "", phrase ? phrase : "");
     }
 }
 
@@ -517,6 +533,93 @@ static int vqe_col(const struct det *d, int type)
     case 4: return 3; /* raw  <- raw_mic(omni) */
     default: return cmd_gain && d->tag[0] == 'C' ? 2 : 0; /* omni <- vqe_0 (or vqe_gain) */
     }
+}
+
+/* Spotter threads (VQE path): the VQE loop hands each spotter its blocks through a queue and
+ * never waits for one, so the call stream (fd 4) and vqe_0 keep real time while the spotters use
+ * the other cores. A spotter that falls a second behind loses blocks (counted on stderr). */
+#define DQ_LEN 64 /* blocks; one VQE chunk = 16 ms (bergamot) to 32 ms (orion) */
+struct dblock {
+    size_t n;
+    unsigned long frames; /* the stream position after this block */
+    short v[4 * 1024];    /* fe_collect's 4-wide frames */
+};
+struct dworker {
+    struct det *d;
+    int rate;
+    pthread_t th;
+    pthread_mutex_t mu;
+    pthread_cond_t cv;
+    struct dblock *q;
+    int head, count, quit;
+    unsigned long drops;
+};
+
+static void *dworker_run(void *arg)
+{
+    struct dworker *w = arg;
+    struct det *d = w->d;
+    struct dblock *b = malloc(sizeof(*b));
+    for (;;) {
+        pthread_mutex_lock(&w->mu);
+        while (!w->count && !w->quit)
+            pthread_cond_wait(&w->cv, &w->mu);
+        if (!w->count) {
+            pthread_mutex_unlock(&w->mu);
+            break;
+        }
+        struct dblock *s = &w->q[w->head];
+        b->n = s->n;
+        b->frames = s->frames;
+        memcpy(b->v, s->v, sizeof(short) * 4 * s->n);
+        w->head = (w->head + 1) % DQ_LEN;
+        w->count--;
+        pthread_mutex_unlock(&w->mu);
+        for (size_t i = 0; i < b->n; i++)
+            for (int c = 0; c < d->ntypes; c++)
+                d->buf[i * d->ntypes + c] = b->v[i * 4 + vqe_col(d, d->types[c])];
+        det_feed(d, b->n, (double)b->frames / w->rate);
+    }
+    free(b);
+    return NULL;
+}
+
+static int dworker_start(struct dworker *w, struct det *d, int rate)
+{
+    memset(w, 0, sizeof(*w));
+    w->d = d;
+    w->rate = rate;
+    w->q = malloc(sizeof(struct dblock) * DQ_LEN);
+    pthread_mutex_init(&w->mu, NULL);
+    pthread_cond_init(&w->cv, NULL);
+    return !w->q || pthread_create(&w->th, NULL, dworker_run, w) != 0;
+}
+
+static void dworker_push(struct dworker *w, const short *out, size_t n, unsigned long frames)
+{
+    pthread_mutex_lock(&w->mu);
+    if (w->count == DQ_LEN) {
+        if (w->drops++ % 100 == 0)
+            fprintf(stderr, "%s: spotter lagging, %lu blocks dropped\n", w->d->tag, w->drops);
+        pthread_mutex_unlock(&w->mu);
+        return;
+    }
+    struct dblock *s = &w->q[(w->head + w->count) % DQ_LEN];
+    s->n = n;
+    s->frames = frames;
+    memcpy(s->v, out, sizeof(short) * 4 * n);
+    w->count++;
+    pthread_cond_signal(&w->cv);
+    pthread_mutex_unlock(&w->mu);
+}
+
+static void dworker_stop(struct dworker *w)
+{
+    pthread_mutex_lock(&w->mu);
+    w->quit = 1;
+    pthread_cond_signal(&w->cv);
+    pthread_mutex_unlock(&w->mu);
+    pthread_join(w->th, NULL); /* it drains what is queued first */
 }
 
 static int cmd_listen(const char *amodel, const char *kmodel, float scale, int asr_mode, int comm_mode,
@@ -581,6 +684,10 @@ static int cmd_listen(const char *amodel, const char *kmodel, float scale, int a
     struct fe f;
     if (fe_open(&f, scale, asr_mode, comm_mode))
         return 1;
+    struct dworker workers[2];
+    for (int k = 0; k < nd; k++)
+        if (dworker_start(&workers[k], &dets[k], rate))
+            return 1;
     short out[4 * 1024], mono[1024];
     int om = 0;
     int vfd = -1, gfd = -1, cur_comm = comm_mode;
@@ -597,14 +704,14 @@ static int cmd_listen(const char *amodel, const char *kmodel, float scale, int a
         }
         signal(SIGUSR1, on_usr);
         signal(SIGUSR2, on_usr);
-        printf("READY call-mode\n"); /* the handlers are in: the daemon may signal now */
+        outf("READY call-mode\n"); /* the handlers are in: the daemon may signal now */
     }
     while (!fe_step(&f)) {
         if (serve_mode && want_comm >= 0 && want_comm != cur_comm) {
             /* between chunks: the VQE reconfigures itself (the NR model loads on the first switch) */
             cur_comm = want_comm;
             int bad = vqe_err("SetCommunicationMode", YandexVqeC_SetCommunicationMode(f.vqe, cur_comm));
-            printf("MODE %d %s\n", cur_comm, bad ? "err" : "ok");
+            outf("MODE %d %s\n", cur_comm, bad ? "err" : "ok");
         }
         size_t n = fe_collect(&f, out, 1024, &om);
         frames += n;
@@ -620,17 +727,8 @@ static int cmd_listen(const char *amodel, const char *kmodel, float scale, int a
             if (write(gfd, mono, n * sizeof(short)) < 0 && errno != EAGAIN)
                 gfd = -1;
         }
-        for (int k = 0; k < nd; k++) {
-            struct det *d = &dets[k];
-            /* In the call mode the command spotter rests: a call doesn't use it, and the VQE's
-             * neural NR takes its share of this single core (the stream fell behind real time). */
-            if (cur_comm == 1 && d->tag[0] == 'C')
-                continue;
-            for (size_t i = 0; i < n; i++)
-                for (int c = 0; c < d->ntypes; c++)
-                    d->buf[i * d->ntypes + c] = out[i * 4 + vqe_col(d, d->types[c])];
-            det_feed(d, n, (double)frames / rate);
-        }
+        for (int k = 0; k < nd; k++)
+            dworker_push(&workers[k], out, n, frames);
         for (size_t i = 0; i < n; i++)
             for (int c = 0; c < 4; c++)
                 lev[c] += (double)out[i * 4 + c] * out[i * 4 + c];
@@ -639,13 +737,13 @@ static int cmd_listen(const char *amodel, const char *kmodel, float scale, int a
                 lev[4] += (double)f.in[i * HW_CH + HW_SPK_CH] * f.in[i * HW_CH + HW_SPK_CH] * n / f.chunk;
         nlev += n;
         if (verbose && serve_mode && frames >= next_lev) {
-            printf("LEVEL %ld vqe=%.1f raw=%.1f spk=%.1f\n", (long)((double)frames / rate * 1000),
+            outf("LEVEL %ld vqe=%.1f raw=%.1f spk=%.1f\n", (long)((double)frames / rate * 1000),
                    dbfs(lev[0], nlev), dbfs(lev[3], nlev), dbfs(lev[4], nlev));
             memset(lev, 0, sizeof(lev));
             nlev = 0;
             next_lev += (unsigned long)rate;
         } else if (verbose && frames >= next_lev) {
-            printf("%.2f LEVEL vqe %.1f bnr %.1f gain %.1f raw %.1f spk %.1f omni %d\n",
+            outf("%.2f LEVEL vqe %.1f bnr %.1f gain %.1f raw %.1f spk %.1f omni %d\n",
                    (double)frames / rate, dbfs(lev[0], nlev), dbfs(lev[1], nlev), dbfs(lev[2], nlev),
                    dbfs(lev[3], nlev), dbfs(lev[4], nlev), om);
             memset(lev, 0, sizeof(lev));
@@ -653,6 +751,8 @@ static int cmd_listen(const char *amodel, const char *kmodel, float scale, int a
             next_lev += (unsigned long)rate;
         }
     }
+    for (int k = 0; k < nd; k++)
+        dworker_stop(&workers[k]);
     return 0;
 }
 
