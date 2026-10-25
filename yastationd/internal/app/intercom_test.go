@@ -122,6 +122,31 @@ func TestIntercomVoiceScenario(t *testing.T) {
 	if s := office.ic.m.Status(); s.Ended != "rejected: declined" {
 		t.Fatalf("ended %q", s.Ended)
 	}
+
+	// the mic-mute switch declines a ringing call and ends a running one
+	office.icTranscript("набери спальню")
+	wait(bedroom, intercom.Ringing)
+	if !bedroom.ringStack.Has("intercom") {
+		t.Error("no ringing indication")
+	}
+	bedroom.setMute(true)
+	wait(office, intercom.Idle)
+	if s := office.ic.m.Status(); s.Ended != "rejected: declined" {
+		t.Fatalf("mute while ringing: %q", s.Ended)
+	}
+	bedroom.setMute(false)
+	office.icTranscript("набери спальню")
+	wait(bedroom, intercom.Ringing)
+	bedroom.icVoiceKey()
+	wait(office, intercom.InCall)
+	office.setMute(true)
+	wait(bedroom, intercom.Idle)
+	if s := bedroom.ic.m.Status(); s.Ended != "hung up by the peer" {
+		t.Fatalf("mute in a call: %q", s.Ended)
+	}
+	if office.ringStack.Has("intercom") {
+		t.Error("call indication left after the call")
+	}
 }
 
 func freeUDPPort(t *testing.T) int {

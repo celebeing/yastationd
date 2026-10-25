@@ -101,7 +101,8 @@ install-initd: stage
 # .wav; the volume tick: common/volume_sound.mp3, or sounds/volume_sound.mp3 on 0.6.x), and
 # there's no decoder on board: pull, decode on the host, put a real wav under $(DESTDIR)/sounds/.
 # Vendor audio, so it's never stored in the repo. A failed decode leaves the old file alone.
-SOUNDS ?= no_power volume_sound notification_sound something_went_wrong backend_unavailable
+SOUNDS ?= no_power volume_sound notification_sound something_went_wrong backend_unavailable \
+	calls_connected calls_ended calls_busy calls_ringing_incoming calls_ringing_outgoing
 # Per-sound ffmpeg filters: the announce chime is the stock notification sound, made quieter; the
 # error phrase is cut after «К сожалению, что-то пошло не так.» (its second sentence asks to redo
 # the setup; the file is the same on every firmware we have, the pause is at 2.41-3.15 s).

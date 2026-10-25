@@ -145,10 +145,21 @@ the invite from the lower device id wins (the other side treats it as its call).
     faintly through the AEC'd mic).
   - **setup mode** (the key combo) hangs up first; incoming calls are refused while it runs.
   - **shutdown:** sends bye.
-- Ring: a new layer `PrioCall` = 45 (above Voice 40, below Error 50 and Setup 60): calling —
-  green comet; ringing — green blink (+ the announce chime); in call — steady green (the
-  "mic is streaming" indicator, always visible above voice states). Front display: unchanged in
-  v1.
+- **Indication** (reworked 2026-10-25 after the first speaker tests; the vendor's own call
+  patterns are greens, its front-display "calling" animation is the stock `ringing` clip):
+
+  | State | Ring (`PrioCall` = 45: above Voice, below Error and Setup) | Front display | Sound |
+  |---|---|---|---|
+  | incoming | green blink, 1 s, until answered | the `ringing` clip, looped | the vendor ringtone `calls_ringing_incoming`, repeated (else the announce chime) |
+  | outgoing | green comet | the `ringing` clip | `calls_ringing_outgoing`, repeated |
+  | in a call | slow blue breath (no other state's colour); an Assist session's stages show over it | "CALL" and the duration `m:ss`, 2 s each | `calls_connected` at the start |
+  | ended | a white flash | the clock | `calls_ended` (after a call), `calls_busy` (refused / no answer) |
+
+  The call sounds are vendor files decoded onto the unit by `make sounds` (never in the repo).
+- **Keys:** the voice key answers a ringing call and ends any other; the **mic-mute switch
+  declines a ringing call and ends a running one** (and incoming calls are refused while muted).
+- The daemon no longer opens a listening session by itself while ringing (the ringtone would go
+  to STT, and voice control waits for the VQE call mode); «Алиса, ответь» still answers.
 
 ## HA control surface (v1, neutral)
 

@@ -189,6 +189,9 @@ func (a *App) micMuted() bool { return a.muted.Load() }
 
 func (a *App) setMute(muted bool) {
 	a.muted.Store(muted)
+	if muted && a.icActive() {
+		a.ic.m.Hangup("mic muted") // declines a ringing call, ends any other
+	}
 	if muted {
 		a.ringStack.Push("mute", display.PrioLocal, 0, effect("mute"))
 	} else {
