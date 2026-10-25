@@ -3,6 +3,26 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.7.0 — 2026-10-25
+
+**Features**
+- Orion (Station 3): the front screen plays the firmware's own screen animations — the voice
+  stages (listening, thinking, speaking), the faces (eyes, wink, joy), pause/next/previous, the
+  alarm, incoming and outgoing calls, the boot phase and the Wi-Fi setup mode — instead of
+  showing none. The Display faces switch and the expressions now exist on orion too. Built
+  against the 3.21 firmware dump and not yet checked on glass: if the animations look too dark
+  or washed out, set `matrix.gamma` in `<cfw>/board.conf`
+  ([docs/display-expressions.md](docs/display-expressions.md), "Screen patterns").
+- The front display is driven through a per-display catalogue of scenes and animations: an
+  expression resolves to the display's own animation (a clock clip on seg7, a screen pattern on
+  a pixel screen), never a converted one. The clock, text and numbers on orion still use the seg7
+  picture drawn as pixels until they get pixel drawings of their own.
+- HA `display/cmd` `clip` takes semantic names (`listening`) and, on orion, any screen pattern by
+  its path (`media/Like`).
+
+**Fixes and operations**
+- The intercom's call timer shows on orion's screen too.
+
 ## v0.6.0 — 2026-10-25
 
 **Features**
