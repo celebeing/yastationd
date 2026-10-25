@@ -289,7 +289,8 @@ Commits land on `main` meanwhile; `intercom` stays off by default.
    daemon wiring, the voice scenario's transcript matcher, HA entities, config. Off by default;
    not released until checked on speakers.
 2. **On two speakers** (needs the user): the checklist below; tune jitter, guard, volume.
-3. **VQE call mode** through a spotter-host control channel; pickle's missing call model.
+3. **VQE call mode** — done on bergamot (2026-10-25); still to do: putting the NR model on units
+   (a `make` target like `sounds`, from the unit's own firmware or a dump), pickle and orion.
 4. **The rest of the UX** (HA sentence triggers and the callee question, tested and written up;
    the other options above); Opus if Wi-Fi needs it;
    push-to-talk fallback; front-display states.
@@ -330,6 +331,19 @@ the speaker) replayed on the speaker through `spotter-host vqe` with `-C 0` and 
   gain channel sat at −37…−40 there), far-end-only −84. **vqe_0 is bit-identical in both
   modes**, and vqe_bnr changes slightly (max 678 / 32768): one VQE instance can feed the wake
   word and the call at once.
+
+**Live (2026-10-25):** `spotter-host serve` switches the mode at runtime (SIGUSR1 / SIGUSR2,
+`MODE <n> ok|err`; it announces `READY call-mode`, and the daemon signals only such a child —
+an older one has no handler and would die), writes vqe_gain on fd 4, and the daemon takes that
+as the uplink for the length of a call, with only the fade-in and the limiter on top. The user
+on the result: clean speech "excellent", double talk ~90 % intelligible, nothing but their own
+voice came through.
+- **CPU:** with the call mode's NR and both spotters, spotter-host's single core was ~95 % busy
+  (busybox top: 22–24 % of the 4-core SoC) and the uplink fell ~4 % behind real time (2883 of
+  3000 frames in 60 s) — the far end saw hundreds of late packets and rebuffered, which looked
+  like bad Wi-Fi. The command spotter now rests in the call mode: 18–22 %, the uplink runs at
+  real time (4102 frames in 82 s, the far end lost 1). Next step if needed: run the VQE and the
+  spotters in separate threads (three cores sit idle).
 
 ## Testing with one speaker: `intercom-peer`
 
