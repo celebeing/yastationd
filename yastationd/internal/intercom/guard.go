@@ -28,6 +28,8 @@ type agc struct {
 	floor  float64 // noise floor (linear RMS)
 	speech float64 // recent speech level
 	gain   float64
+
+	frames, speechFrames int
 }
 
 const (
@@ -54,7 +56,9 @@ func (a *agc) level(r float64) (float64, bool) {
 		a.floor = 1e-5
 	}
 	speech := r > a.floor*agcSpeechOver
+	a.frames++
 	if speech {
+		a.speechFrames++
 		if a.speech == 0 {
 			a.speech = r
 		}
@@ -166,4 +170,24 @@ func (st *gainState) apply(f []int16, want float64) {
 	st.n += n
 	st.duck = want
 	st.lim = math.Min(1, lim*1.05) // release over ~0.3 s
+}
+
+// AGCStats is what the uplink AGC has measured (dBFS; gain in dB), for the log.
+type AGCStats struct {
+	FloorDB, SpeechDB, GainDB float64
+	SpeechFrames, Frames      int
+}
+
+func db(x float64) float64 {
+	if x <= 0 {
+		return -120
+	}
+	return math.Round(20*math.Log10(x)*10) / 10
+}
+
+// AGC reports the uplink AGC's estimates. Call it from the uplink goroutine (no locking).
+func (g *Guard) AGC() AGCStats {
+	a := g.agc
+	return AGCStats{FloorDB: db(a.floor), SpeechDB: db(a.speech), GainDB: db(a.gain),
+		SpeechFrames: a.speechFrames, Frames: a.frames}
 }

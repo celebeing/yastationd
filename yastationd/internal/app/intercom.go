@@ -392,9 +392,19 @@ func (a *App) icStartAudio() {
 	wg.Add(2)
 	go func() { // uplink
 		defer wg.Done()
+		report := time.NewTicker(5 * time.Second)
+		defer report.Stop()
+		logAGC := func(msg string) {
+			s := g.AGC()
+			a.log.Info(msg, "floor_dbfs", s.FloorDB, "speech_dbfs", s.SpeechDB, "gain_db", s.GainDB,
+				"speech_frames", s.SpeechFrames, "frames", s.Frames)
+		}
 		for {
 			select {
+			case <-report.C:
+				logAGC("intercom: uplink agc")
 			case <-quit:
+				logAGC("intercom: uplink agc at the end")
 				return
 			case f := <-frames:
 				if a.micMuted() || a.sat.inDialog() { // the hardware mute; or talking to Alice
