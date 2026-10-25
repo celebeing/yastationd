@@ -3,6 +3,15 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Features**
+- Orion's volume shows the firmware's own rolling digits: the daemon scrubs `volume.led` to the
+  level and glides between levels, so the ring's fine steps read as the digits rolling;
+  pushing past 0 or 100 plays the stock `volume_edge` shake. Other displays keep the number.
+- The Wi-Fi setup mode's key combo is now the same on every board: **mic muted + the voice key
+  held for 5 s** (it was volume-down + voice + mute, impossible on orion).
+
 ## v0.8.1 — 2026-10-26
 
 Orion's visuals polished: a clock of its own, moments, the LED preview and a video party trick.

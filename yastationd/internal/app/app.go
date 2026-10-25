@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -99,6 +100,9 @@ type App struct {
 	marqueeText string
 
 	tap *frametap.Tap // the LED preview stream; nil when frametap_addr is off
+
+	vol     display.VolumeScene // the front display's volume indication, made on first use
+	volOnce sync.Once
 
 	video videoState // the video display mode (video.go)
 }

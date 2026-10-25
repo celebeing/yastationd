@@ -353,9 +353,9 @@ Three surfaces, every LED a Linux LED class device each mirrored by a framebuffe
 
 - **Clock:** done — our own pixel font, plus the two-line `clock_date` mode
   ([display-expressions.md](../display-expressions.md), "The pixel clock").
-- **Volume:** a number redrawn on every step flickers and does not match the fine-grained
-  rotary gesture on the touch ring. Wanted: an orion override of the volume scene — properly
-  drawn digits that blend from one value to the next, plus a horizontal volume bar.
+- **Volume:** done — the stock `volume.led` (a 0→100 sweep, ~5 frames per percent) scrubbed to
+  the level with a glide between levels, `rcu_volume/volume_edge/{0,10}` at the ends
+  (`display/volume.go`). Still possible later: a horizontal bar of our own.
 - **Low brightness:** gamma 2.2 and then the brightness scale, both in 8 bits, can collapse the
   dark half-tones; the vendor keeps the screen at `minBrightness` 127 or more and has a
   backlight node (`/sys/class/backlight/fb1/brightness`) — consider brightness there instead.

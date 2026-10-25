@@ -18,21 +18,23 @@ func TestSetupKeyCombo(t *testing.T) {
 		setup:       wifisetup.New(wifisetup.Options{Log: log})}
 	a.sat = &satellite{a: a}
 
-	if a.setupKey("volume_up", true) {
-		t.Error("a key outside the combo was swallowed")
+	if a.setupKey("voice", true) || a.combo.timer != nil {
+		t.Error("the voice key armed setup with the mic on")
 	}
-	if a.setupKey("volume_down", true) || a.setupKey("voice", true) {
-		t.Error("an incomplete combo swallowed a key")
+	a.setupKey("voice", false)
+	a.muted.Store(true)
+	if a.setupKey("volume_down", true) || a.combo.timer != nil {
+		t.Error("another key armed setup")
 	}
-	if !a.setupKey("mute_key", true) {
-		t.Error("the press completing the combo was not swallowed")
+	if a.setupKey("voice", true) {
+		t.Error("the voice key was swallowed (muted, it only shows the mute indication)")
 	}
 	if a.combo.timer == nil {
-		t.Fatal("hold timer not armed")
+		t.Fatal("hold timer not armed with the mic muted")
 	}
 	a.setupKey("voice", false)
 	if a.combo.timer != nil {
-		t.Error("releasing a key did not disarm the timer")
+		t.Error("releasing the voice key did not disarm the timer")
 	}
 	if a.setupKey("voice", true); a.combo.timer == nil {
 		t.Error("pressing it again did not re-arm the timer")

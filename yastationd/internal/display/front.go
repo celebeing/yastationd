@@ -57,6 +57,8 @@ type Front interface {
 	// Marquee shows s, scrolling when it does not fit.
 	Marquee(s string, step time.Duration, brightness func() int) RenderFunc[FrontFrame]
 	Number(n int, brightness int) FrontFrame
+	// Volume is the volume indication (volume.go): stateful, set on every change.
+	Volume(brightness func() int) VolumeScene
 	Countdown(deadline time.Time, brightness func() int) RenderFunc[FrontFrame]
 	// SetupMode is the Wi-Fi setup indication where the display has no "setup" animation.
 	SetupMode(brightness int) FrontFrame

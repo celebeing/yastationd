@@ -13,19 +13,17 @@ import (
 	"github.com/celebeing/yastationd/yastationd/internal/wifisetup"
 )
 
-// Wi-Fi setup mode from the keys (docs/wifi-setup.md): volume-down + voice + mute held together
-// for setupHold enter it, and the same again leaves it. While it lasts, the ring runs a yellow
+// Wi-Fi setup mode from the keys (docs/wifi-setup.md): with the mic muted, the voice key held for
+// setupHold enters it, and the same again leaves it. The same on every board — orion has no
+// volume keys, and its mute is a switch that cannot be held. While it lasts, the ring runs a yellow
 // comet and the front display shows wide-open eyes with a dot ("O  O°"), above everything else.
 
 const setupHold = 5 * time.Second
 
-var setupCombo = [...]string{"volume_down", "voice", "mute_key"}
-
-// keyCombo tracks the combo's keys across input devices (each device has its own reader).
+// keyCombo tracks the hold of the voice key while muted.
 type keyCombo struct {
 	mu    sync.Mutex
-	held  map[string]bool
-	timer *time.Timer // armed while all keys are held; nil once any is released
+	timer *time.Timer // armed while the voice key is held with the mic muted
 	busy  atomic.Bool // entering or leaving
 }
 
@@ -65,46 +63,37 @@ func (a *App) newWifiSetup() *wifisetup.Mode {
 	})
 }
 
-// setupKey records a combo key going down or up. It reports true when this press completed the
-// combo: the key's own action is then skipped.
+// setupKey watches the voice key: held down with the mic muted, it arms the setup toggle;
+// released (or the mic unmuted) before setupHold, it disarms it. It never swallows the key: a
+// voice press while muted only shows the mute indication anyway.
 func (a *App) setupKey(action string, down bool) bool {
-	if a.setup == nil {
-		return false
-	}
-	inCombo := false
-	for _, k := range setupCombo {
-		inCombo = inCombo || k == action
-	}
-	if !inCombo {
+	if a.setup == nil || action != "voice" {
 		return false
 	}
 	k := &a.combo
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	if k.held == nil {
-		k.held = map[string]bool{}
-	}
-	k.held[action] = down
-	for _, n := range setupCombo {
-		if !k.held[n] {
-			if k.timer != nil {
-				k.timer.Stop()
-				k.timer = nil
-			}
-			return false
+	if !down || !a.micMuted() {
+		if k.timer != nil {
+			k.timer.Stop()
+			k.timer = nil
 		}
+		return false
 	}
-	if k.timer != nil || !down {
-		return down
+	if k.timer != nil {
+		return false
 	}
-	a.log.Info("wifi setup: key combo held", "hold", setupHold.String())
-	// The voice key in the combo may have started a session: drop it (the clean cancel).
-	if a.sat.inDialog() {
-		a.sat.dropConn("wifi setup key combo")
-		a.unexpress("voice")
-	}
-	k.timer = time.AfterFunc(setupHold, a.toggleSetup)
-	return true
+	a.log.Info("wifi setup: voice key held while muted", "hold", setupHold.String())
+	k.timer = time.AfterFunc(setupHold, func() {
+		k.mu.Lock()
+		armed := k.timer != nil
+		k.timer = nil
+		k.mu.Unlock()
+		if armed && a.micMuted() {
+			a.toggleSetup()
+		}
+	})
+	return false
 }
 
 func (a *App) toggleSetup() {

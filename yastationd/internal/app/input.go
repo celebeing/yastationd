@@ -224,7 +224,15 @@ func (a *App) nudgeVolume(n int) {
 		a.log.Warn("volume get", "err", err)
 		return
 	}
-	a.applyVolume(a.prof.Audio.StepVolume(cur, n))
+	nv := a.prof.Audio.StepVolume(cur, n)
+	edge := 0
+	if nv == cur && n != 0 { // pushed past the bottom or the top
+		edge = 1
+		if n < 0 {
+			edge = -1
+		}
+	}
+	a.applyVolumeEdge(nv, edge)
 }
 
 // volumeBeep ticks the stock volume sound at the new level, so the level is heard as it is set.
@@ -290,7 +298,11 @@ func (a *App) setVolumePercent(pct int) {
 	a.applyVolume(a.prof.Audio.RawFromPercent(pct))
 }
 
-func (a *App) applyVolume(v int) {
+func (a *App) applyVolume(v int) { a.applyVolumeEdge(v, 0) }
+
+// applyVolumeEdge sets Master to v and shows the level; edge (-1/+1) says a nudge hit the bottom
+// or the top.
+func (a *App) applyVolumeEdge(v, edge int) {
 	if err := a.mixer.Set(a.prof.Audio.Volume, v); err != nil {
 		a.log.Warn("volume set", "err", err)
 		return
@@ -301,15 +313,14 @@ func (a *App) applyVolume(v int) {
 	if a.mqtt != nil {
 		a.mqtt.Publish(a.topics.State("volume"), strconv.Itoa(pct))
 	}
-	// Local reflex: the percentage on the matrix for a moment. The "ring" is ~12 mm across, too
-	// small to read as a level bar, so it stays for colour/animation only.
+	// Local reflex: the level on the front display for a moment (the display's own volume scene:
+	// a number on seg7, the stock rolling digits on orion). The ring stays for colour/animation.
 	if a.front == nil {
 		return
 	}
-	a.matrixStack.Push("volbubble", display.PrioLocal, volumeBubbleTTL,
-		func(time.Time, display.FrontFrame) (display.FrontFrame, bool) {
-			return a.front.Number(pct, a.brightness()), false
-		})
+	a.volOnce.Do(func() { a.vol = a.front.Volume(a.brightness) })
+	a.vol.Set(pct, edge)
+	a.matrixStack.Push("volbubble", display.PrioLocal, volumeBubbleTTL, a.vol.Render)
 }
 
 // unmute applies the configured unmute sequence (before any playback).

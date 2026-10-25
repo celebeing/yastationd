@@ -19,13 +19,14 @@ removed.
 
 ## Using it
 
-1. **Hold volume-down + voice (Alice) + mute together for 5 s.**
+1. **Mute the mic, then hold the voice key (Alice) for 5 s.** The same on every board: orion has
+   no volume keys and its mute is a switch that can't be held, so the combo is "muted + voice".
    - The ring runs a yellow comet.
    - The front display shows wide-open eyes with a dot, `O  O°`.
    - Both stay for as long as the mode lasts, above everything else.
-   - Pressing the keys has its usual side effects first: one volume step down, the mic-mute toggle
-     (a hardware latch; press mute again afterwards), and a voice session from the voice key. The
-     session is dropped once the combo is complete.
+   - A voice press while muted starts no session (it only shows the mute indication), so the
+     combo has no side effects; unmute afterwards. Releasing the key or unmuting before 5 s
+     cancels it.
 2. **Join the open network `yastation-<device_id>`** (`wifi_setup_ssid`) from a phone or laptop.
    - The phone should offer to sign in (captive portal).
    - If it doesn't, open `http://10.42.0.1/`.
@@ -39,7 +40,7 @@ removed.
    the settings changed). "Reboot instead" does the same through a reboot.
 
 The mode also ends by:
-- the same key combo again;
+- the same key combo again (muted + voice held 5 s);
 - a reboot or power cycle: **setup mode is never persistent**, a reboot always comes back as a
   normal Wi-Fi client;
 - the daemon stopping.
@@ -168,9 +169,10 @@ Init runs `S40wifi` → `S41dhcpcd` → … → `S52zyastationd` in order:
 
 ## Boards
 
-- **bergamot:** working (keys `volume_down`, `voice`, `mute_key` in the profile).
+- **bergamot:** working (the mute latch is `switch.14`, the voice key `key.582`).
 - **pickle:** working (same keys, same driver family; kernel 5.4, the 32-bit hostapd runs fine).
-- **orion:** has no volume keys (a volume ring), so the combo can't be pressed there yet.
+- **orion:** prerequisites present (hostapd deployed, the Wi-Fi chip lists AP mode, same keys);
+  not yet tried on a unit. The combo became "muted + voice" for it (2026-10-26).
 
 ## Not done
 
