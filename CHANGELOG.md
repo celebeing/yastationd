@@ -3,7 +3,9 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.8.2 — 2026-10-26
+
+Orion: the volume scene and the Wi-Fi setup mode, verified on the unit.
 
 **Features**
 - Orion's volume: the exact level in the clock's digits, cross-fading from the old value, over a
@@ -14,6 +16,11 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
   held for 5 s** (it was volume-down + voice + mute, impossible on orion); the ring fills with
   yellow while it is held. Only the voice press needs the mute (orion's held mute flips back by
   itself). Verified on orion: the access point, a phone joining, "Connect now".
+
+**Fixes and operations**
+- The volume level no longer blanks the screen on every step: the bubble that is up is extended
+  instead of pushed again (a new layer made the screen fade in from black).
+- The daemon logs mic-mute changes and the setup hold.
 
 ## v0.8.1 — 2026-10-26
 
