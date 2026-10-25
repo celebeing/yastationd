@@ -21,6 +21,7 @@ type Jitter struct {
 	highest uint64
 	started bool // got a first packet
 	playing bool // prebuffered, Pop plays
+	fresh   bool // playing, but nothing popped yet
 
 	avg    float64 // averaged depth before a pop, in samples
 	last   []int16 // last real frame, for concealment
@@ -85,19 +86,23 @@ func (j *Jitter) Push(idx uint64, s []int16) {
 	if depth := int(j.highest + 1 - j.next); depth > j.max {
 		// Far behind (a stall that ended in a burst, or a DAC slower than drift can fix): skip to
 		// the target depth instead of carrying the delay for the rest of the call.
-		nn := j.highest + 1 - uint64(j.target)
-		for k := j.next; k < nn; k++ {
-			if _, ok := j.frames[k]; ok {
-				delete(j.frames, k)
-				j.st.Overflow++
-			}
-		}
-		j.next = nn
+		j.skip(j.highest + 1 - uint64(j.target))
 	}
 	if !j.playing && int(j.highest+1-j.next) >= j.target {
-		j.playing = true
+		j.playing, j.fresh = true, true
 		j.avg = float64(j.target * FrameSamples)
 	}
+}
+
+// skip drops the frames before nn (counted as overflow) and plays on from nn.
+func (j *Jitter) skip(nn uint64) {
+	for k := j.next; k < nn; k++ {
+		if _, ok := j.frames[k]; ok {
+			delete(j.frames, k)
+			j.st.Overflow++
+		}
+	}
+	j.next = nn
 }
 
 // Pop returns the next frame to play.
@@ -107,8 +112,22 @@ func (j *Jitter) Pop() []int16 {
 	if !j.playing {
 		return make([]int16, FrameSamples)
 	}
+	if j.fresh {
+		// The first pop after the prebuffer may come late (the playout starts after the
+		// network): start at the target depth instead of carrying the excess.
+		j.fresh = false
+		if nn := j.highest + 1 - uint64(j.target); nn > j.next {
+			j.skip(nn)
+		}
+	}
 	depth := float64(int(j.highest+1-j.next) * FrameSamples)
 	j.avg += avgK * (depth - j.avg)
+	if j.avg > float64((j.target+2)*FrameSamples) && j.next < j.highest {
+		// Far above the target for a while (a burst after a stall): sample-dropping would take
+		// seconds per frame, so skip a whole frame.
+		j.skip(j.next + 1)
+		j.avg -= FrameSamples
+	}
 
 	f, ok := j.frames[j.next]
 	delete(j.frames, j.next)

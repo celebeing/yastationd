@@ -230,6 +230,12 @@ decision first.
   without one. Plain loss doesn't grow it — more delay doesn't bring a lost packet back.
 - **Drift, simulated:** 30 min at ±300 ppm corrected 8323 / 8318 samples (the expected ~8640),
   the depth stayed at 1–2 frames, no overflow or rebuffering.
+- **Loss and jitter, simulated** (10 min, DAC-paced playout): 5 % loss with 0–30 ms delay —
+  every packet that arrived was played, no late ones, the target stayed at 40 ms; with 0–80 ms —
+  0.3 % late while the target grew, settling at 60 ms.
+- The first pop after the prebuffer trims the buffer to the target (the playout may start after
+  the network), and a sustained excess of more than two frames skips a frame instead of taking
+  seconds of sample-dropping.
 - The playout upsamples 16 → 48 kHz by linear interpolation (enough for a voice band ending at
   8 kHz); the far end is ducked to 0.3 while an Assist session or a reply runs in the call, and
   the uplink is silence then.
@@ -269,6 +275,29 @@ nominative, so «вызывают из кабинета» would need a name map)
 4. **The rest of the UX** (HA sentence triggers and the callee question, tested and written up;
    the other options above); Opus if Wi-Fi needs it;
    push-to-talk fallback; front-display states.
+
+## Testing with one speaker: `intercom-peer`
+
+`yastationd/cmd/intercom-peer` is a stand-in for the second speaker, on any host on the LAN: it
+joins the broker as a peer (its own `device_id`, the speakers' `intercom_secret`, in a
+yastationd-format config), calls (`-call <device id>`) or auto-answers, records what the speaker
+sends (`-record rx.wav`) and sends it a file (`-play`, 16 kHz mono), a tone (`-tone 440`,
+`-tone-on 2s` for on/off bursts), an echo of itself (`-echo 300ms`) or silence; every 5 s it logs
+the received level and the jitter-buffer counters.
+
+```
+cd yastationd && go build -o build/intercom-peer ./cmd/intercom-peer
+GOOS=windows GOARCH=amd64 go build -o build/intercom-peer.exe ./cmd/intercom-peer   # WSL2 in NAT mode
+```
+
+On WSL2 in NAT mode a speaker can't reach a UDP port inside WSL; the Windows build, started from
+WSL, binds on the Windows side (Windows asks once to allow it through its firewall).
+
+What it measures with one speaker: the uplink level of vqe_0 (clipping?), the echo the speaker's
+mic picks up of what it plays (a tone in bursts: the received level during the bursts vs between
+them), the round trip (`-echo`), and the speaker's Wi-Fi (missing/late packets, the jitter target
+it settles on). Checked host to host through the real broker (2026-10-25): call, answer, the tone
+arrived at its level, no bad packets.
 
 ## To verify on a device
 

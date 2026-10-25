@@ -426,3 +426,22 @@ func (m *Manager) Downlink() []int16 {
 	}
 	return s.jb.Pop()
 }
+
+// CallStats are the current call's counters (zero without one).
+type CallStats struct {
+	Sent, Bad int64
+	Jitter    JitterStats
+}
+
+func (m *Manager) Stats() CallStats {
+	m.mu.Lock()
+	var s *session
+	if m.c != nil {
+		s = m.c.sess
+	}
+	m.mu.Unlock()
+	if s == nil {
+		return CallStats{}
+	}
+	return CallStats{Sent: s.sent.Load(), Bad: s.bad.Load(), Jitter: s.jb.Stats()}
+}

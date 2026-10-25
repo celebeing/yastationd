@@ -100,36 +100,70 @@ func TestVerifier(t *testing.T) {
 	}
 }
 
-func TestJitterLossAndReorder(t *testing.T) {
+// TestJitterLossAndJitter: 10 virtual minutes over a network that loses 5 % and delays each
+// packet by 0..30 ms (so packets also overtake each other); the playout runs at the pace of the
+// samples it gets, like the real DAC-paced writer.
+func TestJitterLossAndJitter(t *testing.T) {
+	for _, tc := range []struct {
+		jitter   time.Duration
+		maxLate  float64 // fraction of the frames
+		maxTgtMs int
+	}{{30 * time.Millisecond, 0, 40}, {80 * time.Millisecond, 0.01, 160}} {
+		t.Run(tc.jitter.String(), func(t *testing.T) { lossAndJitter(t, tc.jitter, tc.maxLate, tc.maxTgtMs) })
+	}
+}
+
+func lossAndJitter(t *testing.T, jitter time.Duration, maxLate float64, maxTgtMs int) {
 	j := NewJitter(40)
 	r := rand.New(rand.NewSource(1))
 	base := firstIndex(5)
-	var pending []uint64
-	sent := 0
-	for k := 0; k < 3000; k++ { // one frame time per step: the sender's frame k, one pop
-		idx := base + uint64(k)
-		if r.Float64() >= 0.05 { // 5 % loss
-			pending = append(pending, idx)
-			if r.Float64() < 0.1 && len(pending) > 1 { // reorder neighbours
-				n := len(pending)
-				pending[n-1], pending[n-2] = pending[n-2], pending[n-1]
+	type arrival struct {
+		at  float64
+		idx uint64
+	}
+	var inflight []arrival
+	var tSend, tPlay float64
+	k, sent := 0, 0
+	for tPlay < float64(10*time.Minute) {
+		// next event: a send, an arrival or a pop
+		next, which := tSend, 0
+		ai := -1
+		for i, a := range inflight {
+			if a.at < next && (ai < 0 || a.at < inflight[ai].at) {
+				ai = i
 			}
 		}
-		if len(pending) >= 2 { // one frame of network delay
-			j.Push(pending[0], sine(FrameSamples, k*FrameSamples, 0.3))
-			pending = pending[1:]
-			sent++
+		if ai >= 0 && inflight[ai].at < next {
+			next, which = inflight[ai].at, 1
 		}
-		if k > 2 {
-			if f := j.Pop(); len(f) < FrameSamples-1 || len(f) > FrameSamples+1 {
+		if tPlay < next {
+			which = 2
+		}
+		switch which {
+		case 0:
+			if r.Float64() >= 0.05 {
+				inflight = append(inflight, arrival{tSend + r.Float64()*float64(jitter), base + uint64(k)})
+				sent++
+			}
+			k++
+			tSend += float64(FrameDur)
+		case 1:
+			j.Push(inflight[ai].idx, sine(FrameSamples, 0, 0.3))
+			inflight = append(inflight[:ai], inflight[ai+1:]...)
+		case 2:
+			f := j.Pop()
+			if len(f) < FrameSamples-1 || len(f) > FrameSamples+1 {
 				t.Fatalf("frame of %d", len(f))
 			}
+			tPlay += float64(len(f)) * float64(time.Second) / Rate
 		}
 	}
 	st := j.Stats()
-	t.Logf("%+v (sent %d)", st, sent)
-	if st.Frames < sent*9/10 || st.Missing > 3000/10 || st.Rebuffers != 0 || st.Overflow != 0 {
-		t.Fatalf("stats %+v (sent %d)", st, sent)
+	t.Logf("%+v (sent %d of %d)", st, sent, k)
+	// what arrives is played (late ones only while the target adapts), and the target stays
+	// within what the jitter needs
+	if st.Frames < sent*95/100 || float64(st.Late) > maxLate*float64(k) || st.Rebuffers != 0 || st.TargetMs > maxTgtMs {
+		t.Fatalf("stats %+v (sent %d of %d)", st, sent, k)
 	}
 }
 
