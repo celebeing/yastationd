@@ -11,10 +11,12 @@
 # (S99zzegress + plain `ssh host cmd`) — without this, lock silently no-ops.
 export PATH=/usr/sbin:/sbin:/usr/bin:/bin:$PATH
 
-# iptables resolution. Prefer a system iptables; else fall back to the armhf bundle the install kit
-# ships at $BUNDLE (official Debian-buster iptables-legacy + its libs + xtables extension .so dir).
-# bergamot fw 0.6.1.4 ships NO iptables at all, but its kernel has full netfilter built-in, so the
-# bundle drives it fine; the bundle's xtables-legacy-multi is also its ip6tables.
+# iptables resolution. Prefer a system iptables; else fall back to the bundle the install kit ships
+# at $BUNDLE (official Debian iptables-legacy + its libs + xtables extension .so dir): armhf (buster)
+# on bergamot fw 0.6.1.4, aarch64 (bookworm) on orion. Neither firmware ships iptables at all, but
+# the kernels have full netfilter built-in, so the bundle drives it fine. IPv6: the armhf bundle's
+# xtables-legacy-multi takes the applet as its first argument; the aarch64 one is a multi-call binary
+# named bin/iptables that picks the applet by its own name, so it needs a bin/ip6tables link.
 # $IPT / $IPT6 may be multi-word (env ...), so they are used UNQUOTED on purpose below.
 CFWR=/bkupgrade/cfw; [ -d "$CFWR" ] || CFWR=/data/cfw
 BUNDLE=$CFWR/iptables
@@ -29,6 +31,8 @@ else
 fi
 if command -v ip6tables >/dev/null 2>&1; then
   IPT6="ip6tables"
+elif [ -x "$BUNDLE/bin/ip6tables" ]; then
+  IPT6="$BENV $BUNDLE/bin/ip6tables"
 elif [ -x "$BUNDLE/bin/xtables-legacy-multi" ]; then
   IPT6="$BENV $BUNDLE/bin/xtables-legacy-multi ip6tables"
 else

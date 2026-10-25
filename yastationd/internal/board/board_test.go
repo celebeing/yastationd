@@ -42,7 +42,8 @@ func TestOrionBuiltin(t *testing.T) {
 	if p.Matrix.Kind != "dotmatrix-fb" || p.Ring.Pixels != 36 ||
 		p.Ambilight.Kind != "sysfs-rgbw" || p.Ambilight.Pixels != 12 ||
 		len(p.Ambilight.Colors) != 4 || len(p.Ambilight.Dies) != 2 ||
-		p.Platform.CFWRoot != "/data/cfw" || p.Platform.UserlandArch != "aarch64" {
+		p.Platform.CFWRoot != "/bkupgrade/cfw" || p.Platform.UserlandArch != "aarch64" ||
+		len(p.Platform.StopInitd) != 1 || p.Platform.StopInitd[0] != "S31animation" {
 		t.Errorf("matrix %q / ring %d / ambilight %+v / platform %+v",
 			p.Matrix.Kind, p.Ring.Pixels, p.Ambilight, p.Platform)
 	}

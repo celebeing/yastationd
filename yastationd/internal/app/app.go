@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"os/exec"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -104,6 +105,9 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 		return nil, err
 	}
 	log.Info("board", "profile", prof.Name, "model", prof.Model)
+	if cfg.SysRoot == "" {
+		stopVendorLeftovers(prof.Platform.StopInitd, log)
+	}
 	var ring *hw.Ring
 	if prof.Ring.Kind == "sysfs-rgb" {
 		if ring, err = hw.NewRing(cfg.SysRoot, prof.Ring.Pixels, prof.Ring.LED, prof.Ring.Colors); err != nil {
@@ -182,6 +186,17 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 	a.ringStack = display.NewStack(a.ringBase)
 	a.matrixStack = display.NewStack(a.matrixBase)
 	return a, nil
+}
+
+// stopVendorLeftovers runs the vendor's own "stop" of each init.d script in the board's
+// platform.stop_initd, before the daemon takes over the LEDs and the screen.
+func stopVendorLeftovers(names []string, log *slog.Logger) {
+	for _, n := range names {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		out, err := exec.CommandContext(ctx, "/etc/init.d/"+n, "stop").CombinedOutput()
+		cancel()
+		log.Info("vendor leftover stopped", "initd", n, "err", err, "out", strings.TrimSpace(string(out)))
+	}
 }
 
 // ---- base layers ----

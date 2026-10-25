@@ -52,9 +52,13 @@ type ClipsSpec struct {
 
 // PlatformSpec contains host-side deployment facts shared by every unit of this board.
 // CFWRoot is the persistent installation root; UserlandArch selects native helper binaries.
+// StopInitd names vendor init.d scripts whose leftovers outlive the gated vendor stack and would
+// fight the daemon for a surface (orion's S31animation loops led-play on the ring framebuffer until
+// maind would have stopped it); the daemon runs "/etc/init.d/<name> stop" once at startup.
 type PlatformSpec struct {
-	CFWRoot      string // e.g. "/bkupgrade/cfw" or "/data/cfw"
-	UserlandArch string // "armhf" | "aarch64"
+	CFWRoot      string   // e.g. "/bkupgrade/cfw" or "/data/cfw"
+	UserlandArch string   // "armhf" | "aarch64"
+	StopInitd    []string // e.g. S31animation
 }
 
 // RingSpec: an RGB ring of Pixels, each pixel = one sysfs LED per colour. LED names come from
@@ -276,6 +280,8 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Platform.CFWRoot = v
 	case k == "platform.userland_arch":
 		p.Platform.UserlandArch = v
+	case k == "platform.stop_initd":
+		list(&p.Platform.StopInitd)
 	case k == "ring.kind":
 		p.Ring.Kind = v
 	case k == "ring.pixels":
@@ -475,6 +481,11 @@ func (p Profile) Validate() error {
 	case "armhf", "aarch64":
 	default:
 		return fmt.Errorf("platform.userland_arch %q unknown", p.Platform.UserlandArch)
+	}
+	for _, s := range p.Platform.StopInitd {
+		if s == "" || strings.Trim(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") != "" {
+			return fmt.Errorf("platform.stop_initd %q: an init.d script name", s)
+		}
 	}
 	for code, axis := range p.Input.AbsoluteRange {
 		if axis.Maximum <= axis.Minimum {

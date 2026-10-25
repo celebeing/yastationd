@@ -158,8 +158,11 @@ Generic detector limits and the bergamot instance: docs/wakeword-mic-array.md §
     either on this fw).
   Verdict: vendor alisa CAN run 1st-stage in container (verifier stripped locally +
   deprecated flags dropped) - full listen verified, LEVEL lines healthy, no false hits on
-  4 s of tone/silence. On device, the pristine model with the NPU verifier is the real
-  test. Fallback remains: strip the verifier (re-threshold; more false accepts) -
+  4 s of tone/silence. On device (2026-10-26) the pristine model, NPU verifier included,
+  loads and creates as a 3-channel spotter; two spotter-host fixes were needed for it: the
+  3.21 WARN-log buffer is no longer treated as an error (the call's NULL return is), and
+  `probe` no longer calls the single-channel `spotter_create`, which segfaults in this blob
+  for a multi-channel model. Fallback remains: strip the verifier (re-threshold; more false accepts) -
   bergamot §6.4 tradeoff in docs/spotter-decompile.md.
 - **Runtime noise-event spotter (stock unit, captured 2026-10-25):** `spotter.json` declares one
   downloaded model with `type = noise_detection`; its UUID, CDN URL and binary stay only in
@@ -252,8 +255,12 @@ Generic detector limits and the bergamot instance: docs/wakeword-mic-array.md §
 
 ## Lux / power
 
-- Persistent writable storage: `/data`, approximately 2 GB free on the tested unit. The
-  Orion CFW root is `/data/cfw`; do not deploy it under `/bkupgrade/cfw`.
+- Persistent writable storage: two ext4 `rw` partitions, `/data` (2.6 GB) and `/ota` (1.4 GB).
+  The firmware ships `/bkupgrade` as a symlink to `/ota` (dated with the firmware build), so the
+  CFW root is `/bkupgrade/cfw`, like bergamot: every hook, `run.sh`'s gate, `egress.sh` and the
+  daemon's fallback probe `/bkupgrade/cfw` first, and the install kit puts its files there. `/ota`
+  is the OTA staging partition; with updates blocked nothing rewrites it. What a factory reset
+  does to `/ota` and `/data` is not characterised yet.
 
 - Ambient light: ltr308 (I2C 1-0053) registered as IIO `light-sensor-top`, `in_intensity_*`
   only; the stock S80light-sensor sets gain 18 / 0.4 s — max values, nothing to override.
@@ -338,5 +345,39 @@ Three surfaces, every LED a Linux LED class device each mirrored by a framebuffe
 ## Boot / egress
 
 - FW 3.21 keeps the same init.d chain as 3.x: S94alsa, S95hardvold, S97quasar (starts
-  maind via run.sh), plus S80light-sensor and S61leds-* on orion. Our maind_off gate and
-  egress firewall carry over unchanged.
+  maind via run.sh), plus S80light-sensor and S61leds-* on orion. Our maind_off gate
+  carries over unchanged (orion's `run.sh` is byte-identical to bergamot's and pickle's).
+- **No iptables or nft in the firmware** (busybox has no applet either). The install kit
+  ships a Debian bookworm iptables-legacy 1.8.9 aarch64 bundle in `<cfw>/iptables/`; its
+  `bin/iptables` is the multi-call binary and picks the applet by its own name, so IPv6
+  needs a `bin/ip6tables -> iptables` link (verified: run under that name it lists the
+  IPv6 tables), which `egress.sh` then uses. Without the link `egress.sh` falls back to
+  switching IPv6 off on the interfaces. On the first unit the bundle directory also
+  carried leftovers of the armhf bundle (an armhf `xtables-legacy-multi`, `.so.0` libs),
+  which cannot run here; reinstall the directory from the aarch64 bundle alone.
+- **Vendor leftovers.** `S31animation` starts `led-play -r` loops on the ring framebuffer
+  (and, on a first boot, on the screen); maind stops them once the stack is up. With the
+  stack gated they loop forever and overwrite whatever we put on the ring. The profile's
+  `platform.stop_initd = S31animation` makes the daemon run the script's own `stop` at
+  startup (USR1: led-play finishes the current cycle, ~2 s, and exits; verified on device
+  2026-10-26).
+
+## First unit on hand (2026-10-26)
+
+Recon of the user's own unit after the install kit's Tier 1 (rooting and de-Yandexing are
+the other project's scope):
+
+- Firmware `0.13.1.36.3322101745.20250823.factory-13`, the same build as the dump: every
+  vendor file imported from the dump is byte-identical on the unit, which also supplied the
+  `/lib` sysroot the dump lacked.
+- Kit state: `<cfw>` = `/bkupgrade/cfw` with dropbear, `maind_off`, the kit's own
+  (IPv4-only) `egress.sh` locked, `run.sh` gated, `device_ota_update.sh` stubbed,
+  `--updatesd` stripped from `launch.json`, a foreign `ota_script.pub` (each with an
+  `.orig`). No maind process; network ADB `:5555` stays up.
+- `/dev/galcore` (the NPU) is present. spotter-host's `probe` on the stock models:
+  `activation/alisa` (omni + BNR + raw-mic, NPU verifier) creates fine as a 3-channel
+  spotter, `yandex` and `yasmina` as 2-channel (omni + raw-mic), `command` as 1-channel.
+  The pristine alisa model, verifier included, therefore loads on device; detection
+  quality is still to be tested with sound.
+- The aarch64 spotter-host built against pickle's sysroot runs here unchanged (both
+  firmwares have glibc 2.36), so `build/aarch64/` serves both boards.

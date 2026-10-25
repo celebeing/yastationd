@@ -1,5 +1,5 @@
 # Orion (Yandex Station 3) example configuration.
-# Copy to /data/cfw/yastationd.conf and replace the placeholder values before starting yastationd.
+# Copy to /bkupgrade/cfw/yastationd.conf and replace the placeholder values before starting yastationd.
 
 # Unique MQTT/HA identity for this speaker. Use lowercase letters, digits, '_' or '-'.
 device_id   = orion

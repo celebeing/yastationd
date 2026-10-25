@@ -76,11 +76,12 @@ static int report(const char *what, spotter_error **err)
         return 0;
     if (!spotter_error_get_message) {
         /* 3.21 blob: no error helpers, and the slot holds the library's WARN-log buffer (a plain
-         * C string, owned by the library), not an error object. The call's NULL return is the
-         * real failure signal; the buffered warnings help diagnose it. */
-        fprintf(stderr, "%s: error: %s\n", what, (const char *)*err);
+         * C string, owned by the library), not an error object. It is filled by mere warnings
+         * too (the stock alisa model's deprecated keys), so it is not an error: the call's NULL
+         * return is the real failure signal, and the buffered warnings help diagnose it. */
+        fprintf(stderr, "%s: warnings: %s\n", what, (const char *)*err);
         *err = NULL;
-        return 1;
+        return 0;
     }
     fprintf(stderr, "%s: error type=%d func=%s: %s\n", what, spotter_error_get_type(*err),
             spotter_error_get_func_name(*err), spotter_error_get_message(*err));
@@ -119,16 +120,8 @@ static int cmd_probe(const char *dir)
             printf("required_channel_count(%d) %d\n", what, n);
     }
 
-    /* Single-channel create. */
-    spotter *s = spotter_create(conf, rate, NULL, &err);
-    if (!report("spotter_create", &err) && s) {
-        printf("spotter_create ok\n");
-        spotter_destroy(s, &err);
-        report("spotter_destroy", &err);
-    }
-
-    /* Multichannel: one channel of every type the conf requires, in type order
-     * (types 0..5 are accepted by the library; 6+ give "Unknown channel type"). */
+    /* One channel of every type the conf requires, in type order (types 0..5 are accepted by
+     * the library; 6+ give "Unknown channel type"). */
     int types[16], n = 0;
     for (int t = 0; t < 6; t++) {
         int k = spotter_conf_get_required_channel_count(conf, t, &err);
@@ -136,6 +129,19 @@ static int cmd_probe(const char *dir)
         for (int i = 0; i < k && n < 16; i++)
             types[n++] = t;
     }
+
+    /* Single-channel create, only for single-channel models: the 3.21 blob segfaults in it for a
+     * model that requires several channels (orion's alisa: omni + BNR + raw-mic). */
+    spotter *s;
+    if (n <= 1) {
+        s = spotter_create(conf, rate, NULL, &err);
+        if (!report("spotter_create", &err) && s) {
+            printf("spotter_create ok\n");
+            spotter_destroy(s, &err);
+            report("spotter_destroy", &err);
+        }
+    }
+
     printf("layout");
     for (int i = 0; i < n; i++)
         printf("%s%d", i ? "," : " ", types[i]);

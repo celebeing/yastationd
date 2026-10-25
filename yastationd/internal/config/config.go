@@ -141,8 +141,8 @@ type Config struct {
 // Has reports whether key appeared in the parsed config (used for profile overrides).
 func (c Config) Has(key string) bool { return c.present[key] }
 
-// CFWRoot is where our files live on the device: /bkupgrade/cfw on bergamot, /data/cfw on
-// pickle/orion. Deployment derives the authoritative root from the board profile; this
+// CFWRoot is where our files live on the device: /bkupgrade/cfw on bergamot and orion,
+// /data/cfw on pickle. Deployment derives the authoritative root from the board profile; this
 // filesystem check is the runtime bootstrap fallback before that profile can be loaded.
 func CFWRoot() string {
 	if st, err := os.Stat("/bkupgrade/cfw"); err == nil && st.IsDir() {

@@ -1,5 +1,5 @@
 # yastationd configuration — copy to <cfw>/yastationd.conf and edit. The board profile supplies
-# <cfw> for deployment (/bkupgrade/cfw on bergamot, /data/cfw on pickle/orion).
+# <cfw> for deployment (/bkupgrade/cfw on bergamot/orion, /data/cfw on pickle).
 # Format: key = value, one per line, '#' comments. Repeated keys (unmute, probe) accumulate.
 
 device_id   = mini3
