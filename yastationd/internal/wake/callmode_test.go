@@ -47,11 +47,18 @@ func TestCallModeSwitchAndStream(t *testing.T) {
 	unsub := s.SubscribeCall(func(b []byte) { got <- len(b) })
 	defer unsub()
 	if !s.CallMode(true) {
-		t.Fatal("call mode not confirmed")
+		t.Fatal("call mode not sent")
 	}
-	if !s.CallMode(false) {
-		t.Fatal("ASR mode not confirmed")
+	waitMode := func(want bool) {
+		t.Helper()
+		for end := time.Now().Add(2 * time.Second); time.Now().Before(end); time.Sleep(10 * time.Millisecond) {
+			if s.InCallMode() == want {
+				return
+			}
+		}
+		t.Fatalf("InCallMode never became %v", want)
 	}
+	waitMode(true)
 	select {
 	case n := <-got:
 		if n != 640 {
@@ -60,12 +67,14 @@ func TestCallModeSwitchAndStream(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("no call stream on fd 4")
 	}
+	s.CallMode(false)
+	waitMode(false)
 }
 
 // An older spotter-host has no SIGUSR1 handler: the signal would kill it, so none is sent.
 func TestCallModeNotSentToOldHost(t *testing.T) {
 	s := runFake(t, "READY")
-	if s.CallMode(true) {
+	if s.CallMode(true) || s.InCallMode() {
 		t.Fatal("call mode claimed on a host that can't switch")
 	}
 	time.Sleep(200 * time.Millisecond)

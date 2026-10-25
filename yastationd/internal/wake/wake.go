@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -46,10 +47,10 @@ type Spotter struct {
 	callSubs map[int]func([]byte)
 	next     int
 	proc     *os.Process
-	canMode  bool        // the child said "READY call-mode": it handles SIGUSR1/2 (else they kill it)
-	callMode bool        // wanted; re-applied when the child restarts
-	modeAck  chan string // the child's MODE line, for CallMode
-	ring     []byte      // last prerollMax bytes of vqe_0
+	canMode  bool         // the child said "READY call-mode": it handles SIGUSR1/2 (else they kill it)
+	callMode bool         // wanted; re-applied when the child restarts
+	mode     atomic.Int32 // the VQE's communication mode as the child last reported it (lock-free: read from the fan-out)
+	ring     []byte       // last prerollMax bytes of vqe_0
 	running  bool
 	drops    int
 }
@@ -169,6 +170,7 @@ func (s *Spotter) line(l string) {
 		s.Log.Info("wake: spotter ready", "caps", strings.Join(f[1:], " "))
 		s.mu.Lock()
 		s.canMode = false
+		s.mode.Store(0)
 		for _, c := range f[1:] {
 			s.canMode = s.canMode || c == "call-mode"
 		}
@@ -190,13 +192,9 @@ func (s *Spotter) line(l string) {
 		}
 	case "MODE":
 		s.Log.Info("wake: vqe communication mode", "line", l)
-		s.mu.Lock()
-		ack := s.modeAck
-		s.mu.Unlock()
-		if ack != nil {
-			select {
-			case ack <- l:
-			default:
+		if len(f) >= 3 && f[2] == "ok" {
+			if m, err := strconv.Atoi(f[1]); err == nil {
+				s.mode.Store(int32(m))
 			}
 		}
 	case "LEVEL":
@@ -297,37 +295,25 @@ func (s *Spotter) SubscribeCall(fn func([]byte)) (unsubscribe func()) {
 	}
 }
 
-// CallMode switches the VQE's communication mode (on: the call mode, off: ASR) and waits for the
-// child to confirm; false when it didn't (no model on this unit, an old spotter-host, no child).
+// CallMode asks the child to switch the VQE's communication mode (on: the call mode, off: ASR)
+// and returns at once; false when it can't (an older spotter-host, no child). The switch takes
+// effect when the child reports it (InCallMode): the first one loads the NR model, ~2 s.
 func (s *Spotter) CallMode(on bool) bool {
 	sig := syscall.SIGUSR2
 	if on {
 		sig = syscall.SIGUSR1
 	}
-	ack := make(chan string, 1)
 	s.mu.Lock()
 	s.callMode = on
 	p := s.proc
 	can := s.running && s.canMode
-	s.modeAck = ack
 	s.mu.Unlock()
-	defer func() {
-		s.mu.Lock()
-		if s.modeAck == ack {
-			s.modeAck = nil
-		}
-		s.mu.Unlock()
-	}()
-	if p == nil || !can || p.Signal(sig) != nil {
-		return false
-	}
-	select {
-	case l := <-ack:
-		return strings.HasSuffix(l, " ok")
-	case <-time.After(2 * time.Second): // the first switch loads the NR model
-		return false
-	}
+	return p != nil && can && p.Signal(sig) == nil
 }
+
+// InCallMode reports whether the VQE runs in the call mode now (vqe_gain is the call's audio).
+// It takes no lock, so a SubscribeVQE/SubscribeCall callback may call it.
+func (s *Spotter) InCallMode() bool { return s.mode.Load() == 1 }
 
 // SubscribeVQE delivers vqe_0 (16 kHz mono S16LE) from now on, after first handing fn the last
 // preroll of buffered audio. fn must not block or call back into the Spotter.

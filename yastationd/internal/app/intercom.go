@@ -477,8 +477,10 @@ func (a *App) icStartAudio() {
 	ic := a.ic
 	// The uplink: the VQE in its call mode (neural NR + AGC on vqe_gain; vqe_0, the wake word's
 	// input, stays as it is) when this unit has it, else vqe_0 through our own gain and gate.
+	// The switch takes effect when spotter-host reports it (the first one loads the model), so
+	// both streams are taken and each frame comes from the one that fits the mode right now.
 	callMode := a.spot != nil && a.spot.Running() && a.spot.CallMode(true)
-	g := &intercom.Guard{UpGainDB: a.cfg.IntercomGainDB, Processed: callMode}
+	g := &intercom.Guard{UpGainDB: a.cfg.IntercomGainDB}
 	out, err := hw.StartLiveOut(a.prof.Audio.Playback, icPlayRate)
 	if err != nil {
 		a.log.Error("intercom: playout", "err", err)
@@ -487,20 +489,35 @@ func (a *App) icStartAudio() {
 	}
 	a.unmute()
 	quit := make(chan struct{})
-	frames := make(chan []int16, icUplinkQueue)
-	var fr intercom.Framer
-	feed := func(b []byte) { // the capture goroutine: never block
-		fr.Push(b, func(f []int16) {
-			select {
-			case frames <- f:
+	type upFrame struct {
+		f         []int16
+		processed bool // the VQE call mode's audio
+	}
+	frames := make(chan upFrame, icUplinkQueue)
+	push := func(f upFrame) { // the capture goroutines: never block
+		select {
+		case frames <- f:
+		default:
+			select { // drop the oldest: latency over completeness
+			case <-frames:
 			default:
-				select { // drop the oldest: latency over completeness
-				case <-frames:
-				default:
-				}
-				frames <- f
 			}
-		})
+			frames <- f
+		}
+	}
+	var fr, frCall intercom.Framer
+	inCallMode := func() bool { return callMode && a.spot.InCallMode() }
+	feed := func(b []byte) {
+		if inCallMode() {
+			return
+		}
+		fr.Push(b, func(f []int16) { push(upFrame{f: f}) })
+	}
+	feedCall := func(b []byte) {
+		if !inCallMode() {
+			return
+		}
+		frCall.Push(b, func(f []int16) { push(upFrame{f: f, processed: true}) })
 	}
 	// Testing (intercom_record_dir): the uplink before the guard (S16LE 16 kHz mono), and the raw
 	// mic-array capture as arecord gives it (to replay it through the VQE in other modes).
@@ -535,12 +552,19 @@ func (a *App) icStartAudio() {
 	}
 	var unsub func()
 	switch {
-	case callMode:
-		a.log.Info("intercom: uplink from the VQE call mode")
-		unsub = a.spot.SubscribeCall(feed)
 	case a.spot != nil && a.spot.Running():
-		a.log.Info("intercom: no VQE call mode here (model missing?), uplink from vqe_0")
-		unsub = a.spot.SubscribeVQE(0, feed) // echo-cancelled against our playback
+		unsubVQE := a.spot.SubscribeVQE(0, feed) // echo-cancelled against our playback
+		unsubCall := func() {}
+		if callMode {
+			unsubCall = a.spot.SubscribeCall(feedCall)
+		} else {
+			a.log.Info("intercom: no VQE call mode (an older spotter-host), uplink from vqe_0")
+		}
+		unsub = func() { unsubVQE(); unsubCall() }
+		go func() { // the mode this call ended up with, for the log
+			time.Sleep(3 * time.Second)
+			a.log.Info("intercom: uplink source", "vqe_call_mode", inCallMode())
+		}()
 	default:
 		a.log.Warn("intercom: no spotter-host, so no echo cancellation: expect echo")
 		unsub = a.mic.Subscribe(feed)
@@ -565,7 +589,9 @@ func (a *App) icStartAudio() {
 					rec.Close()
 				}
 				return
-			case f := <-frames:
+			case uf := <-frames:
+				f := uf.f
+				g.Processed = uf.processed            // Guard.Up runs only here
 				if a.micMuted() || a.sat.inDialog() { // the hardware mute; or talking to Alice
 					clear(f)
 				}
@@ -616,8 +642,8 @@ func (a *App) icStartAudio() {
 	ic.guard = g
 	ic.stop = func() {
 		unsub()
-		if callMode {
-			go a.spot.CallMode(false) // back to ASR (it waits for the child's confirmation)
+		if a.spot != nil {
+			a.spot.CallMode(false) // back to ASR, whatever the switch on did
 		}
 		unsubMics()
 		close(quit)
