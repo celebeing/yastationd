@@ -10,29 +10,45 @@ import (
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
 )
 
+// commands maps each command object (the <obj> of <prefix>/<id>/<obj>/set; "display" is the
+// display/cmd topic) to its handler. MQTT subscribes to all of them; the frame tap's control
+// endpoint calls the same handlers, so the simulator and a unit take the same commands.
+func (a *App) commands() map[string]func([]byte) {
+	c := map[string]func([]byte){
+		"ring":               a.cmdRing,
+		"display_mode":       a.cmdDisplayMode,
+		"display_message":    a.cmdDisplayMessage,
+		"volume":             a.cmdVolume,
+		"speaker":            a.cmdSpeaker,
+		"show_text":          a.cmdShowText,
+		"text_duration":      a.cmdDuration("text_duration", func(s *persistState) *int { return &s.TextSecs }),
+		"ring_animation":     a.cmdRingAnimation,
+		"follow_up":          a.cmdFollowUp,
+		"animation_duration": a.cmdDuration("animation_duration", func(s *persistState) *int { return &s.AnimSecs }),
+		"auto_brightness":    a.cmdAutoBrightness,
+		"clock_brightness":   a.cmdClockBrightness,
+		"display":            a.cmdDisplay,
+		"expression":         a.cmdExpressionSelect,
+		"express":            a.cmdExpress,
+		"scenario":           a.cmdScenario,
+	}
+	if a.ambilight != nil {
+		c["ambilight"] = a.cmdAmbilight
+	}
+	if a.frontClipsPossible() {
+		c["display_faces"] = a.cmdFaces
+	}
+	return c
+}
+
 func (a *App) subscribe() {
 	t := a.topics
-	a.mqtt.Subscribe(t.Command("ring"), a.cmdRing)
-	if a.ambilight != nil {
-		a.mqtt.Subscribe(t.Command("ambilight"), a.cmdAmbilight)
-	}
-	a.mqtt.Subscribe(t.Command("display_mode"), a.cmdDisplayMode)
-	a.mqtt.Subscribe(t.Command("display_message"), a.cmdDisplayMessage)
-	a.mqtt.Subscribe(t.Command("volume"), a.cmdVolume)
-	a.mqtt.Subscribe(t.Command("speaker"), a.cmdSpeaker)
-	a.mqtt.Subscribe(t.Command("show_text"), a.cmdShowText)
-	a.mqtt.Subscribe(t.Command("text_duration"), a.cmdDuration("text_duration", func(s *persistState) *int { return &s.TextSecs }))
-	a.mqtt.Subscribe(t.Command("ring_animation"), a.cmdRingAnimation)
-	a.mqtt.Subscribe(t.Command("follow_up"), a.cmdFollowUp)
-	a.mqtt.Subscribe(t.Command("animation_duration"), a.cmdDuration("animation_duration", func(s *persistState) *int { return &s.AnimSecs }))
-	a.mqtt.Subscribe(t.Command("auto_brightness"), a.cmdAutoBrightness)
-	a.mqtt.Subscribe(t.Command("clock_brightness"), a.cmdClockBrightness)
-	a.mqtt.Subscribe(t.DisplayCmd(), a.cmdDisplay)
-	a.mqtt.Subscribe(t.Command("expression"), a.cmdExpressionSelect)
-	a.mqtt.Subscribe(t.Command("express"), a.cmdExpress)
-	a.mqtt.Subscribe(t.Command("scenario"), a.cmdScenario)
-	if a.frontClipsPossible() {
-		a.mqtt.Subscribe(t.Command("display_faces"), a.cmdFaces)
+	for obj, fn := range a.commands() {
+		topic := t.Command(obj)
+		if obj == "display" {
+			topic = t.DisplayCmd()
+		}
+		a.mqtt.Subscribe(topic, fn)
 	}
 	a.intercomSubscribe()
 }

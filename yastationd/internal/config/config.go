@@ -86,6 +86,10 @@ type Config struct {
 	// Wyoming satellite server port for HA's Wyoming integration (10700 is the convention); 0 = off.
 	WyomingPort int
 
+	// Frame tap: an HTTP listen address (":8930") that streams the LED surfaces and takes commands,
+	// for the browser preview (docs/led-preview.md). "" = off. No authentication: LAN only.
+	FrameTapAddr string
+
 	// Music Assistant player: sendspin-host as a child process (off unless enabled and present).
 	Sendspin         bool
 	SendspinBin      string
@@ -352,6 +356,8 @@ func (c *Config) set(k, v string) error {
 		c.MicChannel, err = atoiRange(v, 0, 15)
 	case "wyoming_port":
 		c.WyomingPort, err = atoiRange(v, 0, 65535)
+	case "frametap_addr":
+		c.FrameTapAddr = v
 	case "sendspin":
 		c.Sendspin, err = strconv.ParseBool(v)
 	case "sendspin_bin":

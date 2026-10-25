@@ -104,6 +104,12 @@ func OpenDotMatrix(dev string) (*DotMatrix, error) {
 	return m, nil
 }
 
+// NewVirtualDotMatrix is a w x h screen with no device behind it (tight RGB rows): every write
+// succeeds and goes nowhere. The host simulator draws through it and watches the frame tap.
+func NewVirtualDotMatrix(w, h int) *DotMatrix {
+	return &DotMatrix{w: w, h: h, pb: 3, order: [3]int{0, 1, 2}, stride: w * 3, scratch: make([]byte, w*3*h)}
+}
+
 // Size returns the matrix dimensions (0, 0 for a nil DotMatrix).
 func (m *DotMatrix) Size() (int, int) {
 	if m == nil {
@@ -122,7 +128,11 @@ func (m *DotMatrix) Show(px []RGB) error {
 	if len(px) != m.w*m.h {
 		return fmt.Errorf("dotmatrix: %d px, want %d", len(px), m.w*m.h)
 	}
-	_, err := m.f.WriteAt(m.encode(px), 0)
+	b := m.encode(px)
+	if m.f == nil {
+		return nil // virtual
+	}
+	_, err := m.f.WriteAt(b, 0)
 	return err
 }
 
@@ -177,7 +187,7 @@ func FindDotMatrix(root string) string {
 // Flush re-writes the last frame once — for the one-behind glass this is what latches
 // the pending frame so the previous Show actually reaches the glass (see PeriodicRefresh).
 func (m *DotMatrix) Flush() error {
-	if m == nil {
+	if m == nil || m.f == nil {
 		return nil
 	}
 	_, err := m.f.WriteAt(m.scratch, 0)

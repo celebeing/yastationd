@@ -83,6 +83,9 @@ func (c *Client) Disconnect() {
 }
 
 func (c *Client) publish(topic, payload string, retain bool) {
+	if c == nil {
+		return // local-only (no mqtt_host): commands still arrive through the frame tap
+	}
 	t := c.c.Publish(topic, 1, retain, payload)
 	go func() {
 		if t.WaitTimeout(5*time.Second) && t.Error() != nil {

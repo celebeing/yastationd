@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>yastationd LED preview</title>
+<style>
+  :root {
+    --bg: #0d0f12; --panel: #161a1f; --line: #262c34; --text: #d9dee5; --dim: #8a94a1;
+    --accent: #6cb6ff; --warn: #f0b35a; --bad: #ff7a7a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+           padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 15px; margin: 0 8px 0 0; font-weight: 600; }
+  main { padding: 12px 16px; display: grid; gap: 12px; }
+  .sources { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+  .src { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; min-width: 0; }
+  .src .head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin-bottom: 6px; }
+  .src .head b { font-size: 14px; }
+  .src .head .meta { color: var(--dim); font-variant-numeric: tabular-nums; }
+  .src .head .x { margin-left: auto; }
+  .src canvas { width: 100%; display: block; background: #000; border-radius: 6px; image-rendering: auto; }
+  .src .probe { color: var(--dim); font-variant-numeric: tabular-nums; min-height: 1.4em; margin-top: 4px; }
+  .status-off { color: var(--bad); }
+  .controls { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+              display: grid; gap: 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+  .row > label.k { color: var(--dim); min-width: 92px; }
+  button, select, input[type=text], input[type=url] {
+    background: #1f252c; color: var(--text); border: 1px solid #33404d; border-radius: 5px;
+    padding: 4px 9px; font: inherit; }
+  button:hover { border-color: var(--accent); }
+  button.on { background: #24384d; border-color: var(--accent); }
+  input[type=range] { width: 180px; }
+  input[type=text] { min-width: 220px; }
+  input[type=url] { min-width: 280px; }
+  .timeline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .timeline input[type=range] { flex: 1; min-width: 200px; }
+  .hint { color: var(--dim); font-size: 12px; }
+  .err { color: var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1>LED preview</h1>
+  <input type="url" id="addsrc" placeholder="http://host:8930 — add a frame tap">
+  <button id="addbtn">Add</button>
+  <label class="hint"><input type="checkbox" id="perceived" checked> perceived (undo the LED gamma)</label>
+  <label class="hint"><input type="checkbox" id="glow" checked> glow</label>
+</header>
+<main>
+  <div class="sources" id="sources"></div>
+
+  <div class="controls">
+    <div class="timeline">
+      <button id="pause" title="Space">Pause</button>
+      <button id="back" title="←">◀ frame</button>
+      <button id="fwd" title="→">frame ▶</button>
+      <input type="range" id="scrub" min="0" max="0" value="0" disabled>
+      <span class="hint" id="scrubinfo">live</span>
+    </div>
+    <div class="hint">Commands go to every source at once. The history keeps the last 30 s of each source; pause to step through it.</div>
+    <div class="row"><label class="k">Expression</label><span id="expr"></span></div>
+    <div class="row"><label class="k">Pattern</label>
+      <select id="pattern"></select>
+      <label class="hint"><input type="checkbox" id="patloop"> loop</label>
+      <button id="patplay">Play</button><button id="patclear">Clear</button></div>
+    <div class="row"><label class="k">Display</label>
+      <button data-mode="clock">clock</button><button data-mode="off">off</button>
+      <input type="text" id="text" placeholder="text to show"><button id="showtext">Show</button>
+      <button id="number">Number</button><button id="countdown">Countdown 90 s</button></div>
+    <div class="row"><label class="k">Volume</label>
+      <input type="range" id="volume" min="0" max="100" value="35"><span id="volv">35</span></div>
+    <div class="row"><label class="k">Brightness</label>
+      <input type="range" id="bright" min="1" max="255" value="128"><span id="brightv">128</span>
+      <button id="auto">auto</button></div>
+    <div class="row"><label class="k">Ring</label>
+      <button id="ringon">on</button><button id="ringoff">off</button>
+      <input type="color" id="ringcolor" value="#3c8cff">
+      <select id="ringfx"></select></div>
+    <div class="row"><label class="k">Ambilight</label>
+      <button id="ambon">on</button><button id="amboff">off</button>
+      <input type="color" id="ambcolor" value="#ff6020"></div>
+    <div class="err" id="err"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const HISTORY = 1500; // frames per source (~30 s at 50 Hz)
+const sources = [];   // {url, info, es, frames: [], el, canvas, ctx, meta, probe, lastSeq, drops, times: []}
+let paused = false, cursor = -1; // cursor: index into the reference (first) source's history
+
+const $ = id => document.getElementById(id);
+const unhex = (s, n) => { const a = new Uint8Array(s.length / 2);
+  for (let i = 0; i < a.length; i++) a[i] = parseInt(s.substr(i * 2, 2), 16); return a; };
+const err = msg => { $("err").textContent = msg || ""; };
+
+// LED drive values are linear light; a monitor expects gamma-encoded values.
+const perceivedLUT = new Uint8Array(256).map((_, i) => Math.round(255 * Math.pow(i / 255, 1 / 2.2)));
+const show = v => $("perceived").checked ? perceivedLUT[v] : v;
+
+function addSource(url) {
+  url = url.replace(/\/+$/, "");
+  if (sources.some(s => s.url === url)) return;
+  const s = { url, info: null, frames: [], lastSeq: 0, drops: 0, times: [] };
+  s.el = document.createElement("div"); s.el.className = "src";
+  s.el.innerHTML = `<div class="head"><b class="name">${url}</b><span class="meta"></span>
+    <button class="x" title="remove">✕</button></div><canvas></canvas><div class="probe"></div>`;
+  s.canvas = s.el.querySelector("canvas"); s.ctx = s.canvas.getContext("2d");
+  s.meta = s.el.querySelector(".meta"); s.probe = s.el.querySelector(".probe");
+  s.el.querySelector(".x").onclick = () => { s.es && s.es.close(); s.el.remove();
+    sources.splice(sources.indexOf(s), 1); saveSources(); };
+  s.canvas.addEventListener("mousemove", e => probe(s, e));
+  s.canvas.addEventListener("mouseleave", () => s.probe.textContent = "");
+  $("sources").appendChild(s.el);
+  sources.push(s); saveSources();
+  fetch(url + "/info").then(r => r.json()).then(info => {
+    s.info = info;
+    s.el.querySelector(".name").textContent = `${info.name || info.device} · ${info.board}`;
+    layout(s); fillControls(); connect(s);
+  }).catch(e => { s.meta.innerHTML = `<span class="status-off">unreachable: ${e}</span>`; });
+}
+
+function connect(s) {
+  s.es = new EventSource(s.url + "/frames");
+  s.es.onmessage = ev => {
+    const f = JSON.parse(ev.data);
+    if (s.lastSeq && f.seq > s.lastSeq + 1) s.drops += f.seq - s.lastSeq - 1;
+    s.lastSeq = f.seq;
+    s.frames.push(f); if (s.frames.length > HISTORY) s.frames.shift();
+    s.times.push(performance.now()); if (s.times.length > 50) s.times.shift();
+    if (!paused) draw(s, f);
+    updateScrub();
+  };
+  s.es.onerror = () => { s.meta.innerHTML = `<span class="status-off">disconnected, retrying…</span>`; };
+}
+
+// Geometry: the screen as round dots, the ring as a circle, the ambilight as a vertical strip.
+function layout(s) {
+  const i = s.info, [w, h] = i.screen; const P = 22; // px per screen dot (canvas units)
+  s.g = { P, w, h, sx: 20, sy: 20 };
+  const sw = w * P, sh = h * P;
+  s.g.rr = Math.max(80, sh / 2);              // ring radius
+  s.g.rx = s.g.sx + sw + 40 + s.g.rr;         // ring centre
+  s.g.ry = s.g.sy + Math.max(sh, 2 * s.g.rr) / 2;
+  s.g.ax = s.g.rx + s.g.rr + 50;              // ambilight strip x
+  const height = Math.max(sh, 2 * s.g.rr) + 40;
+  s.canvas.width = (i.ambilight ? s.g.ax + 40 : s.g.rx + s.g.rr + 30);
+  s.canvas.height = height;
+  s.g.ay0 = 20; s.g.ay1 = height - 20;
+}
+
+function dot(ctx, x, y, r, R, G, B, glow) {
+  if (glow && (R | G | B)) {
+    ctx.shadowColor = `rgb(${R},${G},${B})`; ctx.shadowBlur = r * 1.6;
+  } else ctx.shadowBlur = 0;
+  ctx.fillStyle = (R | G | B) ? `rgb(${R},${G},${B})` : "#15181c";
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
+}
+
+function draw(s, f) {
+  if (!s.info || !f) return;
+  s.cur = f;
+  const c = s.ctx, g = s.g, glow = $("glow").checked;
+  c.shadowBlur = 0; c.fillStyle = "#000"; c.fillRect(0, 0, s.canvas.width, s.canvas.height);
+  if (f.screen && g.w) {
+    const px = unhex(f.screen);
+    for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+      const k = (y * g.w + x) * 3;
+      dot(c, g.sx + x * g.P + g.P / 2, g.sy + y * g.P + g.P / 2, g.P * 0.4,
+          show(px[k]), show(px[k + 1]), show(px[k + 2]), glow);
+    }
+  }
+  if (f.ring && s.info.ring) {
+    const px = unhex(f.ring), n = s.info.ring;
+    for (let i = 0; i < n; i++) { // index 0 at the top, clockwise (as on the unit)
+      const a = -Math.PI / 2 + 2 * Math.PI * i / n;
+      dot(c, g.rx + g.rr * Math.cos(a), g.ry + g.rr * Math.sin(a), Math.min(9, g.rr * Math.PI / n * 0.7),
+          show(px[i * 3]), show(px[i * 3 + 1]), show(px[i * 3 + 2]), glow);
+    }
+  }
+  if (f.ambilight && s.info.ambilight) {
+    const px = unhex(f.ambilight), n = s.info.ambilight, step = (g.ay1 - g.ay0) / n;
+    for (let i = 0; i < n; i++) { // white mixed into the colour for display
+      const W = px[i * 4 + 3];
+      const mix = v => Math.min(255, show(Math.min(255, v + W)));
+      dot(c, g.ax, g.ay0 + step * (i + 0.5), Math.min(10, step * 0.4),
+          mix(px[i * 4]), mix(px[i * 4 + 1]), mix(px[i * 4 + 2]), glow);
+    }
+  }
+  const t = s.times, fps = t.length > 1 ? (1000 * (t.length - 1) / (t[t.length - 1] - t[0])).toFixed(0) : "–";
+  s.meta.textContent = `${s.info.version} · ${fps} fps · seq ${f.seq} · drops ${s.drops}`;
+}
+
+function probe(s, e) {
+  if (!s.cur || !s.cur.screen || !s.g) return;
+  const r = s.canvas.getBoundingClientRect(), k = s.canvas.width / r.width;
+  const x = Math.floor(((e.clientX - r.left) * k - s.g.sx) / s.g.P), y = Math.floor(((e.clientY - r.top) * k - s.g.sy) / s.g.P);
+  if (x < 0 || y < 0 || x >= s.g.w || y >= s.g.h) { s.probe.textContent = ""; return; }
+  const i = (y * s.g.w + x) * 6;
+  s.probe.textContent = `screen x ${x} y ${y} · drive #${s.cur.screen.substr(i, 6)}`;
+}
+
+// ---- timeline: pause, step and scrub through the reference source's history ----
+function ref() { return sources.find(s => s.frames.length); }
+function updateScrub() {
+  const r = ref(); if (!r) return;
+  $("scrub").max = r.frames.length - 1;
+  if (!paused) { $("scrub").value = r.frames.length - 1; $("scrubinfo").textContent = "live"; }
+}
+function seek(i) {
+  const r = ref(); if (!r) return;
+  cursor = Math.max(0, Math.min(r.frames.length - 1, i));
+  $("scrub").value = cursor;
+  const f = r.frames[cursor];
+  // the other sources show their frame closest in time (their own clocks; a unit's and the
+  // host's may be offset)
+  for (const s of sources) {
+    if (s === r) { draw(s, f); continue; }
+    if (!s.frames.length) continue;
+    const back = r.frames[r.frames.length - 1].t - f.t;
+    const want = s.frames[s.frames.length - 1].t - back;
+    let best = s.frames[0];
+    for (const g of s.frames) if (Math.abs(g.t - want) < Math.abs(best.t - want)) best = g;
+    draw(s, best);
+  }
+  $("scrubinfo").textContent = `frame ${cursor + 1}/${r.frames.length} · −${((r.frames[r.frames.length - 1].t - f.t) / 1000).toFixed(2)} s`;
+}
+function setPaused(p) {
+  paused = p; $("pause").textContent = p ? "Live" : "Pause"; $("pause").classList.toggle("on", p);
+  $("scrub").disabled = !p;
+  if (p) { const r = ref(); r && seek(r.frames.length - 1); } else updateScrub();
+}
+$("pause").onclick = () => setPaused(!paused);
+$("back").onclick = () => { if (!paused) setPaused(true); seek(cursor - 1); };
+$("fwd").onclick = () => { if (!paused) setPaused(true); seek(cursor + 1); };
+$("scrub").oninput = e => seek(+e.target.value);
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" && e.target.type !== "range") return;
+  if (e.code === "Space") { e.preventDefault(); setPaused(!paused); }
+  if (e.code === "ArrowLeft") { e.preventDefault(); $("back").click(); }
+  if (e.code === "ArrowRight") { e.preventDefault(); $("fwd").click(); }
+});
+
+// ---- commands (to every source) ----
+function cmd(name, payload) {
+  err();
+  const body = typeof payload === "string" ? payload : JSON.stringify(payload);
+  for (const s of sources) {
+    if (!s.info || !s.info.commands.includes(name)) continue;
+    fetch(`${s.url}/cmd/${name}`, { method: "POST", body })
+      .then(r => { if (!r.ok) r.text().then(t => err(`${s.url}: ${t}`)); })
+      .catch(e => err(`${s.url}: ${e}`));
+  }
+}
+const rgb = hexc => ({ r: parseInt(hexc.substr(1, 2), 16), g: parseInt(hexc.substr(3, 2), 16), b: parseInt(hexc.substr(5, 2), 16) });
+
+function fillControls() {
+  const infos = sources.map(s => s.info).filter(Boolean);
+  const union = key => [...new Set(infos.flatMap(i => i[key] || []))];
+  const ex = $("expr"); ex.innerHTML = "";
+  for (const name of ["off", ...union("expressions").filter(n => n !== "off")]) {
+    const b = document.createElement("button"); b.textContent = name;
+    b.onclick = () => cmd("express", { name, ttl_ms: 15000 });
+    ex.appendChild(b);
+  }
+  const pat = $("pattern"), keep = pat.value; pat.innerHTML = "";
+  for (const n of union("patterns")) pat.add(new Option(n, n));
+  if (keep) pat.value = keep;
+  const fx = $("ringfx"), keepfx = fx.value; fx.innerHTML = "";
+  for (const n of union("ring_effects")) fx.add(new Option(n, n));
+  if (keepfx) fx.value = keepfx;
+}
+$("patplay").onclick = () => cmd("display", { surface: "matrix", op: "clip",
+  args: { name: $("pattern").value, loop: $("patloop").checked }, ttl_ms: $("patloop").checked ? 60000 : 0 });
+$("patclear").onclick = () => cmd("display", { surface: "matrix", op: "clear" });
+document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => cmd("display_mode", b.dataset.mode));
+$("showtext").onclick = () => cmd("show_text", $("text").value);
+$("number").onclick = () => cmd("display", { surface: "matrix", op: "number", args: { n: +$("volume").value }, ttl_ms: 3000 });
+$("countdown").onclick = () => cmd("display", { surface: "matrix", op: "countdown", args: { seconds: 90 } });
+$("volume").oninput = e => { $("volv").textContent = e.target.value; cmd("volume", e.target.value); };
+$("bright").oninput = e => { $("brightv").textContent = e.target.value; cmd("clock_brightness", e.target.value); };
+$("auto").onclick = () => cmd("auto_brightness", "ON");
+$("ringon").onclick = () => cmd("ring", { state: "ON", color: rgb($("ringcolor").value), effect: $("ringfx").value });
+$("ringoff").onclick = () => cmd("ring", { state: "OFF" });
+$("ringcolor").oninput = $("ringon").onclick;
+$("ringfx").onchange = $("ringon").onclick;
+$("ambon").onclick = () => { const c = rgb($("ambcolor").value); cmd("ambilight", { state: "ON", color: { ...c, w: 0 } }); };
+$("amboff").onclick = () => cmd("ambilight", { state: "OFF" });
+$("ambcolor").oninput = $("ambon").onclick;
+["perceived", "glow"].forEach(id => $(id).onchange = () => sources.forEach(s => draw(s, s.cur)));
+
+// ---- sources: ?src=… in the URL, else this tap; added ones are remembered in the URL ----
+function saveSources() {
+  const q = new URLSearchParams(); sources.forEach(s => q.append("src", s.url));
+  history.replaceState(null, "", "?" + q.toString());
+}
+$("addbtn").onclick = () => { const v = $("addsrc").value.trim(); if (v) { addSource(v); $("addsrc").value = ""; } };
+$("addsrc").addEventListener("keydown", e => { if (e.key === "Enter") $("addbtn").click(); });
+const initial = new URLSearchParams(location.search).getAll("src");
+(initial.length ? initial : [location.origin]).forEach(addSource);
+</script>
+</body>
+</html>

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"math"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -16,6 +17,7 @@ import (
 	"github.com/celebeing/yastationd/yastationd/internal/board"
 	"github.com/celebeing/yastationd/yastationd/internal/config"
 	"github.com/celebeing/yastationd/yastationd/internal/display"
+	"github.com/celebeing/yastationd/yastationd/internal/frametap"
 	"github.com/celebeing/yastationd/yastationd/internal/health"
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
 	"github.com/celebeing/yastationd/yastationd/internal/mqtt"
@@ -95,6 +97,8 @@ type App struct {
 
 	marquee     display.RenderFunc[display.FrontFrame] // message-mode layer; render goroutine only
 	marqueeText string
+
+	tap *frametap.Tap // the LED preview stream; nil when frametap_addr is off
 }
 
 type ambilightVisual struct {
@@ -130,16 +134,7 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 	case "seg7":
 		matrix = hw.NewMatrix(cfg.SysRoot, m.Segment, m.Colon, m.Dot, m.Degree)
 	case "dotmatrix-fb":
-		dev := m.Dev
-		if dev == "" {
-			dev = hw.FindDotMatrix(cfg.SysRoot)
-		} else if cfg.SysRoot != "" {
-			dev = cfg.SysRoot + dev
-		}
-		if dev == "" {
-			return nil, fmt.Errorf("board %s: dot-matrix framebuffer not found", prof.Name)
-		}
-		if screen, err = hw.OpenDotMatrix(dev); err != nil {
+		if screen, err = openScreen(cfg, prof); err != nil {
 			return nil, err
 		}
 		w, h := screen.Size()
@@ -190,6 +185,62 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 	a.ringStack = display.NewStack(a.ringBase)
 	a.matrixStack = display.NewStack(a.matrixBase)
 	return a, nil
+}
+
+// startFrameTap serves the LED preview stream (internal/frametap) until ctx ends.
+func (a *App) startFrameTap(ctx context.Context) {
+	cmds := a.commands()
+	info := frametap.Info{
+		Device: a.cfg.DeviceID, Name: a.cfg.DeviceName, Board: a.prof.Name, Model: a.prof.Model,
+		Version: version.Version, Expressions: a.expressionOptions(), RingEffects: ringEffects,
+	}
+	if a.ring != nil {
+		info.Ring = a.ring.Pixels()
+	}
+	if a.ambilight != nil {
+		info.Ambilight = a.ambilight.Pixels()
+	}
+	if a.screen != nil {
+		info.Screen[0], info.Screen[1] = a.screen.Size()
+	}
+	if a.front != nil {
+		info.Patterns = a.front.Anims()
+	}
+	for name := range cmds {
+		info.Commands = append(info.Commands, name)
+	}
+	sort.Strings(info.Commands)
+	a.tap = frametap.New(info, func(name string, payload []byte) bool {
+		fn, ok := cmds[name]
+		if ok {
+			fn(payload)
+		}
+		return ok
+	}, a.log)
+	go func() {
+		if err := a.tap.Serve(ctx, a.cfg.FrameTapAddr); err != nil {
+			a.log.Warn("frame tap", "err", err)
+		}
+	}()
+}
+
+// openScreen opens the board's dot-matrix framebuffer, or a virtual one for matrix.dev =
+// "virtual:WxH" (the host simulator, cmd/ledsim).
+func openScreen(cfg config.Config, prof board.Profile) (*hw.DotMatrix, error) {
+	dev := prof.Matrix.Dev
+	var w, h int
+	if _, err := fmt.Sscanf(dev, "virtual:%dx%d", &w, &h); err == nil && w > 0 && h > 0 {
+		return hw.NewVirtualDotMatrix(w, h), nil
+	}
+	if dev == "" {
+		dev = hw.FindDotMatrix(cfg.SysRoot)
+	} else if cfg.SysRoot != "" {
+		dev = cfg.SysRoot + dev
+	}
+	if dev == "" {
+		return nil, fmt.Errorf("board %s: dot-matrix framebuffer not found", prof.Name)
+	}
+	return hw.OpenDotMatrix(dev)
 }
 
 // stopVendorLeftovers runs the vendor's own "stop" of each init.d script in the board's
@@ -315,6 +366,10 @@ func (a *App) Run(ctx context.Context) error {
 		if err := a.mixer.Set(g.MicGain, g.MicGainValue); err != nil {
 			a.log.Warn("set mic gain", "control", g.MicGain, "err", err)
 		}
+	}
+
+	if a.cfg.FrameTapAddr != "" {
+		a.startFrameTap(ctx)
 	}
 
 	stop := make(chan struct{})
@@ -446,13 +501,17 @@ func (a *App) renderLoop(stop <-chan struct{}) {
 				a.log.Debug("matrix show", "err", err)
 			}
 		case now := <-t.C:
-			if err := a.ring.Show(a.ringStack.Frame(now)); err != nil {
+			rf := a.ringStack.Frame(now)
+			if err := a.ring.Show(rf); err != nil {
 				a.log.Debug("ring show", "err", err)
 			}
+			a.tap.Ring(rf)
 			if a.ambilight != nil {
-				if err := a.ambilight.Show(a.ambilightBase()); err != nil {
+				af := a.ambilightBase()
+				if err := a.ambilight.Show(af); err != nil {
 					a.log.Debug("ambilight show", "err", err)
 				}
+				a.tap.Ambilight(af)
 			}
 			if a.front == nil || a.screen != nil {
 				continue
@@ -472,6 +531,7 @@ func (a *App) showScreen(frame display.FrontFrame, k float64) error {
 	if px == nil {
 		return fmt.Errorf("dot-matrix %dx%d is too small for display font", w, h)
 	}
+	a.tap.Screen(px)
 	return a.screen.Show(px)
 }
 

@@ -252,6 +252,9 @@ func (l *PixelLibrary) Names() []string {
 	seen := map[string]bool{}
 	var out []string
 	for _, d := range l.Dirs {
+		if r, err := filepath.EvalSymlinks(d); err == nil {
+			d = r // WalkDir does not descend into a root that is a symlink (the simulator links it)
+		}
 		filepath.WalkDir(d, func(p string, e fs.DirEntry, err error) error {
 			if err != nil || e.IsDir() || !strings.HasSuffix(p, ".led") {
 				return nil

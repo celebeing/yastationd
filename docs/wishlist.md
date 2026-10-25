@@ -168,17 +168,6 @@ the face's segments on `*clock*` (the clip LED order, docs/display-expressions.m
 fight a running daemon over the LEDs, and must keep working when the daemon binary is broken.
 
 
-## A browser preview for the orion screen and LEDs
-
-Developing scenes and animations for orion's 21×12 screen, 36 px ring and 12 px ambilight on the
-glass alone is too slow. Wanted: a page that renders the daemon's own output — the `display.Front`
-scenes (clock, text, marquee, countdown through `Seg7ToPixels`), the stock `.led` screen patterns
-with `matrix.gamma`, `a+b` chains and intro/loop parts, the ring effects and the ambilight — frame
-by frame at the real 15 Hz, so variants can be compared side by side before they go to a unit. The
-natural way is to reuse the Go code (a host-side tool that serves frames, or a WebAssembly build of
-the `display` package), not to re-implement it in JavaScript; the patterns come from the unit's own
-firmware, never from the repo.
-
 ## Orion's ultrasound rig
 
 **Status:** idea (2026-10-25); nothing is planned or decided. Hardware exists on orion;

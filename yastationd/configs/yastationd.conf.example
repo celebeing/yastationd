@@ -82,6 +82,8 @@ volume_beep  = true
 # --- Wyoming satellite (HA: Settings → Integrations → Wyoming → host = this device, port below).
 # Playback only for now: HA announcements (assist_satellite.announce) and TTS replies. 0 = off.
 wyoming_port = 10700
+# LED preview stream for development (docs/led-preview.md); no auth, LAN only. Off when unset.
+# frametap_addr = :8930
 # Push-to-talk: the voice key starts an Assist pipeline and streams the mic.
 # Wake word «Алиса»: the vendor spotter + VQE (spotter-host serve) as a child process; the mic then
 # stays open. Session audio to HA is the VQE output with a pre-roll. Commands (стоп/хватит/пауза,

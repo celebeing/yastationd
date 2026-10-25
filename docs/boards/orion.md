@@ -358,8 +358,10 @@ Three surfaces, every LED a Linux LED class device each mirrored by a framebuffe
 - **Low brightness:** gamma 2.2 and then the brightness scale, both in 8 bits, can collapse the
   dark half-tones; the vendor keeps the screen at `minBrightness` 127 or more and has a
   backlight node (`/sys/class/backlight/fb1/brightness`) — consider brightness there instead.
-- **Tooling:** the browser preview and its comparison with the unit
-  ([wishlist.md](../wishlist.md), "A browser preview for the orion screen and LEDs").
+- **Tooling:** the browser preview and the host simulator, [led-preview.md](../led-preview.md).
+- **Volume curve:** check that the percent → `Master Playback Volume` mapping, on top of
+  hardvold's own curves, gives even loudness steps.
+- **Light sensor:** calibrate the intensity units against real lux (later).
 
 ## Boot / egress
 

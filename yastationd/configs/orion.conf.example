@@ -36,6 +36,8 @@ volume_beep = false
 # The stock «Алиса» model with its NPU verifier (verified on a unit); push-to-talk from the
 # center glyph works either way.
 wyoming_port = 10700
+# LED preview stream for development (docs/led-preview.md); no auth, LAN only. Off when unset.
+# frametap_addr = :8930
 wake_enabled = true
 preroll_ms   = 300
 

@@ -3,6 +3,17 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Features**
+- LED preview ([docs/led-preview.md](docs/led-preview.md)): `frametap_addr` streams the screen,
+  ring and ambilight exactly as drawn and takes the daemon's commands over HTTP, with a viewer
+  page; `cmd/ledsim` runs the daemon on the host with simulated surfaces and the firmware's screen
+  patterns, so scenes can be developed in a browser and compared with a unit frame by frame.
+
+**Fixes and operations**
+- MQTT publishes are skipped instead of crashing when the daemon runs without a broker.
+
 ## v0.8.0 — 2026-10-26
 
 Initial support for orion (Station 3): installed and running on a unit.
