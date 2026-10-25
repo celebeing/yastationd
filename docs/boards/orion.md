@@ -379,5 +379,15 @@ the other project's scope):
   spotter, `yandex` and `yasmina` as 2-channel (omni + raw-mic), `command` as 1-channel.
   The pristine alisa model, verifier included, therefore loads on device; detection
   quality is still to be tested with sound.
+- Install (same day): `make deploy-egress` (IPv4 and IPv6 locked), `stage`, `deploy-spotter`,
+  `deploy-sendspin`, `sounds`, `install-initd`; the reboot brings everything back on its own
+  (no maind, no led-play). Wake on with the stock alisa model: `wake: spotter ready`. A TTS
+  announcement plays cleanly. `make vqe-models` finds no call-mode model: this firmware has only
+  `vqe_models/noise_reducer/model.nnet` (no `model_call.nnet`), so the intercom's call mode needs
+  `VQE_MODEL=` until it is clear which model the call mode should use here.
+- **Wi-Fi gotcha:** the install kit leaves its lab network (the provisioning AP) in
+  `wpa_supplicant.conf` with a lower priority than the home network; after a reboot the unit
+  joined the lab AP once while it was up. Remove it, or keep the lab AP off, once provisioning is
+  done.
 - The aarch64 spotter-host built against pickle's sysroot runs here unchanged (both
   firmwares have glibc 2.36), so `build/aarch64/` serves both boards.
