@@ -1,6 +1,9 @@
 package mqtt
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"sync"
+)
 
 // Device is the HA device block shared by every entity (so they group under one device card).
 type Device struct {
@@ -32,6 +35,19 @@ type builder struct {
 	// (a front display that takes expression clips).
 	Expressions []string
 	HasFaces    bool
+	// Intercom adds the call entities; their target select lists the other speakers, which
+	// change at runtime (SetIntercomPeers, then Publish again).
+	Intercom bool
+
+	mu            sync.Mutex
+	intercomPeers []string
+}
+
+// SetIntercomPeers sets the intercom target select's options (the other speakers' names).
+func (b *builder) SetIntercomPeers(names []string) {
+	b.mu.Lock()
+	b.intercomPeers = append([]string(nil), names...)
+	b.mu.Unlock()
 }
 
 func NewBuilder(t Topics, dev Device) *builder { return &builder{t: t, dev: dev} }
@@ -230,6 +246,38 @@ func (b *builder) Entities() []Entity {
 			"entity_category": "config",
 			"icon":            "mdi:emoticon-happy-outline",
 		}})
+	}
+	if b.Intercom {
+		b.mu.Lock()
+		peers := b.intercomPeers
+		b.mu.Unlock()
+		if len(peers) == 0 {
+			peers = []string{"—"} // HA wants at least one option
+		}
+		entities = append(entities,
+			Entity{"sensor", "intercom", map[string]any{
+				"name":                  "Intercom",
+				"state_topic":           t.State("intercom"),
+				"json_attributes_topic": t.State("intercom_attr"),
+				"icon":                  "mdi:phone-in-talk",
+			}},
+			Entity{"select", "intercom_target", map[string]any{
+				"name":          "Intercom target",
+				"state_topic":   t.State("intercom_target"),
+				"command_topic": t.Command("intercom_target"),
+				"options":       peers,
+				"icon":          "mdi:account-voice",
+			}},
+			Entity{"button", "intercom_call", map[string]any{
+				"name":          "Intercom call",
+				"command_topic": t.Command("intercom_call"),
+				"icon":          "mdi:phone",
+			}},
+			Entity{"button", "intercom_hangup", map[string]any{
+				"name":          "Intercom hang up",
+				"command_topic": t.Command("intercom_hangup"),
+				"icon":          "mdi:phone-hangup",
+			}})
 	}
 	if b.HasAmbilight {
 		entities = append(entities, Entity{"light", "ambilight", map[string]any{

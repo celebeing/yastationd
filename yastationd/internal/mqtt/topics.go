@@ -25,5 +25,11 @@ func (t Topics) Discovery(component, obj string) string {
 func (t Topics) State(obj string) string   { return fmt.Sprintf("%s/%s/%s/state", t.prefix, t.id, obj) }
 func (t Topics) Command(obj string) string { return fmt.Sprintf("%s/%s/%s/set", t.prefix, t.id, obj) }
 
+// Intercom (docs/intercom.md): this speaker's retained info, every speaker's (the peer list),
+// and the signalling inbox of speaker id.
+func (t Topics) IntercomInfo() string         { return fmt.Sprintf("%s/%s/intercom/info", t.prefix, t.id) }
+func (t Topics) IntercomInfoAll() string      { return fmt.Sprintf("%s/+/intercom/info", t.prefix) }
+func (t Topics) IntercomSig(id string) string { return fmt.Sprintf("%s/%s/intercom/sig", t.prefix, id) }
+
 // DisplayCmd is the one-shot overlay command topic (JSON {surface,op,args,ttl_ms,priority}).
 func (t Topics) DisplayCmd() string { return fmt.Sprintf("%s/%s/display/cmd", t.prefix, t.id) }

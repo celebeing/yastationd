@@ -20,6 +20,7 @@ internal/display      per-surface priority layer stack + clock/text/ring effects
 internal/mqtt         paho client (LWT, backoff), topics, HA MQTT-Discovery
 internal/health       liveness state machine (TCP probes + heartbeat)
 internal/wifisetup    Wi-Fi setup mode: hostapd handoff, DHCP/DNS, the setup page, wpa_supplicant.conf edits
+internal/intercom     1-to-1 calls between speakers: signed signalling, AES-GCM RTP/L16 media, jitter buffer, voice phrases
 internal/sendspin     supervises sendspin-host (Music Assistant player) and relays its events
 internal/app          wiring: render loop, command handlers, evdev reflexes
 configs/              generic and Orion-specific yastationd.conf examples
@@ -100,7 +101,10 @@ plays, the white "thinking" comet while it waits for audio, and nothing once apl
 `notify` show_text + `number` text_duration (s) · `select` ring_animation + `number`
 animation_duration (s) · `binary_sensor` mic_mute · `sensor` lux/health/uptime ·
 `binary_sensor` pipeline_ok · `event` button (volume_up/down, voice_command, panel_gesture) ·
-`select` expression (attributes: the display capabilities) · `switch` display_faces (seg7 fronts).
+`select` expression (attributes: the display capabilities) · `switch` display_faces (seg7 fronts) ·
+with `intercom = true`: `sensor` intercom (idle/calling/ringing/in_call; attributes peer, ended) ·
+`select` intercom_target (the other speakers) · `button` intercom_call (also answers) ·
+`button` intercom_hangup ([docs/intercom.md](../docs/intercom.md)).
 
 Timed overlays (show_text, ring_animation, display/cmd) light the ring/matrix over whatever is
 underneath — even with the ring light off — and fall back when the time is up, without touching the

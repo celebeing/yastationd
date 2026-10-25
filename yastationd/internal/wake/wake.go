@@ -197,7 +197,7 @@ func (s *Spotter) Feed(raw []byte) {
 
 func (s *Spotter) readVQE(r io.ReadCloser) {
 	defer r.Close()
-	buf := make([]byte, 2048) // 64 ms
+	buf := make([]byte, 640) // 20 ms: the intercom streams it live
 	for {
 		n, err := io.ReadFull(r, buf)
 		if n > 0 {

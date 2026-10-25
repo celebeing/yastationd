@@ -108,6 +108,9 @@ func (a *App) onInputEvent(f *os.File, hasSwitch bool, state *inputDeviceState, 
 			a.publishButton("volume_down")
 		case "voice":
 			a.publishButton("voice_command")
+			if a.icVoiceKey() {
+				return
+			}
 			if a.cfg.WyomingPort > 0 {
 				a.sat.startListening(srcKey)
 			}

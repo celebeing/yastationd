@@ -19,7 +19,10 @@ const (
 	PrioExpression = 25
 	PrioLocal      = 30
 	PrioVoice      = 40
-	PrioError      = 50
+	// The intercom's ring states; in a call it is the "mic streams to another room" indicator,
+	// so it sits above the voice stages.
+	PrioCall  = 45
+	PrioError = 50
 	// Wi-Fi setup mode: the speaker is not itself for as long as it lasts.
 	PrioSetup = 60
 )

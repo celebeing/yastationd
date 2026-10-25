@@ -34,6 +34,7 @@ func (a *App) subscribe() {
 	if a.frontClipsPossible() {
 		a.mqtt.Subscribe(t.Command("display_faces"), a.cmdFaces)
 	}
+	a.intercomSubscribe()
 }
 
 // ring: HA JSON light schema {state, brightness, color:{r,g,b}, effect}.

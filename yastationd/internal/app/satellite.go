@@ -138,6 +138,7 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 		if ev.Type == wyoming.TypeTranscript {
 			s.endListeningOn(c, "transcript")
 			s.setAwaiting(true)
+			a.icTranscript(ev.String("text"))
 		}
 		if ev.Type == wyoming.TypeSynthesize {
 			// HA doesn't forward continue_conversation to Wyoming satellites; emulate it from the
@@ -381,6 +382,9 @@ func (s *satellite) endStream(c *wyoming.Conn, played bool) {
 		if follow {
 			time.Sleep(followDelay) // let the room's echo of the reply die down
 			s.startListening(srcFollow)
+		} else if played && st.announce {
+			time.Sleep(followDelay)
+			s.a.icListenIfRinging() // HA announced an incoming call («… принять?»)
 		}
 	}()
 }

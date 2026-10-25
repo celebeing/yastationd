@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseBasics(t *testing.T) {
@@ -116,5 +117,19 @@ func TestEditKeepsTheRest(t *testing.T) {
 	}
 	if got := string(Edit([]byte(in), map[string][]string{"probe": {}})); strings.Contains(got, "\nprobe") {
 		t.Errorf("empty list did not remove the key:\n%s", got)
+	}
+}
+
+func TestIntercomKeys(t *testing.T) {
+	c, err := Parse(strings.NewReader("intercom = true\nintercom_secret = 0123456789abcdef\nintercom_name = Кабинет\nintercom_ring_secs = 20\nintercom_jitter_ms = 60\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.Intercom || c.IntercomName != "Кабинет" || c.IntercomRing != 20*time.Second ||
+		c.IntercomJitterMs != 60 || c.IntercomPort != 10710 || c.IntercomMax != 30*time.Minute {
+		t.Fatalf("%+v", c)
+	}
+	if _, err := Parse(strings.NewReader("intercom_secret = short\n")); err == nil {
+		t.Fatal("a short secret was accepted")
 	}
 }

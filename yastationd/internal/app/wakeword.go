@@ -59,6 +59,9 @@ func (a *App) onWakeEvent(ev wake.Event) {
 		switch {
 		case a.micMuted():
 			a.log.Info("wake: ignored, mic muted")
+		case a.icInCall() && a.icFarSpoke():
+			// The other room just talked: an «Алиса» from there, leaking through the AEC.
+			a.log.Info("wake: ignored, the far end of the call was talking", "phrase", ev.Phrase)
 		case a.speaking():
 			// No verified AEC yet: our own playback (e.g. TTS saying «Алиса») must not wake us.
 			a.log.Info("wake: ignored while playing", "phrase", ev.Phrase)

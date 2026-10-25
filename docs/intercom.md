@@ -1,6 +1,7 @@
 # Intercom between speakers
 
-Status (2026-10-25): **plan + v1 implementation in progress; nothing tested on a speaker yet.**
+Status (2026-10-25): **v1 implemented and tested on the host only** (unit tests, and two daemons
+in one process with fake audio talking over loopback UDP); **nothing checked on a speaker yet**.
 Off by default (`intercom = false`).
 
 A live two-way voice call from one speaker to another over the home LAN: one room talks to another
@@ -218,11 +219,51 @@ hang-up (false hang-ups from natural speech), a "do not disturb" switch (refuse 
 night), a silent "listen in" mode (baby monitor; the vendor VQE has a preset) — a privacy
 decision first.
 
+## Implementation notes (v1)
+
+- Code: `yastationd/internal/intercom` (no daemon imports), `internal/hw/liveout.go`,
+  `internal/app/intercom.go`; hooks in `wakeword.go` (the far-end guard), `input.go` (voice key),
+  `satellite.go` (transcript; listening after an announcement while ringing), `music.go` (duck),
+  `wifisetup.go` (hang up first), `app.go` (bye on shutdown).
+- **The jitter target grows only on a late packet** (one that arrived after its slot was
+  concealed: real network jitter), one frame at a time up to 160 ms, and decays a frame per 10 s
+  without one. Plain loss doesn't grow it — more delay doesn't bring a lost packet back.
+- **Drift, simulated:** 30 min at ±300 ppm corrected 8323 / 8318 samples (the expected ~8640),
+  the depth stayed at 1–2 frames, no overflow or rebuffering.
+- The playout upsamples 16 → 48 kHz by linear interpolation (enough for a voice band ending at
+  8 kHz); the far end is ducked to 0.3 while an Assist session or a reply runs in the call, and
+  the uplink is silence then.
+- Incoming calls are refused while the Wi-Fi setup mode runs (`busy`) or the mic is muted
+  (`off`).
+- While ringing, the chime plays, and 1.5 s later the daemon opens a listening session unless
+  HA has started an announcement meanwhile (then it listens when the announcement ends).
+- A speaker that turns the intercom off clears its retained info, but the others keep it listed
+  until they restart (the empty retained message doesn't say whose it was); calling it times out.
+- `cmd: <prefix>/<id>/intercom/set` takes `{"action":"call","to":…}` with a device id or a room
+  name.
+
+**HA side, untested templates** (to be checked and moved into a guide): a sentence trigger per
+phrase keeps the conversation agent out and gives the fixed reply —
+
+```yaml
+triggers:
+  - trigger: conversation
+    command: ["соедини (с|со) {room}", "позвони в {room}"]
+actions:
+  - set_conversation_response: "Вызываю"
+```
+
+and the question on the callee — an automation on `sensor.<speaker>_intercom` turning
+`ringing` that runs `assist_satellite.announce` on that speaker's satellite with
+`"Звонок, {{ state_attr(trigger.entity_id, 'peer_name') }}. Принять?"` (the name is in the
+nominative, so «вызывают из кабинета» would need a name map).
+
 ## Phases
 
-1. **v1 on the host (now):** the `intercom` package with tests (two peers over loopback UDP with
-   simulated loss, jitter, reordering and ±300 ppm drift; crypto and signalling tables), daemon
-   wiring, the voice scenario's transcript matcher, HA entities, config. Off by default; not released until checked on speakers.
+1. **v1 on the host (done 2026-10-25):** the `intercom` package with tests (two peers over
+   loopback UDP; simulated loss, reordering and ±300 ppm drift; crypto and signalling tables),
+   daemon wiring, the voice scenario's transcript matcher, HA entities, config. Off by default;
+   not released until checked on speakers.
 2. **On two speakers** (needs the user): the checklist below; tune jitter, guard, volume.
 3. **VQE call mode** through a spotter-host control channel; pickle's missing call model.
 4. **The rest of the UX** (HA sentence triggers and the callee question, tested and written up;

@@ -56,13 +56,17 @@ type App struct {
 	clock     *timesync.Syncer // nil when time_sync is off
 	setup     *wifisetup.Mode  // Wi-Fi setup mode; nil when off
 	combo     keyCombo
+	ic        *icState // intercom; nil when off
 
 	ringStack   *display.Stack[display.RingFrame]
 	matrixStack *display.Stack[display.MatrixFrame]
 
 	topics  mqtt.Topics
 	mqtt    *mqtt.Client
-	builder interface{ Publish(*mqtt.Client) }
+	builder interface {
+		Publish(*mqtt.Client)
+		SetIntercomPeers([]string)
+	}
 
 	hmon  *health.Monitor
 	store *stateStore
@@ -168,6 +172,7 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 	a.spot = a.newSpotter()
 	a.music.host = a.newMusic()
 	a.setup = a.newWifiSetup()
+	a.ic = a.newIntercom()
 
 	if cfg.TimeSync {
 		a.clock = &timesync.Syncer{Servers: cfg.NTPServers, ChronyConf: cfg.Path(cfg.ChronyConf),
@@ -258,6 +263,7 @@ func (a *App) Run(ctx context.Context) error {
 	b.HasAmbilight = a.ambilight != nil
 	b.Expressions = a.expressionOptions()
 	b.HasFaces = a.frontClipsPossible()
+	b.Intercom = a.ic != nil
 	a.builder = b
 
 	a.hmon = health.New(a.cfg.Path(a.cfg.HeartbeatFile), a.onHealthChange)
@@ -332,6 +338,9 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	<-ctx.Done()
+	if a.ic != nil {
+		a.ic.m.Hangup("shutdown") // tells the peer
+	}
 	if a.setup != nil {
 		a.setup.Leave() // never leave the speaker as an access point without its daemon
 	}

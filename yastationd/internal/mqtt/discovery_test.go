@@ -48,3 +48,38 @@ func TestButtonDiscoveryIncludesPanelGesture(t *testing.T) {
 	}
 	t.Fatal("button event entity missing")
 }
+
+func TestIntercomDiscovery(t *testing.T) {
+	b := NewBuilder(NewTopics("yastation", "homeassistant", "test"), Device{})
+	for _, e := range b.Entities() {
+		if e.Object == "intercom_target" {
+			t.Fatal("intercom entities without the intercom")
+		}
+	}
+	b.Intercom = true
+	options := func() []string {
+		for _, e := range b.Entities() {
+			if e.Object == "intercom_target" {
+				return e.Config["options"].([]string)
+			}
+		}
+		t.Fatal("no intercom target select")
+		return nil
+	}
+	if o := options(); len(o) != 1 {
+		t.Fatalf("empty peer list must still give HA one option: %v", o)
+	}
+	b.SetIntercomPeers([]string{"Кабинет", "Спальня"})
+	if o := options(); len(o) != 2 || o[1] != "Спальня" {
+		t.Fatalf("options %v", o)
+	}
+	seen := map[string]bool{}
+	for _, e := range b.Entities() {
+		seen[e.Component+"/"+e.Object] = true
+	}
+	for _, want := range []string{"sensor/intercom", "button/intercom_call", "button/intercom_hangup"} {
+		if !seen[want] {
+			t.Errorf("missing %s", want)
+		}
+	}
+}

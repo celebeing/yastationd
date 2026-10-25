@@ -110,6 +110,17 @@ type Config struct {
 	HostapdBin       string
 	WPAConf          string // "" = the running wpa_supplicant's -c
 
+	// Intercom (docs/intercom.md): 1-to-1 calls to another speaker over the LAN. Needs the same
+	// IntercomSecret on every speaker; off without one.
+	Intercom           bool
+	IntercomSecret     string
+	IntercomName       string // the room name others call us by; "" = device_name
+	IntercomPort       int    // UDP media
+	IntercomAutoAnswer bool
+	IntercomRing       time.Duration // an unanswered call gives up
+	IntercomMax        time.Duration // hard cap of a call
+	IntercomJitterMs   int
+
 	// Clock: SNTP sync when no chronyd/ntpd runs (internal/timesync). ntp_server entries are tried
 	// first, then the servers in chrony_conf, then the default gateway.
 	TimeSync   bool
@@ -207,6 +218,10 @@ func Default() Config {
 		WifiSetupChannel:    6,
 		WifiSetupAddress:    "10.42.0.1/24",
 		HostapdBin:          cfw + "/bin/hostapd",
+		IntercomPort:        10710,
+		IntercomRing:        30 * time.Second,
+		IntercomMax:         30 * time.Minute,
+		IntercomJitterMs:    40,
 		WakeEnabled:         true,
 		SpotterBin:          cfw + "/bin/spotter-host",
 		ReplyTimeout:        90 * time.Second,
@@ -380,6 +395,29 @@ func (c *Config) set(k, v string) error {
 		c.HostapdBin = v
 	case "wpa_conf":
 		c.WPAConf = v
+	case "intercom":
+		c.Intercom, err = strconv.ParseBool(v)
+	case "intercom_secret":
+		if len(v) < 16 {
+			return fmt.Errorf("want at least 16 characters")
+		}
+		c.IntercomSecret = v
+	case "intercom_name":
+		c.IntercomName = v
+	case "intercom_port":
+		c.IntercomPort, err = atoiRange(v, 1, 65535)
+	case "intercom_auto_answer":
+		c.IntercomAutoAnswer, err = strconv.ParseBool(v)
+	case "intercom_ring_secs":
+		var n int
+		n, err = atoiRange(v, 5, 300)
+		c.IntercomRing = time.Duration(n) * time.Second
+	case "intercom_max_secs":
+		var n int
+		n, err = atoiRange(v, 0, 24*3600)
+		c.IntercomMax = time.Duration(n) * time.Second
+	case "intercom_jitter_ms":
+		c.IntercomJitterMs, err = atoiRange(v, 20, 160)
 	case "music_duck_db":
 		c.MusicDuckDB, err = atoiRange(v, -60, 0)
 	case "aplay_device":

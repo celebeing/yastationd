@@ -3,6 +3,16 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Features**
+- Intercom (not yet checked on speakers; off by default): 1-to-1 calls between speakers
+  ([docs/intercom.md](docs/intercom.md)). «Алиса, соедини со спальней» on one, «да» on the other,
+  «Алиса, заверши звонок» or the voice key to end; also from HA (target select, call and hang-up
+  buttons, a state sensor). The uplink is the echo-cancelled VQE stream; media is L16 over UDP
+  sealed with AES-GCM, with a jitter buffer that also absorbs the drift between the two speakers'
+  clocks; signalling over MQTT, signed with a shared secret.
+
 ## v0.5.1 — 2026-10-24
 
 **Docs**

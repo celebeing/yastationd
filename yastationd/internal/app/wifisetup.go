@@ -117,6 +117,9 @@ func (a *App) toggleSetup() {
 		a.setup.Leave()
 		return
 	}
+	if a.ic != nil {
+		a.ic.m.Hangup("wifi setup")
+	}
 	a.showSetup(true)
 	if err := a.setup.Enter(); err != nil {
 		a.log.Error("wifi setup: could not start", "err", err)

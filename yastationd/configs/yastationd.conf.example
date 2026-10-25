@@ -65,6 +65,18 @@ volume_beep  = true
 # hostapd_bin        = <cfw>/bin/hostapd
 # wpa_conf           =                (empty = the running wpa_supplicant's -c)
 
+# --- Intercom (docs/intercom.md): 1-to-1 calls to another speaker on the LAN, by voice («соедини со
+# спальней», then «да» on the other one) or from HA. Not checked on speakers yet. Needs the same
+# secret on every speaker and the MQTT broker (signalling); media is UDP between the two.
+# intercom             = true
+# intercom_secret      = <at least 16 characters, the same on every speaker>
+# intercom_name        = <the room name others call this speaker by>   (default: device_name)
+# intercom_port        = 10710   (UDP)
+# intercom_auto_answer = false
+# intercom_ring_secs   = 30
+# intercom_max_secs    = 1800
+# intercom_jitter_ms   = 40
+
 # --- Wyoming satellite (HA: Settings → Integrations → Wyoming → host = this device, port below).
 # Playback only for now: HA announcements (assist_satellite.announce) and TTS replies. 0 = off.
 wyoming_port = 10700

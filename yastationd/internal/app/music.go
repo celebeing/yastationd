@@ -134,7 +134,7 @@ func (a *App) reportMusicVolume(pct int) {
 // assistantBusy: the assistant has the speaker — a voice session, a reply being computed, our own
 // playback (TTS, announcements, local sounds) or a ringing timer.
 func (a *App) assistantBusy() bool {
-	return a.speaking() || a.sat.inDialog()
+	return a.speaking() || a.sat.inDialog() || a.icActive()
 }
 
 // duckLoop ducks the music while the assistant is busy and brings it back duckHold after.
