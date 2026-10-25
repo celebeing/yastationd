@@ -27,7 +27,7 @@ This is the index of project documentation. Read the relevant doc here **before*
 | [wifi-setup.md](wifi-setup.md) | Wi-Fi setup mode: the recovery access point (key combo), our hostapd build (the firmware's wpa_supplicant has no AP mode), DHCP/DNS/captive page in the daemon, the page's home settings (broker, probes, NTP, MA), the handoff back to wpa_supplicant, crash recovery, boot without a network |
 | [releasing.md](releasing.md) | Versions (SemVer tags, burned into the build, shown in HA) and how to cut a release |
 | [intercom.md](intercom.md) | Two-way 1-to-1 calls between speakers: plan and v1 design — VQE uplink, RTP/L16 over UDP with AES-GCM, jitter buffer and drift, MQTT signalling, the voice scenario, HA entities, device checklist |
-| [wishlist.md](wishlist.md) | Ideas under consideration, not planned: nearest-speaker arbitration, ESPHome API instead of MQTT+Wyoming, pipeline robustness, music, orion's ultrasound sonar rig; notes from reviewing pulsar |
+| [wishlist.md](wishlist.md) | Ideas under consideration, not planned: nearest-speaker arbitration, ESPHome API instead of MQTT+Wyoming, pipeline robustness, music, "someone is asleep here" detection, orion's ultrasound sonar rig; notes from reviewing pulsar |
 | [speaker-id.md](speaker-id.md) | Speaker identification design (who is talking) for the HA voice pipeline, with a status log |
 
 Also: [`../yastationd/README.md`](../yastationd/README.md) (daemon usage, entities, open items) and

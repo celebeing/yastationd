@@ -88,6 +88,36 @@ remains here is the wider picture.
   screens from levels sendspin-host computes on the PCM it writes (a `LEVEL` event at ~20 Hz);
   the track title as a marquee on a track change.
 
+## "Someone is asleep here" detection
+
+**Status:** idea (2026-10-25); nothing designed.
+
+A heuristic per speaker: is the room it stands in asleep right now? Exposed to HA (a
+`binary_sensor` "Sleeping here", with the inputs as attributes) and used by the speaker itself.
+
+**Inputs, all already on the speaker:**
+- **Light:** the IIO light sensor the clock's auto brightness reads (smoothed, already published
+  as the Illuminance sensor). Dark for a while is the strongest hint.
+- **Noise:** the mic level — the spotter's `LEVEL` lines / the VQE stream — as a slow average:
+  a quiet room (no talk, no TV) for some minutes. A level only, never audio leaving the speaker.
+- **Time of day:** a user-configured night window; outside it the detector needs stronger
+  evidence or stays off.
+- Maybe later: no key presses or voice sessions for a while, music not playing.
+
+**Configurable per user** (`yastationd.conf`, some also as HA entities): the night window,
+the dark and quiet thresholds and how long each must hold, the hysteresis to wake up (light on
+or sustained noise), and an HA override switch (force asleep / awake).
+
+**What could follow it, built-in:** a dimmer or dark clock and ring, quieter replies and
+chimes, no announcement chime, intercom calls refused or held as "do not disturb"
+([intercom.md](intercom.md)), the volume-key beep off.
+**In HA:** automations on the sensor (night scenes, a silent notification instead of an
+announcement in that room, the intercom's allow switch).
+
+Open: thresholds differ per room and per sensor behind the grille (calibrate from the
+Illuminance history, like `auto_brightness_curve`); a TV or a fan at night breaks "quiet" —
+the light and the time window must carry the decision then.
+
 ## Other models
 
 pulsar's `AGENTS.md` has hardware notes for the Midi (`cucumber`: aarch64, glibc 2.36), the Lite 2
