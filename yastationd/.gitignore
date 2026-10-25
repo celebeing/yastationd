@@ -1,2 +1,5 @@
 build/
 *.state
+# Converted media for the video display mode (third-party content): never commit
+media/
+*.led.gz

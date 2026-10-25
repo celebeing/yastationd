@@ -24,9 +24,10 @@ go run ./cmd/ledsim -patterns ../dumps/orion/quasar/ledpatterns/screen   # any c
 
 Flags: `-board` (default `orion`), `-screen WxH` (the virtual screen, default `21x12`), `-addr`
 (default `localhost:8930`), `-dir` (keep the sysroot, including `yastationd.state`, between runs),
-`-v`. Without `-patterns` the screen has no stock animations (the seg7 fallback still draws the
-clock and text). No MQTT, audio, wake word or time sync; the input and mixer warnings at start are
-expected.
+`-media <dir>` (the video mode's `video.led[.gz]` and `video.wav`, e.g. `build/media` from
+`make video-convert`; [video-mode.md](video-mode.md)), `-v`. Without `-patterns` the screen has no
+stock animations (the seg7 fallback still draws the clock and text). No MQTT, audio, wake word or
+time sync (the video mode plays silently); the input and mixer warnings at start are expected.
 
 On a unit, add to `<cfw>/yastationd.conf` and restart the daemon:
 
@@ -49,8 +50,9 @@ with the field at the top; the list stays in the URL).
 - Hover a screen dot: its coordinates and drive value.
 - **Pause** (Space) freezes all sources; **◀ / ▶** (arrow keys) step through the last 30 s of
   frames, the other sources following by time (each on its own clock).
-- Controls go to every source at once: expressions, any screen pattern (with loop), display mode,
-  text, number, countdown, volume, brightness (and back to auto), ring colour and effect, ambilight.
+- Controls go to every source at once: expressions, any screen pattern (with loop), display mode
+  (clock, off, video), text, number, countdown, volume, brightness (and back to auto), ring colour
+  and effect, ambilight.
   They are the daemon's own command handlers, the same as over MQTT (payloads as in
   [hass-integration.md](hass-integration.md)); commands a source does not have are skipped.
 

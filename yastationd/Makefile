@@ -26,7 +26,7 @@ VERSION  := $(shell git describe --tags --match 'v*' --dirty --always 2>/dev/nul
 GOFLAGS  := -trimpath -ldflags="-s -w -X github.com/celebeing/yastationd/yastationd/internal/version.Version=$(VERSION)"
 GOENV    := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds vqe-models deploy deploy-spotter deploy-sendspin clips deploy-egress ota-block
+.PHONY: all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds vqe-models deploy deploy-spotter deploy-sendspin clips deploy-egress ota-block video video-convert
 
 
 all: test build
@@ -163,6 +163,22 @@ vqe-models:
 	  echo "  no call-mode model on this firmware: pass VQE_MODEL=<model_call.nnet>"; exit 1; \
 	fi; \
 	$(SSH) "ls -la $$t"
+
+# The video display mode's files (docs/video-mode.md) from a local video you supply: VIDEO=<file>.
+# video-convert only converts (cmd/videoconv, ffmpeg) into build/media/; video also uploads them to
+# $(DESTDIR)/media/ (the daemon's default video_frames / video_audio). VIDEO_FLAGS go to videoconv
+# (-fit crop, -fps 25). Third-party media: never stored in the repo.
+VIDEO ?=
+VIDEO_FLAGS ?=
+video-convert:
+	@test -n "$(VIDEO)" || { echo "usage: make video VIDEO=<local video file>"; exit 2; }
+	go build -o build/videoconv ./cmd/videoconv
+	build/videoconv $(VIDEO_FLAGS) -frames build/media/video.led.gz -audio build/media/video.wav "$(VIDEO)"
+video: video-convert
+	$(SSH) 'mkdir -p $(DESTDIR)/media'
+	set -e; for f in video.led.gz video.wav; do \
+	  $(SSH) "cat > $(DESTDIR)/media/$$f.new && mv $(DESTDIR)/media/$$f.new $(DESTDIR)/media/$$f" < build/media/$$f; \
+	done
 
 # Stock clock animation clips (docs/display-expressions.md). Firmware 0.369 ships them as
 # zstd-compressed binary .binscled, and the device has no zstd: pull, decompress and convert to the

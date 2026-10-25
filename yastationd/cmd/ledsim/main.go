@@ -2,9 +2,10 @@
 // browser preview (docs/led-preview.md). It is the daemon itself — the same scenes, animations,
 // overlays and timing as on a unit — over a throwaway sysroot: sysfs LED files for the ring and
 // the ambilight, a virtual front screen, and the firmware's screen patterns from a local copy.
-// No MQTT, no audio, no wake word; commands come through the frame tap.
+// No MQTT, no wake word, and no audio in practice (the host's aplay does not know the board's
+// playback device; the video mode then plays silently); commands come through the frame tap.
 //
-//	go run ./cmd/ledsim -patterns <dir with the firmware's ledpatterns/screen>
+//	go run ./cmd/ledsim -patterns <dir with the firmware's ledpatterns/screen> [-media <dir>]
 //	open http://localhost:8930/                       (add ?src=http://<unit>:8930 to compare)
 package main
 
@@ -29,6 +30,7 @@ func main() {
 	boardName := flag.String("board", "orion", "board profile")
 	screen := flag.String("screen", "21x12", "front screen size for a dot-matrix board (WxH)")
 	patterns := flag.String("patterns", "", "the firmware's screen patterns (ledpatterns/screen of a dump or a unit)")
+	media := flag.String("media", "", "directory with the video mode's files (video.led[.gz], video.wav from cmd/videoconv)")
 	addr := flag.String("addr", "localhost:8930", "frame tap listen address")
 	dir := flag.String("dir", "", "sysroot to (re)use; default: a fresh temporary one")
 	verbose := flag.Bool("v", false, "debug log")
@@ -39,13 +41,13 @@ func main() {
 		level = slog.LevelDebug
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
-	if err := run(log, *boardName, *screen, *patterns, *addr, *dir); err != nil {
+	if err := run(log, *boardName, *screen, *patterns, *media, *addr, *dir); err != nil {
 		log.Error("ledsim", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(log *slog.Logger, name, screen, patterns, addr, root string) error {
+func run(log *slog.Logger, name, screen, patterns, media, addr, root string) error {
 	prof, err := board.Builtin(name)
 	if err != nil {
 		return err
@@ -56,7 +58,7 @@ func run(log *slog.Logger, name, screen, patterns, addr, root string) error {
 		}
 		defer os.RemoveAll(root)
 	}
-	if err := sysroot(root, prof, screen, patterns); err != nil {
+	if err := sysroot(root, prof, screen, patterns, media); err != nil {
 		return err
 	}
 
@@ -86,7 +88,7 @@ func run(log *slog.Logger, name, screen, patterns, addr, root string) error {
 // sysroot lays out what the daemon opens: an LED class directory per ring/ambilight LED, the
 // board.conf override that makes the front screen virtual, the CFW directories, and the
 // firmware's pattern directory linked to the local copy.
-func sysroot(root string, p board.Profile, screen, patterns string) error {
+func sysroot(root string, p board.Profile, screen, patterns, media string) error {
 	var leds []string
 	for i := 0; i < p.Ring.Pixels; i++ {
 		for _, c := range p.Ring.Colors {
@@ -124,18 +126,27 @@ func sysroot(root string, p board.Profile, screen, patterns string) error {
 		}
 	}
 	if patterns != "" && p.Clips.Dir != "" {
-		abs, err := filepath.Abs(patterns)
-		if err != nil {
+		if err := link(patterns, filepath.Join(root, p.Clips.Dir)); err != nil {
 			return err
 		}
-		link := filepath.Join(root, p.Clips.Dir)
-		if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
-			return err
-		}
-		os.Remove(link)
-		if err := os.Symlink(abs, link); err != nil {
+	}
+	if media != "" { // the default video_frames / video_audio live there
+		if err := link(media, filepath.Join(root, config.CFWRoot(), "media")); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// link makes at a symlink to the local directory dir.
+func link(dir, at string) error {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(at), 0o755); err != nil {
+		return err
+	}
+	os.Remove(at)
+	return os.Symlink(abs, at)
 }

@@ -90,6 +90,14 @@ type Config struct {
 	// for the browser preview (docs/led-preview.md). "" = off. No authentication: LAN only.
 	FrameTapAddr string
 
+	// Video display mode (docs/video-mode.md): a frames file for the pixel front screen (the .led
+	// pattern format, may be gzipped; path+".gz" is tried too) and its audio track (a WAV for aplay),
+	// both made by cmd/videoconv. VideoAVOffset shifts the picture against the sound: positive =
+	// the picture later (aplay's start-up and buffer latency).
+	VideoFrames   string
+	VideoAudio    string
+	VideoAVOffset time.Duration
+
 	// Music Assistant player: sendspin-host as a child process (off unless enabled and present).
 	Sendspin         bool
 	SendspinBin      string
@@ -214,6 +222,8 @@ func Default() Config {
 		DisplayFaces:        true,
 		ClipsDir:            cfw + "/clips",
 		ScenariosDir:        cfw + "/scenarios",
+		VideoFrames:         cfw + "/media/video.led",
+		VideoAudio:          cfw + "/media/video.wav",
 		WyomingPort:         10700,
 		SendspinBin:         cfw + "/bin/sendspin-host",
 		SendspinPort:        8928,
@@ -358,6 +368,14 @@ func (c *Config) set(k, v string) error {
 		c.WyomingPort, err = atoiRange(v, 0, 65535)
 	case "frametap_addr":
 		c.FrameTapAddr = v
+	case "video_frames":
+		c.VideoFrames = v
+	case "video_audio":
+		c.VideoAudio = v
+	case "video_av_offset_ms":
+		var n int
+		n, err = atoiRange(v, -2000, 2000)
+		c.VideoAVOffset = time.Duration(n) * time.Millisecond
 	case "sendspin":
 		c.Sendspin, err = strconv.ParseBool(v)
 	case "sendspin_bin":
