@@ -275,6 +275,13 @@ and the question on the callee — an automation on `sensor.<speaker>_intercom` 
 `"Звонок, {{ state_attr(trigger.entity_id, 'peer_name') }}. Принять?"` (the name is in the
 nominative, so «вызывают из кабинета» would need a name map).
 
+## Release gate
+
+No release tag until all of these are done (the user's call, 2026-10-25): the VQE call mode
+tried, voice control of calls checked on it, a test on **two speakers**, and the HA integration
+with its guide (how to set it up in HA: entities, voice sentences, the callee question).
+Commits land on `main` meanwhile; `intercom` stays off by default.
+
 ## Phases
 
 1. **v1 on the host (done 2026-10-25):** the `intercom` package with tests (two peers over
@@ -299,6 +306,10 @@ nominative, so «вызывают из кабинета» would need a name map)
   fixed — an intercom transcript cuts HA's reply.
 - **The uplink is quiet:** the VQE stream carried speech around −60 dBFS RMS over a −72 floor
   (contaminated sample; measured again with the AGC logging its estimates).
+- **Keys and indication, checked by the user (2026-10-25, a host peer):** answer with the voice
+  key, decline a ringing call with mute, end a running one with mute, an unanswered call goes
+  "missed" after 30 s — all as designed; the ringtone now stops at once (it played on to its
+  end after a decline).
 - **Wi-Fi from that room:** speaker → host lost 72 and delayed 67 of 2000 packets in 40 s, two
   500 ms gaps, the host's jitter target went up to 160 ms; host → speaker lost 1. The
   speaker's transmit side is the weak one.
