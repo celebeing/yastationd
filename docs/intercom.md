@@ -218,6 +218,15 @@ commands are дальше, назад, выше, ниже, вправо, вле�
   the spotters' input (vqe_0, measured), and a first guard ("ignore a wake word within 1.5 s of
   far-end speech") blocked our own «Алиса» whenever the other room talked. Combinations such as
   «включи свет» are not call commands.
+- **Checked on a speaker (2026-10-25):** «играй» and «продолжи» answered, «Алиса, стоп» and
+  «Алиса, хватит» hung up, «Алиса, громче / тише» twice each, «громче», «тише» and «стоп»
+  without «Алиса» ignored; «Алиса» → command took 0.4–0.6 s. The first switch to the call mode
+  loads the NR model (~2 s; later switches ~45 ms), so the daemon follows the mode spotter-host
+  reports and takes each uplink frame from the stream that fits it.
+- **Howling with a looped peer:** with `intercom-peer -echo` the speaker's own voice comes back
+  through its speaker — a lossless loop — and it rang up into feedback. A real two-room call
+  has two AECs and two rooms in the loop, but a howl guard (a sustained rise on both directions
+  → turn the uplink down) is still to do.
 - **Outgoing calls by voice** still go through HA: «Алиса, соедини со спальней» (room names are
   in no spotter's vocabulary). The daemon reads that transcript and cuts HA's own reply.
 - The voice key and the mute switch work as before (answer / end; decline / end).
