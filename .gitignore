@@ -28,3 +28,4 @@ spotter-host/build/
 
 # Emulator work dir: kernel sources/builds, flash images made from dumps, seeds copied from units
 emu/work/
+.claude/worktrees/
