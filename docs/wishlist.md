@@ -114,6 +114,17 @@ chimes, no announcement chime, intercom calls refused or held as "do not disturb
 **In HA:** automations on the sensor (night scenes, a silent notification instead of an
 announcement in that room, the intercom's allow switch).
 
+**Approach (2026-10-25): data first, then the heuristic.**
+1. **Collect.** Publish the raw inputs to HA as sensors (recorded by its history), before any
+   detector exists: the noise floor (a slow low percentile of the mic level), a short-term
+   level / activity, the smoothed light reading (already there), maybe key/voice activity. Cheap,
+   and useful on its own.
+2. **After about a week, compare** them against what HA already knows about sleep in those rooms
+   (other sensors: lights, presence/motion, phones charging, bed/TV states…) **plus Apple
+   Health sleep data** (asleep/in-bed intervals) as the ground truth.
+3. **Fit the heuristic** to that: which inputs matter, thresholds and hold times per room —
+   then build the detector (on the speaker, with the parameters in config).
+
 Open: thresholds differ per room and per sensor behind the grille (calibrate from the
 Illuminance history, like `auto_brightness_curve`); a TV or a fan at night breaks "quiet" —
 the light and the time window must carry the decision then.
