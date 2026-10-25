@@ -78,6 +78,7 @@ func (a *App) setupKey(action string, down bool) bool {
 			k.timer.Stop()
 			k.timer = nil
 			a.ringStack.Remove("setuphold")
+			a.log.Info("wifi setup: hold cancelled", "released", !down, "muted", a.micMuted())
 		}
 		return false
 	}
@@ -102,6 +103,7 @@ func (a *App) setupKey(action string, down bool) bool {
 		k.timer = nil
 		k.mu.Unlock()
 		a.ringStack.Remove("setuphold")
+		a.log.Info("wifi setup: hold complete", "armed", armed, "muted", a.micMuted())
 		if armed && a.micMuted() {
 			a.toggleSetup()
 		}

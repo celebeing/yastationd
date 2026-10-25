@@ -42,13 +42,15 @@ func (f Seg7Front) Volume(brightness func() int) VolumeScene {
 // step of the ring takes about three of them.
 const volumeGlide = 50 * time.Millisecond
 
-// volumeFade is how long the number cross-fades into a new value.
-const volumeFade = 150 * time.Millisecond
+// volumeFade is how long the number cross-fades into a new value: short, a fast turn of the ring
+// changes it every few tens of ms, and a longer fade keeps the changing strokes half-lit.
+const volumeFade = 70 * time.Millisecond
 
 // volumeTrack is the intensity of the bar's unlit part, so its length reads at a glance.
 const volumeTrack = 0.12
 
-// pixelVolume: the exact percentage in the clock's 4x9 digits, cross-fading from the old value,
+// pixelVolume: the exact percentage in the clock's 4x9 digits (right-aligned in a fixed place),
+// cross-fading from the old value,
 // over a full-width bar whose last pixel is partly lit, so even 1 % moves it. The firmware's own
 // volume patterns don't fit: volume.led is a sweep through the tens only (a 5 % step lands
 // mid-scroll) and volume_edge is drawn for the remote's 0..10 scale.
@@ -86,7 +88,11 @@ func (v *pixelVolume) Set(pct, edge int) {
 // volumeFace draws n over the bar at level (0..100).
 func (v *pixelVolume) face(n int, level float64) canvas {
 	c := newCanvas(v.w, v.h)
-	c.text(bigDigits, strconv.Itoa(n), 0, 1)
+	// Right-aligned in a fixed three-digit place: the units stay put, 95 -> 100 shifts nothing,
+	// and only the strokes that change fade.
+	s := strconv.Itoa(n)
+	right := (v.w+textWidth(bigDigits, "100"))/2 - 1
+	c.textAt(bigDigits, s, right+1-textWidth(bigDigits, s), 0, 1)
 	fill := level / 100 * float64(v.w)
 	for x := 0; x < v.w; x++ {
 		lit := min(max(fill-float64(x), 0), 1)

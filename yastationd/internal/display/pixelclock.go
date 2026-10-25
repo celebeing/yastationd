@@ -78,7 +78,11 @@ func textWidth(font map[byte]bitmap, s string) int {
 
 // text draws s centred horizontally with its top row at y, at intensity level.
 func (c canvas) text(font map[byte]bitmap, s string, y int, level float64) {
-	x := (c.w - textWidth(font, s)) / 2
+	c.textAt(font, s, (c.w-textWidth(font, s))/2, y, level)
+}
+
+// textAt draws s with its left edge at x.
+func (c canvas) textAt(font map[byte]bitmap, s string, x, y int, level float64) {
 	for i := 0; i < len(s); i++ {
 		g, ok := font[s[i]]
 		if !ok {
