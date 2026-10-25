@@ -34,6 +34,10 @@ func (t Topics) IntercomInfo() string         { return fmt.Sprintf("%s/%s/interc
 func (t Topics) IntercomInfoAll() string      { return fmt.Sprintf("%s/+/intercom/info", t.prefix) }
 func (t Topics) IntercomSig(id string) string { return fmt.Sprintf("%s/%s/intercom/sig", t.prefix, id) }
 
+// IntercomCall is the shared topic HA's "call a room" script publishes to; the speaker that just
+// heard the request takes it (docs/ha-intercom-setup.md).
+func (t Topics) IntercomCall() string { return fmt.Sprintf("%s/intercom/call", t.prefix) }
+
 // IntercomInfoID is the device id in an IntercomInfoAll topic ("" if it isn't one).
 func (t Topics) IntercomInfoID(topic string) string {
 	rest, ok := strings.CutPrefix(topic, t.prefix+"/")

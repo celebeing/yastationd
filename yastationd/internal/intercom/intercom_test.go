@@ -261,22 +261,7 @@ func TestGuardLevelGateHalfDuplex(t *testing.T) {
 	}
 }
 
-func TestVoice(t *testing.T) {
-	peers := []Peer{{"b", "Спальня"}, {"c", "Кабинет"}, {"d", "Детская"}, {"e", "Детская 2"}}
-	for text, want := range map[string]string{
-		"Соедини со спальней":         "b",
-		"позвони в кабинет":           "c",
-		"Алиса, свяжи меня с детской": "d",
-		"набери детскую 2":            "e",
-		"соедини":                     "",
-		"сколько времени":             "",
-		"включи свет в спальне":       "",
-	} {
-		p, ok := MatchCall(text, peers)
-		if (want == "") == ok || p.ID != want {
-			t.Errorf("%q: %v %v, want %q", text, p, ok, want)
-		}
-	}
+func TestVoiceCommands(t *testing.T) {
 	for phrase, want := range map[string]bool{"стоп": true, "Хватит": true, "пауза": true,
 		"выключи свет": false, "играй": false, "громче": false} {
 		if IsDeclineCommand(phrase) != want {

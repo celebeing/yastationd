@@ -77,10 +77,15 @@ func TestIntercomVoiceScenario(t *testing.T) {
 	cmd := func(a *App, phrase string) { a.onWakeEvent(wake.Event{Kind: "CMD", Phrase: phrase}) }
 	alisa := func(a *App) { a.onWakeEvent(wake.Event{Kind: "WAKE", Phrase: "алиса"}) }
 
-	// outgoing by voice goes through HA's transcript (room names); the rest is the spotters'
-	if !office.icTranscript("Соедини со спальней") {
-		t.Fatal("call request not taken")
+	// outgoing by voice: HA's script asks on the shared topic; the speaker that sent HA the
+	// request just now takes it, the other one doesn't
+	bedroom.cmdIntercomCall([]byte(`{"to":"office"}`))
+	time.Sleep(50 * time.Millisecond)
+	if bedroom.ic.m.Status().State != intercom.Idle {
+		t.Fatal("a speaker nobody talked to took the call request")
 	}
+	office.sat.lastHeard.Store(time.Now().UnixNano())
+	office.cmdIntercomCall([]byte(`{"to":"bedroom"}`))
 	wait(office, intercom.Calling)
 	wait(bedroom, intercom.Ringing)
 	if !bedroom.ringStack.Has("intercom") {
@@ -102,9 +107,6 @@ func TestIntercomVoiceScenario(t *testing.T) {
 	}
 	if !office.icActive() || !office.assistantBusy() {
 		t.Error("music would not duck during the call")
-	}
-	if office.icTranscript("заверши звонок") {
-		t.Error("the transcript hung up: calls are the spotters' now")
 	}
 	cmd(office, "стоп") // in a call only after «Алиса»
 	if office.ic.m.Status().State != intercom.InCall {

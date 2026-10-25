@@ -50,6 +50,8 @@ type satellite struct {
 	awaitUntil time.Time // a reply is pending until then (see setAwaiting); zero = none
 	awaitGen   int       // bumps on every setAwaiting, so stale timers do nothing
 	held       *heldWake // a wake word waiting for HA to reconnect
+
+	lastHeard atomic.Int64 // unix nanos of the last transcript HA sent us
 }
 
 type sndStream struct {
@@ -138,11 +140,7 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 		if ev.Type == wyoming.TypeTranscript {
 			s.endListeningOn(c, "transcript")
 			s.setAwaiting(true)
-			if a.icTranscript(ev.String("text")) {
-				s.cancelReply("an intercom request")
-				a.unexpress("voice")
-				return
-			}
+			s.lastHeard.Store(time.Now().UnixNano()) // whose request an HA intercom call is (icClaimCall)
 		}
 		if ev.Type == wyoming.TypeSynthesize {
 			// HA doesn't forward continue_conversation to Wyoming satellites; emulate it from the

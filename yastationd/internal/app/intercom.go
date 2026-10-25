@@ -137,6 +137,7 @@ func (a *App) intercomSubscribe() {
 	a.mqtt.Subscribe(t.IntercomSig(a.cfg.DeviceID), a.ic.m.Handle)
 	a.mqtt.SubscribeTopic(t.IntercomInfoAll(), a.onIntercomInfo)
 	a.mqtt.Subscribe(t.Command("intercom"), a.cmdIntercom)
+	a.mqtt.Subscribe(t.IntercomCall(), a.cmdIntercomCall)
 	a.mqtt.Subscribe(t.Command("intercom_target"), a.cmdIntercomTarget)
 	a.mqtt.Subscribe(t.Command("intercom_call"), func([]byte) { a.icCallOrAnswer("", "HA") })
 	a.mqtt.Subscribe(t.Command("intercom_hangup"), func([]byte) { a.ic.m.Hangup("HA") })
@@ -693,21 +694,26 @@ func (a *App) icVoiceKey() bool {
 	return false
 }
 
-// icTranscript: an outgoing call by voice («Алиса, соедини со спальней») — the one request
-// that needs speech recognition (room names aren't in any spotter's vocabulary). It reports
-// whether the request was the intercom's: HA's own reply is then cut. Everything during a call
-// is the spotters' (icCommand).
-func (a *App) icTranscript(text string) bool {
-	if a.ic == nil || text == "" || a.ic.m.Status().State != intercom.Idle {
-		return false
+// icHeardWindow: how recently this speaker must have sent HA a request to take a call command
+// on the shared topic (the LLM and the script take a few seconds).
+const icHeardWindow = 60 * time.Second
+
+// cmdIntercomCall: HA's "call a room" script ({"to":"<device id or room name>"} on the shared
+// topic). Every speaker gets it; the one that sent HA the request just now places the call —
+// the script doesn't know which satellite asked.
+func (a *App) cmdIntercomCall(payload []byte) {
+	var c struct{ To string }
+	if err := json.Unmarshal(payload, &c); err != nil || c.To == "" {
+		a.log.Warn("intercom: bad call request", "payload", string(payload))
+		return
 	}
-	p, ok := intercom.MatchCall(text, a.icPeers())
-	if !ok {
-		return false
+	heard := a.sat.lastHeard.Load()
+	if heard == 0 || time.Since(time.Unix(0, heard)) > icHeardWindow {
+		return // someone else's request
 	}
-	a.log.Info("intercom: call by voice", "to", p.ID)
-	a.icCall(p, "voice")
-	return true
+	a.sat.lastHeard.Store(0) // one call per request
+	a.log.Info("intercom: call requested by HA", "to", c.To)
+	a.icCallOrAnswer(c.To, "HA voice")
 }
 
 // icRinging: an incoming call is waiting for an answer.
