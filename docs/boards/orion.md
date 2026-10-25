@@ -162,7 +162,11 @@ Generic detector limits and the bergamot instance: docs/wakeword-mic-array.md §
   loads and creates as a 3-channel spotter; two spotter-host fixes were needed for it: the
   3.21 WARN-log buffer is no longer treated as an error (the call's NULL return is), and
   `probe` no longer calls the single-channel `spotter_create`, which segfaults in this blob
-  for a multi-channel model. Fallback remains: strip the verifier (re-threshold; more false accepts) -
+  for a multi-channel model. A third one for the daemon: with a verifier the spotter reports
+  `1ST_STAGE_HIT` and then the verifier's `CONFIRMATION_2ND_STAGE` (or `REJECTION_2ND_STAGE`),
+  never `CONFIRMATION_1ST_STAGE`, so `serve` now emits `WAKE` on either confirmation. A live
+  60 s test in the user's room: 14 of 14 spoken «Алиса» confirmed, one verifier rejection, no
+  false wakes in the silent half; room-noise floor raw ≈ −70 dBFS, speech raw −61…−65 dBFS. Fallback remains: strip the verifier (re-threshold; more false accepts) -
   bergamot §6.4 tradeoff in docs/spotter-decompile.md.
 - **Runtime noise-event spotter (stock unit, captured 2026-10-25):** `spotter.json` declares one
   downloaded model with `type = noise_detection`; its UUID, CDN URL and binary stay only in

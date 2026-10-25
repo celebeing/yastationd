@@ -27,7 +27,9 @@
  *       the yastationd child: stdin = raw hw:0,1 frames (8ch S16 48 kHz, as arecord gives them);
  *       stdout = machine lines, one per event (the daemon ignores lines it doesn't know):
  *         READY call-mode                (capabilities; signals are safe from now on)
- *         WAKE <stream_ms> <phrase>      activation CONFIRMATION_1ST_STAGE
+ *         WAKE <stream_ms> <phrase>      activation CONFIRMATION_1ST_STAGE, or CONFIRMATION_2ND_STAGE
+ *                                        for a model with a verifier (orion's alisa: 1ST_STAGE_HIT,
+ *                                        then the verifier's accept; a reject never becomes WAKE)
  *         CMD <stream_ms> <phrase>       command CONFIRMATION_1ST_STAGE (always on; the daemon arms)
  *         SUBHIT <WAKE|CMD> <stream_ms> <phrase>
  *         LEVEL <stream_ms> vqe=<dB> raw=<dB> spk=<dB>   (with -v, 1/s)
@@ -518,7 +520,7 @@ static void det_feed(struct det *d, size_t nframes, double t)
         }
         if (serve_mode) {
             long ms = (long)(t * 1000);
-            if (ev == SPOTTER_CONFIRMATION_1ST_STAGE)
+            if (ev == SPOTTER_CONFIRMATION_1ST_STAGE || ev == SPOTTER_CONFIRMATION_2ND_STAGE)
                 outf("%s %ld %s\n", d->tag, ms, phrase ? phrase : "");
             else if (ev == SPOTTER_SUBHIT)
                 outf("SUBHIT %s %ld %s\n", d->tag, ms, phrase ? phrase : "");
