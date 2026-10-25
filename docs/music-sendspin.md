@@ -159,9 +159,9 @@ until it has played. **Not tested on the device yet.**
 
 ## Group sync by measurement (plan)
 
-**Status:** plan, not started. The idea comes from another DIY project that put rooted Stations and
-PCs into one Sendspin group: by ear their group looked fine, but a measurement showed 328 ms of
-spread between players. After calibration it was 2–3 ms.
+**Status:** plan, not started. The idea comes from another DIY project that put Stations running
+its own firmware and PCs into one Sendspin group: by ear their group looked fine, but a measurement
+showed 328 ms of spread between players. After calibration it was 2–3 ms.
 
 ### What we already account for
 

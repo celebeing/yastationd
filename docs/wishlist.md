@@ -28,8 +28,8 @@ pulsar's scheme, for reference:
   of the last 1.5 s of frames.
 - HA's `duplicate_wake_up_detected` error is then handled silently (no error ring or sound).
 
-Refinements from another DIY multi-speaker project (where several rooted speakers share one
-apartment), each one found on a real failure:
+Refinements from another DIY multi-speaker project (where several speakers on custom firmware
+share one apartment), each one found on a real failure:
 - **A quiet first claim waits for louder ones.** A fixed window favoured the far speaker: it
   claimed first, and the room it was in got the command (the wrong room's light was switched).
   A quiet claim (low level) now waits up to ~1.5 s for a louder one; a loud claim decides at once.
