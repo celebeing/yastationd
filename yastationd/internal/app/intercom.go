@@ -467,6 +467,7 @@ func (a *App) icStopTone() {
 	a.ic.mu.Unlock()
 	if stop != nil {
 		close(stop)
+		a.player.StopBlip() // the ringtone playing right now, too (it lasts ~12 s)
 	}
 }
 

@@ -126,6 +126,16 @@ func (p *Player) Blip(path string) error {
 	return nil
 }
 
+// StopBlip cuts the current blip, if any.
+func (p *Player) StopBlip() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.blip != nil {
+		p.blip()
+		p.blip = nil
+	}
+}
+
 func (p *Player) Play(path string) error {
 	p.mu.Lock()
 	if p.cancel != nil {
