@@ -174,7 +174,7 @@ to be reviewed on glass (the stock patterns are still being watched through).
 | `listening`, `thinking`, `speaking` | voice stages | the expressions | the expressions (`oknix/`) | via rule 3 |
 | `error` | voice / network failure | the expression | `error` | via rule 3 |
 | `mute`, `unmute` | the mic switch | — | `anim:mute`, `anim:unmute` | planned |
-| `volume` | volume changed (value) | the number | the stock rolling digits: `volume.led` scrubbed to the level, `rcu_volume/volume_edge/*` at the ends | in code, as the front's `Volume` scene (not a moment: it carries the level and keeps state) |
+| `volume` | volume changed (value) | the number | the exact number over a bar (`display/volume.go`; the stock `volume.led` sweeps the tens only) | in code, as the front's `Volume` scene (not a moment: it carries the level and keeps state) |
 | `alarm`, `timer_done` | an alarm / a timer rings | `ringing` | `alarm/alarm_loop`, `timer/timer_bell` | planned |
 | `call_incoming`, `call_outgoing`, `call_connected`, `call_ended`, `call_hold` | intercom | `ringing` for incoming | the stock `call_*` / `calls/*` patterns | planned |
 | `media_pause`, `media_resume`, `media_next`, `media_previous`, `like`, `dislike` | music controls | `pause`, `next`, `previous` | `media/*` | planned |

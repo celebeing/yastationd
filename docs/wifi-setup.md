@@ -21,6 +21,7 @@ removed.
 
 1. **Mute the mic, then hold the voice key (Alice) for 5 s.** The same on every board: orion has
    no volume keys and its mute is a switch that can't be held, so the combo is "muted + voice".
+   - While you hold, the ring fills with yellow; when it is full, the mode starts.
    - The ring runs a yellow comet.
    - The front display shows wide-open eyes with a dot, `O  O°`.
    - Both stay for as long as the mode lasts, above everything else.

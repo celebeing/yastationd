@@ -353,9 +353,10 @@ Three surfaces, every LED a Linux LED class device each mirrored by a framebuffe
 
 - **Clock:** done — our own pixel font, plus the two-line `clock_date` mode
   ([display-expressions.md](../display-expressions.md), "The pixel clock").
-- **Volume:** done — the stock `volume.led` (a 0→100 sweep, ~5 frames per percent) scrubbed to
-  the level with a glide between levels, `rcu_volume/volume_edge/{0,10}` at the ends
-  (`display/volume.go`). Still possible later: a horizontal bar of our own.
+- **Volume:** done — our number over a bar (`display/volume.go`). The stock `volume.led` was tried
+  first: it is a continuous sweep through the tens (~20 frames of a clean "10", ~30 of scrolling to
+  "20"), so a 5 % level lands mid-scroll, and `rcu_volume/volume_edge/10` shows "10" (the remote's
+  0..10 scale) at 100 %.
 - **Low brightness:** gamma 2.2 and then the brightness scale, both in 8 bits, can collapse the
   dark half-tones; the vendor keeps the screen at `minBrightness` 127 or more and has a
   backlight node (`/sys/class/backlight/fb1/brightness`) — consider brightness there instead.

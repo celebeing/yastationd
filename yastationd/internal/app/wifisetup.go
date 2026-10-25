@@ -77,6 +77,7 @@ func (a *App) setupKey(action string, down bool) bool {
 		if k.timer != nil {
 			k.timer.Stop()
 			k.timer = nil
+			a.ringStack.Remove("setuphold")
 		}
 		return false
 	}
@@ -84,11 +85,23 @@ func (a *App) setupKey(action string, down bool) bool {
 		return false
 	}
 	a.log.Info("wifi setup: voice key held while muted", "hold", setupHold.String())
+	// Show the hold: the ring fills with yellow over setupHold, so the user knows to keep holding.
+	start := time.Now()
+	a.ringStack.Push("setuphold", display.PrioSetup, setupHold+time.Second,
+		func(now time.Time, below display.RingFrame) (display.RingFrame, bool) {
+			f := make(display.RingFrame, len(below))
+			lit := int(float64(len(f)) * float64(now.Sub(start)) / float64(setupHold))
+			for i := 0; i < len(f) && i < lit; i++ {
+				f[i] = display.Yellow
+			}
+			return f, false
+		})
 	k.timer = time.AfterFunc(setupHold, func() {
 		k.mu.Lock()
 		armed := k.timer != nil
 		k.timer = nil
 		k.mu.Unlock()
+		a.ringStack.Remove("setuphold")
 		if armed && a.micMuted() {
 			a.toggleSetup()
 		}

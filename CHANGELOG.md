@@ -6,11 +6,13 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
 ## Unreleased
 
 **Features**
-- Orion's volume shows the firmware's own rolling digits: the daemon scrubs `volume.led` to the
-  level and glides between levels, so the ring's fine steps read as the digits rolling;
-  pushing past 0 or 100 plays the stock `volume_edge` shake. Other displays keep the number.
+- Orion's volume: the exact level in the clock's digits, cross-fading from the old value, over a
+  full-width bar whose last pixel is partly lit (1 % moves it); the bar glides, its end pixel
+  flashes when pushed past 0 or 100. The firmware's volume patterns were tried and dropped: they
+  sweep through the tens only. Other displays keep the number.
 - The Wi-Fi setup mode's key combo is now the same on every board: **mic muted + the voice key
-  held for 5 s** (it was volume-down + voice + mute, impossible on orion).
+  held for 5 s** (it was volume-down + voice + mute, impossible on orion); the ring fills with
+  yellow while it is held.
 
 ## v0.8.1 — 2026-10-26
 

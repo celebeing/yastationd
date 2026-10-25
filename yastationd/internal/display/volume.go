@@ -2,6 +2,7 @@ package display
 
 import (
 	"math"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -37,84 +38,93 @@ func (f Seg7Front) Volume(brightness func() int) VolumeScene {
 	return &numberVolume{front: f, brightness: brightness}
 }
 
-// volumeGlide is how fast the shown level follows a change: the time constant of the approach.
-// A 5 % step of the ring takes about three of them.
+// volumeGlide is how fast the bar follows a change: the time constant of its approach. A 5 %
+// step of the ring takes about three of them.
 const volumeGlide = 50 * time.Millisecond
 
-// patternVolume scrubs the firmware's volume.led — a 0→100 sweep of the level's digits, about
-// five frames per percent — to the frame of the level instead of playing it, gliding the frame
-// index towards a new level so a step reads as the digits rolling. Pushing past either end plays
-// the firmware's volume_edge pattern (a shake of "0" or "10") once.
-type patternVolume struct {
-	sweep      PixelClip
-	edges      [2]PixelClip // bottom, top; empty = none
+// volumeFade is how long the number cross-fades into a new value.
+const volumeFade = 150 * time.Millisecond
+
+// volumeTrack is the intensity of the bar's unlit part, so its length reads at a glance.
+const volumeTrack = 0.12
+
+// pixelVolume: the exact percentage in the clock's 4x9 digits, cross-fading from the old value,
+// over a full-width bar whose last pixel is partly lit, so even 1 % moves it. The firmware's own
+// volume patterns don't fit: volume.led is a sweep through the tens only (a 5 % step lands
+// mid-scroll) and volume_edge is drawn for the remote's 0..10 scale.
+type pixelVolume struct {
+	w, h       int
+	gamma      float64
 	brightness func() int
 
-	mu        sync.Mutex
-	target    float64 // frame index of the level
-	shown     float64 // frame index on the screen
-	last      time.Time
-	edge      int // -1 / +1 while an edge pattern plays
-	edgeStart time.Time
+	mu       sync.Mutex
+	pct      int
+	prev     int
+	changed  time.Time
+	bar      float64 // shown bar level, 0..100
+	last     time.Time
+	edge     int
+	edgeTime time.Time
 }
 
-func (v *patternVolume) Set(pct, edge int) {
+func (v *pixelVolume) Set(pct, edge int) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	n := len(v.sweep.Frames)
-	v.target = float64(min(max(pct, 0), 100)) * float64(n-1) / 100
+	pct = min(max(pct, 0), 100)
+	now := time.Now()
 	if v.last.IsZero() {
-		v.shown = v.target // first time: no glide in from 0
+		v.prev, v.bar = pct, float64(pct)
+	} else if pct != v.pct {
+		v.prev, v.changed = v.pct, now
 	}
-	if edge != 0 && len(v.edges[(edge+1)/2].Frames) > 0 {
-		v.edge, v.edgeStart = edge, time.Now()
-	} else if edge == 0 {
-		v.edge = 0
+	v.pct = pct
+	if edge != 0 {
+		v.edge, v.edgeTime = edge, now
 	}
 }
 
-func (v *patternVolume) Render(now time.Time, _ FrontFrame) (FrontFrame, bool) {
+// volumeFace draws n over the bar at level (0..100).
+func (v *pixelVolume) face(n int, level float64) canvas {
+	c := newCanvas(v.w, v.h)
+	c.text(bigDigits, strconv.Itoa(n), 0, 1)
+	fill := level / 100 * float64(v.w)
+	for x := 0; x < v.w; x++ {
+		lit := min(max(fill-float64(x), 0), 1)
+		c.v[(v.h-1)*v.w+x] = volumeTrack + (1-volumeTrack)*lit
+	}
+	return c
+}
+
+func (v *pixelVolume) Render(now time.Time, _ FrontFrame) (FrontFrame, bool) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	b := v.brightness()
-	if v.edge != 0 {
-		c := v.edges[(v.edge+1)/2]
-		if i, ok := frameAt(c, now.Sub(v.edgeStart)); ok {
-			return c.frame(i, b), false
-		}
-		v.edge = 0
-	}
 	if !v.last.IsZero() {
 		k := 1 - math.Exp(-float64(now.Sub(v.last))/float64(volumeGlide))
-		v.shown += (v.target - v.shown) * min(max(k, 0), 1)
-		if math.Abs(v.target-v.shown) < 0.5 {
-			v.shown = v.target
+		v.bar += (float64(v.pct) - v.bar) * min(max(k, 0), 1)
+		if math.Abs(float64(v.pct)-v.bar) < 0.2 {
+			v.bar = float64(v.pct)
 		}
 	}
 	v.last = now
-	return v.sweep.frame(int(math.Round(v.shown)), b), false
-}
-
-// frameAt is the frame of a one-shot clip at elapsed d (false once it has ended).
-func frameAt(c PixelClip, d time.Duration) (int, bool) {
-	for i, f := range c.Frames {
-		if d < f.Dur {
-			return i, true
-		}
-		d -= f.Dur
+	c := v.face(v.pct, v.bar)
+	if t := now.Sub(v.changed); t < volumeFade {
+		c = blend(v.face(v.prev, v.bar), c, float64(t)/float64(volumeFade))
 	}
-	return 0, false
+	// Pushed past an end: the bar's end pixel flashes once.
+	if t := now.Sub(v.edgeTime); v.edge != 0 && t < 300*time.Millisecond {
+		x := 0
+		if v.edge > 0 {
+			x = v.w - 1
+		}
+		c.v[(v.h-1)*v.w+x] = 1 - float64(t)/float64(300*time.Millisecond)*(1-volumeTrack)
+	}
+	return FrontFrame{Px: c.pixels(v.gamma, v.brightness())}, false
 }
 
-// Volume on a pixel screen: the firmware's volume patterns, else the number.
+// Volume on a pixel screen: the number over a bar (pixelVolume).
 func (f PixelFront) Volume(brightness func() int) VolumeScene {
-	if f.Patterns != nil {
-		if sweep, ok := f.Patterns.Load("volume"); ok && len(sweep.Frames) > 1 {
-			v := &patternVolume{sweep: sweep, brightness: brightness}
-			v.edges[0], _ = f.Patterns.Load("rcu_volume/volume_edge/0")
-			v.edges[1], _ = f.Patterns.Load("rcu_volume/volume_edge/10")
-			return v
-		}
+	if f.W < textWidth(bigDigits, "100") || f.H < 11 {
+		return &numberVolume{front: f, brightness: brightness}
 	}
-	return &numberVolume{front: f, brightness: brightness}
+	return &pixelVolume{w: f.W, h: f.H, gamma: f.Gamma, brightness: brightness}
 }
