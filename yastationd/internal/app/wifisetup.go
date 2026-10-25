@@ -63,9 +63,10 @@ func (a *App) newWifiSetup() *wifisetup.Mode {
 	})
 }
 
-// setupKey watches the voice key: held down with the mic muted, it arms the setup toggle;
-// released (or the mic unmuted) before setupHold, it disarms it. It never swallows the key: a
-// voice press while muted only shows the mute indication anyway.
+// setupKey watches the voice key: pressed with the mic muted, it arms the setup toggle; released
+// before setupHold, it disarms it. Only the press needs the mute: orion's mute flips back by
+// itself when it is held (on 2 s later, off; on-device 2026-10-26), and people hold it through
+// the combo. It never swallows the key: a voice press while muted only shows the mute indication.
 func (a *App) setupKey(action string, down bool) bool {
 	if a.setup == nil || action != "voice" {
 		return false
@@ -73,16 +74,16 @@ func (a *App) setupKey(action string, down bool) bool {
 	k := &a.combo
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	if !down || !a.micMuted() {
+	if !down {
 		if k.timer != nil {
 			k.timer.Stop()
 			k.timer = nil
 			a.ringStack.Remove("setuphold")
-			a.log.Info("wifi setup: hold cancelled", "released", !down, "muted", a.micMuted())
+			a.log.Info("wifi setup: hold cancelled: the voice key was released")
 		}
 		return false
 	}
-	if k.timer != nil {
+	if k.timer != nil || !a.micMuted() {
 		return false
 	}
 	a.log.Info("wifi setup: voice key held while muted", "hold", setupHold.String())
@@ -103,8 +104,8 @@ func (a *App) setupKey(action string, down bool) bool {
 		k.timer = nil
 		k.mu.Unlock()
 		a.ringStack.Remove("setuphold")
-		a.log.Info("wifi setup: hold complete", "armed", armed, "muted", a.micMuted())
-		if armed && a.micMuted() {
+		if armed {
+			a.log.Info("wifi setup: hold complete")
 			a.toggleSetup()
 		}
 	})

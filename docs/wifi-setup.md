@@ -26,8 +26,9 @@ removed.
    - The front display shows wide-open eyes with a dot, `O  O°`.
    - Both stay for as long as the mode lasts, above everything else.
    - A voice press while muted starts no session (it only shows the mute indication), so the
-     combo has no side effects; unmute afterwards. Releasing the key or unmuting before 5 s
-     cancels it.
+     combo has no side effects; unmute afterwards. Releasing the voice key before 5 s cancels it;
+     the mute only has to be on when the voice key goes down (orion's mute flips back by itself
+     after ~2 s when held, so holding it through the combo is fine).
 2. **Join the open network `yastation-<device_id>`** (`wifi_setup_ssid`) from a phone or laptop.
    - The phone should offer to sign in (captive portal).
    - If it doesn't, open `http://10.42.0.1/`.

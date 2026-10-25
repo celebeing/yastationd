@@ -39,5 +39,10 @@ func TestSetupKeyCombo(t *testing.T) {
 	if a.setupKey("voice", true); a.combo.timer == nil {
 		t.Error("pressing it again did not re-arm the timer")
 	}
+	a.muted.Store(false) // orion's held mute flips back by itself: the hold goes on
+	a.setupKey("volume_up", true)
+	if a.combo.timer == nil {
+		t.Error("unmuting during the hold disarmed it")
+	}
 	a.combo.timer.Stop()
 }
