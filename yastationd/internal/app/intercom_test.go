@@ -13,6 +13,7 @@ import (
 	"github.com/celebeing/yastationd/yastationd/internal/display"
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
 	"github.com/celebeing/yastationd/yastationd/internal/intercom"
+	"github.com/celebeing/yastationd/yastationd/internal/wake"
 )
 
 // fakeAudio puts an aplay that swallows its input and an arecord that streams silence on PATH.
@@ -73,13 +74,23 @@ func TestIntercomVoiceScenario(t *testing.T) {
 		t.Fatalf("%s: %v, want %v", a.cfg.DeviceID, a.ic.m.Status(), want)
 	}
 
-	office.icTranscript("Соедини со спальней")
+	cmd := func(a *App, phrase string) { a.onWakeEvent(wake.Event{Kind: "CMD", Phrase: phrase}) }
+	alisa := func(a *App) { a.onWakeEvent(wake.Event{Kind: "WAKE", Phrase: "алиса"}) }
+
+	// outgoing by voice goes through HA's transcript (room names); the rest is the spotters'
+	if !office.icTranscript("Соедини со спальней") {
+		t.Fatal("call request not taken")
+	}
 	wait(office, intercom.Calling)
 	wait(bedroom, intercom.Ringing)
 	if !bedroom.ringStack.Has("intercom") {
 		t.Error("no ringing indication")
 	}
-	bedroom.icTranscript("да")
+	cmd(bedroom, "выключи свет") // not a call command
+	if bedroom.ic.m.Status().State != intercom.Ringing {
+		t.Fatal("«выключи свет» touched the call")
+	}
+	cmd(bedroom, "включи") // answers, with or without «Алиса»
 	wait(office, intercom.InCall)
 	wait(bedroom, intercom.InCall)
 	time.Sleep(200 * time.Millisecond) // a little audio both ways
@@ -92,7 +103,15 @@ func TestIntercomVoiceScenario(t *testing.T) {
 	if !office.icActive() || !office.assistantBusy() {
 		t.Error("music would not duck during the call")
 	}
-	office.icTranscript("Алиса, заверши звонок")
+	if office.icTranscript("заверши звонок") {
+		t.Error("the transcript hung up: calls are the spotters' now")
+	}
+	cmd(office, "стоп") // in a call only after «Алиса»
+	if office.ic.m.Status().State != intercom.InCall {
+		t.Fatal("«стоп» without «Алиса» hung up")
+	}
+	alisa(office)
+	cmd(office, "хватит")
 	wait(office, intercom.Idle)
 	wait(bedroom, intercom.Idle)
 	time.Sleep(50 * time.Millisecond)
@@ -103,39 +122,41 @@ func TestIntercomVoiceScenario(t *testing.T) {
 		t.Fatal("call audio or ring left after the hang-up")
 	}
 
+	// a lone «Алиса» doesn't answer; «Алиса, стоп» declines
+	bedroom.ic.m.Call("office", "Кабинет")
+	wait(office, intercom.Ringing)
+	alisa(office)
+	time.Sleep(100 * time.Millisecond)
+	if office.ic.m.Status().State != intercom.Ringing {
+		t.Fatal("a lone «Алиса» did something to the ringing call")
+	}
+	cmd(office, "стоп")
+	wait(bedroom, intercom.Idle)
+	if s := bedroom.ic.m.Status(); s.Ended != "rejected: declined" {
+		t.Fatalf("ended %q", s.Ended)
+	}
+
 	// the voice key: answer when ringing, hang up otherwise; not ours when idle
 	if office.icVoiceKey() {
 		t.Error("idle voice key was taken")
 	}
-	bedroom.icTranscript("позвони в кабинет")
+	bedroom.ic.m.Call("office", "Кабинет")
 	wait(office, intercom.Ringing)
 	office.icVoiceKey()
 	wait(bedroom, intercom.InCall)
 	bedroom.icVoiceKey()
 	wait(office, intercom.Idle)
 
-	// declining by voice
-	office.icTranscript("набери спальню")
-	wait(bedroom, intercom.Ringing)
-	bedroom.icTranscript("нет, не сейчас")
-	wait(office, intercom.Idle)
-	if s := office.ic.m.Status(); s.Ended != "rejected: declined" {
-		t.Fatalf("ended %q", s.Ended)
-	}
-
 	// the mic-mute switch declines a ringing call and ends a running one
-	office.icTranscript("набери спальню")
+	office.ic.m.Call("bedroom", "Спальня")
 	wait(bedroom, intercom.Ringing)
-	if !bedroom.ringStack.Has("intercom") {
-		t.Error("no ringing indication")
-	}
 	bedroom.setMute(true)
 	wait(office, intercom.Idle)
 	if s := office.ic.m.Status(); s.Ended != "rejected: declined" {
 		t.Fatalf("mute while ringing: %q", s.Ended)
 	}
 	bedroom.setMute(false)
-	office.icTranscript("набери спальню")
+	office.ic.m.Call("bedroom", "Спальня")
 	wait(bedroom, intercom.Ringing)
 	bedroom.icVoiceKey()
 	wait(office, intercom.InCall)

@@ -45,6 +45,7 @@ type icState struct {
 	stop   func()                   // ends the current call's audio
 
 	toneStop  chan struct{} // the repeating ring tone
+	wokeAt    time.Time     // «Алиса» during a call (mu): opens the command window
 	wasUp     bool          // the last applied state was in_call (stateMu)
 	callPulse display.RenderFunc[display.RingFrame]
 }
@@ -318,7 +319,13 @@ func (a *App) onIntercomState(st intercom.Status) {
 		a.icFront(a.icClip())
 		a.icTone("calls_ringing_outgoing")
 	case intercom.Ringing:
-		a.ringStack.Push("intercom", display.PrioCall, 0, display.Blink(display.Green, time.Second))
+		blink := display.Blink(display.Green, time.Second)
+		a.ringStack.Push("intercom", display.PrioCall, 0, func(now time.Time, below display.RingFrame) (display.RingFrame, bool) {
+			if a.icWindow() { // «Алиса» heard: show that it listens for the command
+				return below, false
+			}
+			return blink(now, below)
+		})
 		a.icFront(a.icClip())
 		if !a.icTone("calls_ringing_incoming") {
 			a.icTone("") // the announce chime, repeated
@@ -394,7 +401,7 @@ func (a *App) icInCallFront(start time.Time) display.RenderFunc[display.MatrixFr
 // icInCallRing: a slow blue breath while the mic streams to the other room (blue is no other
 // state's colour) — except under an Assist session in the call, whose stages show instead.
 func (a *App) icInCallRing(now time.Time, below display.RingFrame) (display.RingFrame, bool) {
-	if a.sat.inDialog() {
+	if a.sat.inDialog() || a.icWindow() {
 		return below, false
 	}
 	return a.ic.callPulse(now, below)
@@ -661,36 +668,89 @@ func (a *App) icVoiceKey() bool {
 	return false
 }
 
-// icTranscript acts on the intercom phrases of an Assist session (docs/intercom.md, "The
-// voice scenario"). It reports whether the request was the intercom's: then HA's own reply is
-// cut (its agent would answer «да» or «соедини со спальней» with small talk). While a call is
-// ringing everything said is the answer to it, recognised or not.
+// icTranscript: an outgoing call by voice («Алиса, соедини со спальней») — the one request
+// that needs speech recognition (room names aren't in any spotter's vocabulary). It reports
+// whether the request was the intercom's: HA's own reply is then cut. Everything during a call
+// is the spotters' (icCommand).
 func (a *App) icTranscript(text string) bool {
-	if a.ic == nil || text == "" {
+	if a.ic == nil || text == "" || a.ic.m.Status().State != intercom.Idle {
 		return false
 	}
+	p, ok := intercom.MatchCall(text, a.icPeers())
+	if !ok {
+		return false
+	}
+	a.log.Info("intercom: call by voice", "to", p.ID)
+	a.icCall(p, "voice")
+	return true
+}
+
+// icRinging: an incoming call is waiting for an answer.
+func (a *App) icRinging() bool { return a.ic != nil && a.ic.m.Status().State == intercom.Ringing }
+
+// icWoke opens the command window after «Алиса» during a call (see icCommand).
+func (a *App) icWoke() {
+	a.ic.mu.Lock()
+	a.ic.wokeAt = time.Now()
+	a.ic.mu.Unlock()
+	a.express("voice", "listening", icWakeCommandWindow)
+}
+
+// icWindow: «Алиса» was heard during this call just now.
+func (a *App) icWindow() bool {
+	a.ic.mu.Lock()
+	defer a.ic.mu.Unlock()
+	return time.Since(a.ic.wokeAt) < icWakeCommandWindow
+}
+
+const icWakeCommandWindow = 4 * time.Second
+
+// icCommand: voice control of a call, all on the speaker's own spotters (the vendor command
+// model has no «да»/«нет»; docs/intercom.md, "Voice control"). false = not the intercom's.
+//   - ringing: «включи» answers, «стоп / хватит / выключи» decline — with «Алиса» before them
+//     or without;
+//   - in a call, only right after «Алиса»: «стоп / хватит / выключи» hang up, «громче / тише»
+//     set the volume. Without the wake word they are ignored (they come up in conversation),
+//     and so is a wake word right after the far end spoke (its voice through the AEC).
+func (a *App) icCommand(phrase string) bool {
+	if a.ic == nil {
+		return false
+	}
+	p := strings.ToLower(phrase)
 	switch a.ic.m.Status().State {
-	case intercom.Idle:
-		if p, ok := intercom.MatchCall(text, a.icPeers()); ok {
-			a.log.Info("intercom: call by voice", "to", p.ID)
-			a.icCall(p, "voice")
-			return true
-		}
 	case intercom.Ringing:
-		switch yes, no := intercom.MatchAnswer(text); {
-		case yes:
+		switch {
+		case p == "включи":
+			a.log.Info("intercom: answered by voice", "phrase", phrase)
+			a.unexpress("voice")
 			a.ic.m.Answer()
-		case no:
+		case intercom.IsDeclineCommand(p):
+			a.log.Info("intercom: declined by voice", "phrase", phrase)
+			a.unexpress("voice")
 			a.ic.m.Hangup("declined by voice")
-		default:
-			a.log.Info("intercom: not an answer, still ringing", "text", text)
 		}
 		return true
-	default:
-		if intercom.MatchHangup(text) {
-			a.ic.m.Hangup("by voice")
+	case intercom.InCall:
+		if !a.icWindow() {
+			a.log.Debug("intercom: command without «Алиса», ignored", "phrase", phrase)
 			return true
 		}
+		switch {
+		case p == "громче":
+			a.nudgeVolume(+2 * a.cfg.VolumeStep)
+		case p == "тише":
+			a.nudgeVolume(-2 * a.cfg.VolumeStep)
+		case intercom.IsDeclineCommand(p):
+			a.log.Info("intercom: hung up by voice", "phrase", phrase)
+			a.ic.m.Hangup("by voice")
+		default:
+			return true
+		}
+		a.ic.mu.Lock()
+		a.ic.wokeAt = time.Time{} // one command per «Алиса»
+		a.ic.mu.Unlock()
+		a.unexpress("voice")
+		return true
 	}
 	return false
 }

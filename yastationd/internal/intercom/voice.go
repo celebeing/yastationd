@@ -15,10 +15,7 @@ type Peer struct {
 }
 
 var (
-	callVerbs   = []string{"соедин", "позвон", "звони", "свяж", "вызов", "вызв", "набер"}
-	hangupVerbs = []string{"заверш", "положи", "полож", "сбрось", "сброс", "отбой", "законч", "повес", "отключ", "разъедин"}
-	yesWords    = []string{"да", "давай", "прими", "принять", "приму", "ответь", "ответить", "отвечу", "алло", "соединяй", "соедини", "конечно", "ага"}
-	noWords     = []string{"нет", "не", "отклони", "отклонить", "сбрось", "сбросить", "потом", "отбой"}
+	callVerbs = []string{"соедин", "позвон", "звони", "свяж", "вызов", "вызв", "набер"}
 )
 
 func words(text string) []string {
@@ -91,21 +88,12 @@ func MatchCall(text string, peers []Peer) (Peer, bool) {
 	return best, bestLen > 0
 }
 
-// MatchHangup: «заверши звонок», «положи трубку», «отбой».
-func MatchHangup(text string) bool { return hasPrefix(words(text), hangupVerbs) >= 0 }
-
-// MatchAnswer reads a reply to «принять?»: yes, no, or neither (both or nothing recognised).
-func MatchAnswer(text string) (yes, no bool) {
-	for _, w := range words(text) {
-		for _, y := range yesWords {
-			yes = yes || w == y
-		}
-		for _, n := range noWords {
-			no = no || w == n
-		}
+// IsDeclineCommand: a command-spotter phrase that declines or ends a call (the vendor model has
+// no «нет»; docs/intercom.md).
+func IsDeclineCommand(phrase string) bool {
+	switch strings.ToLower(phrase) {
+	case "стоп", "хватит", "выключи":
+		return true
 	}
-	if yes && no {
-		return false, false
-	}
-	return yes, no
+	return false
 }

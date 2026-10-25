@@ -277,21 +277,10 @@ func TestVoice(t *testing.T) {
 			t.Errorf("%q: %v %v, want %q", text, p, ok, want)
 		}
 	}
-	for _, s := range []string{"заверши звонок", "Алиса, положи трубку", "отбой"} {
-		if !MatchHangup(s) {
-			t.Errorf("hangup %q", s)
-		}
-	}
-	if MatchHangup("какая погода") {
-		t.Error("hangup false positive")
-	}
-	for text, want := range map[string][2]bool{
-		"да": {true, false}, "Да, давай!": {true, false}, "нет": {false, true},
-		"не сейчас": {false, true}, "что?": {false, false}, "да нет": {false, false},
-	} {
-		y, n := MatchAnswer(text)
-		if y != want[0] || n != want[1] {
-			t.Errorf("answer %q: %v %v", text, y, n)
+	for phrase, want := range map[string]bool{"стоп": true, "Хватит": true, "выключи": true,
+		"выключи свет": false, "включи": false, "громче": false} {
+		if IsDeclineCommand(phrase) != want {
+			t.Errorf("IsDeclineCommand(%q) != %v", phrase, want)
 		}
 	}
 }

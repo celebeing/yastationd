@@ -73,6 +73,11 @@ func (a *App) onWakeEvent(ev wake.Event) {
 		case a.icInCall() && a.icFarSpoke():
 			// The other room just talked: an «Алиса» from there, leaking through the AEC.
 			a.log.Info("wake: ignored, the far end of the call was talking", "phrase", ev.Phrase)
+		case a.icRinging() || a.icInCall():
+			// During a call «Алиса» only opens a short window for a command (docs/intercom.md):
+			// no Assist session, nothing leaves the speaker.
+			a.log.Info("wake: intercom command window", "phrase", ev.Phrase)
+			a.icWoke()
 		case a.speaking():
 			// No verified AEC yet: our own playback (e.g. TTS saying «Алиса») must not wake us.
 			a.log.Info("wake: ignored while playing", "phrase", ev.Phrase)
@@ -113,6 +118,9 @@ func (a *App) speaking() bool {
 // sound — that's when "стоп"/"громче" are meant for the speaker, and it keeps false accepts
 // from household talk out of the rest of the day.
 func (a *App) onCommand(phrase string) {
+	if a.icCommand(phrase) {
+		return
+	}
 	if !a.speaking() {
 		// While a reply is pending, «стоп» gives up on it (the request, not the speaker).
 		if a.sat.awaitingReply() && isStop(phrase) {

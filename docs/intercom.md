@@ -188,41 +188,35 @@ intercom_max_secs    = 1800
 intercom_jitter_ms   = 40
 ```
 
-## The voice scenario (the user's sketch, 2026-10-25)
+## Voice control (2026-10-25): the speaker's own spotters
 
-```
-кабинет:  «Алиса, соедини со спальней»      → «вызываю» (ring: calling)
-спальня:  *chime* «вызывают из кабинета, принять?»
-          «да»                               → «соединяю» → the call is up
-either:   «Алиса, заверши звонок»            → hang up
-```
+The first version read HA's transcript of an Assist session for «да», «нет» and «положи трубку».
+That sends the room's speech out and needs HA for something as local as answering a call, so
+**everything about a running or ringing call is now done by the spotters on the speaker**, and
+nothing leaves it. The vendor command model has no «да» or «нет» (the full vocabulary of every
+model in the dumps: «Алиса», «Яндекс», стоп, хватит, пауза, громче, тише, включи, выключи,
+дальше, назад, домой, играй, продолжи, вверх/вниз/влево/вправо, выше/ниже, следующий, свет,
+телевизор, блютуз, лайк/дизлайк, and combinations such as «выключи свет»), so the words are
+these (the user's choice):
 
-The spotter keeps running during the call. The vendor command spotter has no fitting words
-(its 24 are дальше…стоп, хватит, громче, тише, включи/выключи свет — no «да», «заверши», «отбой»),
-so every step goes through an ordinary Assist voice session, and **the daemon reads the
-transcript HA sends back** (the Wyoming `transcript` event the satellite already gets):
+| When | Say | Does |
+|---|---|---|
+| ringing | «включи» or «Алиса, включи» | answer |
+| ringing | «стоп» / «хватит» / «выключи», with «Алиса» or without | decline |
+| in a call | «Алиса, стоп» / «Алиса, хватит» / «Алиса, выключи» | hang up |
+| in a call | «Алиса, громче» / «Алиса, тише» | volume |
 
-- **Call:** a transcript like «соедини / позвони / свяжи / вызови (меня) с/со/в <room>» where
-  `<room>` matches a peer's intercom name (word stems, so «спальней» matches «Спальня») starts a
-  call to that peer. The room name is `intercom_name` (default `device_name`).
-- **Answer / decline:** while ringing, «да / принять / ответь / алло» answers, «нет / отклони /
-  сбрось» declines.
-- **Hang up:** in a call, «заверши / положи / сбрось / отбой / закончи (звонок)» hangs up.
-- **What HA says** («вызываю», «соединяю», the question): a sentence trigger per phrase in HA
-  with a fixed reply keeps the conversation agent (an LLM) out of it — doc example in this
-  file once tested. Without one, HA's agent answers whatever it answers; the daemon acts anyway.
-- **The question on the callee** («вызывают из кабинета, принять?»): an HA automation on the
-  Intercom sensor going to `ringing` (attribute `peer_name`) announces it on that speaker; when
-  an announcement ends while ringing, the daemon opens a listening session itself, so a plain
-  «да» works without the wake word. Without the automation: the chime, then the same listening
-  window. **(verify)** whether `assist_satellite.ask_question` works with our Wyoming satellite
-  (it needs start_conversation), which would do the same in one HA call.
-- **The wake word during a call:** allowed (that is how «Алиса, заверши звонок» gets in), with a
-  guard: a WAKE within ~1.5 s of far-end speech in our playback is ignored (the far room said
-  «Алиса», leaking through the AEC). While the Assist session runs, the uplink is muted and the
-  far end's voice ducked; the call resumes after it. Today a WAKE during our own playback is
-  ignored because the AEC was never measured, so this depends on check 1 below.
-- The voice key does the same without speech: answer when ringing, hang up otherwise.
+- **Chaining:** both spotters run on the same stream, so «Алиса, громче» is a WAKE and, half a
+  second later, a CMD; a command counts in a call when it comes within 4 s of «Алиса» (one
+  command per «Алиса»). During a call (and while ringing) «Алиса» opens only that window — the
+  ring shows "listening" — and starts **no Assist session**.
+- In a call, commands without «Алиса» are ignored (they come up in conversation), and so is a
+  wake word right after the far end spoke (its voice through the AEC). «выключи свет» and other
+  combinations are not call commands.
+- **Outgoing calls by voice** still go through HA: «Алиса, соедини со спальней» (room names are
+  in no spotter's vocabulary). The daemon reads that transcript and cuts HA's own reply.
+- The voice key and the mute switch work as before (answer / end; decline / end).
+- Cost: no Assist requests during a call («Алиса» there is for the call only).
 
 Other options, for later: a key gesture to call a "favourite" room (offline), auto-answer
 (`intercom_auto_answer`; the chime and the ring indicator stay mandatory), «стоп»/«хватит» as a
@@ -342,8 +336,11 @@ voice came through.
   (busybox top: 22–24 % of the 4-core SoC) and the uplink fell ~4 % behind real time (2883 of
   3000 frames in 60 s) — the far end saw hundreds of late packets and rebuffered, which looked
   like bad Wi-Fi. The command spotter now rests in the call mode: 18–22 %, the uplink runs at
-  real time (4102 frames in 82 s, the far end lost 1). Next step if needed: run the VQE and the
-  spotters in separate threads (three cores sit idle).
+  real time (4102 frames in 82 s, the far end lost 1). Then spotter-host got **one thread per
+  spotter** behind a queue, the VQE loop never waiting for them, and the command spotter runs in
+  calls again: per-thread on a bergamot in a call with far-end speech — VQE + NR 46 % of a core,
+  «Алиса» 39 %, commands 16 %; the uplink at real time (3001 frames in 60 s), the far end lost
+  nothing, no spotter fell behind.
 
 ## Testing with one speaker: `intercom-peer`
 
