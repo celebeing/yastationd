@@ -65,9 +65,12 @@ Check, and set up what's missing (keep an `.orig` of every file you change):
   flows pass, everything else is dropped. IPv6, the same: loopback, `fe80::/10`, `fc00::/7`,
   `ff00::/8` and established pass, global addresses are dropped; without any `ip6tables` it switches
   IPv6 off on every interface but `lo` instead (not via `conf/all`, which the kernel copies onto
-  `lo`, and `unbound` listens on `::1`). A unit without a system iptables (bergamot fw 0.6.1.4) uses
-  the bundled Debian iptables-legacy in `<cfw>/iptables/`, whose `xtables-legacy-multi` is also its
-  `ip6tables`. `egress.sh status` shows both families; `open` lifts both, temporarily. On the
+  `lo`, and `unbound` listens on `::1`). A unit without a system iptables uses the bundled Debian
+  iptables-legacy in `<cfw>/iptables/` (the install kit's; copies in `<vendor-repo>`): armhf on
+  bergamot fw 0.6.1.4, whose `xtables-legacy-multi` is also its `ip6tables`; aarch64 on orion,
+  whose `bin/iptables` is a multi-call binary that needs a `bin/ip6tables -> iptables` link
+  (`ln -s iptables <cfw>/iptables/bin/ip6tables`). Put one architecture's bundle in the directory,
+  never both. `egress.sh status` shows both families; `open` lifts both, temporarily. On the
   router, drop the speaker's MAC towards the WAN (make sure the rule covers IPv6 as well, if the
   network ever gets it). Check from the device: `wget -q -T 5 -O- http://1.1.1.1` must fail, while
   the HA host and the broker answer.
@@ -96,7 +99,7 @@ mkdir -p dumps/sysroot-<board> && ssh root@<speaker> 'tar cf - /lib /system/vend
 ARCH=aarch64 SYSROOT=dumps/sysroot-<board> OUT=spotter-host/build/aarch64/spotter-host sh spotter-host/build.sh
 ```
 
-`ARCH` = `armhf` (bergamot) or `aarch64` (pickle) — `file /system/vendor/quasar/maind` tells you.
+`ARCH` = `armhf` (bergamot) or `aarch64` (pickle, orion; one build serves both) — `file /system/vendor/quasar/maind` tells you.
 
 `sendspin-host` (the music player, optional) needs no device files: `make -C sendspin-host` builds
 both arches with zig 0.14.1 (see its README).
@@ -114,15 +117,15 @@ make stage                                         # binary + init hook copy int
 make deploy-spotter                                # profile selects build/<helper-arch>/spotter-host
 make deploy-sendspin                               # optional; profile selects helper architecture
 make sounds                                        # vendor sounds -> <cfw>/sounds/*.wav
-make vqe-models [VQE_MODEL=<model_call.nnet>]      # intercom: the call-mode NR model (from the unit's firmware, else the file)
+make vqe-models [VQE_MODEL=<model_call.nnet>]      # intercom: the call-mode NR model (from the unit's firmware, else the file; orion has none yet)
 make clips                                         # firmware 0.369 only: its binary clock clips -> <cfw>/clips/*.scled
 ```
 
 Config: copy `configs/yastationd.conf.example` to `<cfw>/yastationd.conf`; for Orion, start from
 `configs/orion.conf.example`. Set at least `device_id` (unique per speaker: it names the MQTT
 topics and HA device), `device_name`, `mqtt_host`, the `probe` lines (broker + HA, for the health
-state), and `wake_enabled`. The Orion example pins `board = orion` during bring-up and keeps
-on-device wake disabled until its NPU verifier is physically tested.
+state), and `wake_enabled`. The Orion example pins `board = orion`; its stock «Алиса» model runs
+with the NPU verifier on the unit.
 
 Dry run in the foreground before autostart. Ring and clock will light up:
 

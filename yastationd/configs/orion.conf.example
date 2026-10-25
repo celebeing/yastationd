@@ -33,10 +33,10 @@ volume_step = 1
 volume_beep = false
 
 # --- Wyoming satellite ---
-# Push-to-talk from the center glyph remains available. Keep on-device wake disabled until the
-# Orion NPU-backed activation verifier has passed its on-device test.
+# The stock «Алиса» model with its NPU verifier (verified on a unit); push-to-talk from the
+# center glyph works either way.
 wyoming_port = 10700
-wake_enabled = false
+wake_enabled = true
 preroll_ms   = 300
 
 # --- clock / health ---

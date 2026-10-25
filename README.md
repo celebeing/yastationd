@@ -128,7 +128,7 @@ HA, from single expressions to timed scenarios across the ring and the display.
 | `bergamot` | Station Mini 3 | full support, two units in daily use |
 | `pickle` | Station Mini 3 Pro | full support (16-pixel ring, aarch64 userland) |
 | `yandexmidi` | Station 2 | profiled from firmware only, no unit yet |
-| `orion` | Station 3 | playback, volume, mic capture, circular controls, ring and 21×12 front display verified; ambilight daemon smoke + on-device wake pending |
+| `orion` | Station 3 | initial support: installed and running on a unit — voice with the stock wake word (NPU verifier), playback, volume, circular controls, ring, rear ambilight, the 21×12 screen with the firmware's own animations; the clock still uses the seg7 font |
 
 Per-board notes: [docs/boards/](docs/boards/README.md).
 

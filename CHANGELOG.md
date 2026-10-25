@@ -3,6 +3,31 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.8.0 — 2026-10-26
+
+Initial support for orion (Station 3): installed and running on a unit.
+
+**Features**
+- Orion: the voice pipeline wakes on the stock «Алиса» model with its second-stage verifier on
+  the NPU. spotter-host now reports the verifier's confirmation as the wake (it used to wait for
+  a first-stage confirmation that a verified model never sends), no longer treats the 3.21
+  library's warning log as an error, and its `probe` no longer crashes on multi-channel models.
+- Orion: the screen renders at the stock patterns' own 20 ms frame time instead of the shared
+  15 Hz loop, which dropped two of three frames and turned one-frame details (the wink's
+  sparkles) into noise. The ring and seg7 displays keep 15 Hz.
+- New board-profile key `platform.stop_initd`: vendor init.d scripts whose leftovers outlive the
+  gated vendor stack are stopped at startup. Orion stops `S31animation`, whose boot animation
+  otherwise loops on the ring forever.
+- The egress lock finds an `ip6tables` link in the bundled iptables, which orion's aarch64
+  bundle needs to lock IPv6.
+
+**Fixes and operations**
+- Orion's CFW root is `/bkupgrade/cfw` (the firmware's own `/bkupgrade` symlink to `/ota`),
+  where every hook, the vendor-stack gate and the install kit already looked; the profile said
+  `/data/cfw`.
+- Install docs for orion: the aarch64 iptables bundle and its `ip6tables` link, no call-mode VQE
+  model in this firmware, the example config with wake on. Open: a pixel clock font.
+
 ## v0.7.0 — 2026-10-25
 
 **Features**

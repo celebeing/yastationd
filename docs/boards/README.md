@@ -14,7 +14,7 @@ without a rebuild. Host-side per-unit deployment overrides stay in `local.mk` or
 | [bergamot](bergamot.md) | Station Mini 3 | supported, verified on-device |
 | [cucumber](cucumber.md) | Station Midi | not profiled: community wiki data only (no unit, no dump) |
 | [yandexmidi](yandexmidi.md) | Station 2 (DT `yandex,station-midi`) | profiled from firmware `0.369.1.50` (no device yet) |
-| [orion](orion.md) | Station 3 | sound + circular controls + ring + 21×12 front-screen verified on-device; rear RGBW ambilight entity implemented, daemon smoke pending; wake pending |
+| [orion](orion.md) | Station 3 | initial support, installed on a unit: voice + stock wake word (NPU verifier), sound, circular controls, ring, ambilight, 21×12 screen with the stock animations; clock font and call-mode VQE model open |
 
 Known vendor codenames (the VQE presets compiled into `libyandex_evil.so`) — from the
 0.369 armhf lib via `strings`, **plus** the 3.21 aarch64 lib where the names are built from

@@ -10,11 +10,11 @@ and not committed.
 Status: playback, volume, mic capture, circular hardware controls, LED ring and the 21×12
 front-screen daemon backend **verified on device 2026-10-23/24**. Both `fbleddemo -uwu`
 and the production clock renderer remain stable with no flashing; the clock advances normally.
-Rear ambilight hardware is verified and its daemon entity is implemented but not yet
-smoke-tested on-device. Wake is verified offline; on-device spotter remains open.
-The screen plays the firmware's own patterns for the expressions and the call / alarm / boot /
-setup states (2026-10-25, host-tested against the dump, not yet seen on glass; see
-[display-expressions.md](../display-expressions.md), "Screen patterns").
+**Installed on the user's unit 2026-10-26 (initial support, v0.8.0):** the voice pipeline with
+the stock «Алиса» model and its NPU verifier, the rear ambilight entity, and the screen playing
+the firmware's own patterns for the expressions and the call / alarm / boot / setup states (seen
+on glass; [display-expressions.md](../display-expressions.md), "Screen patterns") all work; see
+"First unit on hand". Open: a pixel clock font, the call-mode VQE model for the intercom.
 **Mic retest 2026-10-24 (both tested units; two 30 s pure-capture passes each): all
 six channels are healthy.** The earlier "dead capsule" reading from one 4 s clip was a
 transient (see "Mic capture"); it does not block on-device wake/VQE work.
