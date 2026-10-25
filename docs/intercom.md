@@ -276,6 +276,22 @@ nominative, so «вызывают из кабинета» would need a name map)
    the other options above); Opus if Wi-Fi needs it;
    push-to-talk fallback; front-display states.
 
+## Findings on a speaker (2026-10-25, bergamot unit A in a room with poor Wi-Fi, a host peer)
+
+- **The call-state indication is not good enough** (the user's verdict): ringing, calling and
+  waiting for an answer don't read on the speaker — the green blink alone says nothing about
+  "say «да» now". To be redone after the functional tests.
+- **An answer said right after the chime is lost:** the listening window opened 3.3 s after the
+  call arrived (chime + 1.5 s left for an HA announcement). Fix: listen right after the chime
+  and hand the session the audio since the call came in.
+- **HA's agent answered the answer** («да» → «Готова помочь…» plus a follow-up question):
+  fixed — an intercom transcript cuts HA's reply.
+- **The uplink is quiet:** the VQE stream carried speech around −60 dBFS RMS over a −72 floor
+  (contaminated sample; measured again with the AGC logging its estimates).
+- **Wi-Fi from that room:** speaker → host lost 72 and delayed 67 of 2000 packets in 40 s, two
+  500 ms gaps, the host's jitter target went up to 160 ms; host → speaker lost 1. The
+  speaker's transmit side is the weak one.
+
 ## Testing with one speaker: `intercom-peer`
 
 `yastationd/cmd/intercom-peer` is a stand-in for the second speaker, on any host on the LAN: it
