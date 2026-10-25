@@ -2,8 +2,10 @@
 
 Amlogic A5 (a113x2-class, 4x Cortex-A55), aarch64 userland, kernel 5.4, quasar 3.21.
 Device tree: `yandex,orion-pvt yandex,orion amlogic, a5`. Sources for this page: the
-on-device survey and static analysis of the vendor 3.21 tree (maind, libyandex_evil.so,
-quasar.cfg, asound.conf …), both kept locally and not committed.
+on-device survey (`dumps/survey/orion-2026-10-23.txt`) and static analysis of the vendor 3.21
+tree (maind, libyandex_evil.so, quasar.cfg, asound.conf …; `dumps/orion/quasar/`, its `/usr/lib`
+in `dumps/orion/usr_lib/`, on-device audio checks in `dumps/orion/research/`), all local only
+and not committed.
 
 Status: playback, volume, mic capture, circular hardware controls, LED ring and the 21×12
 front-screen daemon backend **verified on device 2026-10-23/24**. Both `fbleddemo -uwu`

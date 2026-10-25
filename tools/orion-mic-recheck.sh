@@ -10,7 +10,7 @@
 # Host-side usage (USB ADB), run from the repo root:
 #   adb push tools/orion-mic-recheck.sh /data/local/tmp/orion-mic-recheck.sh
 #   adb shell sh /data/local/tmp/orion-mic-recheck.sh
-#   adb pull /data/local/tmp/orion-mic-recheck dumps/orion/orion/mic-recheck
+#   adb pull /data/local/tmp/orion-mic-recheck dumps/orion/research/mic-recheck
 #
 # PURE CAPTURE: plays nothing, writes no mixer control, opens no PDM device.
 # Needs the capture devices free - vendor stack stopped (tools/orion-stack-stop.sh)
@@ -104,5 +104,5 @@ capture_one B || exit 1
 
 sect "done"
 ls -l "$OUT" >>"$LOG" 2>&1
-log "pull with: adb pull $OUT <host-dir> (e.g. dumps/orion/orion/mic-recheck)"
+log "pull with: adb pull $OUT <host-dir> (e.g. dumps/orion/research/mic-recheck)"
 log "verdict: host-side per-channel RMS/FFT on both captures (numpy); compare A vs B"
