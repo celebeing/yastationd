@@ -1,7 +1,8 @@
 # Wishlist — ideas under consideration
 
 Things we may want, with what is known about them. Nothing here is planned or committed. An item
-moves into a design doc (and out of this list) once we decide to build it. Several came from
+moves into a design doc (and out of this list) once we decide to build it (so far: the intercom,
+[intercom.md](intercom.md)). Several came from
 reviewing [pulsar](https://github.com/Morvex885/pulsar) (fork with the Mini 2 port:
 [ste4ik/pulsar](https://github.com/ste4ik/pulsar)). pulsar is a C++ daemon for the Station Midi /
 Lite 2 / Mini 2 that speaks the ESPHome Native API to HA. It's a useful reference, but it lets the
@@ -86,38 +87,6 @@ remains here is the wider picture.
   controller/metadata roles in sendspin-host); a level meter on seg7 and a spectrum on pixel
   screens from levels sendspin-host computes on the PCM it writes (a `LEVEL` event at ~20 Hz);
   the track title as a marquee on a track change.
-
-## Intercom between speakers
-
-**Status:** idea (2026-10-25); nothing designed.
-
-Not HA's "say this text on that speaker", but a live, two-way voice channel: open the intercom
-from one room (a voice command, a key, an HA button) and talk to another room hands-free, like a
-phone call between two speakers. Both ends play and capture at once, so it needs:
-
-- **Echo cancellation on both ends.** Each speaker must remove its own playback (the other room's
-  voice) from its mic, or the far end hears itself. The reference is already there: the hardware
-  feedback channel that the wake-word VQE uses (`speakerDescr` HW feedback, `hwStaticShift`,
-  [vqe-decompile.md](vqe-decompile.md) §3).
-- **No howling.** Two open speaker-mic loops in two rooms make one acoustic feedback loop; the
-  AEC carries most of it, plus residual echo suppression and a limiter. A push-to-talk /
-  half-duplex fallback (duck the speaker while its own room talks) for when it isn't enough.
-- **Call-grade processing, not ASR-grade.** The vendor VQE already has a call mode:
-  `YandexVqeC_SetCommunicationMode` switches to `regularCallConfig` (GTCRN neural NR fed with the
-  playback feedback, AGC to −18 dBFS, limiter, gain ×1 instead of the ASR path's ×50;
-  vqe-decompile.md §3.4). spotter-host could drive it in that mode; an open alternative is WebRTC
-  APM (AEC3 + NS + AGC2), which is also the way off the vendor blob.
-- **Transport:** low latency over the LAN only (Opus or plain PCM over RTP/UDP, ~20 ms frames,
-  a small jitter buffer); the whole chain mouth-to-ear well under ~200 ms. Signalling between
-  the daemons directly or through MQTT; HA only starts and ends a session.
-- **Ownership of the mic and speaker:** the session pre-empts music (or ducks it), keeps the wake
-  word off (or stop-only), and shows its own state on the ring/display; it ends on a timeout, a
-  key, or the other side hanging up. Who may open a room silently (baby monitor style, the VQE's
-  `babyMonitorConfig`) versus with a chime on the other end is a privacy decision to make first.
-
-Open questions: group calls (one room to all), whether HA's own VoIP/SIP support is worth
-reusing instead of our own transport, and how the CPU budget looks with the VQE in call mode on
-bergamot (the ASR VQE alone is ~42 % of a core, spotter-host/README.md).
 
 ## Other models
 

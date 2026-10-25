@@ -1,0 +1,245 @@
+# Intercom between speakers
+
+Status (2026-10-25): **plan + v1 implementation in progress; nothing tested on a speaker yet.**
+Off by default (`intercom = false`).
+
+A live two-way voice call from one speaker to another over the home LAN: one room talks to another
+hands-free, like a phone call. Scope (decided): **strictly 1-to-1**, plain VoIP-style media, no
+group calls, no PBX. How a call is started, answered and ended is **not decided yet** (options
+below); v1 ships a neutral control surface for testing that rules none of them out.
+
+The research behind this plan (three passes: audio path/AEC, transport, daemon/HA/UX) is
+summarised in the sections below; the decisions are marked **(v1)**, things to settle on a
+device **(verify)**.
+
+## Architecture
+
+```
+ room A                                                          room B
+ mics ─arecord─▶ yastationd ─raw─▶ spotter-host (VQE, AEC vs the     ┌──────────────┐
+                    ▲  │◀── vqe_0 16 kHz mono ── hardware playback   │ the same,    │
+                    │  │                          reference)         │ mirrored     │
+                    │  └─▶ intercom: guard ─▶ RTP/UDP (AES-GCM) ────▶│              │
+                    │                                                │              │
+ speaker ◀─dmix─ aplay ◀── paced writer ◀── jitter buffer ◀── RTP ◀──│              │
+                                                                     └──────────────┘
+                 signalling (invite/accept/reject/bye): MQTT, HMAC-signed
+```
+
+- **No new processes.** The uplink is the VQE output the daemon already gets from spotter-host
+  (`wake.Spotter.SubscribeVQE`): echo-cancelled against the hardware playback reference, which is
+  post-dmix, so the far end's voice we play is in it and is cancelled. The reference is in the
+  same capture stream as the mics, so it is sample-locked to them (no drift on the AEC side).
+- **Without the wake word** (no spotter-host) the uplink falls back to the plain mic
+  (`hw.Mic.Subscribe`): no echo cancellation, so the echo guard (below) works harder. Supported,
+  but expect echo.
+- The downlink plays through its own aplay (a dmix client beside TTS, sendspin and blips), never
+  `hw.Player`: Player's Play/Stream/Stop interrupt each other, and a TTS reply or «стоп» must not
+  cut the call.
+
+## Media (v1)
+
+- **Codec: L16**, 16 kHz mono, 20 ms frames (320 samples, 640 B). 256 kb/s per direction is
+  nothing on a home LAN and costs no CPU. Opus (pure Go) can come later behind a config key if
+  weak Wi-Fi needs it; candidates and the armv7 caveat are in the research notes, not pinned yet.
+- **Packets: RTP-shaped UDP** (RFC 3550 12-byte header: V=2, PT 96, seq, timestamp in 16 kHz
+  units, random SSRC per call; M on the first packet), payload big-endian L16 as RTP wants,
+  sealed with **AES-128-GCM** (header as additional data, 16-byte tag). 668 B per packet.
+  Port `intercom_port` (default 10710). Datagrams not from the negotiated peer address and SSRC,
+  failing authentication, or replayed (64-packet window) are dropped.
+- **Jitter buffer:** slots by timestamp; target 40 ms (`intercom_jitter_ms`), hard max 200 ms
+  (oldest dropped); late and duplicate packets discarded.
+- **Loss concealment:** a missing frame repeats the last one at half gain, then fades to silence
+  over the next frames.
+- **Clock drift** between the two speakers' independent audio clocks (typically 50–200 ppm, i.e.
+  a frame every 100–400 s): corrected in the jitter buffer by its averaged depth — above target +
+  10 ms one sample per frame is dropped, below target − 10 ms one is repeated. Corrects up to
+  ~3000 ppm with no resampler.
+- **Playout paced by the DAC:** a long-running `aplay -t raw -r 48000 -c 1 --buffer-time=60000
+  --period-time=20000`, fed by a writer goroutine that pulls one frame from the jitter buffer per
+  write. The blocking write is the clock. The pipe is shrunk to one page (`F_SETPIPE_SZ`, 4 KiB)
+  and the frames are upsampled 3× to 48 kHz in Go (dmix's own rate), so the pipe holds ~42 ms
+  instead of the default 64 KiB ≈ 2 s at 16 kHz — the one big latency trap.
+- **Uplink latency:** `wake` reads vqe_0 in 20 ms blocks (it read 64 ms); the intercom keeps at
+  most ~100 ms of uplink queued and drops older audio.
+- **Budget (mouth to ear):** capture + VQE 40–60 ms, packetisation 20, Wi-Fi 5–30, jitter 40–60,
+  playout 40–60: about 150–200 ms. **(verify)** with a clap test.
+- **End of media:** 5 s without a packet ends the call (covers a lost `bye` and a peer that died).
+
+## Echo and howling (v1 guard)
+
+Two rooms are acoustically separate, so the only loop is A's residual echo × B's residual echo ×
+the gains. The vendor AEC does most of it; the daemon adds cheap safety around it:
+- **Fade-in** of both directions over 0.5 s at call start (the AEC has not converged yet).
+- **Soft half-duplex:** while the far end is talking and the local uplink level is not clearly
+  above the echo-expected level, the uplink is attenuated (−15 dB), released smoothly.
+- **Limiters** on both directions; no hard gating (the far end hears quiet, not dropouts).
+- **Mic mute** (the hardware latch) keeps the call up; the uplink is silence then.
+
+Later, if needed: a howl detector (sustained narrow-band peak → gain drop or push-to-talk), comfort
+noise, and push-to-talk as a config fallback.
+
+**The vendor VQE has a call mode** (phase 3): `YandexVqeC_SetCommunicationMode(vqe, 1)` switches
+it at runtime to `regularCallConfig` — GTCRN neural NR fed with the playback reference (residual
+echo suppression), AGC to −18 dBFS, limiter, gain ×1 instead of the ASR path's ×50
+([vqe-decompile.md](vqe-decompile.md) §3.4). Needs a control channel in spotter-host and device
+checks: the mode values (0 ASR / 1 call / 2 baby monitor, inferred), whether the switch loads
+`model_call.nnet` (bergamot ships it; **pickle's firmware has no `vqe_models` at all**, a copy
+from the user's own bergamot could go to `<cfw>/vqe_models`; orion 3.21 has only `model.nnet`),
+and the input scale (maind feeds raw s16 as floats, scale 1).
+
+## Signalling (v1): MQTT
+
+The speakers already share a broker and a topic prefix; no new TCP port, no SIP stack (SIP with
+HA's VoIP integration was considered: that is a phone line into Assist, Opus-only, not a bridge
+between two endpoints; a full SIP UA adds dialogs/SDP for nothing on a LAN — it can be put in
+front of the same media path later if a phone or doorbell must join).
+
+- `<prefix>/<id>/intercom/info` (retained): `{"id","name","port","v":1}`; empty when the feature
+  is off. With the existing `<prefix>/<id>/availability` this is the **peer list**: every daemon
+  subscribes to `<prefix>/+/intercom/info`.
+- `<prefix>/<id>/intercom/sig` (QoS 1, not retained): messages **to** `<id>`:
+  `{"t","call","from","ts","nonce","mac", …}` with `t` =
+  - `invite` (+ `port`, `ssrc`, `addr`) — the caller's media endpoint;
+  - `accept` (+ `port`, `ssrc`, `addr`);
+  - `reject` (+ `reason`: `busy`, `declined`, `timeout`, `off`);
+  - `bye`.
+- **Authentication:** `mac` = HMAC-SHA256 over the message with `intercom_secret` (the same secret
+  on every speaker, from the config file like `mqtt_pass`). Rejected: a bad mac, `ts` more than
+  30 s off (timesync keeps the clocks right), a nonce seen before.
+- **Media key** per call: HMAC-SHA256(secret, "yastation-intercom" ‖ call ‖ caller nonce ‖ callee
+  nonce), first 16 bytes; GCM nonce = SSRC ‖ 0 ‖ extended seq.
+- Once a call is up, the media no longer depends on the broker.
+
+**No `intercom_secret`, no intercom:** a room mic that any LAN host could open is not an option.
+
+## Call states (v1)
+
+| State | Enters on | Leaves on |
+|---|---|---|
+| idle | — | call command → calling; valid invite → ringing (or in_call with auto-answer); invite when busy/off → reject |
+| calling | our invite sent | accept → in_call; reject → idle; `intercom_ring_secs` (30) → bye, idle |
+| ringing | invite received | answer → in_call; caller's bye or ring timeout → idle (missed); hang-up → reject declined |
+| in_call | accept sent/received | hang-up (sends bye), bye received, 5 s without media, `intercom_max_secs` (1800), setup mode, daemon stop |
+
+One call at a time; a second invite gets `reject busy`. If both sides invite each other at once,
+the invite from the lower device id wins (the other side treats it as its call).
+
+## In the daemon (v1)
+
+- New package `internal/intercom` (no app imports, testable on the host):
+  `rtp.go` packet format, `crypt.go` keys/seal/replay window, `jitter.go` buffer + drift + PLC,
+  `signal.go` messages and HMAC, `call.go` the state machine with an injected clock and
+  transport, `media.go` UDP send/receive, `guard.go` fade/half-duplex/limiter.
+- `internal/hw`: a `LiveOut` — a low-latency aplay for a live stream, beside `Player`.
+- `internal/app/intercom.go`: wiring — MQTT topics, mic/VQE subscription, playout, ring layer,
+  peers for the HA select.
+  - **wake word:** stays on during a call, with the far-end guard (see the voice scenario);
+    the command spotter's «стоп» does not hang up in v1.
+  - **voice key:** ringing → answer; calling/in_call → hang up; it does not start a voice session
+    while a call is up.
+  - **music:** ducked like during an Assist session (`assistantBusy`).
+  - **voice phrases:** the transcript matcher (call / answer / decline / hang up).
+  - **HA announcements/TTS** keep playing over the call (dmix mixes them; the far end hears them
+    faintly through the AEC'd mic).
+  - **setup mode** (the key combo) hangs up first; incoming calls are refused while it runs.
+  - **shutdown:** sends bye.
+- Ring: a new layer `PrioCall` = 45 (above Voice 40, below Error 50 and Setup 60): calling —
+  green comet; ringing — green blink (+ the announce chime); in call — steady green (the
+  "mic is streaming" indicator, always visible above voice states). Front display: unchanged in
+  v1.
+
+## HA control surface (v1, neutral)
+
+Per speaker, by MQTT discovery:
+
+| Entity | What |
+|---|---|
+| `select` Intercom target | the other speakers by name (the live peer list) |
+| `button` Intercom call | calls the selected target; answers when ringing |
+| `button` Intercom hang up | hangs up, cancels, or declines |
+| `sensor` Intercom | `idle` / `calling` / `ringing` / `in_call`; attributes `peer`, `since` |
+
+Plus a JSON command topic for scripts: `<prefix>/<id>/intercom/set` with
+`{"action":"call","to":"<device_id or name>"}`, `{"action":"answer"}`, `{"action":"hangup"}`.
+
+## Config (yastationd.conf)
+
+```
+intercom             = false   # the feature; needs intercom_secret
+intercom_secret      =         # shared by all speakers (>= 16 characters)
+intercom_port        = 10710   # UDP media
+intercom_name        =         # the room name others call this speaker by (default device_name)
+intercom_auto_answer = false   # true: an incoming call opens at once (after the chime)
+intercom_ring_secs   = 30
+intercom_max_secs    = 1800
+intercom_jitter_ms   = 40
+```
+
+## The voice scenario (the user's sketch, 2026-10-25)
+
+```
+кабинет:  «Алиса, соедини со спальней»      → «вызываю» (ring: calling)
+спальня:  *chime* «вызывают из кабинета, принять?»
+          «да»                               → «соединяю» → the call is up
+either:   «Алиса, заверши звонок»            → hang up
+```
+
+The spotter keeps running during the call. The vendor command spotter has no fitting words
+(its 24 are дальше…стоп, хватит, громче, тише, включи/выключи свет — no «да», «заверши», «отбой»),
+so every step goes through an ordinary Assist voice session, and **the daemon reads the
+transcript HA sends back** (the Wyoming `transcript` event the satellite already gets):
+
+- **Call:** a transcript like «соедини / позвони / свяжи / вызови (меня) с/со/в <room>» where
+  `<room>` matches a peer's intercom name (word stems, so «спальней» matches «Спальня») starts a
+  call to that peer. The room name is `intercom_name` (default `device_name`).
+- **Answer / decline:** while ringing, «да / принять / ответь / алло» answers, «нет / отклони /
+  сбрось» declines.
+- **Hang up:** in a call, «заверши / положи / сбрось / отбой / закончи (звонок)» hangs up.
+- **What HA says** («вызываю», «соединяю», the question): a sentence trigger per phrase in HA
+  with a fixed reply keeps the conversation agent (an LLM) out of it — doc example in this
+  file once tested. Without one, HA's agent answers whatever it answers; the daemon acts anyway.
+- **The question on the callee** («вызывают из кабинета, принять?»): an HA automation on the
+  Intercom sensor going to `ringing` (attribute `peer_name`) announces it on that speaker; when
+  an announcement ends while ringing, the daemon opens a listening session itself, so a plain
+  «да» works without the wake word. Without the automation: the chime, then the same listening
+  window. **(verify)** whether `assist_satellite.ask_question` works with our Wyoming satellite
+  (it needs start_conversation), which would do the same in one HA call.
+- **The wake word during a call:** allowed (that is how «Алиса, заверши звонок» gets in), with a
+  guard: a WAKE within ~1.5 s of far-end speech in our playback is ignored (the far room said
+  «Алиса», leaking through the AEC). While the Assist session runs, the uplink is muted and the
+  far end's voice ducked; the call resumes after it. Today a WAKE during our own playback is
+  ignored because the AEC was never measured, so this depends on check 1 below.
+- The voice key does the same without speech: answer when ringing, hang up otherwise.
+
+Other options, for later: a key gesture to call a "favourite" room (offline), auto-answer
+(`intercom_auto_answer`; the chime and the ring indicator stay mandatory), «стоп»/«хватит» as a
+hang-up (false hang-ups from natural speech), a "do not disturb" switch (refuse calls, e.g. at
+night), a silent "listen in" mode (baby monitor; the vendor VQE has a preset) — a privacy
+decision first.
+
+## Phases
+
+1. **v1 on the host (now):** the `intercom` package with tests (two peers over loopback UDP with
+   simulated loss, jitter, reordering and ±300 ppm drift; crypto and signalling tables), daemon
+   wiring, the voice scenario's transcript matcher, HA entities, config. Off by default; not released until checked on speakers.
+2. **On two speakers** (needs the user): the checklist below; tune jitter, guard, volume.
+3. **VQE call mode** through a spotter-host control channel; pickle's missing call model.
+4. **The rest of the UX** (HA sentence triggers and the callee question, tested and written up;
+   the other options above); Opus if Wi-Fi needs it;
+   push-to-talk fallback; front-display states.
+
+## To verify on a device
+
+1. The AEC reference carries playback: bergamot ch6, pickle ch3 (orion is verified) — `LEVEL`
+   lines while aplay runs; raw vs vqe_0 echo level.
+2. Low-latency aplay: the real dmix client buffer (`aplay -v`), no xruns over 30 min; drift
+   corrections per minute in the log.
+3. Mouth-to-ear latency (a clap recorded on both sides).
+4. Echo at the far end at normal and high volume; AEC convergence at call start; howling at max
+   volume in two rooms; pickle/orion reference before or after the volume stage (change volume
+   mid-call, listen for an echo burst).
+5. The uplink level of vqe_0 (ASR gain ×50) — clipping or too quiet for a call.
+6. CPU with a call running beside the spotter (bergamot: VQE + «Алиса» + commands ≈ 87 % of one
+   core today).
+7. The UDP port is reachable between speakers (pickle runs vendor iptables chains at init).
