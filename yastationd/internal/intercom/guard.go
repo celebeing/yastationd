@@ -128,6 +128,7 @@ func (g *Guard) Up(f []int16, now time.Time) {
 	far := g.farRMS
 	g.mu.Unlock()
 	if g.Processed {
+		g.gate.frames++
 		g.up.apply(f, 1)
 		return
 	}
