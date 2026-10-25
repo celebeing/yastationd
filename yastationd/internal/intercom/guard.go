@@ -17,6 +17,55 @@ type Guard struct {
 	farRMS float64   // its recent level (linear, full scale 1)
 
 	up, down gainState
+	agc      agc
+}
+
+// agc brings the uplink to a call level. The VQE's output is tuned for speech recognition, not
+// ears: on a bergamot speech came out around -60 dBFS RMS over a -72 floor (2026-10-25). It
+// tracks the noise floor, raises speech toward agcTarget (at most agcMaxGain), and turns the
+// pauses down a little more (a soft expander), so the boosted floor doesn't hiss.
+type agc struct {
+	floor  float64 // noise floor (linear RMS)
+	speech float64 // recent speech level
+	gain   float64
+}
+
+const (
+	agcTarget     = 0.08 // -22 dBFS RMS
+	agcMaxGain    = 80   // +38 dB
+	agcStartGain  = 30   // +30 dB until speech has been heard
+	agcSpeechOver = 4    // a frame 12 dB above the floor is speech
+	agcPauseGain  = 0.4  // pauses: -8 dB more
+)
+
+// level returns the gain for a frame of RMS r and whether it is speech (and updates the
+// estimates).
+func (a *agc) level(r float64) (float64, bool) {
+	if a.gain == 0 {
+		a.gain, a.floor = agcStartGain, r
+	}
+	// The floor follows quiet frames quickly and loud ones very slowly (minimum tracking).
+	if r < a.floor {
+		a.floor += 0.3 * (r - a.floor)
+	} else {
+		a.floor *= 1.002 // ~+0.9 dB/s
+	}
+	if a.floor < 1e-5 {
+		a.floor = 1e-5
+	}
+	speech := r > a.floor*agcSpeechOver
+	if speech {
+		if a.speech == 0 {
+			a.speech = r
+		}
+		a.speech += 0.05 * (r - a.speech)
+		want := math.Min(agcMaxGain, math.Max(1, agcTarget/a.speech))
+		a.gain += 0.1 * (want - a.gain) // ~0.2 s to settle
+	}
+	if !speech && r < a.floor*2 {
+		return a.gain * agcPauseGain, false
+	}
+	return a.gain, speech
 }
 
 type gainState struct {
@@ -70,9 +119,11 @@ func (g *Guard) Up(f []int16, now time.Time) {
 	farActive := !g.farAt.IsZero() && now.Sub(g.farAt) < farHold
 	far := g.farRMS
 	g.mu.Unlock()
-	want := 1.0
-	if farActive && rms(f) < far {
-		want = halfDuplexLow
+	want, speech := g.agc.level(rms(f))
+	// While the far end talks, what isn't clearly our room's speech (12 dB over our floor) is
+	// most likely its own voice coming back through the echo canceller.
+	if farActive && far >= farSpeechRMS && !speech {
+		want *= halfDuplexLow
 	}
 	g.up.apply(f, want)
 }

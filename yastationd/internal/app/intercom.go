@@ -477,16 +477,19 @@ func (a *App) icVoiceKey() bool {
 }
 
 // icTranscript acts on the intercom phrases of an Assist session (docs/intercom.md, "The
-// voice scenario"). HA still answers the request itself (a sentence trigger keeps an LLM out).
-func (a *App) icTranscript(text string) {
+// voice scenario"). It reports whether the request was the intercom's: then HA's own reply is
+// cut (its agent would answer «да» or «соедини со спальней» with small talk). While a call is
+// ringing everything said is the answer to it, recognised or not.
+func (a *App) icTranscript(text string) bool {
 	if a.ic == nil || text == "" {
-		return
+		return false
 	}
 	switch a.ic.m.Status().State {
 	case intercom.Idle:
 		if p, ok := intercom.MatchCall(text, a.icPeers()); ok {
 			a.log.Info("intercom: call by voice", "to", p.ID)
 			a.icCall(p, "voice")
+			return true
 		}
 	case intercom.Ringing:
 		switch yes, no := intercom.MatchAnswer(text); {
@@ -494,10 +497,15 @@ func (a *App) icTranscript(text string) {
 			a.ic.m.Answer()
 		case no:
 			a.ic.m.Hangup("declined by voice")
+		default:
+			a.log.Info("intercom: not an answer, still ringing", "text", text)
 		}
+		return true
 	default:
 		if intercom.MatchHangup(text) {
 			a.ic.m.Hangup("by voice")
+			return true
 		}
 	}
+	return false
 }

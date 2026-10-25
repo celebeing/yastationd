@@ -138,7 +138,11 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 		if ev.Type == wyoming.TypeTranscript {
 			s.endListeningOn(c, "transcript")
 			s.setAwaiting(true)
-			a.icTranscript(ev.String("text"))
+			if a.icTranscript(ev.String("text")) {
+				s.cancelReply("an intercom request")
+				a.unexpress("voice")
+				return
+			}
 		}
 		if ev.Type == wyoming.TypeSynthesize {
 			// HA doesn't forward continue_conversation to Wyoming satellites; emulate it from the
