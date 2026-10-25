@@ -161,6 +161,16 @@ Generic detector limits and the bergamot instance: docs/wakeword-mic-array.md §
   4 s of tone/silence. On device, the pristine model with the NPU verifier is the real
   test. Fallback remains: strip the verifier (re-threshold; more false accepts) -
   bergamot §6.4 tradeoff in docs/spotter-decompile.md.
+- **Runtime noise-event spotter (stock unit, captured 2026-10-25):** `spotter.json` declares one
+  downloaded model with `type = noise_detection`; its UUID, CDN URL and binary stay only in
+  gitignored `dumps/`. `words.txt` maps labels `1..8` to clapping, snapping, crying, alarm, glass,
+  dog, cat and water. It is a 1.8 MB float `nnet` (not the NPU verifier): 16 kHz, 25 ms frames,
+  10 ms shift, 40-bin log-mel fbank, no VAD, with per-class thresholds
+  `0.316:0.238:0.957:0.345:0.0953:0.452:0.97:0.833`. This makes local sound-event detection
+  viable through the vendor spotter API. An arm64 container probe of the preserved model loads it
+  successfully at 16 kHz with exactly one channel of type 0 and no other channel types;
+  `spotter_create` and plain layout `0` both succeed. It can therefore consume VQE omni directly.
+
 - **3.21 blob drops the `spotter_error_*` C helpers** (0.369 bergamot has them; 3.21
   exports 41 spotter symbols, none of them error getters). spotter-host declares them as weak
   references, so one source links both: they resolve to the library on 0.369 and to NULL on
@@ -183,18 +193,62 @@ Generic detector limits and the bergamot instance: docs/wakeword-mic-array.md §
 
 - The top surface has two concentric capacitive areas driven by `aw933xx` (event3); only the
   separate mic-mute control is a physical switch.
-- Central glyph tap: KEY 582 (`KEY_VOICECOMMAND`) → local voice turn / HA `voice_command`.
-- Circular motion **inside** the panel: KEY 581 (`KEY_SCREENSAVER`), in either direction. It is
-  exposed as the debounced HA `panel_gesture` event; no ambilight or other action is hardcoded.
+- A standalone central glyph tap emits KEY 582 (`KEY_VOICECOMMAND`) press/release → local voice
+  turn / HA `voice_command`. A horizontal inner movement is indistinguishable: it also emits only
+  a standalone 582 press/release.
+- A standalone inner arc or circle emits KEY 581 (`KEY_SCREENSAVER`) press/release, regardless of
+  direction. It is exposed as the debounced HA `panel_gesture` event; no ambilight or other action
+  is hardcoded.
+- **Vertical inner gestures (captured on device 2026-10-25):** direction is encoded by the order
+  of the first distinct key-down events, not by an axis: up = 582 then 581; down = 581 then 582.
+  The opposite key arrives in 60–380 ms in six fast/normal samples of each direction. The driver
+  can duplicate a same-code key-down, emit releases between the two presses, and accompany the
+  sequence with `ABS_MT_SLOT` / `ABS_MT_POSITION_X`; those records carry no usable direction.
+  A future recognizer must defer standalone 581/582 actions for a 500 ms pairing window, ignore
+  duplicate same-code downs, and suppress both constituent actions after recognizing a pair. It is
+  not implemented yet.
 - Deeper outer groove: `ABS_X` wrapped angular position, verified with the vendor stack stopped.
   Clockwise values increase and counterclockwise values decrease, crossing zero near 1000. The
   kernel incorrectly reports this axis as 0..3 through `EVIOCGABS`, while captured events span
   0..992; the profile therefore pins `abs_range.0 = 0,1000`. yastationd accumulates wrapped
   deltas and maps each 1/20 turn to one stock 5% volume level. This gives a full rotation the
   full 0–100% range without assuming where the finger first lands.
-- `mute` (event2): KEY 113 + SW 14; the hardware switch cuts the microphones and remains
-  authoritative.
+- `mute` (event2) is a physical mic-mute switch and remains authoritative. **Direct capture
+  2026-10-25:** switching on emits KEY 113 down, SW 14 = 1, KEY 113 up; switching off emits the
+  same key press/release around SW 14 = 0. The switch cuts the microphones.
 - `input_btrcu`: Bluetooth remote KEY 116 + 133. `vad_keypad` is vendor-internal and ignored.
+
+## Bluetooth / BLE
+
+- **Stock unit baseline, 2026-10-25:** the standard BlueZ controller is powered, neither
+  discoverable nor pairable, and supports both central and peripheral roles plus five advertising
+  instances. It advertises A2DP source/sink, AVRCP controller/target, and standard GAP/GATT/device
+  information UUIDs. No BLE advertisement is active.
+- The reusable Linux base processes are `hciattach -s 115200 /dev/ttyS1 aml`,
+  `bluetoothd -n`, and `bluealsa -p a2dp-sink -p a2dp-source -p hfp-ag --sbc-quality=high`.
+  `bluealsa-aplay -D bluetooth -M disable -S` owns the stock audio route. `bluetooth` is an ALSA
+  `softvol` PCM over `speakers`, controlled by card-0 `Bluetooth Master Playback Volume`; thus
+  A2DP reaches the stock speaker routing without `maind`. `bluealsa-aplay` has no device-address
+  restriction, so it accepts audio from any Bluetooth device that BlueZ has connected. `aplay -L`
+  has no statically named `bluealsa` PCM before a source connects.
+- `ble_initd`'s vendor GATT setup service is not reusable: it accepts Wi-Fi and token writes.
+  Keep Bluetooth disabled/discoverable-off by default under CFW; pairing must be a deliberate,
+  local action.
+
+## Zigbee
+
+- **Stock unit probe, 2026-10-25:** the kernel registers a dedicated `zb_control` platform driver
+  for `/sys/devices/platform/zigbee`; this is physical Zigbee control hardware, not only a cloud
+  capability. The `/zigbee` device-tree node is `yandex,zigbee-control` and declares
+  `zb-boot-gpios` and `zb-reset-gpios`; it declares no NCP transport. Both use GPIO-controller
+  phandle `0x0f` with active-low flag: boot is pin 84 and reset is pin 82.
+- **NCP boundary:** stock `quasar.cfg` identifies a Telink NCP on `/dev/ttyS2`, with vendor
+  firmware `${QUASAR}/zigbee/gateway.ybl` (217,692 bytes) and `zbControl = true`. `ttyS1` remains
+  Bluetooth. The serial protocol is the proprietary W2L/Telink protocol implemented inside
+  `maind`, not a standard EZSP or ZNP adapter. With `maind` stopped, `ttyS2` is unowned.
+  Preserve the stock firmware and private network state; do not bind, unbind, reset, flash, pair,
+  or open the network while investigating. A CFW coordinator would require a clean W2L host
+  implementation or an explicitly approved, reversible firmware replacement.
 
 ## Lux / power
 
@@ -203,7 +257,14 @@ Generic detector limits and the bergamot instance: docs/wakeword-mic-array.md §
 
 - Ambient light: ltr308 (I2C 1-0053) registered as IIO `light-sensor-top`, `in_intensity_*`
   only; the stock S80light-sensor sets gain 18 / 0.4 s — max values, nothing to override.
-  Profile prefix: `light-sensor`.
+  **Measured on device 2026-10-25:** gain 18, 0.4 s integration, 40 Hz sampling, zero offset,
+  and `in_intensity_input = in_intensity_raw × 2.25`; dark readings were 4–10 raw (9–22.5
+  input), while a room light adjusted through brightness and colour-temperature changes produced
+  1006–3493 raw (2263.5–7859.25 input). These are intensity units, not calibrated lux. The
+  physical aperture is the lower-left of the four top holes when facing the display: an opaque
+  phone cover drives the reading to 0–1 raw. Finger-dependent high readings at the other holes
+  were not reproducible and are treated as optical reflections, not additional sensors. Profile
+  prefix: `light-sensor`.
 - USB-C PD: HUSB238 (I2C 2-0008, `ya_pd`) as bergamot/pickle. **Measured on device
   (2026-10-23): contracts a 20 V / 3.25 A PD (voltage_now 20000 mV, current_now 3250,
   status "Good")** — orion is a 65 W-class supply, not bergamot's 12 V. Profile
