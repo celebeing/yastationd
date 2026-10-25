@@ -169,6 +169,17 @@ to be reviewed on glass (the stock patterns are still being watched through).
 error → timer ring → volume bubble → voice expressions → HA overlay / scenario → music → base
 (clock, message, idle, off). The mechanism is the existing `display.Stack` (priority + TTL).
 
+### Base modes
+
+The base under the front stack is the `display_mode` select: `clock` (the default), `message`
+(HA's text, scrolling), `off`, and on pixel screens only `video`. The first three are persisted.
+`video` ([video-mode.md](video-mode.md)) is a one-off playback over the persisted mode: a frames
+file (the `.led` format, gamma-corrected on load like a stock pattern) drawn by elapsed time since
+its audio track started in aplay, so picture and sound stay in sync; it ends with its picture, or
+when anything takes the speaker (voice, «стоп», a reply or announcement, a timer, a call, music,
+another mode), and the select returns to the persisted mode. It is a base, not an overlay, so
+expressions and HA overlays still draw over it.
+
 ## Stock clock clips (seg7)
 
 Every model with a 7-segment clock ships its animations as data in
@@ -238,7 +249,8 @@ change of the top layer (80 ms up, 400 ms back down); their patterns carry their
 
 ## HA exposure
 
-- `display_mode` select keeps clock / message / off (later: idle, music on pixel screens).
+- `display_mode` select keeps clock / message / off, plus `video` on pixel screens (see "Base
+  modes"; later: idle, music on pixel screens).
 - `display/cmd` gains `{"surface":"matrix","op":"clip","args":{"name":…,"loop":…}}` and
   `"op":"frames"` with raw seg7 frames, next to the existing text / number / countdown. `clip`
   takes a semantic name too (`listening`) and, on a pixel screen, a pattern path (`media/Like`);

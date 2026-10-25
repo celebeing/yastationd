@@ -2,6 +2,7 @@ package hw
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -137,6 +138,19 @@ func (p *Player) StopBlip() {
 }
 
 func (p *Player) Play(path string) error {
+	_, _, err := p.Start(path)
+	return err
+}
+
+// ErrCut is what Start's done channel carries when the playback was cut short: by Stop, by its
+// own stop func, or by a later Play/Stream taking the speaker.
+var ErrCut = errors.New("playback cut")
+
+// Start is Play that reports the outcome: done gets one value when this aplay exits — nil at the
+// end of the file, ErrCut when it was cut short, else aplay's failure (no device, a bad file).
+// stop cuts this playback only: once a later Play/Stream has taken over it does nothing, so a
+// caller can never silence someone else's sound with it.
+func (p *Player) Start(path string) (done <-chan error, stop func(), err error) {
 	p.mu.Lock()
 	if p.cancel != nil {
 		p.cancel()
@@ -148,13 +162,21 @@ func (p *Player) Play(path string) error {
 	p.mu.Unlock()
 
 	cmd := aplayCmd(ctx, "-q", "-D", p.Device, path)
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
 	if err := cmd.Start(); err != nil {
 		cancel()
-		return err
+		return nil, nil, err
 	}
 	p.state(true)
+	ch := make(chan error, 1)
 	go func() {
-		cmd.Wait()
+		werr := cmd.Wait()
+		if ctx.Err() != nil {
+			werr = ErrCut
+		} else if werr != nil {
+			werr = fmt.Errorf("%w: %s", werr, strings.TrimSpace(stderr.String()))
+		}
 		p.mu.Lock()
 		last := gen == p.gen
 		if last {
@@ -165,8 +187,9 @@ func (p *Player) Play(path string) error {
 		if last {
 			p.state(false)
 		}
+		ch <- werr
 	}()
-	return nil
+	return ch, cancel, nil
 }
 
 // Stream starts aplay on raw s16le PCM fed through the returned writer; like Play, it interrupts

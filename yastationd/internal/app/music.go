@@ -98,6 +98,9 @@ func (a *App) onMusicEvent(ev sendspin.Event) {
 	case "STREAM":
 		on := firstField(ev) == "start"
 		a.music.streaming.Store(on)
+		if on && a.stopVideo("music") { // music started on this player: the user wants that instead
+			a.publishDisplayMode()
+		}
 		a.log.Info("music: stream", "on", on, "rate", ev.Int(1, 0), "channels", ev.Int(2, 0))
 	case "VOLUME":
 		v := ev.Int(0, -1)

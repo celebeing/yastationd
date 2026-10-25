@@ -14,6 +14,12 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
   picks the picture — an expression, a scenario or a native animation, with fallbacks; boards and
   `<cfw>/board.conf` override it with `moment.<name>`. Orion ends a dialog with a blink instead of
   the wink, and starts with eyes and a blink.
+- Video mode on pixel screens ([docs/video-mode.md](docs/video-mode.md)): `display_mode` `video`
+  plays a converted video on orion's screen with its sound, the picture clocked by the audio, then
+  returns to the clock; voice, «стоп», replies, timers, calls and music end it. `make video
+  VIDEO=<file>` (`cmd/videoconv`, ffmpeg) converts a local video you supply — the motivating one is
+  "Bad Apple!!" — into a gzipped `.led` frames file and a WAV, and uploads them to `<cfw>/media/`.
+  The LED preview has a **video** button and `ledsim -media`.
 
 **Fixes and operations**
 - MQTT publishes are skipped instead of crashing when the daemon runs without a broker.

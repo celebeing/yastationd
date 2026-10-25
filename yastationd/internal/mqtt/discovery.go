@@ -35,6 +35,8 @@ type builder struct {
 	// (a front display that takes expression clips).
 	Expressions []string
 	HasFaces    bool
+	// DisplayModes are the Display select's options (nil = clock, off, message).
+	DisplayModes []string
 	// Intercom adds the call entities; their target select lists the other speakers, which
 	// change at runtime (SetIntercomPeers, then Publish again).
 	Intercom bool
@@ -51,6 +53,13 @@ func (b *builder) SetIntercomPeers(names []string) {
 }
 
 func NewBuilder(t Topics, dev Device) *builder { return &builder{t: t, dev: dev} }
+
+func (b *builder) displayModes() []string {
+	if len(b.DisplayModes) == 0 {
+		return []string{"clock", "off", "message"}
+	}
+	return b.DisplayModes
+}
 
 // build fills the common fields (unique_id, availability, device) and merges the entity's own.
 func (b *builder) build(e Entity) (topic string, payload []byte) {
@@ -86,7 +95,7 @@ func (b *builder) Entities() []Entity {
 			"name":          "Display",
 			"state_topic":   t.State("display_mode"),
 			"command_topic": t.Command("display_mode"),
-			"options":       []string{"clock", "off", "message"},
+			"options":       b.displayModes(),
 			"icon":          "mdi:clock-digital",
 		}},
 		{"text", "display_message", map[string]any{

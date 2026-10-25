@@ -313,6 +313,9 @@ func (a *App) onIntercomState(st intercom.Status) {
 	a.log.Info("intercom: state", "state", st.State, "peer", st.Peer, "ended", st.Ended)
 	a.publishIntercom(st)
 	a.icStopTone()
+	if st.State != intercom.Idle && a.stopVideo("intercom") {
+		a.publishDisplayMode()
+	}
 	switch st.State {
 	case intercom.Calling:
 		a.ringStack.Push("intercom", display.PrioCall, 0, display.Comet(display.Green, 1200*time.Millisecond))

@@ -93,6 +93,9 @@ func (s *satellite) startListening(src string) { s.startListeningWith(src, nil) 
 // then held's live audio (a wake that interrupted a pending reply).
 func (s *satellite) startListeningWith(src string, held *heldWake) {
 	a := s.a
+	if a.stopVideo("voice") { // its sound would drown the request
+		a.publishDisplayMode()
+	}
 	s.mu.Lock()
 	if v := s.listen; v != nil {
 		s.mu.Unlock()

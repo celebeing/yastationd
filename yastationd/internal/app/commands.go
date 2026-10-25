@@ -130,16 +130,25 @@ func (a *App) cmdDisplayMode(payload []byte) {
 	mode := strings.TrimSpace(string(payload))
 	switch mode {
 	case "clock", "off", "message":
+	case videoMode: // a one-off playback over the persisted mode (video.go)
+		if !a.startVideo() {
+			a.publishDisplayMode() // puts HA's select back
+			return
+		}
+		a.mqtt.Publish(a.topics.State("display_mode"), mode)
+		return
 	default:
 		a.log.Warn("unknown display_mode", "mode", mode)
 		return
 	}
+	a.stopVideo("display mode " + mode)
 	a.store.update(func(s *persistState) { s.Mode = mode })
 	a.mqtt.Publish(a.topics.State("display_mode"), mode)
 }
 
 func (a *App) cmdDisplayMessage(payload []byte) {
 	msg := string(payload)
+	a.stopVideo("display message")
 	a.store.update(func(s *persistState) {
 		s.Message = msg
 		s.Mode = "message"

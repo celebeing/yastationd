@@ -99,6 +99,8 @@ type App struct {
 	marqueeText string
 
 	tap *frametap.Tap // the LED preview stream; nil when frametap_addr is off
+
+	video videoState // the video display mode (video.go)
 }
 
 type ambilightVisual struct {
@@ -258,7 +260,13 @@ func stopVendorLeftovers(names []string, log *slog.Logger) {
 
 func (a *App) matrixBase(now time.Time) display.FrontFrame {
 	s := a.store.get()
-	if a.front == nil || s.Mode == "off" {
+	if a.front == nil {
+		return display.FrontFrame{}
+	}
+	if f, ok := a.videoFrame(now); ok { // the video mode overrides the persisted one while it plays
+		return f
+	}
+	if s.Mode == "off" {
 		return display.FrontFrame{}
 	}
 	switch s.Mode {
@@ -334,6 +342,7 @@ func (a *App) Run(ctx context.Context) error {
 	b.HasAmbilight = a.ambilight != nil
 	b.Expressions = a.expressionOptions()
 	b.HasFaces = a.frontClipsPossible()
+	b.DisplayModes = a.displayModes()
 	b.Intercom = a.ic != nil
 	a.builder = b
 
@@ -419,6 +428,7 @@ func (a *App) Run(ctx context.Context) error {
 	if a.setup != nil {
 		a.setup.Leave() // never leave the speaker as an access point without its daemon
 	}
+	a.stopVideo("shutdown")
 	close(stop)
 	<-renderDone // no final clock frame may race with the screen blank below
 	// A failed blank is only logged: an error from Run means exit 1, which the supervisor
@@ -552,7 +562,7 @@ func (a *App) publishAllState() {
 	if a.ambilight != nil {
 		a.mqtt.Publish(a.topics.State("ambilight"), ambilightStateJSON(s))
 	}
-	a.mqtt.Publish(a.topics.State("display_mode"), s.Mode)
+	a.mqtt.Publish(a.topics.State("display_mode"), a.displayMode())
 	a.mqtt.Publish(a.topics.State("display_message"), s.Message)
 	a.mqtt.Publish(a.topics.State("ring_animation"), animOff)
 	a.mqtt.Publish(a.topics.State("expression"), animOff)

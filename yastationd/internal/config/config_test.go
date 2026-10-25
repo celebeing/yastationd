@@ -6,6 +6,22 @@ import (
 	"time"
 )
 
+func TestVideoKeys(t *testing.T) {
+	c, err := Parse(strings.NewReader("video_frames = /x/a.led.gz\nvideo_audio = /x/a.wav\nvideo_av_offset_ms = -120\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.VideoFrames != "/x/a.led.gz" || c.VideoAudio != "/x/a.wav" || c.VideoAVOffset != -120*time.Millisecond {
+		t.Fatalf("video keys: %q %q %v", c.VideoFrames, c.VideoAudio, c.VideoAVOffset)
+	}
+	if d := Default(); !strings.HasSuffix(d.VideoFrames, "/media/video.led") || !strings.HasSuffix(d.VideoAudio, "/media/video.wav") {
+		t.Errorf("defaults %q %q", d.VideoFrames, d.VideoAudio)
+	}
+	if _, err := Parse(strings.NewReader("video_av_offset_ms = 5000\n")); err == nil {
+		t.Error("offset out of range accepted")
+	}
+}
+
 func TestParseBasics(t *testing.T) {
 	in := `
 # comment
