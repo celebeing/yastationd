@@ -144,7 +144,7 @@ as webrtc AEC3 + an open wake-word engine) means a new host binary that speaks t
 
 ### Porting the vendor front-end to a new model
 
-1. **Architecture and build.** `spotter-host/build.sh ARCH=armhf|aarch64 SYSROOT=<rootfs>`. armhf
+1. **Architecture and build.** `tools/build.sh spotter:armhf|aarch64` with `SPOTTER_SYSROOT_<ARCH>=<rootfs>` (`tools/build.env`; runs `spotter-host/build.sh` in its container). armhf
    links against the device's own glibc; aarch64 is a plain dynamic link with RPATH
    (`--disable-new-dtags`, so the library's own dependencies such as `libtflite.so` resolve).
    Add a new `ARCH` case if a model needs one.

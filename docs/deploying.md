@@ -94,37 +94,37 @@ rootfs edits: `mount -o remount,rw /` … `sync; mount -o remount,ro /`.
 
 ## 1. Build
 
+Everything is built in pinned containers ([building.md](building.md)); the host needs docker:
+
 ```sh
-cd yastationd && make test build                  # -> build/yastationd
+tools/build.sh            # web app, yastationd, hostapd, sendspin-host and spotter-host for both arches
 ```
+
+`tools/deploy.sh` (§3a) builds what it ships by itself; this step is for a first install by hand.
 
 `spotter-host` links the vendor front-end library, so it needs a sysroot: the vendor `/lib` and
 `/system/vendor/quasar/libs`. Take it from your **`<vendor-repo>`** (a private checkout of vendor trees, never published) — `vendor/<board>/<version_full>/`
-holds exactly that tree, verbatim, for every firmware we have a unit or a dump from:
+holds exactly that tree, verbatim, for every firmware we have a unit or a dump from — and name it
+in `tools/build.env` (gitignored, see `tools/build.env.example`):
 
 ```sh
-SYSROOT=/path/to/<vendor-repo>/vendor/orion/0.13.1.36.3322101745.20250823.factory-13
-ARCH=aarch64 SYSROOT=$SYSROOT OUT=spotter-host/build/aarch64/spotter-host sh spotter-host/build.sh
+SPOTTER_SYSROOT_AARCH64=/path/to/<vendor-repo>/vendor/orion/0.13.1.36.3322101745.20250823.factory-13
 ```
 
 Only when that board/firmware is not in the vendor repo, pull the two directories off the unit into
-the gitignored `dumps/`:
+the gitignored `dumps/` and point the variable there:
 
 ```sh
 mkdir -p dumps/sysroot-<board> && ssh root@<speaker> 'tar cf - /lib /system/vendor/quasar/libs' | tar xf - -C dumps/sysroot-<board>
-ARCH=aarch64 SYSROOT=dumps/sysroot-<board> OUT=spotter-host/build/aarch64/spotter-host sh spotter-host/build.sh
 ```
 
 `ARCH` = `armhf` (bergamot) or `aarch64` (pickle, orion; one build serves both) — `file /system/vendor/quasar/maind` tells you.
 
-`sendspin-host` (the music player, optional) needs no device files: `make -C sendspin-host` builds
-both arches with zig 0.14.1 (see its README).
+`sendspin-host` (the music player, optional) and `hostapd` (the Wi-Fi setup mode's access point)
+need no device files; their first build fetches their pinned sources.
 
-`hostapd` (the Wi-Fi setup mode's access point) likewise: `make -C hostapd` builds one static
-binary for every board with zig 0.14.1 (see [wifi-setup.md](wifi-setup.md)).
-
-**Build all three helpers before you start the install.** They are only ever `make deploy-*`-ed from
-the host; the speaker is offline by design and cannot fetch or compile anything later. A missing
+**Build all three helpers before you start the install** (`tools/build.sh` does). They are only ever
+uploaded from the host; the speaker is offline by design and cannot fetch or compile anything later. A missing
 helper is not fatal at runtime, which is what makes it easy to miss: without `spotter-host` the
 daemon logs `wake word disabled: spotter binary missing` and runs push-to-talk only; without
 `sendspin-host`, `sendspin = true` in the config is ignored.

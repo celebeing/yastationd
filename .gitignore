@@ -37,3 +37,6 @@ emu/work/
 /yastationd/internal/webui/dist/app/
 /web/node_modules/
 /.pnpm-store/
+
+# Local build settings for tools/build.sh (spotter-host sysroots)
+/tools/build.env

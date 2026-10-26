@@ -105,7 +105,7 @@ already connects them all; mDNS (`<id>.local`) may come later.
 A subproject: TypeScript, Preact, Vite (versions pinned exactly), built into
 `yastationd/internal/webui/dist/app/` and embedded (`go:embed`). The build output is not committed:
 `make build` rebuilds it whenever `web/` changed, in the pinned builder container
-(`tools/build-web.sh`, the root `Dockerfile`), so the host needs docker, not Node. A plain
+(`tools/build.sh web`, `docker/node.Dockerfile`), so the host needs docker, not Node. A plain
 `go build` without it still compiles; that binary serves a "built without its web app" page.
 
 - The speakers list (from `/api/peers`): name, room, board, version, online, a login state.

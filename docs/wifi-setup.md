@@ -164,7 +164,7 @@ from the device. Options in `hostapd/hostapd.config`:
 - internal crypto, enough for WPA2-PSK;
 - no RADIUS / EAP server / VLAN.
 
-Build: `make -C hostapd` (zig 0.14.1). About 840 KB stripped. `tools/deploy.sh` rolls it out
+Build: `tools/build.sh hostapd` (zig 0.14.1 in its container). About 840 KB stripped. `tools/deploy.sh` rolls it out
 when built.
 
 ## Boot without a network

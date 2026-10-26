@@ -10,5 +10,5 @@ pnpm install --frozen-lockfile && pnpm build   # the same with a local Node 18+ 
 YASTATION=http://<speaker> pnpm dev   # live development against a real speaker's API
 ```
 
-The build output is not committed: `make build` in `yastationd/` runs `tools/build-web.sh` whenever
-the source here changed, in the pinned builder image (the root `Dockerfile`).
+The build output is not committed: `tools/build.sh` (and `make build` in `yastationd/`) builds it
+whenever the source here changed, in the pinned builder image (`docker/node.Dockerfile`).

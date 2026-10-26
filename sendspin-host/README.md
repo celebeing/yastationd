@@ -7,7 +7,8 @@ behaviour and findings: [`../docs/music-sendspin.md`](../docs/music-sendspin.md)
 
 ## Build
 
-Needs zig 0.14.1 (`ZIG=/path/to/zig`), git, curl, cmake ≥ 3.16, ninja, make. Linux/WSL.
+Built by `tools/build.sh sendspin` in its pinned container (`docker/zig.Dockerfile`; the repo
+docs/building.md). By hand: zig 0.14.1 (`ZIG=/path/to/zig`), git, curl, cmake ≥ 3.16, ninja, make.
 
 ```sh
 make                 # both: build/armhf/sendspin-host (bergamot), build/aarch64/sendspin-host (pickle)

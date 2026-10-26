@@ -3,6 +3,17 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Fixes and operations**
+- Every artifact builds in a pinned container of its own toolchain (`docker/`: Go, Node, zig,
+  the cross gcc) through one script, `tools/build.sh`; the host needs docker only.
+  `tools/deploy.sh` builds what it ships with it — yastationd, hostapd, sendspin-host and
+  spotter-host (with a sysroot named in `tools/build.env`) — instead of taking helper builds as it
+  found them. `NATIVE=1` keeps the host's Go for yastationd.
+- `tools/deploy.sh` stops at an ssh failure and says it is one (login refused, unreachable), not
+  "not installed here"; every upload is checked.
+
 ## v0.16.1 — 2026-10-27
 
 **Fixes and operations**

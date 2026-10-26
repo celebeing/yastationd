@@ -1,7 +1,8 @@
 #!/bin/sh
-# Build every artifact for one board in the pinned container (Dockerfile, docs/building.md).
+# Build every artifact for one board in the pinned builder containers (tools/build.sh,
+# docs/building.md) and collect them in dist/ with checksums.
 #
-#   tools/build-dist.sh
+#   VENDOR=<vendor-repo> tools/build-dist.sh
 #
 # Env:
 #   BOARD=<name>        board profile to build for (default: orion)
@@ -16,9 +17,6 @@
 #   <arch>/spotter-host          links the vendor front-end: needs the matching sysroot
 #   <arch>/sendspin-host         the music player
 #   SHA256SUMS
-#
-# The host only needs docker; every compiler lives in the image. The vendor tree is mounted
-# read-only and never copied into the image.
 set -eu
 
 here=$(cd "$(dirname "$0")/.." && pwd)
@@ -32,24 +30,28 @@ ARCH=${ARCH:-$(sed -n 's/^[[:space:]]*platform\.userland_arch[[:space:]]*=[[:spa
 [ -n "${VENDOR:-}" ] || { echo "set VENDOR=<path to your vendor-tree checkout> (docs/building.md)" >&2; exit 2; }
 [ -d "$VENDOR/vendor/$BOARD" ] || { echo "no vendor tree for '$BOARD' under $VENDOR" >&2; exit 2; }
 fw=${FW:-$(ls -1 "$VENDOR/vendor/$BOARD" | sort -V | tail -1)}
-[ -d "$VENDOR/vendor/$BOARD/$fw" ] || { echo "no firmware '$fw' for $BOARD in $VENDOR" >&2; exit 2; }
-
-command -v docker >/dev/null 2>&1 || { echo "docker not found" >&2; exit 2; }
+sysroot=$VENDOR/vendor/$BOARD/$fw
+[ -d "$sysroot/system/vendor/quasar/libs" ] && [ -d "$sysroot/lib" ] ||
+	{ echo "not a vendor sysroot (lib/ and system/vendor/quasar/libs/): $sysroot" >&2; exit 2; }
 
 echo "board   = $BOARD"
 echo "arch    = $ARCH"
-echo "sysroot = $VENDOR/vendor/$BOARD/$fw"
+echo "sysroot = $sysroot"
 
-docker build -q -t yastation-build -f "$here/Dockerfile" "$here" >/dev/null
+up=$(echo "$ARCH" | tr a-z A-Z)
+targets="web yastationd hostapd spotter:$ARCH"
+[ "${NO_SENDSPIN:-0}" = 1 ] || targets="$targets sendspin:$ARCH"
+# shellcheck disable=SC2086 # targets is a list
+env "SPOTTER_SYSROOT_$up=$sysroot" "$here/tools/build.sh" $targets
 
-docker run --rm \
-	-v "$here:/src" \
-	-v "$VENDOR:/vendor:ro" \
-	-e ARCH="$ARCH" \
-	-e SYSROOT="/vendor/vendor/$BOARD/$fw" \
-	-e NO_SENDSPIN="${NO_SENDSPIN:-0}" \
-	yastation-build sh /src/tools/dist-build-in-container.sh
+dist=$here/dist
+rm -rf "$dist"
+mkdir -p "$dist/$ARCH"
+cp "$here/yastationd/build/yastationd" "$here/hostapd/build/hostapd" "$dist/"
+cp "$here/spotter-host/build/$ARCH/spotter-host" "$dist/$ARCH/"
+[ "${NO_SENDSPIN:-0}" = 1 ] || cp "$here/sendspin-host/build/$ARCH/sendspin-host" "$dist/$ARCH/"
+(cd "$dist" && find . -type f ! -name SHA256SUMS -exec sha256sum {} + | sort -k2 > SHA256SUMS)
 
 echo
-echo "artifacts in $here/dist:"
-(cd "$here/dist" && find . -type f ! -name SHA256SUMS | sort | sed 's|^\./|  |')
+echo "artifacts in $dist:"
+(cd "$dist" && find . -type f ! -name SHA256SUMS | sort | sed 's|^\./|  |')

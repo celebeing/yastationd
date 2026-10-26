@@ -1,59 +1,80 @@
-# Building the artifacts: pins and the container
+# Building the artifacts: one script, a container per toolchain
 
-What `make` needs, why the versions are not negotiable, and the one command that builds
-everything the same way twice. [deploying.md](deploying.md) §1 has the per-artifact commands and
-what each binary does on the device; this page is only about the toolchain.
+Everything the CFW puts on a speaker is built in pinned builder containers by one script,
+`tools/build.sh`. The host needs **docker** (and sh, git); no Go, Node, zig or cross gcc.
+[deploying.md](deploying.md) §1 has what each binary does on the device; this page is the
+toolchain.
 
-**Status (2026-10-26):** the container and `tools/build-dist.sh` were written against the versions
-the Makefiles enforce, but have not been run end to end on a docker host yet. The host commands
-below are the ones in use.
+## The builders
 
-## The pins
+One image per toolchain, in `docker/` (built on first use, then cached by docker):
 
-| Artifact | Toolchain | Where the requirement comes from |
-|---|---|---|
-| `yastationd` | Go 1.22.5, `CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7` | `yastationd/go.mod` (`go 1.22.5`); the static armv7 binary runs on every board, including aarch64 userlands |
-| `spotter-host` | `aarch64-linux-gnu-gcc` or `arm-linux-gnueabihf-gcc` **plus a vendor sysroot**, glibc of the device (2.30 armhf / 2.36 aarch64) | `spotter-host/build.sh`; it links the vendor `libyandex_evil.so` |
-| `sendspin-host` | **zig 0.14.1**, cmake ≥ 3.16, ninja, git, curl | `sendspin-host/Makefile` refuses 0.11–0.13: those emit armhf C++ binaries that crash before `main` |
-| `hostapd` | **zig 0.14.1**, git, curl | `hostapd/Makefile`; one static armv7/musl binary, links nothing from the device |
-| `web` (the app) | Node 18.20.8 + pnpm 8.14.1, in the builder image: **the host needs docker** | `web/`. `make build` in `yastationd/` runs `tools/build-web.sh` (the root `Dockerfile` image) whenever `web/` changed, into `yastationd/internal/webui/dist/app` (not committed); the dist container builds it too |
+| Image | Dockerfile | Builds | Pins |
+|---|---|---|---|
+| `yastation-go` | `docker/go.Dockerfile` | `yastationd` (tests too) | Go 1.22.5 (`golang:1.22.5-bookworm`), `GOTOOLCHAIN=local`; one static armv7 binary for every board |
+| `yastation-node` | `docker/node.Dockerfile` | the web app (`web/`), embedded in yastationd | Node 18.20.8, pnpm 8.14.1 |
+| `yastation-zig` | `docker/zig.Dockerfile` | `sendspin-host` (per arch), `hostapd` | **zig 0.14.1** (0.11–0.13 emit armhf C++ binaries that crash before `main`), cmake, ninja, git, curl |
+| `yastation-cross` | `docker/cross.Dockerfile` | `spotter-host` (per arch) | Ubuntu 22.04's gcc 11 cross toolchains (glibc 2.35): the toolchain the deployed builds were made with — its output is byte-identical to them (checked 2026-10-27) |
 
-A rolling distro will hand you a newer zig (or none), and the build either stops at the version
-check or produces a binary that dies on the speaker. That is the whole reason for the container.
-
-## The sysroot
-
-`spotter-host` is the one artifact that cannot be built from this repo alone: it needs the vendor
-runtime it links against. Take it from your **`<vendor-repo>`** (a private checkout of vendor trees, never published), `vendor/<board>/<version_full>/` —
-`lib/` and `system/vendor/quasar/libs` are exactly the two directories, verbatim from that
-firmware. It must be the firmware the unit runs (or a compatible one for the same board): the
-soname set and glibc version are what bind the binary.
-
-## One command
+## tools/build.sh
 
 ```sh
-VENDOR=/path/to/<vendor-repo> tools/build-dist.sh   # BOARD=orion by default; FW=<version_full> to pick a tree
+tools/build.sh                 # all: web yastationd hostapd sendspin spotter
+tools/build.sh yastationd      # tests + the daemon (the web app first, when its source changed)
+tools/build.sh sendspin:armhf  # one arch; "sendspin" = both
+tools/build.sh spotter:aarch64 # needs a sysroot (below); "spotter" = both, skipping one without
+tools/build.sh web hostapd
 ```
 
-It builds the image from `Dockerfile`, mounts this repo at `/src` and the vendor checkout at
-`/vendor` (read-only), and writes:
+| Target | Output (where deploy.sh and the Makefiles look) |
+|---|---|
+| `web` | `yastationd/internal/webui/dist/app/` (not committed) |
+| `yastationd` | `yastationd/build/yastationd` |
+| `hostapd` | `hostapd/build/hostapd` |
+| `sendspin:<arch>` | `sendspin-host/build/<arch>/sendspin-host` |
+| `spotter:<arch>` | `spotter-host/build/<arch>/spotter-host` |
 
+- Each target is a `docker run` of its image with the repo mounted **at its own path** (so the
+  CMake caches of `sendspin-host` stay valid in and out of the container), as the calling user.
+- Caches survive between runs in `${XDG_CACHE_HOME:-~/.cache}/yastation-build` (Go build and
+  module caches, zig's cache; the pnpm store sits in `web/node_modules/`). A warm `yastationd`
+  build takes seconds.
+- `sendspin-host` and `hostapd` fetch their pinned sources on the first build (network needed
+  once); everything else builds offline.
+- `tools/deploy.sh` runs it for what it ships (`NATIVE=1` there builds `yastationd` with the host's
+  own Go instead). `make build` in `yastationd/` still builds natively with a host Go, and the web
+  app through `tools/build-web.sh` (= `build.sh web`).
+
+## The sysroot (spotter-host)
+
+`spotter-host` is the one artifact that cannot be built from this repo alone: it links the vendor
+front-end library. It needs a sysroot per userland arch — a directory with the firmware's `lib/`
+and `system/vendor/quasar/libs/` — from your **`<vendor-repo>`** (`vendor/<board>/<version_full>/`,
+verbatim from that firmware; a private checkout, never published) or pulled off a unit
+([deploying.md](deploying.md) §1). It must match what the units run: the soname set and glibc
+version bind the binary. Name them in `tools/build.env` (gitignored; `tools/build.env.example`):
+
+```sh
+SPOTTER_SYSROOT_ARMHF=/path/to/<vendor-repo>/vendor/bergamot/<version_full>
+SPOTTER_SYSROOT_AARCH64=/path/to/<vendor-repo>/vendor/pickle/<version_full>
 ```
-dist/yastationd                 dist/hostapd
-dist/<arch>/spotter-host        dist/<arch>/sendspin-host
-dist/SHA256SUMS
+
+Without one, `all` and `deploy.sh` skip that arch's spotter-host (the last build is shipped);
+`spotter:<arch>` asked for by name fails.
+
+## A dist for one board
+
+```sh
+VENDOR=/path/to/<vendor-repo> tools/build-dist.sh   # BOARD=orion by default; FW=<version_full>; NO_SENDSPIN=1
 ```
 
-`NO_SENDSPIN=1` skips the music player (its first build fetches sendspin-cpp and its dependencies
-from the internet — the only step that needs network). `VENDOR=<path>` (required) is your
-vendor-tree checkout.
+`build.sh` for that board's arch with its vendor tree as the sysroot, then the artifacts and
+their checksums in `dist/` (gitignored): `yastationd`, `hostapd`, `<arch>/spotter-host`,
+`<arch>/sendspin-host`, `SHA256SUMS`.
 
-Deploying what it produced is the normal `make deploy*` / `tools/deploy.sh` flow: the Makefiles read
-`spotter-host/build/<arch>/spotter-host` and `sendspin-host/build/<arch>/sendspin-host`, which is
-where the in-container build leaves them.
+## Without docker
 
-## Without the container
-
-Install the same versions by hand and run the commands in [deploying.md](deploying.md) §1. Check
-what you have (`go version`, `zig version`, `<arch>-linux-gnu*-gcc --version`) before blaming the
-sources; the current known-good pair is Go 1.22.5 + zig 0.14.1.
+The Makefiles and `spotter-host/build.sh` are the recipes the containers run; with the same
+versions installed by hand they work on a host (`make -C yastationd test build`,
+`make -C sendspin-host`, `make -C hostapd`, `spotter-host/build.sh`). Check `go version`,
+`zig version`, `<arch>-linux-gnu*-gcc --version` before blaming the sources.

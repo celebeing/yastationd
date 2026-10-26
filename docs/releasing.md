@@ -30,11 +30,11 @@ Go through this for everything that landed since the last tag (`git log <last-ta
 4. **Config:** every new key is in `yastationd/configs/yastationd.conf.example` and
    `orion.conf.example`; every new profile key in `docs/porting-a-speaker.md`.
 5. **Builds:** new components have a Makefile target, a row in `docs/building.md`, and a step in
-   the `Dockerfile` / `tools/dist-build-in-container.sh`.
+   a target in `tools/build.sh` (and an image in `docker/` when it needs a new toolchain).
 6. **Vendor repo:** binaries we keep but don't rebuild are recorded there with provenance; units
    whose non-stock files changed are re-snapshotted.
-7. **A fresh clone builds:** `git clone` the repo into a temporary directory and run
-   `make -C yastationd test build` there — local build outputs hide files that never got
+7. **A fresh clone builds:** `git clone` the repo into a temporary directory, copy
+   `tools/build.env` in, and run `tools/build.sh` there — local build outputs hide files that never got
    committed (v0.13.0 shipped without its web app: a `.gitignore` rule had swallowed it). Check
    that the binary carries the app: `curl http://<speaker>/` after the deploy is the app, not the
    "built without its web app" page.
@@ -52,7 +52,7 @@ Go through this for everything that landed since the last tag (`git log <last-ta
 5. The tag push to GitHub runs `.github/workflows/release.yml`: it creates the GitHub Release with
    that version's `CHANGELOG.md` section as the notes (no artifacts yet). Running the workflow by
    hand creates releases for every tag that has none.
-6. Build and deploy (`tools/deploy.sh`, and `make -C sendspin-host` when it changed): the speakers
+6. Build and deploy (`tools/deploy.sh` builds everything it ships): the speakers
    then report the tag.
 
 Grep the diff for private values before pushing, as for every push (`CLAUDE.md`).
