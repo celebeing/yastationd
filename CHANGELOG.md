@@ -3,6 +3,30 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.13.0 — 2026-10-26
+
+A web app on every speaker.
+
+**New**
+- Every speaker serves a web app at `http://<speaker-ip>/` (`http_addr`, default `:80`). Login
+  **admin / yastation** until changed from the app (a PBKDF2 hash in the config). It finds the
+  other speakers by itself and manages all of them from one page: sensors, the runtime controls
+  HA has (the lights stay HA's), a live LED preview, the moments and what each shows, the saved
+  Wi-Fi networks (adding one never touches the connection in use), the config editor and the
+  login, and an update check (the browser asks GitHub; the speakers stay offline).
+  docs/web-ui.md.
+- Saving the config from the app is safe: it is validated first, the speaker restarts with it on
+  trial, and goes back to the old one by itself if it cannot listen or ends up less healthy.
+- Prometheus metrics at `/metrics`.
+- The app is embedded in `yastationd` (a deploy updates it); `make web` rebuilds it, in a pinned
+  container when there is no Node (`tools/build-web.sh`).
+
+**Changed**
+- The Wi-Fi setup page is served by the same web server on the access point's address.
+- The LED preview runs behind the login on the web server (`led_preview`, on by default);
+  `frametap_addr` still opens the standalone tap for development. Dim LEDs are now visible in it,
+  and Station 3's screen is drawn as gapless square cells.
+
 ## v0.12.1 — 2026-10-26
 
 **Fixes and operations**
