@@ -3,6 +3,19 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.14.0 — 2026-10-26
+
+**New**
+- The web app's LED preview plays any of the speaker's screen animations (a filterable list, loop,
+  clear) and its expressions, as the old frame-tap viewer did.
+
+**Fixes and operations**
+- The web app is no longer committed: `make build` (and `tools/deploy.sh`) builds it in the pinned
+  builder container whenever `web/` changed, so the build host needs docker, not Node. A plain
+  `go build` still compiles; that binary serves a page saying it was built without the app.
+- `tools/deploy.sh` / `make deploy`: `SSHKEY` is optional; without it ssh uses the agent and
+  `~/.ssh/config`.
+
 ## v0.13.3 — 2026-10-26
 
 **Fixes and operations**
