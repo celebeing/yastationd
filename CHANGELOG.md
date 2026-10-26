@@ -3,7 +3,9 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.8.3 — 2026-10-26
+
+Volume: orion's stock curve, and a cap for any speaker.
 
 **Features**
 - `volume_max` (yastationd.conf): the loudest a speaker may go, in % of its curve. The percentage
