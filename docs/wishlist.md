@@ -341,3 +341,15 @@ direction from the centroid's path. Open: false triggers from things put on the 
 passing by, whether polling at 50 Hz disturbs the chip's own touch handling, and whether the
 chip's sensitivity (its register settings) could be raised for more range without breaking the
 ring.
+
+## Orion: text on the screen in our own font
+
+**Status:** idea (2026-10-26).
+
+Text on orion's 21×12 screen (`show_text`, the `message` display mode, the marquee) still goes
+through the generic text path drawn for the seg7 displays. Wanted: an override for pixel
+screens that renders text with a bitmap font made for this screen — the clock's fonts are the
+start (4×9 digits, 3×5 small digits, `internal/display/pixelclock.go`), extended with letters
+(Latin and Cyrillic), in perceived intensity with the screen's gamma at the end like the clock,
+a short text centred and a long one scrolled smoothly. Like the volume scene, it would be a
+method on `display.Front` with the seg7 implementation as the fallback.
