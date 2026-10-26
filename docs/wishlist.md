@@ -174,11 +174,7 @@ fight a running daemon over the LEDs, and must keep working when the daemon bina
 
 ## Smoother auto-brightness
 
-The automatic display brightness follows the light sensor through an EMA and a hysteresis
-(`internal/app/brightness.go`); on orion's screen its steps are still visible. Wanted: a slower,
-perceptually even transition — ramp the brightness over a second or two in perceived (log) space
-instead of jumping to each new target, and smooth the reading over a longer window so a hand
-passing over the sensor or a TV flicker does not move it.
+**Status:** done 2026-10-26 (yastationd/README.md, item 5; orion dims through its backlight).
 
 ## Orion's ultrasound rig
 

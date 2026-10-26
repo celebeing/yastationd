@@ -2,34 +2,115 @@ package app
 
 import (
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/celebeing/yastationd/yastationd/internal/board"
 	"github.com/celebeing/yastationd/yastationd/internal/config"
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
 )
 
-// Clock auto-brightness: the light sensor is read every second, smoothed in the log domain (so a
-// hand over the speaker or a passing shadow doesn't flicker the clock), mapped through the
-// configured curve, and applied with a little hysteresis. Off = the manual level from HA.
+// Clock auto-brightness: the light sensor is read every second; a median of the last few
+// readings drops short spikes (a hand over the sensor, a passing shadow, a TV's flash), and an
+// EMA in the log domain smooths what is left. The result goes through the configured curve and,
+// past a little hysteresis, becomes the target. Off = the manual level from HA.
+//
+// The shown level glides to the target in the log domain (perceptually even: a doubling takes
+// as long at the dark end as at the bright one), no faster than brightMaxRate, stepped by the render loop so a frame and its
+// level match. On a screen with a backlight (orion's matrix.backlight) the level is mostly the
+// backlight: frames are drawn near full scale and keep their half-tones, which a dimmed frame
+// loses at the dark end (8-bit drive values collapse); the backlight takes the level rounded up
+// and the frame the remaining fraction (2/3..1), so the level still moves smoothly.
 
 const (
 	luxEvery    = time.Second
-	luxTau      = 4 * time.Second // EMA time constant
-	luxMinLux   = 0.005           // floor before log(): the sensor reads 0 in the dark
-	brightDelta = 0.08            // relative change needed to move the level (and ≥ 1 step)
+	luxMedianN  = 5                // readings in the spike-rejecting median
+	luxTau      = 10 * time.Second // EMA time constant
+	luxMinLux   = 0.005            // floor before log(): the sensor reads 0 in the dark
+	brightDelta = 0.08             // relative change needed to move the target (and ≥ 1 step)
+	brightGlide = time.Second      // the shown level's time constant towards the target
+	// brightMaxRate caps the glide's speed (ln units per second): a big change runs at an even
+	// pace for the eye, a doubling or halving per 1.5 s, however fast the target moved.
+	brightMaxRate = math.Ln2 / 1.5
 )
 
-// brightness is the clock/matrix brightness every display layer uses.
-func (a *App) brightness() int {
+// brightnessTarget is the level the display should reach (1..255): auto from the light sensor
+// when on and read, else the manual level.
+func (a *App) brightnessTarget() float64 {
 	s := a.store.get()
 	if s.ClockAuto && a.luxPath != "" {
-		if v := a.autoBright.Load(); v > 0 {
-			return int(v)
+		if v := math.Float64frombits(a.autoBright.Load()); v > 0 {
+			return v
 		}
 	}
-	return s.ClockBright
+	return float64(max(s.ClockBright, a.prof.Matrix.MinBrightness))
+}
+
+// brightnessCurve is the auto-brightness curve: the configured one, or the default with its
+// darkest point at the board's minimum.
+func brightnessCurve(cfg config.Config, prof board.Profile) []config.CurvePoint {
+	c := cfg.BrightnessCurve
+	if cfg.Has("auto_brightness_curve") || prof.Matrix.MinBrightness <= 0 || len(c) == 0 {
+		return c
+	}
+	c = append([]config.CurvePoint(nil), c...)
+	c[0].Level = prof.Matrix.MinBrightness
+	return c
+}
+
+// stepBrightness moves the shown level towards the target; the render loop calls it once per
+// tick, before drawing.
+func (a *App) stepBrightness(now time.Time) {
+	target := math.Max(a.brightnessTarget(), 1)
+	cur := math.Float64frombits(a.shownBright.Load())
+	if cur <= 0 || a.brightAt.IsZero() {
+		cur = target
+	} else {
+		dt := now.Sub(a.brightAt)
+		k := 1 - math.Exp(-float64(dt)/float64(brightGlide))
+		step := (math.Log(target) - math.Log(cur)) * min(max(k, 0), 1)
+		lim := brightMaxRate * dt.Seconds()
+		cur = math.Exp(math.Log(cur) + min(max(step, -lim), lim))
+		if math.Abs(cur-target) < 0.01 {
+			cur = target
+		}
+	}
+	a.brightAt = now
+	a.shownBright.Store(math.Float64bits(cur))
+}
+
+func (a *App) shownLevel() float64 {
+	if v := math.Float64frombits(a.shownBright.Load()); v > 0 {
+		return v
+	}
+	return math.Max(a.brightnessTarget(), 1)
+}
+
+// splitLevel divides a level (1..255) between a backlight (an integer, rounded up) and the
+// frame's drive scale (0..255) that makes up the rest.
+func splitLevel(level float64) (backlight, drive int) {
+	level = min(max(level, 1), 255)
+	backlight = int(math.Ceil(level - 1e-9))
+	return backlight, int(math.Round(255 * level / float64(backlight)))
+}
+
+// brightness is the drive scale every display layer draws at (0..255): the shown level, or with
+// a backlight its frame part.
+func (a *App) brightness() int {
+	l := a.shownLevel()
+	if a.backlight != nil {
+		_, d := splitLevel(l)
+		return d
+	}
+	return max(int(math.Round(l)), 1)
+}
+
+// backlightFor is the backlight value that goes with the frame being drawn now.
+func (a *App) backlightFor() int {
+	b, _ := splitLevel(a.shownLevel())
+	return b
 }
 
 func (a *App) luxLoop(stop <-chan struct{}) {
@@ -40,7 +121,9 @@ func (a *App) luxLoop(stop <-chan struct{}) {
 		a.log.Warn("lux: configure", "err", err)
 	}
 	alpha := 1 - math.Exp(-float64(luxEvery)/float64(luxTau))
+	curve := brightnessCurve(a.cfg, a.prof)
 	var ema float64
+	var recent []float64
 	have := false
 	t := time.NewTicker(luxEvery)
 	defer t.Stop()
@@ -54,46 +137,61 @@ func (a *App) luxLoop(stop <-chan struct{}) {
 		if err != nil {
 			continue
 		}
-		l := math.Log(math.Max(lx, luxMinLux))
+		recent = append(recent, math.Log(math.Max(lx, luxMinLux)))
+		if len(recent) > luxMedianN {
+			recent = recent[1:]
+		}
+		l := median(recent)
 		if !have {
 			ema, have = l, true
 		} else {
 			ema += alpha * (l - ema)
 		}
 		a.luxSmooth.Store(math.Float64bits(math.Exp(ema)))
-		target := curveLevel(a.cfg.BrightnessCurve, math.Exp(ema))
-		cur := int(a.autoBright.Load())
-		if cur == 0 || moveBrightness(cur, target) {
-			a.autoBright.Store(int32(target))
+		target := curveLevel(curve, math.Exp(ema))
+		cur := math.Float64frombits(a.autoBright.Load())
+		if cur == 0 || moveBrightness(cur, target, a.backlight != nil) {
+			a.autoBright.Store(math.Float64bits(target))
 		}
 	}
 }
 
-// moveBrightness: hysteresis — only follow the target once it differs enough.
-func moveBrightness(cur, target int) bool {
-	d := target - cur
-	if d < 0 {
-		d = -d
+func median(v []float64) float64 {
+	s := append([]float64(nil), v...)
+	sort.Float64s(s)
+	if n := len(s); n%2 == 0 {
+		return (s[n/2-1] + s[n/2]) / 2
 	}
-	return d >= 1 && float64(d) >= brightDelta*float64(cur)
+	return s[len(s)/2]
 }
 
-// curveLevel interpolates the brightness for a light reading on log(lux), clamped at the ends.
-func curveLevel(c []config.CurvePoint, lux float64) int {
+// moveBrightness: hysteresis — follow the target only once it differs enough. Levels that
+// show only as whole steps (no backlight) also need a whole step; with a backlight the level is
+// continuous and the small moves glide unseen.
+func moveBrightness(cur, target float64, continuous bool) bool {
+	d := math.Abs(target - cur)
+	return d >= brightDelta*cur && (continuous || d >= 1)
+}
+
+// curveLevel interpolates the brightness for a light reading between the curve's points,
+// log(level) on log(lux) — even steps for the eye between the calibrated points — clamped at
+// the ends.
+func curveLevel(c []config.CurvePoint, lux float64) float64 {
 	if len(c) == 0 {
 		return 128
 	}
 	if lux <= c[0].Lux {
-		return max(c[0].Level, 1)
+		return float64(max(c[0].Level, 1))
 	}
 	for i := 1; i < len(c); i++ {
 		if lux <= c[i].Lux {
 			p, q := c[i-1], c[i]
 			f := (math.Log(lux) - math.Log(p.Lux)) / (math.Log(q.Lux) - math.Log(p.Lux))
-			return max(int(math.Round(float64(p.Level)+f*float64(q.Level-p.Level))), 1)
+			lp, lq := math.Log(float64(max(p.Level, 1))), math.Log(float64(max(q.Level, 1)))
+			return math.Exp(lp + f*(lq-lp))
 		}
 	}
-	return max(c[len(c)-1].Level, 1)
+	return float64(max(c[len(c)-1].Level, 1))
 }
 
 // HA: switch "Auto brightness" (ON/OFF) and number "Clock brightness" (1..255, manual; setting it

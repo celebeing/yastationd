@@ -1,6 +1,7 @@
 package app
 
 import (
+	"math"
 	"os"
 	"testing"
 
@@ -62,16 +63,18 @@ func TestCurveLevel(t *testing.T) {
 	c := []config.CurvePoint{{Lux: 0.04, Level: 4}, {Lux: 0.55, Level: 128}, {Lux: 10, Level: 255}}
 	for _, k := range []struct {
 		lux  float64
-		want int
+		want float64
 	}{{0, 4}, {0.03, 4}, {0.04, 4}, {0.55, 128}, {80, 255}} {
-		if got := curveLevel(c, k.lux); got != k.want {
-			t.Errorf("curveLevel(%v) = %d, want %d", k.lux, got, k.want)
+		if got := curveLevel(c, k.lux); math.Abs(got-k.want) > 1e-9 {
+			t.Errorf("curveLevel(%v) = %v, want %v", k.lux, got, k.want)
 		}
 	}
-	if mid := curveLevel(c, 0.15); mid <= 4 || mid >= 128 {
-		t.Errorf("curveLevel(0.15) = %d, want between", mid)
+	// Between two points the level is geometric in log(lux): halfway is the geometric mean.
+	if mid := curveLevel(c, math.Sqrt(0.04*0.55)); math.Abs(mid-math.Sqrt(4*128)) > 1e-6 {
+		t.Errorf("curveLevel(mid) = %v, want %v", mid, math.Sqrt(4*128))
 	}
-	if moveBrightness(128, 130) || !moveBrightness(128, 150) || !moveBrightness(4, 5) {
+	if moveBrightness(128, 130, false) || !moveBrightness(128, 150, false) || !moveBrightness(4, 5, false) ||
+		moveBrightness(4, 4.5, false) || !moveBrightness(4, 4.5, true) || moveBrightness(4, 4.1, true) {
 		t.Error("hysteresis")
 	}
 }

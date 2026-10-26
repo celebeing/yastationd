@@ -381,9 +381,14 @@ Three surfaces, every LED a Linux LED class device each mirrored by a framebuffe
   first: it is a continuous sweep through the tens (~20 frames of a clean "10", ~30 of scrolling to
   "20"), so a 5 % level lands mid-scroll, and `rcu_volume/volume_edge/10` shows "10" (the remote's
   0..10 scale) at 100 %.
-- **Low brightness:** gamma 2.2 and then the brightness scale, both in 8 bits, can collapse the
-  dark half-tones; the vendor keeps the screen at `minBrightness` 127 or more and has a
-  backlight node (`/sys/class/backlight/fb1/brightness`) — consider brightness there instead.
+- **Low brightness:** done — the level goes to the screen's backlight
+  (`/sys/class/backlight/fb1/brightness`, 0..255, `matrix.backlight`). A/B on glass
+  (2026-10-26), four bands of 100/50/25/10 % at 16 levels from 255 to 2: dimming the frame (gamma
+  2.2, then the level, both in 8 bits) lost almost every band by the end; a full-scale frame under
+  a dim backlight kept them faintly distinct down to 2. The backlight takes the level rounded up,
+  the frame the rest (2/3..full scale), and is written one frame late (the screen shows a write
+  late). The vendor never goes below 127 on it (quasar.cfg `brightness.minBrightness`); we go
+  down to `matrix.min_brightness` 2. The frame tap shows frames scaled by the backlight.
 - **Tooling:** the browser preview and the host simulator, [led-preview.md](../led-preview.md).
 - **Volume curve:** done — the stock `platformToAlsaMap` in the profile's `audio.volume_map`
   (plus a 5 % point), on top of hardvold's own curves.

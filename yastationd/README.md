@@ -188,6 +188,15 @@ reports local changes back. Volume key ticks are skipped while music plays. Desi
    publishes the smoothed reading. **Sensors differ a lot between units** (same daylight: 0.48 /
    10.8 / 18.7 on the three speakers) — set a per-unit `auto_brightness_curve` if a speaker
    doesn't dim at night; calibrate from its `Illuminance` history.
+   **Smoother since 2026-10-26:** a 5-reading median drops spikes (a hand over the sensor), the
+   EMA is τ 10 s, the curve interpolates log(level) on log(lux) (even for the eye between its
+   points), and the shown level glides to the target in log space (τ 1 s, no faster than a
+   doubling per 1.5 s) instead of jumping; the hysteresis is 8 % (with a whole step only where
+   levels are whole steps). The curve's darkest point defaults to the board's
+   `matrix.min_brightness` (bergamot, pickle 4; orion 2), which also floors the manual level.
+   On orion the level goes to the screen's backlight (`matrix.backlight`), with the frame at
+   2/3..full scale making up the fraction: a dimmed frame lost its half-tones at the dark end,
+   a dim backlight keeps them (A/B on glass).
 6. **Demo / self-test mode** (future): triggerable from HA and after first setup — cycles ring
    effects and matrix, plays test sounds, reacts distinctly to each button, so every function can be
    checked end-to-end. `cmd/ringdemo` is the seed of it.

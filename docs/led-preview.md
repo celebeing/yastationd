@@ -79,6 +79,9 @@ units only. It listens on all interfaces (`:8930`); the egress lock filters only
 
 ## Limits
 
+- On a screen with a backlight (orion) the tap shows each frame scaled by the backlight value
+  written with it, so the preview dims like the glass; the framebuffer itself holds the frame at
+  2/3..full scale.
 - What the tap shows is what the daemon writes, not what the glass emits: the gowin screen's
   one-write lag, the LED drivers' current coefficients and the per-unit case colour are not
   modelled. Glass comparisons are by eye.

@@ -28,7 +28,8 @@ ambilight_brightness = 64
 clock_brightness     = 128
 auto_brightness      = true
 # Sensor reading -> front-display brightness. Calibrate from HA Illuminance history per unit.
-auto_brightness_curve = 0.04:4, 0.55:128, 10:255
+# Default: 0.04:<board minimum>, 0.55:128, 10:255 (the minimum is the profile's matrix.min_brightness).
+# auto_brightness_curve = 0.04:2, 0.55:128, 10:255
 
 # --- physical controls / audio ---
 # One step is one stock 5% level. The outer circular groove accumulates 20 steps per revolution.

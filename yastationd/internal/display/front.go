@@ -252,6 +252,19 @@ func ScreenPixels(f FrontFrame, w, h int, k float64) []hw.RGB {
 	return out
 }
 
+// ScalePixels is px as seen under a backlight at bl (1..255), for previews; bl 0 (no backlight)
+// returns px as is.
+func ScalePixels(px []hw.RGB, bl int) []hw.RGB {
+	if bl <= 0 || bl >= 255 {
+		return px
+	}
+	out := make([]hw.RGB, len(px))
+	for i, p := range px {
+		out[i] = p.Scale(bl)
+	}
+	return out
+}
+
 // validAnimName accepts a pattern name relative to a library directory: no absolute path, no
 // "..", no backslash, no hidden files.
 func validAnimName(n string) bool {

@@ -82,8 +82,12 @@ type App struct {
 	luxPath string
 	pdDir   string // USB-C PD sink in sysfs ("" = none)
 
-	autoBright atomic.Int32  // current auto clock brightness (0 = no reading yet)
-	luxSmooth  atomic.Uint64 // smoothed light reading (float64 bits), published to HA
+	autoBright  atomic.Uint64 // auto clock brightness target (float64 bits; 0 = no reading yet)
+	shownBright atomic.Uint64 // the level shown now (float64 bits), gliding to the target
+	brightAt    time.Time     // last stepBrightness; render goroutine only
+	backlight   *hw.Backlight // the front screen's backlight; nil = dim the frames
+	blPrev      int           // the backlight of the frame written last; render goroutine only
+	luxSmooth   atomic.Uint64 // smoothed light reading (float64 bits), published to HA
 
 	baseFx    display.RenderFunc[display.RingFrame] // ring effect layer; render goroutine only
 	baseFxKey string
@@ -163,6 +167,9 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 		topics:    mqtt.NewTopics(cfg.TopicPrefix, cfg.DiscoveryPrefix, cfg.DeviceID),
 		store:     newStateStore(cfg.Path(cfg.StateFile), initialState(cfg, prof)),
 		luxPath:   cfg.LuxPath,
+	}
+	if screen != nil && prof.Matrix.Backlight != "" {
+		a.backlight = hw.NewBacklight(cfg.Path(prof.Matrix.Backlight))
 	}
 	if a.luxPath == "" {
 		a.luxPath = hw.FindLux(cfg.SysRoot, prof.Lux.IIOPrefix)
@@ -520,10 +527,14 @@ func (a *App) renderLoop(stop <-chan struct{}) {
 		case <-stop:
 			return
 		case now := <-screenTick:
+			a.stepBrightness(now)
 			if err := a.showScreen(a.matrixStack.Frame(now), fade.Level(now, a.matrixStack.Top())); err != nil {
 				a.log.Debug("matrix show", "err", err)
 			}
 		case now := <-t.C:
+			if screenTick == nil {
+				a.stepBrightness(now)
+			}
 			rf := a.ringStack.Frame(now)
 			if err := a.ring.Show(rf); err != nil {
 				a.log.Debug("ring show", "err", err)
@@ -554,8 +565,21 @@ func (a *App) showScreen(frame display.FrontFrame, k float64) error {
 	if px == nil {
 		return fmt.Errorf("dot-matrix %dx%d is too small for display font", w, h)
 	}
-	a.tap.Screen(px)
-	return a.screen.Show(px)
+	bl := 0
+	if a.backlight != nil {
+		bl = a.backlightFor()
+	}
+	a.tap.Screen(display.ScalePixels(px, bl))
+	err := a.screen.Show(px)
+	if a.backlight != nil {
+		// The screen shows a frame one write late: this write put the previous frame up, so its
+		// backlight goes with it now.
+		if a.blPrev > 0 {
+			a.backlight.Set(a.blPrev)
+		}
+		a.blPrev = bl
+	}
+	return err
 }
 
 // onMQTTConnect re-publishes discovery and the current state on every (re)connect.

@@ -103,6 +103,12 @@ type MatrixSpec struct {
 	Gamma   float64 // dotmatrix-fb: gamma applied to the firmware's screen patterns; 0 = none
 	// DefaultMode is the display mode of a fresh state (before HA sets one); "" = clock.
 	DefaultMode string
+	// Backlight: a dotmatrix-fb screen's sysfs backlight brightness (0..255) that dims it as a
+	// whole; the display brightness then goes there and frames keep their half-tones.
+	Backlight string
+	// MinBrightness is the dimmest level still usable in the dark (1..255): the default
+	// auto-brightness curve's darkest point, and the floor of the manual level. 0 = 1.
+	MinBrightness int
 }
 
 // InputSpec: evdev devices by their kernel name (from /proc/bus/input/devices) and what their
@@ -330,6 +336,10 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Matrix.Degree = v
 	case k == "matrix.gamma":
 		p.Matrix.Gamma, err = strconv.ParseFloat(v, 64)
+	case k == "matrix.min_brightness":
+		p.Matrix.MinBrightness, err = strconv.Atoi(v)
+	case k == "matrix.backlight":
+		p.Matrix.Backlight = v
 	case k == "matrix.default_mode":
 		switch v {
 		case "clock", "clock_date", "off":
