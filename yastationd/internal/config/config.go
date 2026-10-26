@@ -105,6 +105,12 @@ type Config struct {
 	// word off; never sends audio.
 	RoomSound bool
 
+	// Wake-word arbitration (docs/wake-arbitration.md): speakers that hear the same «Алиса» agree
+	// over MQTT which one answers — the loudest. ArbitrationWait is the longest a quiet claim
+	// waits for louder ones.
+	Arbitration     bool
+	ArbitrationWait time.Duration
+
 	// Logs off the speaker (internal/logship): the daemon's and the system's log lines go as
 	// syslog over TCP to LogRemote ("host:port"; "" = off); while it is unreachable they wait in
 	// a spool file on flash capped at LogSpoolKB.
@@ -269,6 +275,8 @@ func Default() Config {
 		WakeEnabled:         true,
 		RoomSound:           true,
 		LogSpoolKB:          1024,
+		Arbitration:         true,
+		ArbitrationWait:     700 * time.Millisecond,
 		NetWatchdog:         10 * time.Minute,
 		SpotterBin:          cfw + "/bin/spotter-host",
 		ReplyTimeout:        90 * time.Second,
@@ -413,6 +421,12 @@ func (c *Config) set(k, v string) error {
 		}
 	case "room_sound":
 		c.RoomSound, err = strconv.ParseBool(v)
+	case "arbitration":
+		c.Arbitration, err = strconv.ParseBool(v)
+	case "arbitration_wait_ms":
+		var n int
+		n, err = atoiRange(v, 100, 3000)
+		c.ArbitrationWait = time.Duration(n) * time.Millisecond
 	case "log_remote":
 		c.LogRemote = v
 	case "log_spool_kb":

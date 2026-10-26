@@ -11,7 +11,8 @@ need checking against our doctrine before reuse. Both projects are MIT.
 
 ## Nearest speaker answers (wake-word arbitration)
 
-**Status:** idea; no need felt yet (several speakers, but no double answers reported so far).
+**Status:** built 2026-10-26 — [wake-arbitration.md](wake-arbitration.md). The notes below are
+the background it was designed from.
 
 When several speakers hear the wake word, only the closest should answer. Without arbitration HA's
 own `duplicate_wake_up_detected` (first phrase per ~2 s wins across satellites) picks whichever

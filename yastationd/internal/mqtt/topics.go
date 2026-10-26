@@ -51,5 +51,8 @@ func (t Topics) IntercomInfoID(topic string) string {
 	return id
 }
 
+// Arbitration is the shared topic where speakers that heard a wake word post their claims.
+func (t Topics) Arbitration() string { return fmt.Sprintf("%s/arbitration", t.prefix) }
+
 // DisplayCmd is the one-shot overlay command topic (JSON {surface,op,args,ttl_ms,priority}).
 func (t Topics) DisplayCmd() string { return fmt.Sprintf("%s/%s/display/cmd", t.prefix, t.id) }

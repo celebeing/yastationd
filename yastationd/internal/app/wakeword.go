@@ -90,14 +90,25 @@ func (a *App) onWakeEvent(ev wake.Event) {
 			}
 		default:
 			a.log.Info("wake: detected", "phrase", ev.Phrase, "at", ev.At)
-			a.publishButton("wake_word")
-			a.sat.startListening(srcWake)
+			if a.arbitrationOn() {
+				a.arbitrateWake() // the loudest of the speakers that heard it answers
+				return
+			}
+			a.startWake()
 		}
 	case "CMD":
 		a.onCommand(ev.Phrase)
 	default:
 		a.log.Debug("wake: near miss", "kind", ev.Kind, "phrase", ev.Phrase)
 	}
+}
+
+// startWake starts the session for a wake word; startWakeWith with the speech held meanwhile.
+func (a *App) startWake() { a.startWakeWith(nil) }
+
+func (a *App) startWakeWith(held *heldWake) {
+	a.publishButton("wake_word")
+	a.sat.startListeningWith(srcWake, held)
 }
 
 // speaking: our speaker is busy (local playback, a Wyoming stream from HA, or the alarm).
@@ -116,6 +127,11 @@ func (a *App) speaking() bool {
 // from household talk out of the rest of the day.
 func (a *App) onCommand(phrase string) {
 	if a.icCommand(phrase) {
+		return
+	}
+	if isStop(phrase) && a.sat.abortFollowUp("«"+phrase+"» during a follow-up") {
+		a.log.Info("command: follow-up cancelled", "phrase", phrase)
+		a.express("voice", "blink", 0)
 		return
 	}
 	if !a.speaking() {

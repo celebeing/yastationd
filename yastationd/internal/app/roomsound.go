@@ -51,8 +51,19 @@ type roomSound struct {
 	mu     sync.Mutex
 	sum    float64 // the current block's energy
 	n      int
-	levels []float64 // the minute's block levels (dBFS)
-	total  int       // blocks this minute, kept or not
+	levels []float64                 // the minute's block levels (dBFS)
+	total  int                       // blocks this minute, kept or not
+	recent [recentBlocks]recentLevel // every block of the last seconds, ring (wake arbitration)
+	head   int
+	floor  float64 // the last minute's floor (dBFS), 0 = none yet
+}
+
+// recentBlocks: the last 2 s of 20 ms blocks.
+const recentBlocks = 100
+
+type recentLevel struct {
+	at   time.Time
+	dBFS float64
 }
 
 func newRoomSound(rate, channels, channel int, skip func() bool) *roomSound {
@@ -72,12 +83,44 @@ func (r *roomSound) feed(raw []byte) {
 		r.n++
 		if r.n == per {
 			r.total++
+			lv := dbfs(r.sum / float64(r.n))
+			r.recent[r.head] = recentLevel{time.Now(), lv}
+			r.head = (r.head + 1) % recentBlocks
 			if !r.skip() {
-				r.levels = append(r.levels, dbfs(r.sum/float64(r.n)))
+				r.levels = append(r.levels, lv)
 			}
 			r.sum, r.n = 0, 0
 		}
 	}
+}
+
+// peak is the level of a sound that just ended — the wake word: the energy average of the
+// loudest blocks of the last span, in dBFS, and how far it stands above the room's floor
+// (0 when no floor is known yet). ok is false with no blocks in the span.
+func (r *roomSound) peak(span time.Duration, loudest int) (level, overFloor float64, ok bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	since := time.Now().Add(-span)
+	var lv []float64
+	for _, b := range r.recent {
+		if !b.at.IsZero() && b.at.After(since) {
+			lv = append(lv, b.dBFS)
+		}
+	}
+	if len(lv) == 0 {
+		return 0, 0, false
+	}
+	sort.Sort(sort.Reverse(sort.Float64Slice(lv)))
+	lv = lv[:min(loudest, len(lv))]
+	var e float64
+	for _, v := range lv {
+		e += math.Pow(10, v/10)
+	}
+	level = math.Max(10*math.Log10(e/float64(len(lv))), roomSilentDB)
+	if r.floor != 0 {
+		overFloor = level - r.floor
+	}
+	return level, overFloor, true
 }
 
 // roomStats is one minute's result; ok is false when too little of it was the room.
@@ -93,7 +136,13 @@ func (r *roomSound) take() roomStats {
 	lv, total := r.levels, r.total
 	r.levels, r.total = nil, 0
 	r.mu.Unlock()
-	return minuteStats(lv, total)
+	st := minuteStats(lv, total)
+	if st.ok {
+		r.mu.Lock()
+		r.floor = st.floor
+		r.mu.Unlock()
+	}
+	return st
 }
 
 func minuteStats(lv []float64, total int) roomStats {
@@ -161,10 +210,14 @@ func (a *App) roomSoundEnabled() bool {
 	return a.cfg.RoomSound && a.prof.Mic.Device != ""
 }
 
+// micLevelsNeeded: the mic's levels feed the room sensors and the wake arbitration.
+func (a *App) micLevelsNeeded() bool {
+	return (a.cfg.RoomSound || a.cfg.Arbitration) && a.prof.Mic.Device != ""
+}
+
 // roomSoundLoop measures while it runs (it keeps the mic open) and publishes once a minute.
 func (a *App) roomSoundLoop(stop <-chan struct{}) {
-	p := a.prof.Mic
-	r := newRoomSound(p.Rate, p.Channels, p.Voice, func() bool { return a.speaking() || a.micMuted() })
+	r := a.room
 	unsub := a.mic.SubscribeRaw(r.feed)
 	defer unsub()
 	gates := map[string]*changeGate{"sound_floor": {}, "sound_level": {}, "sound_activity": {}}
@@ -186,7 +239,7 @@ func (a *App) roomSoundLoop(stop <-chan struct{}) {
 			a.log.Debug("room sound", "floor", st.floor, "level", st.level,
 				"over3", st.over[0], "over6", st.over[1], "over10", st.over[2])
 		}
-		if a.mqtt == nil {
+		if a.mqtt == nil || !a.roomSoundEnabled() {
 			continue
 		}
 		now := time.Now()

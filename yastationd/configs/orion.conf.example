@@ -51,6 +51,9 @@ wyoming_port = 10700
 # Room sound sensors for HA (Sound floor / level / activity: mic levels once a minute, never
 # audio); they keep the mic open even with the wake word off.
 # room_sound = true
+# Speakers that hear one «Алиса» agree which answers: the loudest (docs/wake-arbitration.md).
+# arbitration = true
+# arbitration_wait_ms = 700
 # This speaker's own sensor calibrations, over the board's (docs/sensor-calibration.md):
 # lux_calibration = <reading>:<lux>, <reading>:<lux>
 # mic_spl_offset  = <dB SPL - dBFS>

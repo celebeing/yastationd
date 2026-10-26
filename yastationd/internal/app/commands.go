@@ -51,6 +51,7 @@ func (a *App) subscribe() {
 		a.mqtt.Subscribe(topic, fn)
 	}
 	a.intercomSubscribe()
+	a.mqtt.Subscribe(t.Arbitration(), a.onArbitrationClaim)
 }
 
 // ring: HA JSON light schema {state, brightness, color:{r,g,b}, effect}.

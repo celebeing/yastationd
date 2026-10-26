@@ -44,6 +44,7 @@ type voiceSession struct {
 	speech    chan struct{} // closed when HA's VAD heard speech (voice-started)
 	speechOne sync.Once
 	lvl       hw.LevelMeter // what we sent, to judge mic gain
+	src       string        // what started it (srcKey, srcWake, srcFollow)
 }
 
 // heldWake is a wake word that interrupted a pending reply: its speech is buffered while the
@@ -96,9 +97,15 @@ func (s *satellite) startListeningWith(src string, held *heldWake) {
 	if a.stopVideo("voice") { // its sound would drown the request
 		a.publishDisplayMode()
 	}
+	drop := func() { // not starting: the held speech goes nowhere
+		if held != nil && held.unsub != nil {
+			held.unsub()
+		}
+	}
 	s.mu.Lock()
 	if v := s.listen; v != nil {
 		s.mu.Unlock()
+		drop()
 		if src == srcKey {
 			s.stopListening(v, "key pressed again")
 		}
@@ -108,15 +115,17 @@ func (s *satellite) startListeningWith(src string, held *heldWake) {
 	s.mu.Unlock()
 
 	if a.micMuted() {
+		drop()
 		a.express("voice", "mute", errorTTL)
 		return
 	}
 	if c == nil {
+		drop()
 		a.log.Warn("voice: no HA satellite connection")
 		a.voiceUnavailable()
 		return
 	}
-	v := &voiceSession{conn: c, done: make(chan struct{}), started: make(chan struct{}), speech: make(chan struct{})}
+	v := &voiceSession{conn: c, done: make(chan struct{}), started: make(chan struct{}), speech: make(chan struct{}), src: src}
 	s.mu.Lock()
 	s.listen = v
 	s.mu.Unlock()
@@ -199,6 +208,22 @@ func (s *satellite) dropConn(why string) {
 		s.a.log.Info("wyoming: dropping HA's connection", "why", why)
 		c.Close()
 	}
+}
+
+// abortFollowUp: «стоп» while a dialog follow-up listens means "no more questions", not a
+// request: end the session and drop the connection before HA turns it into one (it took a lone
+// "Stop." for "cancel the timers"). After a wake word «стоп» may be part of the request, so only
+// follow-ups are cut.
+func (s *satellite) abortFollowUp(why string) bool {
+	s.mu.Lock()
+	v := s.listen
+	s.mu.Unlock()
+	if v == nil || v.src != srcFollow {
+		return false
+	}
+	s.dropConn(why)
+	s.stopListening(v, why)
+	return true
 }
 
 // cancelReply gives up on the pending reply (timeout or «стоп»): drop the connection, which is

@@ -67,6 +67,8 @@ type App struct {
 	combo     keyCombo
 	ic        *icState         // intercom; nil when off
 	ship      *logship.Shipper // logs to the LAN syslog server; nil when off
+	room      *roomSound       // mic levels (room sensors, arbitration); nil when not needed
+	arb       arbiter
 
 	ringStack   *display.Stack[display.RingFrame]
 	matrixStack *display.Stack[display.FrontFrame]
@@ -430,7 +432,9 @@ func (a *App) Run(ctx context.Context) error {
 		go a.ship.Run(stop)
 	}
 	go a.netWatchLoop(stop)
-	if a.roomSoundEnabled() {
+	if a.micLevelsNeeded() {
+		p := a.prof.Mic
+		a.room = newRoomSound(p.Rate, p.Channels, p.Voice, func() bool { return a.speaking() || a.micMuted() })
 		go a.roomSoundLoop(stop)
 	}
 	if a.clock != nil {
