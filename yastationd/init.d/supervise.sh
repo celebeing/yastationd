@@ -19,6 +19,7 @@ CFW=${YASTATIOND_CFW:-/bkupgrade/cfw}; [ -d "$CFW" ] || CFW=/data/cfw
 BIN=$CFW/bin/yastationd
 CONF=$CFW/yastationd.conf
 OFF=$CFW/yastationd_off
+TRIAL=$CFW/config.trial
 LOG=${YASTATIOND_LOG:-/tmp/yastationd.log}
 MAXLOG=${MAXLOG:-1000000}
 LONG=${LONG:-300}
@@ -80,6 +81,18 @@ while [ ! -f "$OFF" ]; do
 	CHILD=
 	up=$(($(uptime_s) - t0))
 	echo "=== exit $rc after ${up}s $(date)" >> "$LOG"
+
+	# A config saved from the web UI is on trial (docs/web-ui.md): the daemon removes the marker
+	# once it has run a minute; a crash before that puts the previous config back.
+	if [ -f "$TRIAL" ] && [ "$rc" -ne 0 ]; then
+		if [ -f "$CONF.bak" ] && cp -p "$CONF.bak" "$CONF.restore" && mv -f "$CONF.restore" "$CONF"; then
+			say "the config on trial crashed the daemon (rc $rc); restored $CONF.bak"
+		fi
+		rm -f "$TRIAL"
+		fails=0 backoff=$BACKOFF_MIN
+		nap 1
+		continue
+	fi
 
 	if [ "$up" -ge "$LONG" ]; then
 		fails=0 swapped=0 backoff=$BACKOFF_MIN

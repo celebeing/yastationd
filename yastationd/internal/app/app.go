@@ -393,7 +393,10 @@ func (a *App) Run(ctx context.Context) error {
 	}
 	a.publishAllState() // fills the state mirror for the web too, broker or not
 	if a.cfg.HTTPAddr != "" {
-		a.startWeb(ctx)
+		if err := a.startWeb(ctx); err != nil {
+			a.log.Warn("web: cannot listen", "addr", a.cfg.HTTPAddr, "err", err)
+			a.trialFailed("the web server cannot listen on " + a.cfg.HTTPAddr)
+		}
 	}
 
 	if a.setup != nil {
@@ -439,6 +442,7 @@ func (a *App) Run(ctx context.Context) error {
 		go a.ship.Run(stop)
 	}
 	go a.netWatchLoop(stop)
+	go a.configTrialLoop(stop)
 	if a.micLevelsNeeded() {
 		p := a.prof.Mic
 		a.room = newRoomSound(p.Rate, p.Channels, p.Voice, func() bool { return a.speaking() || a.micMuted() })
@@ -461,8 +465,9 @@ func (a *App) Run(ctx context.Context) error {
 	if a.cfg.WyomingPort > 0 {
 		wy = &wyoming.Server{Handler: a.sat, Log: a.log}
 		go func() {
-			if err := wy.Serve(":" + strconv.Itoa(a.cfg.WyomingPort)); err != nil {
+			if err := wy.Serve(":" + strconv.Itoa(a.cfg.WyomingPort)); err != nil && ctx.Err() == nil {
 				a.log.Error("wyoming server", "err", err)
+				a.trialFailed("the Wyoming server cannot listen")
 			}
 		}()
 	}

@@ -432,6 +432,13 @@ func (c *Config) set(k, v string) error {
 	case "room_sound":
 		c.RoomSound, err = strconv.ParseBool(v)
 	case "http_addr":
+		if v != "" {
+			_, port, perr := net.SplitHostPort(v)
+			n, aerr := strconv.Atoi(port)
+			if perr != nil || aerr != nil || n < 1 || n > 65535 {
+				err = fmt.Errorf("want [host]:port, e.g. :80")
+			}
+		}
 		c.HTTPAddr = v
 	case "web_user":
 		if v == "" {

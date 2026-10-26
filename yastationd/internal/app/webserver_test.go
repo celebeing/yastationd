@@ -10,8 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/celebeing/yastationd/yastationd/internal/config"
+	"github.com/celebeing/yastationd/yastationd/internal/health"
 	"github.com/celebeing/yastationd/yastationd/internal/mqtt"
 	"github.com/celebeing/yastationd/yastationd/internal/web"
 )
@@ -25,6 +27,7 @@ func newWebApp(t *testing.T) (*App, *httptest.Server) {
 		topics: mqtt.NewTopics("yastation", "homeassistant", "t1"),
 		store:  newStateStore("", defaultState(128, 128, 128, false))}
 	a.builder = mqtt.NewBuilder(a.topics, mqtt.Device{Name: "t"})
+	a.hmon = health.New("", nil)
 	a.web.tokens.TTL = tokenTTL
 	a.web.user = cfg.WebUser
 	a.publishBrightness()
@@ -132,5 +135,51 @@ func TestWebMetricsAndInfo(t *testing.T) {
 	code, out := call(t, "GET", srv.URL+"/api/info", "", "")
 	if code != 200 || out["id"] != "t1" {
 		t.Fatalf("info: %d %v", code, out)
+	}
+}
+
+func TestWebConfigTrial(t *testing.T) {
+	a, srv := newWebApp(t)
+	a.prof.Platform.CFWRoot = filepath.Dir(a.cfg.File)
+	quit := make(chan struct{})
+	a.quit = func() { close(quit) }
+	_, out := call(t, "POST", srv.URL+"/api/login", "", `{"user":"admin","password":"yastation"}`)
+	tok := out["token"].(string)
+
+	code, out := call(t, "GET", srv.URL+"/api/config", tok, "")
+	if code != 200 || out["text"] != "device_id = t1\n" {
+		t.Fatalf("get: %d %v", code, out)
+	}
+	if code, out := call(t, "PUT", srv.URL+"/api/config", tok, `{"text":"volume_max = 300\n"}`); code != 422 || !strings.Contains(out["error"].(string), "line 1") {
+		t.Fatalf("a bad config is refused with its line: %d %v", code, out)
+	}
+	if b, _ := os.ReadFile(a.cfg.File); string(b) != "device_id = t1\n" {
+		t.Fatal("nothing written on a refusal")
+	}
+	if code, out := call(t, "PUT", srv.URL+"/api/config", tok, `{"text":"device_id = t2\n"}`); code != 200 || out["restarting"] != true {
+		t.Fatalf("save: %d %v", code, out)
+	}
+	if b, _ := os.ReadFile(a.cfg.File); string(b) != "device_id = t2\n" {
+		t.Fatalf("saved: %q", b)
+	}
+	if b, _ := os.ReadFile(a.cfg.File + ".bak"); string(b) != "device_id = t1\n" {
+		t.Fatalf("bak: %q", b)
+	}
+	if _, err := os.Stat(a.trialMarker()); err != nil {
+		t.Fatal("trial marker")
+	}
+	select {
+	case <-quit:
+	case <-time.After(3 * time.Second):
+		t.Fatal("the daemon restarts after a save")
+	}
+	// A failing trial (a server that cannot listen) puts the old config back.
+	a.quit = func() {}
+	a.trialFailed("test")
+	if b, _ := os.ReadFile(a.cfg.File); string(b) != "device_id = t1\n" {
+		t.Fatalf("rolled back: %q", b)
+	}
+	if _, err := os.Stat(a.trialMarker()); err == nil {
+		t.Fatal("marker removed")
 	}
 }

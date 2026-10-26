@@ -1,7 +1,8 @@
 # The web UI: one server per speaker, one app for all of them
 
-**Status:** designed 2026-10-26; phase 1 (server, login, API, metrics, discovery, the setup page
-under the same server) built the same day; the rest in phases (below).
+**Status:** designed 2026-10-26; phases 1 (server, login, API, metrics, discovery, the setup page
+under the same server) and 2 (the config editor's API with the trial; tested on Station 3 with
+a config that broke Wyoming — rolled back in 3 s — and a good one — accepted) built the same day; the rest in phases (below).
 
 Every speaker runs one HTTP server in `yastationd`. It serves a static front-end app (built from
 `web/`, embedded in the binary), a JSON API behind a login, Prometheus metrics, and — moved here —
@@ -71,9 +72,12 @@ publishes. The web uses the same three, nothing is described twice:
    written.
 2. The current file is kept as `yastationd.conf.bak`, the new one written atomically, and a trial
    marker `<cfw>/config.trial` left; the daemon exits and the supervisor starts it again.
-3. A daemon that comes up and runs 60 s removes the marker. If it crashes while the marker is
-   there, the supervisor puts the `.bak` back, removes the marker and logs it — a bad config costs
-   one restart, never the speaker.
+3. The marker holds the speaker's health before the save. The new config is accepted after a
+   minute only if the speaker is at least as healthy (broker, HA's pipeline); a server that cannot
+   listen (the web, Wyoming) fails it at once. A failing trial puts the `.bak` back, removes the
+   marker and restarts; a daemon that crashes on trial gets the same from the supervisor. A bad
+   config costs a restart, never the speaker. (Found on glass: `http_addr = :10700` passed the
+   parser, the web took Wyoming's port and HA lost the satellite — hence health, not just "up".)
 4. Wi-Fi: networks can only be added from a running speaker; removing or changing one stays in the
    setup mode (the access point), which is the safe place to lose the client connection.
 

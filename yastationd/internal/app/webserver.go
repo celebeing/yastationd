@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/celebeing/yastationd/yastationd/internal/config"
+	"github.com/celebeing/yastationd/yastationd/internal/health"
 	"github.com/celebeing/yastationd/yastationd/internal/timesync"
 	"github.com/celebeing/yastationd/yastationd/internal/version"
 	"github.com/celebeing/yastationd/yastationd/internal/web"
@@ -51,12 +52,15 @@ type peerInfo struct {
 	Seen    int64  `json:"seen,omitempty"` // unix s, when this speaker last heard it
 }
 
-// startWeb serves until ctx ends.
-func (a *App) startWeb(ctx context.Context) {
+// startWeb listens (an error when it cannot) and serves until ctx ends.
+func (a *App) startWeb(ctx context.Context) error {
 	a.web.tokens.TTL = tokenTTL
 	a.web.user, a.web.password = a.cfg.WebUser, a.cfg.WebPassword
-	srv := &http.Server{Addr: a.cfg.HTTPAddr, Handler: a.webHandler(),
-		ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
+	ln, err := net.Listen("tcp", a.cfg.HTTPAddr)
+	if err != nil {
+		return err
+	}
+	srv := &http.Server{Handler: a.webHandler(), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 	go func() {
 		<-ctx.Done()
 		sctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -65,10 +69,11 @@ func (a *App) startWeb(ctx context.Context) {
 	}()
 	go func() {
 		a.log.Info("web: listening", "addr", a.cfg.HTTPAddr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			a.log.Warn("web: server stopped", "err", err)
 		}
 	}()
+	return nil
 }
 
 func (a *App) webHandler() http.Handler {
@@ -79,6 +84,7 @@ func (a *App) webHandler() http.Handler {
 	api.HandleFunc("/api/state", a.authed(a.apiState))
 	api.HandleFunc("/api/control/", a.authed(a.apiControl))
 	api.HandleFunc("/api/password", a.authed(a.apiPassword))
+	api.HandleFunc("/api/config", a.authed(a.apiConfig))
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", cors(api))
@@ -430,4 +436,120 @@ func metricName(s string) string {
 		}
 	}
 	return string(b)
+}
+
+// The config editor (docs/web-ui.md, "Saving the config"): the file's text in, validated by the
+// daemon's own parser, saved with the old one as .bak and a trial marker, then the daemon
+// restarts. It removes the marker after configTrial up; a crash before that makes the supervisor
+// put the .bak back.
+
+const configTrial = time.Minute
+
+func (a *App) trialMarker() string {
+	return a.cfg.Path(a.prof.Platform.CFWRoot + "/config.trial")
+}
+
+func (a *App) apiConfig(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		b, err := os.ReadFile(a.cfg.File)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		_, terr := os.Stat(a.trialMarker())
+		writeJSON(w, http.StatusOK, map[string]any{"file": a.cfg.File, "text": string(b), "trial": terr == nil})
+	case http.MethodPut:
+		var in struct{ Text string }
+		if json.NewDecoder(io.LimitReader(r.Body, 256<<10)).Decode(&in) != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad request"})
+			return
+		}
+		if _, err := config.Parse(strings.NewReader(in.Text)); err != nil {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			return
+		}
+		old, err := os.ReadFile(a.cfg.File)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		if string(old) == in.Text {
+			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "restarting": false})
+			return
+		}
+		if err := a.saveConfigTrial(old, []byte(in.Text)); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		a.log.Info("web: config saved, restarting on trial", "bytes", len(in.Text))
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "restarting": true})
+		go func() {
+			time.Sleep(500 * time.Millisecond) // the reply goes out first
+			if a.quit != nil {
+				a.quit() // exits 0; the supervisor starts us again with the new config
+			}
+		}()
+	default:
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "GET or PUT"})
+	}
+}
+
+func (a *App) saveConfigTrial(old, data []byte) error {
+	if err := os.WriteFile(a.cfg.File+".bak", old, 0o600); err != nil {
+		return err
+	}
+	tmp := a.cfg.File + ".new"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return err
+	}
+	// The marker holds the health before the save: the new config must do at least as well.
+	if err := os.WriteFile(a.trialMarker(), []byte(strconv.Itoa(int(a.hmon.State()))), 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, a.cfg.File)
+}
+
+// configTrialLoop judges a config on trial after configTrial: accepted when the speaker is at least
+// as healthy (broker, HA's pipeline) as before the save, else rolled back.
+func (a *App) configTrialLoop(stop <-chan struct{}) {
+	b, err := os.ReadFile(a.trialMarker())
+	if err != nil {
+		return
+	}
+	before, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	if err != nil {
+		before = int(health.OfflineNoLAN) // no record: anything goes
+	}
+	a.log.Info("config: on trial", "for", configTrial, "health_before", health.State(before).String())
+	select {
+	case <-stop:
+		return
+	case <-time.After(configTrial):
+	}
+	if now := a.hmon.State(); int(now) > before {
+		a.trialFailed("health " + now.String() + ", was " + health.State(before).String())
+		return
+	}
+	os.Remove(a.trialMarker())
+	a.log.Info("config: accepted")
+}
+
+// trialFailed rolls a config on trial back (no-op when none is): the .bak goes back, the marker
+// goes, the daemon restarts.
+func (a *App) trialFailed(why string) {
+	if _, err := os.Stat(a.trialMarker()); err != nil {
+		return
+	}
+	a.log.Error("config: the config on trial fails, rolling back", "why", why)
+	if old, err := os.ReadFile(a.cfg.File + ".bak"); err == nil {
+		tmp := a.cfg.File + ".restore"
+		if os.WriteFile(tmp, old, 0o600) == nil {
+			os.Rename(tmp, a.cfg.File)
+		}
+	}
+	os.Remove(a.trialMarker())
+	if a.quit != nil {
+		a.quit()
+	}
 }
