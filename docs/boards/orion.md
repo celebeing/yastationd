@@ -218,8 +218,9 @@ Generic detector limits and the bergamot instance: docs/wakeword-mic-array.md §
   Clockwise values increase and counterclockwise values decrease, crossing zero near 1000. The
   kernel incorrectly reports this axis as 0..3 through `EVIOCGABS`, while captured events span
   0..992; the profile therefore pins `abs_range.0 = 0,1000`. yastationd accumulates wrapped
-  deltas and maps each 1/20 turn to one stock 5% volume level. This gives a full rotation the
-  full 0–100% range without assuming where the finger first lands.
+  deltas and maps each 1/100 turn to 1 % of volume (it was 1/20 turn per stock 5 % level: through
+  hardvold's dB-linear Master and the stock curve that is ~4 dB a step mid-scale, and a quick turn
+  jumped loud). A full rotation is still the full 0–100 % range, wherever the finger lands.
 - `mute` (event2) is a physical mic-mute switch and remains authoritative. **Direct capture
   2026-10-25:** switching on emits KEY 113 down, SW 14 = 1, KEY 113 up; switching off emits the
   same key press/release around SW 14 = 0. The switch cuts the microphones.

@@ -30,3 +30,17 @@ func TestVolumeMaxScalesAfterTheCurve(t *testing.T) {
 		}
 	}
 }
+
+func TestRingPercentSteps(t *testing.T) {
+	prof, err := board.Builtin("orion")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &App{prof: prof, cfg: config.Default()}
+	// every percent from 5 up maps to its own raw value and reads back as itself
+	for pct := 5; pct <= 100; pct++ {
+		if got := a.percentFromRaw(a.rawFromPercent(pct)); got != pct {
+			t.Errorf("%d %% reads back as %d %%", pct, got)
+		}
+	}
+}

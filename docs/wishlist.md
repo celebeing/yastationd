@@ -168,6 +168,14 @@ the face's segments on `*clock*` (the clip LED order, docs/display-expressions.m
 fight a running daemon over the LEDs, and must keep working when the daemon binary is broken.
 
 
+## Smoother auto-brightness
+
+The automatic display brightness follows the light sensor through an EMA and a hysteresis
+(`internal/app/brightness.go`); on orion's screen its steps are still visible. Wanted: a slower,
+perceptually even transition — ramp the brightness over a second or two in perceived (log) space
+instead of jumping to each new target, and smooth the reading over a longer window so a hand
+passing over the sensor or a TV flicker does not move it.
+
 ## Orion's ultrasound rig
 
 **Status:** idea (2026-10-25); nothing is planned or decided. Hardware exists on orion;

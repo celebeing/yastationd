@@ -27,7 +27,14 @@ type musicState struct {
 	version   atomic.Value // string: sendspin-host's version, from its READY line
 	streaming atomic.Bool
 	duck      atomic.Uint32 // math.Float32bits of the level last sent
+
+	reported atomic.Int64 // UnixNano of the last local volume change sent to the server
 }
+
+// musicEchoQuiet: after a local volume change the server's volume events are ignored this long.
+// The server answers our reports — late, and sometimes not exactly (Music Assistant sent 16 back
+// for our 15) — and taking those as commands threw the level back mid-turn or let it creep.
+const musicEchoQuiet = 1500 * time.Millisecond
 
 func (a *App) newMusic() *sendspin.Host {
 	c := a.cfg
@@ -111,12 +118,15 @@ func (a *App) onMusicEvent(ev sendspin.Event) {
 			a.store.update(func(s *persistState) { s.MusicVolume = v })
 			return
 		}
+		if time.Since(time.Unix(0, a.music.reported.Load())) < musicEchoQuiet {
+			return // the speaker is being turned here: local wins, the server's events are echoes
+		}
 		cur, err := a.mixer.Get(a.prof.Audio.Volume)
-		if err == nil && a.percentFromRaw(cur) == v {
-			return // our own report coming back
+		if err == nil && abs(a.percentFromRaw(cur)-v) <= 1 {
+			return // our own report coming back (possibly rounded by the server)
 		}
 		a.log.Info("music: server set the volume", "pct", v)
-		a.setVolumePercent(v)
+		a.setMaster(a.rawFromPercent(v), 0, false)
 	}
 }
 
@@ -130,6 +140,7 @@ func firstField(ev sendspin.Event) string {
 // reportMusicVolume tells the server about a local volume change (linked mode).
 func (a *App) reportMusicVolume(pct int) {
 	if a.music.host != nil && a.linkedVolume() {
+		a.music.reported.Store(time.Now().UnixNano())
 		a.music.host.Send("volume %d", pct)
 	}
 }

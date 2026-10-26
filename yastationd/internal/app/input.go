@@ -145,7 +145,7 @@ func (a *App) onAbsoluteInput(f *os.File, state *inputDeviceState, ev hw.InputEv
 				return
 			}
 		}
-		axis = hw.NewCircularAxis(info, 20, circularGestureGap)
+		axis = hw.NewCircularAxis(info, ringStepsPerTurn, circularGestureGap)
 		a.log.Info("absolute input ready", "code", ev.Code, "min", info.Minimum,
 			"max", info.Maximum, "source", source)
 		state.circular[ev.Code] = axis
@@ -155,7 +155,7 @@ func (a *App) onAbsoluteInput(f *os.File, state *inputDeviceState, ev hw.InputEv
 	if steps == 0 || a.stopAlarm() {
 		return
 	}
-	a.nudgeVolume(steps * a.cfg.VolumeStep)
+	a.nudgePercent(steps)
 	a.volumeBeep()
 	dir, now := 1, time.Now()
 	if steps < 0 {
@@ -218,6 +218,39 @@ func (a *App) publishButton(kind string) {
 }
 
 // ---- volume ----
+
+// ringStepsPerTurn: the volume ring moves the level by 1 % per 1/100 turn — a full turn is still the
+// whole scale, but each step is fine (the stock curve's middle is ~4 dB per 5 % level, which made a
+// quick turn jump loud). Keys and voice keep the stock 5 % levels.
+const ringStepsPerTurn = 100
+
+// nudgePercent moves the level by n percent (the ring) and shows it.
+func (a *App) nudgePercent(n int) {
+	cur, err := a.mixer.Get(a.prof.Audio.Volume)
+	if err != nil {
+		a.log.Warn("volume get", "err", err)
+		return
+	}
+	from := a.percentFromRaw(cur)
+	to := min(max(from+n, 0), 100)
+	// Below the first 5 % level a curve jumps to that level's value, so 1..4 % would read back as
+	// 5 % and the ring could never get down to 0: skip straight between 0 and 5.
+	if step := 100 / a.prof.Audio.VolumeLevels(); to > 0 && to < step {
+		if n < 0 {
+			to = 0
+		} else {
+			to = step
+		}
+	}
+	edge := 0
+	if to == from && n != 0 {
+		edge = 1
+		if n < 0 {
+			edge = -1
+		}
+	}
+	a.applyVolumeEdge(a.rawFromPercent(to), edge)
+}
 
 // nudgeVolume moves Master by n steps of the board's volume curve (5 % each) and shows the local
 // volume bubble.
@@ -357,7 +390,11 @@ func (a *App) applyVolume(v int) { a.applyVolumeEdge(v, 0) }
 
 // applyVolumeEdge sets Master to v and shows the level; edge (-1/+1) says a nudge hit the bottom
 // or the top.
-func (a *App) applyVolumeEdge(v, edge int) {
+func (a *App) applyVolumeEdge(v, edge int) { a.setMaster(v, edge, true) }
+
+// setMaster sets Master to v and shows the level; report says whether the music server hears of
+// it (not when the server itself set it: that would only echo back).
+func (a *App) setMaster(v, edge int, report bool) {
 	v = min(v, a.volumeCap())
 	if err := a.mixer.Set(a.prof.Audio.Volume, v); err != nil {
 		a.log.Warn("volume set", "err", err)
@@ -365,7 +402,9 @@ func (a *App) applyVolumeEdge(v, edge int) {
 	}
 	a.store.update(func(s *persistState) { s.Volume = v })
 	pct := a.percentFromRaw(v)
-	a.reportMusicVolume(pct)
+	if report {
+		a.reportMusicVolume(pct)
+	}
 	if a.mqtt != nil {
 		a.mqtt.Publish(a.topics.State("volume"), strconv.Itoa(pct))
 	}

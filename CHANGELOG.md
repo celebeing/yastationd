@@ -3,6 +3,16 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Fixes and operations**
+- Orion's volume ring moves the level 1 % per 1/100 turn instead of a 5 % level per 1/20 turn: the
+  stock curve's middle is ~4 dB per level, and a quick turn jumped loud. Keys and voice keep 5 %.
+- Music Assistant's volume events no longer throw the level back while the speaker is turned:
+  they are ignored for 1.5 s after a local change and when within 1 % of the level (the server
+  echoes our reports late and sometimes rounded), and a level the server set is not reported
+  back to it.
+
 ## v0.8.3 — 2026-10-26
 
 Volume: orion's stock curve, and a cap for any speaker.
