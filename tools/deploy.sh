@@ -11,9 +11,11 @@
 #   root@<speaker-c>  pickle  -  aarch64
 # Native helpers are loaded from spotter-host/build/<arch>/spotter-host and, when built,
 # sendspin-host/build/<arch>/sendspin-host. hostapd (one static binary for every board) from
-# hostapd/build/hostapd, when built.
+# hostapd/build/hostapd, else from a recorded build in your vendor tree
+# ($VENDOR/builds/hostapd/<version>/armv7/hostapd, the newest); with neither, a speaker that has
+# no hostapd yet gets a warning (its Wi-Fi setup mode cannot start).
 #
-# Env: SSHKEY (default ~/.ssh/id_yastation). Speakers are updated one at a time; the script stops
+# Env: SSHKEY (default ~/.ssh/id_yastation), VENDOR (optional, the vendor-tree checkout). Speakers are updated one at a time; the script stops
 # at the first failure so a broken build never reaches the rest.
 #
 # What it does per speaker (the same as `make deploy`): upload the binary next to the live one
@@ -32,6 +34,12 @@ key=${SSHKEY:-$HOME/.ssh/id_yastation}
 }
 
 ssh_() { ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=5 "$@"; }
+
+hap=$here/hostapd/build/hostapd
+if [ ! -x "$hap" ] && [ -n "${VENDOR:-}" ]; then
+	hap=$(ls -1d "$VENDOR"/builds/hostapd/*/armv7/hostapd 2>/dev/null | sort -V | tail -1)
+fi
+[ -n "$hap" ] && [ -x "$hap" ] && echo "hostapd: $hap" || hap=
 
 profile_value() {
 	awk -F= -v wanted="$2" '
@@ -107,8 +115,11 @@ grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target platform cfw arc
 		ss=$here/sendspin-host/build/$arch/sendspin-host
 		[ -x "$ss" ] && ssh_ "$target" "cat > $cfw/bin/sendspin-host.upload" <"$ss"
 	fi
-	hap=$here/hostapd/build/hostapd
-	[ -x "$hap" ] && ssh_ "$target" "cat > $cfw/bin/hostapd.upload" <"$hap"
+	if [ -n "$hap" ]; then
+		ssh_ "$target" "cat > $cfw/bin/hostapd.upload" <"$hap"
+	elif ! ssh_ "$target" "test -x $cfw/bin/hostapd" </dev/null; then
+		echo "  warning: no hostapd here and none to install (make -C hostapd, or set VENDOR) — the Wi-Fi setup mode cannot start" >&2
+	fi
 
 	# The swap runs from stdin; it restarts the daemon, which restarts spotter-host with it.
 	ssh_ "$target" 'sh -s' <<EOF

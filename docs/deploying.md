@@ -232,7 +232,7 @@ One speaker: `make deploy` (build, upload aside along with `supervise.sh`, stop 
 binary as `.prev` → swap → start, tail the log). Several: `tools/deploy.sh` with a
 `tools/deploy.hosts` list (see `tools/deploy.hosts.example`). Each line is `<ssh-target>
 <platform> [cfw-root override] [helper-arch override]`; the board profile supplies omitted
-values. The script also rolls out `spotter-host` (and `sendspin-host` and `hostapd`, when built) and stops at
+values. The script also rolls out `spotter-host` (and `sendspin-host` when built, and `hostapd` — a local build, else the newest recorded one in `$VENDOR/builds/hostapd/`; a speaker left without one gets a warning) and stops at
 the first failing speaker.
 
 **Don't** improvise the swap as one ssh command line that contains the binary's path. The init
