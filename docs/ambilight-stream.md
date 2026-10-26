@@ -69,7 +69,9 @@ Writing a full frame as sysfs LEDs is 12 positions × 2 dies × 4 channels = 96 
 to the LED driver: **25–34 ms per frame** on orion (measured 2026-10-26) — half a core at 15 fps,
 all of it at effect rates. The strip also has a ledfb framebuffer, `fb0` "ambilight" (12×1,
 48 bpp, stride 72): per position **B, G, R as 16-bit little-endian**, the LED level being half
-the value (510 = 255), both dies following. One write per frame: **3.5 ms**. It has no white.
+the value (510 = 255), both dies following. One write per frame: **3.5 ms**. It has no white:
+the driver has RGBW formats, but the device tree configures this one as `ledfb-rgb48`, and the
+format cannot be switched at runtime ([boards/orion.md](boards/orion.md)).
 
 So with `ambilight.fb = ambilight` in the board profile, `hw.Ambilight` sets the R, G and B LEDs'
 trigger to `ledfb-ambilight` and writes them through the framebuffer (when the frame changed, and

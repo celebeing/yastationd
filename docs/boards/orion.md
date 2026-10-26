@@ -320,7 +320,13 @@ Three surfaces, every LED a Linux LED class device each mirrored by a framebuffe
 
 - **Ambilight framebuffer** (`fb0`, 12×1, 48 bpp, stride 72; probed 2026-10-26): per position
   B, G, R as 16-bit little-endian, the LED level = value/2 (510 = 255), both dies following,
-  for the LEDs whose trigger is `ledfb-ambilight`. No white channel. One frame write = 3.5 ms
+  for the LEDs whose trigger is `ledfb-ambilight`. No white channel — by configuration, not by
+  hardware: the driver (`quasar_led_ring.ko`) has `ledfb-rgb48`, `ledfb-rgbw32` and
+  `ledfb-rgbw64` formats, and the device tree's `ambilight-framebuffer` node says
+  `compatible = "yandex,ledfb-rgb48"`; a white LED put on the trigger logs "ledfb: Using white
+  color with RGB framebuffer. Check device tree configuration." and stays dark. The format cannot
+  be changed at runtime (`FBIOPUT_VSCREENINFO` with 32 or 64 bpp: `EINVAL`, 2026-10-27), and the
+  device tree is part of the boot chain we do not touch, so the white stays on sysfs. One frame write = 3.5 ms
   against 25–34 ms for 96 sysfs writes; `ambilight.fb` uses it
   ([ambilight-stream.md](../ambilight-stream.md)).
 - Latch pseudo-LEDs `orion:{ring,ambilight}{A,B,C}:sync` (trigger `ledfb-*-sync`): one
