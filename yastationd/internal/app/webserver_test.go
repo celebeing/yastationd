@@ -120,14 +120,25 @@ func TestWebLoginStateControl(t *testing.T) {
 }
 
 func TestWebMetricsAndInfo(t *testing.T) {
-	_, srv := newWebApp(t)
+	a, srv := newWebApp(t)
+	a.cfg.SysRoot = t.TempDir()
+	os.MkdirAll(filepath.Join(a.cfg.SysRoot, "proc"), 0o755)
+	os.WriteFile(filepath.Join(a.cfg.SysRoot, "proc/meminfo"), []byte("MemTotal:  243908 kB\nMemFree:  97604 kB\nMemAvailable:  157196 kB\n"), 0o644)
+	os.WriteFile(filepath.Join(a.cfg.SysRoot, "proc/loadavg"), []byte("1.27 1.23 1.24 1/143 5748\n"), 0o644)
+	tz := filepath.Join(a.cfg.SysRoot, "sys/class/thermal/thermal_zone0")
+	os.MkdirAll(tz, 0o755)
+	os.WriteFile(filepath.Join(tz, "type"), []byte("soc_thermal\n"), 0o644)
+	os.WriteFile(filepath.Join(tz, "temp"), []byte("48000\n"), 0o644)
+
 	resp, err := http.Get(srv.URL + "/metrics")
 	if err != nil {
 		t.Fatal(err)
 	}
 	b, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	for _, want := range []string{`yastation_info{device="t1"`, `yastation_lux{device="t1"} 12.5`, `yastation_auto_brightness{device="t1"} 0`, "yastation_rss_bytes"} {
+	for _, want := range []string{`yastation_info{device="t1"`, `yastation_lux{device="t1"} 12.5`, `yastation_auto_brightness{device="t1"} 0`, "yastation_rss_bytes",
+		`yastation_memory_bytes{device="t1",kind="available"} 160968704`, `yastation_load{device="t1",span="1m"} 1.27`,
+		`yastation_temperature_celsius{device="t1",zone="soc_thermal"} 48.0`} {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("metrics lack %q:\n%s", want, b)
 		}

@@ -3,6 +3,12 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.13.1 — 2026-10-26
+
+**Fixes and operations**
+- `/metrics` reports the speaker's memory (total, available, free), its load average and the SoC
+  temperature (every thermal zone).
+
 ## v0.13.0 — 2026-10-26
 
 A web app on every speaker.

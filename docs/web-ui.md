@@ -83,6 +83,16 @@ publishes. The web uses the same three, nothing is described twice:
 4. Wi-Fi: networks can only be added from a running speaker; removing or changing one stays in the
    setup mode (the access point), which is the safe place to lose the client connection.
 
+## Metrics
+
+`GET /metrics` (no login), Prometheus text, every series labelled `device`:
+`yastation_info{board,version}`, `yastation_uptime_seconds`, the process (`yastation_rss_bytes`,
+`yastation_go_heap_bytes`, `yastation_goroutines`), the system (`yastation_memory_bytes{kind=total|
+available|free}`, `yastation_load{span=1m|5m|15m}`, `yastation_temperature_celsius{zone}` per
+thermal zone — `soc_thermal` on every board so far), and every numeric or on/off state the app
+publishes (`yastation_lux`, `yastation_sound_floor`, `yastation_volume`, `yastation_mic_mute`…;
+`yastation_health{state}`).
+
 ## Discovery
 
 Each speaker publishes a retained `yastation/<id>/web/info` (`{id, name, board, version, url}`)
