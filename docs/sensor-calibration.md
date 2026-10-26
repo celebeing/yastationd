@@ -8,7 +8,7 @@ wins over the profile.
 | What | Profile key (base, per board) | Config key (this speaker) | Reported as |
 |---|---|---|---|
 | Light | `lux.calibration` | `lux_calibration` | HA `Illuminance`, lux |
-| Mic level | `mic.spl_offset` (none yet) | `mic_spl_offset` | HA `Sound floor` / `Sound level`, dB SPL (dBFS without one) |
+| Mic level | `mic.spl_offset` | `mic_spl_offset` | HA `Sound floor` / `Sound level`, dB SPL (dBFS without one) |
 
 ## Light
 
@@ -121,7 +121,22 @@ The firmware has a factory calibration for this: `quasar.cfg` → `spl.splCalibS
 vendor's dBFS convention and mic channel may differ from ours (we take the RMS of the voice
 channel's samples, full scale = 0 dBFS, after a 150 Hz high-pass, unweighted). Applied for a few
 minutes on 2026-10-26, they put a quiet room's floor at 60 dB SPL on the minis, which is too high,
-so they do not carry over as they are. No profile has an offset yet; the levels are dBFS.
+so they do not carry over as they are.
+
+**Our base (2026-10-26):** the four speakers side by side in a living room with a fridge and
+ventilation; an Apple Watch noise meter read 40–41 dBA next to them, steady. Their `Sound floor`:
+
+| Speaker | dBFS | Offset (to 40.5) | Profile |
+|---|---|---|---|
+| Mini 3, lilac | −63 | 103.5 | bergamot `104` |
+| Mini 3, black | −64 | 104.5 | 〃 |
+| Mini 3 Pro | −66 | 106.5 | pickle `106.5` |
+| Station 3 | −72.5 | 113 | orion `113` |
+
+Unlike the light sensors, two units of a model agree within 1 dB, so a board base is enough;
+between models the mics differ by up to 9 dB (orion's channel and PDM gain). Rough: one point, a
+watch (±2–3 dB), and an A-weighted reference for an unweighted level — in a room with low hum
+our "dB" read a little high against dBA.
 
 To check or set a speaker's own offset you need a sound level meter (Z- or C-weighted matches our
 unweighted level best; A-weighting reads lower in a room with low hum):
