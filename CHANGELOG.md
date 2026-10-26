@@ -3,7 +3,9 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.8.4 — 2026-10-26
+
+Orion's volume ring: fine when slow, quick when fast; Music Assistant no longer fights it.
 
 **Fixes and operations**
 - Orion's volume ring: a step per pad crossing (the touch ring has about ten pads per turn and no
