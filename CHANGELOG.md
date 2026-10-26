@@ -3,6 +3,16 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.16.1 — 2026-10-27
+
+**Fixes and operations**
+- Station 3's rear strip gets its white channel through the framebuffer: the firmware's device
+  tree sets the strip's framebuffer up without white (`ledfb-rgb48`); yastationd switches it to
+  `ledfb-rgbw64` with a runtime device-tree overlay (until the next boot, nothing on flash) and
+  drives R, G, B and W in one write. RGBW from DDP and the HA light is visibly brighter. Falls
+  back to RGB through the framebuffer, then sysfs. Profile keys `ambilight.fb_format`,
+  `ambilight.fb_compatible`.
+
 ## v0.16.0 — 2026-10-27
 
 Effects on Station 3's rear strip.
