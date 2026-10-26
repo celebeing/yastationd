@@ -71,6 +71,28 @@ not be recoverable by us. Hence the hard rules:
 - **Update `docs/` before committing** — when implementation reveals new findings, edge cases, or changes to architecture/decisions, update the relevant docs first, and keep the docs index (`docs/index.md`) in sync. Docs must stay in sync with the code. If a doc doesn't exist for a new area, create one and add it to the index.
 - **Language** — all committed artifacts (code, comments, identifiers, commit messages, docs, `CLAUDE.md`) are written in **English**. The agent's conversation with the user may be in **any language** — match the user; only the artifacts are English-only.
 
+## Changes that ripple: deploy, build, vendor repo
+
+A feature is not done when the code works. In the **same change**, whenever it:
+
+- **puts something new on the speaker** (a file, a binary, a port, a default that changes behaviour)
+  → `docs/deploying.md` ("What ends up on the device", install/update steps), and
+  `tools/deploy.sh` if it must be uploaded;
+- **adds a config key or a board-profile key** → both `yastationd/configs/*.example`, and
+  `docs/porting-a-speaker.md` for profile keys;
+- **needs a new build step or toolchain** (a helper, a front-end, a pinned tool) → its Makefile
+  target, `docs/building.md`, the `Dockerfile` + `tools/dist-build-in-container.sh`, and a
+  committed build output where the repo keeps one (`yastationd/internal/webui/dist`: `make web`);
+- **is something a user would notice** → `README.md` (and `yastationd/README.md` for the daemon),
+  with any login, address or default they need;
+- **uses or produces a binary we don't rebuild from source each time** (a vendor library, a
+  third-party bundle, a build we keep) → record it in `<vendor-repo>` (`tools/record-binary.sh`),
+  and after changing what a unit carries, `tools/snapshot-unit.sh <label>` there.
+
+Before every release, walk `docs/releasing.md` → "Before tagging". A deploy that failed (the
+script did not print `ok` for a unit) means that unit still runs the old build: check before
+testing on it.
+
 ## Sibling-project initialization
 
 - If you create a **sibling project** (anything at `../<name>` outside this repo), don't leave it as a bare folder. Give it the same baseline setup this project has, before writing substantial code into it:

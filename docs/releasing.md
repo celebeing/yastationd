@@ -17,6 +17,27 @@ and the diagnostic sensor "Version", whose attributes carry the `sendspin-host` 
 it in its `READY` line; it is also the software version the player announces to Music Assistant)
 and the board. `spotter-host` has no version of its own yet.
 
+## Before tagging
+
+Go through this for everything that landed since the last tag (`git log <last-tag>..`):
+
+1. **Docs match the code.** New areas have a doc and an entry in `docs/index.md`; changed
+   behaviour is reflected where it is described; resolved wishlist entries are marked.
+2. **User-facing:** `README.md` (and `yastationd/README.md`) mention what a user meets — features,
+   addresses, logins and their defaults, keys to turn things off.
+3. **Deploying:** `docs/deploying.md` lists every file the CFW puts on a speaker and every install
+   or update step; `tools/deploy.sh` uploads every binary that must be on the speaker.
+4. **Config:** every new key is in `yastationd/configs/yastationd.conf.example` and
+   `orion.conf.example`; every new profile key in `docs/porting-a-speaker.md`.
+5. **Builds:** new components have a Makefile target, a row in `docs/building.md`, and a step in
+   the `Dockerfile` / `tools/dist-build-in-container.sh`; committed build outputs are fresh
+   (`make web` leaves no diff in `yastationd/internal/webui/dist`).
+6. **Vendor repo:** binaries we keep but don't rebuild are recorded there with provenance; units
+   whose non-stock files changed are re-snapshotted.
+7. **Tests and a real deploy:** `go test ./...` passes; the build ran on at least one speaker of
+   each board it touches, and every unit's deploy printed `ok`.
+8. **No private values** in the diff since the last tag (LAN addresses, hostnames, serials).
+
 ## Cutting a release
 
 1. Update `CHANGELOG.md`: a new `## vX.Y.Z — date` section on top, what changed for a user.
