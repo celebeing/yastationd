@@ -142,7 +142,7 @@ func (a *App) decide(r *arbRound) {
 	if winner.ID != r.mine.ID {
 		r.held.unsub()
 		a.log.Info("arbitration: lost", "to", winner.ID, "their_level", winner.Level, "mine", r.mine.Level)
-		a.express("voice", "blink", 0)
+		a.moment("voice", "arbitration_lost", 0)
 		return
 	}
 	a.log.Info("arbitration: won", "level", r.mine.Level, "others", n)

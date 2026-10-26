@@ -95,7 +95,7 @@ func TestClipLibrary(t *testing.T) {
 	if c, ok := l.Load("player_pause", "boot"); !ok || c.Name != "boot" {
 		t.Fatalf("alias lookup: %+v %v", c, ok)
 	}
-	for _, own := range []string{"eyes", "happy", "sad", "wink", "sleep"} {
+	for _, own := range []string{"eyes", "happy", "sad", "wink", "sleep", "glance", "angry"} {
 		if _, ok := l.Load(own); !ok {
 			t.Errorf("embedded clip %s missing", own)
 		}

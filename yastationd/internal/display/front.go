@@ -142,6 +142,7 @@ var seg7Anims = map[string][]string{
 	"blink":         {"blink"},
 	"happy":         {"happy"},
 	"sad":           {"sad"},
+	"angry":         {"angry"},
 	"wink":          {"wink"},
 	"sleep":         {"sleep"},
 }
@@ -211,6 +212,7 @@ var pixelAnims = map[string][]string{
 	"blink":         {"scenario_emotion/Smile_Neutral_Output"},
 	"happy":         {"emotion/joy"},
 	"sad":           nil,
+	"angry":         nil,
 	"wink":          {"scenario_emotion/Smile_Wink_Output"},
 	"sleep":         nil,
 }

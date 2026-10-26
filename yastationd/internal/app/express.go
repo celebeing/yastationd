@@ -37,6 +37,7 @@ var expressions = map[string]expression{
 	"blink":     {},
 	"happy":     {ring: "success", ringPrio: display.PrioScenario},
 	"sad":       {},
+	"angry":     {},
 	"wink":      {},
 	"sleep":     {loop: true},
 }
@@ -55,7 +56,7 @@ func ringHolds(name string) bool {
 }
 
 // expressionNames is the HA-facing list (stable order).
-var expressionNames = []string{"listening", "thinking", "speaking", "happy", "sad", "wink", "eyes",
+var expressionNames = []string{"listening", "thinking", "speaking", "happy", "sad", "angry", "wink", "eyes",
 	"blink", "sleep", "ringing", "pause", "next", "previous", "error"}
 
 // frontClips: the front display takes animation layers (it has one, and the faces switch is on).

@@ -14,12 +14,14 @@ import (
 // momentDefaults per front display kind ("seg7"; "pixels" for every pixel screen).
 var momentDefaults = map[string]map[string][]string{
 	"seg7": {
-		"startup":    {"scenario:startup"},
-		"dialog_end": {"wink"},
+		"startup":          {"scenario:startup"},
+		"dialog_end":       {"wink"},
+		"arbitration_lost": {"glance", "sad"},
 	},
 	"pixels": {
-		"startup":    {"scenario:startup-pixel", "scenario:startup"},
-		"dialog_end": {"blink", "wink"},
+		"startup":          {"scenario:startup-pixel", "scenario:startup"},
+		"dialog_end":       {"blink", "wink"},
+		"arbitration_lost": {"scenario_emotion/Deactivation_Output", "sad"},
 	},
 }
 

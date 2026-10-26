@@ -197,6 +197,7 @@ to be reviewed on glass (the stock patterns are still being watched through).
 |---|---|---|---|---|
 | `startup` | once per device boot | `scenario:startup` (eyes, wink) | `scenario:startup-pixel` (eyes, blink) | in code |
 | `dialog_end` | a reply played and no follow-up listening | `wink` | `blink` | in code |
+| `arbitration_lost` | another speaker heard the wake word louder and answers ([wake-arbitration.md](wake-arbitration.md)) | `glance` (` > >` quick, then `< < `; ours) | `scenario_emotion/Deactivation_Output` | in code |
 | `listening`, `thinking`, `speaking` | voice stages | the expressions | the expressions (`oknix/`) | via rule 3 |
 | `error` | voice / network failure | the expression | `error` | via rule 3 |
 | `mute`, `unmute` | the mic switch | — | `anim:mute`, `anim:unmute` | planned |
@@ -258,8 +259,10 @@ The daemon reads only the text form, from `<cfw>/clips/` first, then the firmwar
 ## Our own clips
 
 Same text format, committed under `yastationd/internal/display/clips/` (our drawings), embedded:
-`eyes`, `happy`, `sad`, `wink`, `sleep`, and `listening` / `thinking` / `speaking` for boards whose
-stock voice clips are blank (pickle). A clip in the CFW or firmware directory with the same name
+`eyes`, `happy`, `sad`, `wink`, `sleep`, `angry` (eyes in the outer digits, brows bent down
+to the middle: `o┐┌o`), `glance` (` > >` then `< < `, the `arbitration_lost` moment), and
+`listening` / `thinking` / `speaking` for boards whose stock voice clips are blank (pickle).
+(Drawn on glass 2026-10-26; Station 3 has no stock angry face, so `angry` is seg7-only so far.) A clip in the CFW or firmware directory with the same name
 wins over ours.
 
 ## How the expressions are used

@@ -24,7 +24,8 @@ answers" entry).
    - claims arriving within 1.5 s of each other are one round; within 0.5 dB the lower device id
      wins.
 4. **The winner** starts the session with the buffered speech (the `wake_word` button event goes
-   to HA from it only); **the losers** blink and stay silent: no session, nothing sent to HA.
+   to HA from it only); **the losers** show the `arbitration_lost` moment (seg7: our `glance` clip, ` > >` then `< < `;
+   Station 3: the stock `Deactivation_Output`) and stay silent: no session, nothing sent to HA.
 
 Not arbitrated: the voice key, follow-ups, a wake during an intercom call, a wake that interrupts a
 pending reply. With no broker connection, no mic levels yet, or the feature off, a speaker answers
