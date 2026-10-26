@@ -373,3 +373,17 @@ web app: the bearer tokens live only in memory (`internal/web/auth.go`). Options
 (an HMAC with a secret kept in `<cfw>/`, written once; expiry inside the token; a password change
 rotates the secret, which logs everyone out on purpose), or store the issued tokens' hashes in a
 small file. Signed tokens need no writes per login, which suits the flash (`docs/storage.md`).
+
+## The whole build chain in the builder container
+
+Today only the web app (`tools/build-web.sh`) and the full-dist path (`tools/build-dist.sh`) run
+in the pinned builder image; the everyday builds (`make build`, `tools/deploy.sh`,
+`make -C sendspin-host`, `spotter-host/build.sh`, `make -C hostapd`) use the host's toolchains, so
+the path that is exercised is not the one a contributor gets. Plan: one wrapper,
+`tools/in-builder.sh <command>`, that runs any command in the image with the repo mounted, the
+vendor sysroot read-only when needed, and persistent caches in docker volumes (Go build and module
+caches, zig's cache, the pnpm store) so builds stay warm. The Makefiles keep native recipes; the
+entry points go through the wrapper by default, `NATIVE=1` bypasses it for quick loops.
+`build-dist.sh` becomes a use of the same wrapper. Costs: docker for every build (2.2 GB image,
+once), about a second per container start. Next step it opens: GitHub Releases with artifacts
+(`yastationd`, `hostapd`, `sendspin-host`; not `spotter-host`, whose sysroot is private).
