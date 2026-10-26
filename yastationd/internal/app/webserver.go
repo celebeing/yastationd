@@ -53,6 +53,22 @@ type peerInfo struct {
 	Seen    int64  `json:"seen,omitempty"` // unix s, when this speaker last heard it
 	// Features: the app's optional tabs this speaker has (only in /api/info and /api/state).
 	Features map[string]bool `json:"features,omitempty"`
+	// DDP: what a DDP sender (LedFx) must be told, since DDP has no discovery (ambilight-stream.md).
+	DDP *ddpInfo `json:"ddp,omitempty"`
+}
+
+type ddpInfo struct {
+	Port   int    `json:"port"`
+	Pixels int    `json:"pixels"`
+	Order  string `json:"order"` // channel order of the data: RGB (RGBW accepted)
+	First  string `json:"first"` // where pixel 0 is
+}
+
+func (a *App) ddpInfo() *ddpInfo {
+	if !a.ambilightFxOn() {
+		return nil
+	}
+	return &ddpInfo{Port: a.cfg.DDPPort, Pixels: a.ambilight.Pixels(), Order: "RGB", First: "top"}
 }
 
 // startWeb listens (an error when it cannot) and serves until ctx ends.
@@ -187,6 +203,7 @@ func outboundIP(routeFile string) string {
 func (a *App) apiInfo(w http.ResponseWriter, r *http.Request) {
 	p := a.selfInfo(r)
 	p.Features = a.features()
+	p.DDP = a.ddpInfo()
 	writeJSON(w, http.StatusOK, p)
 }
 
@@ -326,6 +343,7 @@ func (a *App) webEntities() []webEntity {
 func (a *App) apiState(w http.ResponseWriter, r *http.Request) {
 	p := a.selfInfo(r)
 	p.Features = a.features()
+	p.DDP = a.ddpInfo()
 	writeJSON(w, http.StatusOK, map[string]any{"info": p, "entities": a.webEntities()})
 }
 

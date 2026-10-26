@@ -62,7 +62,8 @@ HA, from single expressions to timed scenarios across the ring and the display.
   timed ring animations that Assist can trigger.
 - Station 3's rear strip as an RGBW `light`, and a DDP receiver for it: point
   [LedFx](https://www.ledfx.app/) (or WLED tools) at the speaker as a 12-pixel DDP device and its
-  effects play on the strip, at their own brightness, switchable from HA
+  effects play on the strip; without it, our own music effects (rain, VU, spectrum, energy,
+  scroll, pulse) follow the music playing on the speaker, chosen and dimmed from HA
   ([docs/ambilight-stream.md](docs/ambilight-stream.md)).
 - Front display: clock, a text message (long text scrolls), timed text overlays, countdowns.
 - Clock auto-brightness from the ambient-light sensor (dims to barely visible in a dark room).

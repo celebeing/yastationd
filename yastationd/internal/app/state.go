@@ -21,8 +21,10 @@ type persistState struct {
 	AmbilightRGBW   hw.RGBW `json:"ambilight_rgbw"`
 	AmbilightBright int     `json:"ambilight_bright"` // 0..255
 	// Streamed effects on the ambilight (DDP): taken at all, and their brightness 1..255.
-	AmbilightFx       bool   `json:"ambilight_fx"`
-	AmbilightFxBright int    `json:"ambilight_fx_bright"`
+	AmbilightFx       bool `json:"ambilight_fx"`
+	AmbilightFxBright int  `json:"ambilight_fx_bright"`
+	// The music effect drawn from the spectrum while music plays (musicFxNames).
+	AmbilightFxEffect string `json:"ambilight_fx_effect"`
 	Mode              string `json:"mode"` // clock|off|message
 	Message           string `json:"message"`
 	TextSecs          int    `json:"text_secs"`    // show_text duration
@@ -46,6 +48,7 @@ func defaultState(ringBright, ambilightBright, clockBright int, clockAuto bool) 
 		AmbilightFx:     true,
 		// Dim: the strip lights the wall behind the speaker like a floodlight.
 		AmbilightFxBright: 64,
+		AmbilightFxEffect: "rain",
 		Mode:              "clock",
 		TextSecs:          10,
 		AnimSecs:          10,
@@ -95,6 +98,9 @@ func newStateStore(path string, dflt persistState) *stateStore {
 			}
 			if loaded.AmbilightFxBright <= 0 { // a file from before the effects
 				loaded.AmbilightFx, loaded.AmbilightFxBright = dflt.AmbilightFx, dflt.AmbilightFxBright
+			}
+			if loaded.AmbilightFxEffect == "" {
+				loaded.AmbilightFxEffect = dflt.AmbilightFxEffect
 			}
 			if loaded.FollowUp == "" {
 				loaded.FollowUp = dflt.FollowUp

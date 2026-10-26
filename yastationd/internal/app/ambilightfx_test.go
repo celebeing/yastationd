@@ -11,8 +11,8 @@ import (
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
 )
 
-// A streamed frame takes the ambilight at the effects' brightness while fresh; then the light
-// state is back. With effects off, frames are ignored.
+// A streamed frame takes the ambilight as sent while fresh, whatever the effects switch and
+// brightness say; then the light state is back.
 func TestAmbilightFxLayer(t *testing.T) {
 	root := t.TempDir()
 	colors := []string{"red", "green", "blue", "white"}
@@ -43,16 +43,17 @@ func TestAmbilightFxLayer(t *testing.T) {
 		t.Fatal("no kick for the render loop")
 	}
 	f := a.ambilightShown(time.Now())
-	if f[0] != (hw.RGBW{R: 100, G: 50}) || f[1] != (hw.RGBW{B: 25}) {
-		t.Fatalf("streamed frame at half brightness: %v", f)
+	if f[0] != (hw.RGBW{R: 200, G: 100}) || f[1] != (hw.RGBW{B: 50}) {
+		t.Fatalf("streamed frame not as sent: %v", f)
 	}
 	if f := a.ambilightShown(time.Now().Add(fxStale + time.Second)); f[0] != (hw.RGBW{W: 255}) {
 		t.Fatalf("after the stream: %v, want the light state", f)
 	}
 
+	// The effects switch does not hold a stream back.
 	a.store.update(func(s *persistState) { s.AmbilightFx = false })
 	a.onDDPFrame(ddp.Frame{Channels: 4, Data: []byte{1, 2, 3, 4, 5, 6, 7, 8}})
-	if f := a.ambilightShown(time.Now()); f[0] != (hw.RGBW{W: 255}) {
-		t.Fatalf("effects off: %v", f)
+	if f := a.ambilightShown(time.Now()); f[0] != (hw.RGBW{R: 1, G: 2, B: 3, W: 4}) {
+		t.Fatalf("stream with effects off: %v", f)
 	}
 }

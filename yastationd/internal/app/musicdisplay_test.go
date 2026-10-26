@@ -126,4 +126,3 @@ func TestMusicTitleOverPause(t *testing.T) {
 		t.Fatalf("on top: %q, want the title", top.Name)
 	}
 }
-

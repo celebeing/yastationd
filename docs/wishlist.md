@@ -105,9 +105,8 @@ remains here is the wider picture.
 - Music on the front display: done for pause / resume, the title and the spectrum
   ([music-sendspin.md](music-sendspin.md#on-the-display)); next / previous and like / dislike are
   deferred there. No level meter on seg7: it would look poor next to the clock.
-- **A pulse to the music on Station 3's LED bar** (the rear ambilight, a floodlight more than a
-  light: dim and slow, or it lights the room). The ring is no use for it. sendspin-host's
-  spectrum (or its low bands as a beat) is the input.
+- Music effects on Station 3's rear strip: done ([ambilight-stream.md](ambilight-stream.md),
+  with a DDP receiver for LedFx); tuning them by eye is open.
 
 ## "Someone is asleep here" detection
 

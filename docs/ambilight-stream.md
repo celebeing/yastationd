@@ -3,8 +3,24 @@
 Station 3 (orion) has a rear strip: 12 RGBW positions, top to bottom, two co-located dies each
 ([boards/orion.md](boards/orion.md)). Besides being an HA light, it takes LED frames streamed over
 the network, so [LedFx](https://www.ledfx.app/) (or WLED tools, xLights, anything that speaks
-DDP) can drive it as a 12-pixel strip. Native music effects drawn from sendspin-host's spectrum
-are the next step ([wishlist](wishlist.md)).
+DDP) can drive it as a 12-pixel strip; without a stream, our own music effects draw it from
+sendspin-host's spectrum while music plays.
+
+## Setting up a sender
+
+DDP has no discovery: the sender has to be told everything by hand. The web app's LED preview
+tab shows the same values for the speaker it is on.
+
+| Setting | Value |
+|---|---|
+| Device type | **DDP** (in LedFx: "DDP", not "WLED" — we do not imitate WLED's JSON API) |
+| Address | the speaker's IP |
+| Port | **4048** (`ddp_port`) |
+| Pixels | **12** |
+| Channel order | **RGB**; RGBW data (type `0x1b`) is taken too and drives the white channel |
+| Pixel 0 | the **top** of the strip; 11 is the bottom |
+| Destination id | 1 (the default output) |
+| Frame rate | anything up to ~60 fps; each frame is shown as it arrives |
 
 ## How it works
 
@@ -14,13 +30,34 @@ are the next step ([wishlist](wishlist.md)).
   optional timecode, frames split over several packets by byte offset. A frame is shown when the
   sender sets push, or when a packet reaches the end of our 12 pixels (senders that never push).
   Queries get no reply.
-- A received frame **takes the strip while frames keep coming**, scaled by the effects'
-  brightness; 2.5 s after the last one the strip is back to its HA light state. Frames are shown
-  as they arrive (the render loop wakes on each), not on the loop's 15 Hz tick.
-- **Runtime settings** (persisted, HA, the web app): the `Ambilight effects` switch (on by
-  default; off = frames are ignored) and `Ambilight effects brightness` (1..255, default 64: the
-  strip lights the wall like a floodlight).
+- A stream **takes the strip over** while frames keep coming, **exactly as sent**: no switch and
+  no brightness of ours apply (whoever streams wants that). 2.5 s after the last frame the strip
+  is back. Frames are shown as they arrive (the render loop wakes on each). `ddp_port = 0` is the
+  only way to refuse streams.
 - LAN only, no authentication, like the anonymous MQTT broker and the Sendspin port.
+
+## Music effects
+
+Without a stream, while music plays on the speaker (spectrum frames from sendspin-host keep
+coming), the selected effect draws the strip; otherwise it shows its HA light state. Runtime
+settings (persisted, HA, the web app): `Ambilight music effects` (switch, on), `Ambilight music
+effect` (select, default `rain`) and `Ambilight music effects brightness` (1..255, default 64: the
+strip lights the wall like a floodlight). The effects are the usual audio-reactive strip set
+(LedFx, WLED's sound-reactive effects), written from scratch (`internal/app/ambilighteffects.go`,
+`ambilightrain.go`; LedFx is GPL-3.0, we take ideas, not code):
+
+| Effect | What it does |
+|---|---|
+| `rain` | an attack in the lows, mids or highs drops a drop of that range's colour (deep blue, cyan, white — the highs in the white channel) at a random place; it spreads and fades |
+| `vu` | a level meter from the bottom, green to red, with a peak dot that hangs and falls |
+| `spectrum` | one band per pixel, lows at the bottom, colour by frequency |
+| `energy` | a fill from the middle outwards by the overall energy; colour = lows red, mids green, highs blue |
+| `scroll` | the sound's colour now enters at the top and runs down |
+| `pulse` | the whole strip flashes warm on a beat in the lows and fades |
+
+The spectrum is sendspin-host's (`-b`, 21 bands, ~25 frames a second, timed to when the audio is
+heard: [music-sendspin.md](music-sendspin.md#on-the-display)); the strip renders at 40 Hz.
+Tuning (thresholds, colours, speeds) is by eye on the speaker and still open.
 
 ## The framebuffer path (why it is cheap)
 
@@ -46,7 +83,5 @@ go run ./cmd/ddpsend -to <speaker-ip> -fx rainbow   # chase | pulse | bars; -fps
 
 ## LedFx
 
-Add a device of type **DDP** with the speaker's IP, port 4048 and **12** pixels (not "WLED": we
-do not imitate WLED's JSON API, so its discovery will not find the speaker). LedFx takes its
-audio from the computer it runs on (a microphone or a loopback device), so play the same music
-there to judge the effects on the strip.
+Add a device of type DDP with the settings above. LedFx takes its audio from the computer it
+runs on (a microphone or a loopback device), so play the same music there.

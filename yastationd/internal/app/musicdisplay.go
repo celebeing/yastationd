@@ -67,16 +67,30 @@ type musicScreen struct {
 	paused   bool // the track's playback speed is 0
 }
 
-// musicLevelsWanted: the spectrum is on and this display can draw it (sendspin-host computes it
-// only then).
+// musicLevelsWanted: the spectrum is on and this display can draw it.
 func (a *App) musicLevelsWanted() bool {
 	return a.cfg.MusicLevels && a.front != nil && a.front.HasLevels() && a.screen != nil
 }
 
-// musicBandCount is how many bands sendspin-host computes: one per column.
+// musicLevelsNeeded: something draws the spectrum — the display or the ambilight's music
+// effects (sendspin-host computes it only then).
+func (a *App) musicLevelsNeeded() bool { return a.musicLevelsWanted() || a.ambilightFxOn() }
+
+// musicBandCount is how many bands sendspin-host computes: one per screen column (21 without).
 func (a *App) musicBandCount() int {
-	w, _ := a.screen.Size()
-	return w
+	if a.screen != nil {
+		w, _ := a.screen.Size()
+		return w
+	}
+	return 21
+}
+
+// musicLevelsFresh: spectrum frames are coming (music plays).
+func (a *App) musicLevelsFresh(now time.Time) bool {
+	m := &a.music.screen
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return !m.levelsAt.IsZero() && now.Sub(m.levelsAt) <= levelsFresh && a.music.streaming.Load()
 }
 
 func (a *App) onMusicPlayback(playing bool) {
@@ -172,8 +186,8 @@ func (a *App) onMusicLevels(hexBands string) {
 		return
 	}
 	m := &a.music.screen
+	now := time.Now()
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if len(m.bands) != len(b) {
 		m.bands = make([]float64, len(b))
 		m.shown = make([]float64, len(b))
@@ -182,7 +196,10 @@ func (a *App) onMusicLevels(hexBands string) {
 		db := float64(v)/255*60 - 60
 		m.bands[i] = math.Max(0, math.Min(1, (db-levelsLowDB)/(levelsHighDB-levelsLowDB)))
 	}
-	m.levelsAt = time.Now()
+	m.levelsAt = now
+	bands := append([]float64(nil), m.bands...)
+	m.mu.Unlock()
+	a.feedMusicFx(bands, now)
 }
 
 // musicBands is the spectrum to draw at now, or nil when there is none to draw (no fresh levels).

@@ -127,8 +127,9 @@ Timed overlays (show_text, ring_animation, display/cmd) light the ring/matrix ov
 underneath — even with the ring light off — and fall back when the time is up, without touching the
 light's state. `ring_animation` returns to `off` (not "none": HA's MQTT select reads "None" as unknown).
 The ambilight is an independent persisted RGBW light. Ring/status overlays do not take it over.
-LED frames streamed over DDP (UDP `ddp_port`, 4048; LedFx, WLED tools) take it while they come,
-under the `switch` ambilight_fx and `number` ambilight_fx_brightness
+LED frames streamed over DDP (UDP `ddp_port`, 4048; LedFx, WLED tools) take it over while they
+come; without a stream, music effects draw it while music plays (`switch` ambilight_fx, `select`
+ambilight_fx_effect, `number` ambilight_fx_brightness)
 ([`../docs/ambilight-stream.md`](../docs/ambilight-stream.md)).
 
 ### Expressions and scenarios

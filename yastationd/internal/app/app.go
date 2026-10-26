@@ -386,6 +386,7 @@ func (a *App) Run(ctx context.Context) error {
 	b.FollowModes = followModes
 	b.HasAmbilight = a.ambilight != nil
 	b.HasAmbilightFx = a.ambilightFxOn()
+	b.AmbilightFx = musicFxNames
 	b.Expressions = a.expressionOptions()
 	b.HasFaces = a.frontClipsPossible()
 	b.DisplayModes = a.displayModes()
@@ -575,6 +576,12 @@ func (a *App) renderLoop(stop <-chan struct{}) {
 		defer st.Stop()
 		screenTick = st.C
 	}
+	var ambiTick <-chan time.Time // the ambilight on its own, faster tick (its effects move)
+	if a.ambilight != nil {
+		at := time.NewTicker(ambilightTick)
+		defer at.Stop()
+		ambiTick = at.C
+	}
 	fade := display.Fader{Up: frontFadeUp, Down: frontFadeDown}                             // pixel screens
 	smooth := display.Seg7Smoother{Up: frontFadeUp, Down: frontFadeDown, Morph: frontMorph} // seg7
 	for {
@@ -583,6 +590,8 @@ func (a *App) renderLoop(stop <-chan struct{}) {
 			return
 		case <-a.fx.kick: // a streamed frame: at the sender's rate, not the loop's 15 Hz
 			a.showAmbilight(time.Now())
+		case now := <-ambiTick:
+			a.showAmbilight(now)
 		case now := <-screenTick:
 			a.stepBrightness(now)
 			if err := a.showScreen(a.matrixStack.Frame(now), fade.Level(now, a.matrixStack.Top())); err != nil {
@@ -597,9 +606,7 @@ func (a *App) renderLoop(stop <-chan struct{}) {
 				a.log.Debug("ring show", "err", err)
 			}
 			a.tap.Ring(rf)
-			if a.ambilight != nil {
-				a.showAmbilight(now)
-			}
+
 			if a.front == nil || a.screen != nil {
 				continue
 			}

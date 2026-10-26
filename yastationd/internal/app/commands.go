@@ -38,6 +38,7 @@ func (a *App) commands() map[string]func([]byte) {
 	if a.ambilightFxOn() {
 		c["ambilight_fx"] = a.cmdAmbilightFx
 		c["ambilight_fx_brightness"] = a.cmdAmbilightFxBrightness
+		c["ambilight_fx_effect"] = a.cmdAmbilightFxEffect
 	}
 	if a.frontClipsPossible() {
 		c["display_faces"] = a.cmdFaces

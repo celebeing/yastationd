@@ -155,7 +155,8 @@ export type Features = { wifi?: boolean; led_preview?: boolean; moments?: boolea
 export type Net = { id: number; ssid: string; security: string; priority: number; disabled: boolean; hidden: boolean }
 export type Moment = { name: string; candidates: string[]; shows: string }
 
-export const infoFull = (base: string) => req<Peer & { features?: Features }>(base, '/api/info')
+export type DDP = { port: number; pixels: number; order: string; first: string }
+export const infoFull = (base: string) => req<Peer & { features?: Features; ddp?: DDP }>(base, '/api/info')
 export const wifi = (id: string, base: string) => authed<{ networks: Net[]; current: string; setup_mode: boolean }>(id, base, '/api/wifi')
 export const wifiAdd = (id: string, base: string, n: { ssid: string; psk: string; hidden: boolean; priority: number }) =>
   authed<{ ok: boolean }>(id, base, '/api/wifi/networks', { method: 'POST', body: JSON.stringify(n) })

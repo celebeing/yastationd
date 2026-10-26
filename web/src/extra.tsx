@@ -218,7 +218,25 @@ export function LedTab({ peer, base }: { peer: Peer; base: string }) {
         <input type="checkbox" checked={perceived} onChange={(e) => setPerceived(e.currentTarget.checked)} /> perceived brightness (undo the LEDs' gamma)
       </label>
       {info && <Playground peer={peer} base={base} info={info} onErr={setErr} />}
+      <DDPInfo base={base} />
     </section>
+  )
+}
+
+/** DDPInfo: what a DDP sender (LedFx) must be told by hand — DDP has no discovery. */
+function DDPInfo({ base }: { base: string }) {
+  const [d, setD] = useState<api.DDP | null>(null)
+  useEffect(() => {
+    api.infoFull(base).then((i) => setD(i.ddp || null), () => setD(null))
+  }, [base])
+  if (!d) return null
+  const host = base ? new URL(base).hostname : location.hostname
+  return (
+    <p class="small muted">
+      DDP receiver for LedFx / WLED tools (type DDP, not WLED): <code>{host}</code> port <code>{d.port}</code>,{' '}
+      <code>{d.pixels}</code> pixels, {d.order} (RGBW accepted), pixel 0 at the {d.first}. A stream takes the ambilight
+      over as sent; 2.5 s after it stops the light is back.
+    </p>
   )
 }
 

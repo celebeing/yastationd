@@ -69,7 +69,7 @@ func (a *App) newMusic() *sendspin.Host {
 		if a.linkedVolume() {
 			args = append(args, "-G")
 		}
-		if a.musicLevelsWanted() {
+		if a.musicLevelsNeeded() {
 			args = append(args, "-b", strconv.Itoa(a.musicBandCount()))
 		}
 		return args
