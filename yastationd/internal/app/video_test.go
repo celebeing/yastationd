@@ -132,3 +132,18 @@ func TestVideoRefusalsAndFallbacks(t *testing.T) {
 		t.Error("video offered without a pixel screen")
 	}
 }
+
+func TestClockDateOnlyWhereItFits(t *testing.T) {
+	a := &App{front: display.Seg7Front{}, store: newStateStore("", defaultState(128, 128, 128, false))}
+	if slices.Contains(a.displayModes(), "clock_date") {
+		t.Fatal("seg7 offers clock_date")
+	}
+	a.store.update(func(s *persistState) { s.Mode = "clock_date" })
+	if m := a.displayMode(); m != "clock" {
+		t.Fatalf("a stale clock_date state reads %q on seg7", m)
+	}
+	a.front = display.PixelFront{W: 21, H: 12}
+	if !slices.Contains(a.displayModes(), "clock_date") || a.displayMode() != "clock_date" {
+		t.Fatal("orion's screen offers clock_date")
+	}
+}

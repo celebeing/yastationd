@@ -129,7 +129,13 @@ func (a *App) cmdAmbilight(payload []byte) {
 func (a *App) cmdDisplayMode(payload []byte) {
 	mode := strings.TrimSpace(string(payload))
 	switch mode {
-	case "clock", "clock_date", "off", "message":
+	case "clock_date":
+		if a.front == nil || !a.front.HasClockDate() {
+			a.log.Info("display mode not available on this display", "mode", mode)
+			a.publishDisplayMode() // puts HA's select back
+			return
+		}
+	case "clock", "off", "message":
 	case videoMode: // a one-off playback over the persisted mode (video.go)
 		if !a.startVideo() {
 			a.publishDisplayMode() // puts HA's select back

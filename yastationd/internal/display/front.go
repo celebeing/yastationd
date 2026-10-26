@@ -49,8 +49,10 @@ type Front interface {
 
 	Clock(now time.Time, loc *time.Location, brightness int) FrontFrame
 	// ClockDate is the clock with the date (the clock_date display mode); a display without room
-	// for both shows the clock.
+	// for both shows the clock. HasClockDate tells whether it has the room (the mode is offered
+	// only then).
 	ClockDate(now time.Time, loc *time.Location, brightness int) FrontFrame
+	HasClockDate() bool
 	// Unsynced is the clock before the first time sync: no digits, a blinking colon.
 	Unsynced(now time.Time, brightness int) FrontFrame
 	Text(s string, brightness int) FrontFrame
@@ -80,6 +82,9 @@ func (Seg7Front) Kind() string { return "seg7" }
 func (Seg7Front) Clock(now time.Time, loc *time.Location, brightness int) FrontFrame {
 	return FrontFrame{Seg: Clock(now, loc, brightness)}
 }
+
+// HasClockDate: four digits have no room for the date as well.
+func (f Seg7Front) HasClockDate() bool { return false }
 
 // ClockDate: four digits have no room for the date as well.
 func (f Seg7Front) ClockDate(now time.Time, loc *time.Location, brightness int) FrontFrame {

@@ -190,7 +190,11 @@ func (a *App) displayMode() string {
 	if a.videoActive() {
 		return videoMode
 	}
-	return a.store.get().Mode
+	m := a.store.get().Mode
+	if m == "clock_date" && (a.front == nil || !a.front.HasClockDate()) {
+		return "clock" // a state from a display that had it; this one shows the clock
+	}
+	return m
 }
 
 func (a *App) publishDisplayMode() {
@@ -199,7 +203,11 @@ func (a *App) publishDisplayMode() {
 
 // displayModes are the Display select's options on this speaker.
 func (a *App) displayModes() []string {
-	m := []string{"clock", "clock_date", "off", "message"}
+	m := []string{"clock"}
+	if a.front != nil && a.front.HasClockDate() {
+		m = append(m, "clock_date")
+	}
+	m = append(m, "off", "message")
 	if a.videoPossible() {
 		m = append(m, videoMode)
 	}

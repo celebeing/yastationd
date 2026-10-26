@@ -3,6 +3,12 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.10.1 — 2026-10-26
+
+**Fixes and operations**
+- The Mini 3 and Mini 3 Pro no longer offer the `clock_date` display mode, which their four
+  seg7 digits cannot show (it showed the plain clock); it stays on Station 3.
+
 ## v0.10.0 — 2026-10-26
 
 Logs off the speaker, a network watchdog, smooth brightness, sensors in lux and dB.

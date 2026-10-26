@@ -60,7 +60,7 @@ func NewBuilder(t Topics, dev Device) *builder { return &builder{t: t, dev: dev}
 
 func (b *builder) displayModes() []string {
 	if len(b.DisplayModes) == 0 {
-		return []string{"clock", "clock_date", "off", "message"}
+		return []string{"clock", "off", "message"}
 	}
 	return b.DisplayModes
 }

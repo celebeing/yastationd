@@ -72,6 +72,9 @@ brightness at the end, so half-tones look half as bright on the glass.
   exactly the 21 columns (4+1+4 +1+1+1 +4+1+4); no leading zero, the line is centred. The colon
   is steady.
 - `clock_date` (a display mode of its own): `H:MM` over `DD.MM` in 3×5 digits, the date at 45 %.
+  Offered only where the two lines fit (pixel screens of 19×11 or more; not the minis' seg7): HA's
+  Display select lists it only there, the command is refused elsewhere, and a stored `clock_date`
+  reads as `clock`.
   A seg7 display has no room for both and shows the clock. Orion's default face
   (`matrix.default_mode = clock_date` in its profile: the mode of a fresh state, before HA sets
   one).

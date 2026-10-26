@@ -171,9 +171,14 @@ func (f PixelFront) Clock(now time.Time, loc *time.Location, brightness int) Fro
 	return FrontFrame{Px: fadeClock(f.W, f.H, now, loc, bigClockFace).pixels(f.Gamma, brightness)}
 }
 
+// HasClockDate: the two lines fit.
+func (f PixelFront) HasClockDate() bool {
+	return f.W >= textWidth(smallDigits, "00:00") && f.H >= 11
+}
+
 // ClockDate is the two-line clock: the time over the date.
 func (f PixelFront) ClockDate(now time.Time, loc *time.Location, brightness int) FrontFrame {
-	if f.W < textWidth(smallDigits, "00:00") || f.H < 11 {
+	if !f.HasClockDate() {
 		return f.Clock(now, loc, brightness)
 	}
 	return FrontFrame{Px: fadeClock(f.W, f.H, now, loc, clockDateFace).pixels(f.Gamma, brightness)}
