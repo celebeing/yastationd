@@ -3,6 +3,27 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.15.0 — 2026-10-26
+
+Music on the display.
+
+**New**
+- A new track's title ("Artist - Title") runs once over the front display; not on a resume, not
+  for a track first seen mid-play.
+- Pause and resume animations (moments `media_pause`, `media_resume`), from the track's playback
+  speed; they sit under the title, so a skip shows only the new title.
+- Station 3: while music plays, the clock in small digits over a 21-band spectrum of the music,
+  computed by `sendspin-host` from the PCM it plays and timed to when it is heard.
+- `music_title`, `music_clips`, `music_levels` switch them (all on); `marquee_speed` sets how fast
+  running lines move.
+- `sendspin-host` takes the Sendspin metadata role and reports `PLAYBACK`, `META` and, with
+  `-b`, `LEVELS`.
+
+**Fixes and operations**
+- Running lines enter at the middle of the display, so their start is not lost behind the
+  animation before them.
+- The example configs gave the auto-brightness curve in the old reading units; it is in lux.
+
 ## v0.14.0 — 2026-10-26
 
 **New**
