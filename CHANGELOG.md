@@ -3,6 +3,26 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.16.0 — 2026-10-27
+
+Effects on Station 3's rear strip.
+
+**New**
+- A DDP receiver (UDP 4048, `ddp_port`) for the rear strip: LedFx, WLED tools or xLights drive it
+  as a 12-pixel strip (RGB, RGBW accepted, pixel 0 at the top). A stream takes the strip over as
+  sent; 2.5 s after it stops the strip is back. DDP has no discovery: the settings are in
+  `docs/ambilight-stream.md` and in the web app's LED preview tab.
+- Music effects on the strip while music plays on the speaker, drawn from sendspin-host's
+  spectrum: `rain`, `vu`, `spectrum`, `energy`, `scroll`, `pulse`. HA / web app: the Ambilight
+  music effects switch, effect select and brightness. `ambilight_fx_white` (off) lets them use the
+  white channel.
+- `cmd/ddpsend` streams test effects to a speaker from a computer.
+
+**Fixes and operations**
+- The strip's R, G, B go through its framebuffer (`ambilight.fb`): a frame costs 3.5 ms instead
+  of 25–34 ms of sysfs writes. Its white stays on sysfs: the device tree configures the
+  framebuffer without white.
+
 ## v0.15.0 — 2026-10-26
 
 Music on the display.
