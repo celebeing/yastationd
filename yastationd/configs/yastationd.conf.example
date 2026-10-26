@@ -90,6 +90,10 @@ wyoming_port = 10700
 # Room sound sensors for HA (Sound floor / level / activity: mic levels once a minute, never
 # audio); they keep the mic open even with the wake word off.
 # room_sound = true
+# The web UI and API (docs/web-ui.md); "" = off. Login admin / yastation until changed from the
+# app (it writes web_user and web_password here).
+# http_addr = :80
+# web_user = admin
 # Speakers that hear one «Алиса» agree which answers: the loudest (docs/wake-arbitration.md).
 # arbitration = true
 # arbitration_wait_ms = 700

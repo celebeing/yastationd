@@ -74,6 +74,7 @@ func run(log *slog.Logger, name, screen, patterns, media, addr, root string) err
 	cfg.AutoBrightness = false
 	cfg.RoomSound = false
 	cfg.NetWatchdog = 0 // never reboot the host
+	cfg.HTTPAddr = ""   // the frame tap serves the preview here
 	cfg.FrameTapAddr = addr
 	cfg.LogLevel = "info"
 

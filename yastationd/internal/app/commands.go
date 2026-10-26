@@ -52,6 +52,7 @@ func (a *App) subscribe() {
 	}
 	a.intercomSubscribe()
 	a.mqtt.Subscribe(t.Arbitration(), a.onArbitrationClaim)
+	a.mqtt.SubscribeTopic(t.WebInfoAll(), a.onWebInfo)
 }
 
 // ring: HA JSON light schema {state, brightness, color:{r,g,b}, effect}.
@@ -84,7 +85,7 @@ func (a *App) cmdRing(payload []byte) {
 			}
 		}
 	})
-	a.mqtt.Publish(a.topics.State("ring"), ringStateJSON(s))
+	a.publish(a.topics.State("ring"), ringStateJSON(s))
 }
 
 type ambilightCommand struct {
@@ -124,7 +125,7 @@ func (a *App) cmdAmbilight(payload []byte) {
 		return
 	}
 	s := a.store.update(command.apply)
-	a.mqtt.Publish(a.topics.State("ambilight"), ambilightStateJSON(s))
+	a.publish(a.topics.State("ambilight"), ambilightStateJSON(s))
 }
 
 func (a *App) cmdDisplayMode(payload []byte) {
@@ -142,7 +143,7 @@ func (a *App) cmdDisplayMode(payload []byte) {
 			a.publishDisplayMode() // puts HA's select back
 			return
 		}
-		a.mqtt.Publish(a.topics.State("display_mode"), mode)
+		a.publish(a.topics.State("display_mode"), mode)
 		return
 	default:
 		a.log.Warn("unknown display_mode", "mode", mode)
@@ -150,7 +151,7 @@ func (a *App) cmdDisplayMode(payload []byte) {
 	}
 	a.stopVideo("display mode " + mode)
 	a.store.update(func(s *persistState) { s.Mode = mode })
-	a.mqtt.Publish(a.topics.State("display_mode"), mode)
+	a.publish(a.topics.State("display_mode"), mode)
 }
 
 func (a *App) cmdDisplayMessage(payload []byte) {
@@ -160,8 +161,8 @@ func (a *App) cmdDisplayMessage(payload []byte) {
 		s.Message = msg
 		s.Mode = "message"
 	})
-	a.mqtt.Publish(a.topics.State("display_message"), msg)
-	a.mqtt.Publish(a.topics.State("display_mode"), "message")
+	a.publish(a.topics.State("display_message"), msg)
+	a.publish(a.topics.State("display_mode"), "message")
 }
 
 func (a *App) cmdVolume(payload []byte) {
@@ -397,19 +398,19 @@ func (a *App) cmdRingAnimation(payload []byte) {
 	topic := a.topics.State("ring_animation")
 	if name == animOff {
 		a.ringStack.Remove("ov_ring")
-		a.mqtt.Publish(topic, animOff)
+		a.publish(topic, animOff)
 		return
 	}
 	secs := a.store.get().AnimSecs
 	if !a.playRingEffect(name, nil, nil, display.PrioScenario, time.Duration(secs)*time.Second) {
 		return
 	}
-	a.mqtt.Publish(topic, name)
+	a.publish(topic, name)
 	a.animGen.Add(1)
 	gen := a.animGen.Load()
 	time.AfterFunc(time.Duration(secs)*time.Second, func() {
 		if a.animGen.Load() == gen { // not superseded by a newer selection
-			a.mqtt.Publish(topic, animOff)
+			a.publish(topic, animOff)
 		}
 	})
 }
@@ -423,7 +424,7 @@ func (a *App) cmdDuration(obj string, field func(*persistState) *int) func([]byt
 		}
 		v := clamp(int(f), 1, 600)
 		a.store.update(func(s *persistState) { *field(s) = v })
-		a.mqtt.Publish(a.topics.State(obj), strconv.Itoa(v))
+		a.publish(a.topics.State(obj), strconv.Itoa(v))
 	}
 }
 
@@ -432,7 +433,7 @@ func (a *App) cmdFollowUp(payload []byte) {
 	for _, m := range followModes {
 		if m == mode {
 			a.store.update(func(s *persistState) { s.FollowUp = mode })
-			a.mqtt.Publish(a.topics.State("follow_up"), mode)
+			a.publish(a.topics.State("follow_up"), mode)
 			return
 		}
 	}

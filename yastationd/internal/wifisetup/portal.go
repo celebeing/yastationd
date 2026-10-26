@@ -47,6 +47,32 @@ type netEdit struct {
 }
 
 func (m *Mode) servePortal(ctx context.Context, ip net.IP) error {
+	h := m.portalHandler(ip)
+	if m.o.SharedHTTP {
+		m.portal.Store(&portalRoute{ip: ip, h: h})
+		<-ctx.Done()
+		m.portal.Store(nil)
+		return nil
+	}
+	ln, err := net.Listen("tcp4", net.JoinHostPort(ip.String(), "80"))
+	if err != nil {
+		return err
+	}
+	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second}
+	go func() {
+		<-ctx.Done()
+		sctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		srv.Shutdown(sctx)
+	}()
+	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
+}
+
+// portalHandler is the page and its API for the access point at ip.
+func (m *Mode) portalHandler(ip net.IP) http.Handler {
 	host := ip.String()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/state", m.apiState)
@@ -76,21 +102,7 @@ func (m *Mode) servePortal(ctx context.Context, ip net.IP) error {
 		}
 		mux.ServeHTTP(w, r)
 	})
-	ln, err := net.Listen("tcp4", net.JoinHostPort(host, "80"))
-	if err != nil {
-		return err
-	}
-	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second}
-	go func() {
-		<-ctx.Done()
-		sctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		srv.Shutdown(sctx)
-	}()
-	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
-	return nil
+	return h
 }
 
 func (m *Mode) loadConf() (*Conf, error) {

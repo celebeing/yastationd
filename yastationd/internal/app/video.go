@@ -198,7 +198,7 @@ func (a *App) displayMode() string {
 }
 
 func (a *App) publishDisplayMode() {
-	a.mqtt.Publish(a.topics.State("display_mode"), a.displayMode())
+	a.publish(a.topics.State("display_mode"), a.displayMode())
 }
 
 // displayModes are the Display select's options on this speaker.

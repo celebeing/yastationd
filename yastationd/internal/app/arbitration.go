@@ -89,7 +89,7 @@ func (a *App) arbitrateWake() {
 	r := &arbRound{mine: mine, at: time.Now(), held: &heldWake{}}
 	r.held.unsub = a.wakeAudio(r.held.add)
 	if b, err := json.Marshal(mine); err == nil {
-		a.mqtt.PublishEvent(a.topics.Arbitration(), string(b))
+		a.publishEvent(a.topics.Arbitration(), string(b))
 	}
 	wait := a.cfg.ArbitrationWait
 	if over >= arbLoudOver {

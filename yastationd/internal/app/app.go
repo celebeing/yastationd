@@ -69,6 +69,8 @@ type App struct {
 	ship      *logship.Shipper // logs to the LAN syslog server; nil when off
 	room      *roomSound       // mic levels (room sensors, arbitration); nil when not needed
 	arb       arbiter
+	states    stateMirror // the last value of every state object (statemirror.go)
+	web       webServer
 
 	ringStack   *display.Stack[display.RingFrame]
 	matrixStack *display.Stack[display.FrontFrame]
@@ -78,6 +80,7 @@ type App struct {
 	builder interface {
 		Publish(*mqtt.Client)
 		SetIntercomPeers([]string)
+		Entities() []mqtt.Entity
 	}
 
 	hmon  *health.Monitor
@@ -388,6 +391,10 @@ func (a *App) Run(ctx context.Context) error {
 	} else {
 		a.log.Warn("no mqtt_host configured; running local-only")
 	}
+	a.publishAllState() // fills the state mirror for the web too, broker or not
+	if a.cfg.HTTPAddr != "" {
+		a.startWeb(ctx)
+	}
 
 	if a.setup != nil {
 		a.setup.Recover() // a previous run that died in setup mode left the Wi-Fi client stopped
@@ -513,9 +520,7 @@ func (a *App) restoreVolume() {
 	for i := 0; i < 20; i++ {
 		if err := a.mixer.Set(a.prof.Audio.Volume, v); err == nil {
 			a.log.Info("volume restored", "master", v, "pct", a.percentFromRaw(v))
-			if a.mqtt != nil {
-				a.mqtt.Publish(a.topics.State("volume"), strconv.Itoa(a.percentFromRaw(v)))
-			}
+			a.publish(a.topics.State("volume"), strconv.Itoa(a.percentFromRaw(v)))
 			return
 		}
 		time.Sleep(500 * time.Millisecond)
@@ -608,34 +613,32 @@ func (a *App) onMQTTConnect() {
 	a.builder.Publish(a.mqtt)
 	a.subscribe()
 	a.publishAllState()
+	a.publishWebInfo()
 }
 
 func (a *App) publishAllState() {
-	if a.mqtt == nil {
-		return
-	}
 	s := a.store.get()
-	a.mqtt.Publish(a.topics.State("ring"), ringStateJSON(s))
+	a.publish(a.topics.State("ring"), ringStateJSON(s))
 	if a.ambilight != nil {
-		a.mqtt.Publish(a.topics.State("ambilight"), ambilightStateJSON(s))
+		a.publish(a.topics.State("ambilight"), ambilightStateJSON(s))
 	}
-	a.mqtt.Publish(a.topics.State("display_mode"), a.displayMode())
-	a.mqtt.Publish(a.topics.State("display_message"), s.Message)
-	a.mqtt.Publish(a.topics.State("ring_animation"), animOff)
-	a.mqtt.Publish(a.topics.State("expression"), animOff)
-	a.mqtt.Publish(a.topics.State("display_caps"), a.displayCaps())
+	a.publish(a.topics.State("display_mode"), a.displayMode())
+	a.publish(a.topics.State("display_message"), s.Message)
+	a.publish(a.topics.State("ring_animation"), animOff)
+	a.publish(a.topics.State("expression"), animOff)
+	a.publish(a.topics.State("display_caps"), a.displayCaps())
 	a.publishVersion()
 	if a.frontClipsPossible() {
-		a.mqtt.Publish(a.topics.State("display_faces"), onOff(s.Faces))
+		a.publish(a.topics.State("display_faces"), onOff(s.Faces))
 	}
-	a.mqtt.Publish(a.topics.State("follow_up"), s.FollowUp)
-	a.mqtt.Publish(a.topics.State("text_duration"), strconv.Itoa(s.TextSecs))
-	a.mqtt.Publish(a.topics.State("animation_duration"), strconv.Itoa(s.AnimSecs))
+	a.publish(a.topics.State("follow_up"), s.FollowUp)
+	a.publish(a.topics.State("text_duration"), strconv.Itoa(s.TextSecs))
+	a.publish(a.topics.State("animation_duration"), strconv.Itoa(s.AnimSecs))
 	a.publishBrightness()
-	a.mqtt.Publish(a.topics.State("health"), a.hmon.State().String())
-	a.mqtt.Publish(a.topics.State("pipeline_ok"), onOff(a.hmon.State() == health.Online))
+	a.publish(a.topics.State("health"), a.hmon.State().String())
+	a.publish(a.topics.State("pipeline_ok"), onOff(a.hmon.State() == health.Online))
 	if v, err := a.mixer.Get(a.prof.Audio.Volume); err == nil {
-		a.mqtt.Publish(a.topics.State("volume"), strconv.Itoa(a.percentFromRaw(v)))
+		a.publish(a.topics.State("volume"), strconv.Itoa(a.percentFromRaw(v)))
 	}
 	a.publishMicMute()
 }
@@ -649,14 +652,11 @@ func (a *App) telemetryLoop(stop <-chan struct{}) {
 		case <-stop:
 			return
 		case <-t.C:
-			if a.mqtt == nil {
-				continue
-			}
-			a.mqtt.Publish(a.topics.State("uptime"), strconv.Itoa(int(time.Since(a.start).Seconds())))
+			a.publish(a.topics.State("uptime"), strconv.Itoa(int(time.Since(a.start).Seconds())))
 			if a.luxPath != "" {
 				if b := a.luxSmooth.Load(); b != 0 && lux.due(math.Float64frombits(b), time.Now()) {
-					a.mqtt.Publish(a.topics.State("lux"), strconv.FormatFloat(math.Float64frombits(b), 'f', 2, 64))
-					a.mqtt.Publish(a.topics.State("lux_attr"), a.luxAttrs())
+					a.publish(a.topics.State("lux"), strconv.FormatFloat(math.Float64frombits(b), 'f', 2, 64))
+					a.publish(a.topics.State("lux_attr"), a.luxAttrs())
 				}
 			}
 		}
@@ -665,10 +665,8 @@ func (a *App) telemetryLoop(stop <-chan struct{}) {
 
 func (a *App) onHealthChange(s health.State) {
 	a.log.Info("health", "state", s) // the ring indication follows in statusLoop
-	if a.mqtt != nil {
-		a.mqtt.Publish(a.topics.State("health"), s.String())
-		a.mqtt.Publish(a.topics.State("pipeline_ok"), onOff(s == health.Online))
-	}
+	a.publish(a.topics.State("health"), s.String())
+	a.publish(a.topics.State("pipeline_ok"), onOff(s == health.Online))
 }
 
 func (a *App) onPlayState(playing bool) {
@@ -678,7 +676,7 @@ func (a *App) onPlayState(playing bool) {
 		if playing {
 			st = "playing"
 		}
-		a.mqtt.Publish(a.topics.State("speaker"), st)
+		a.publish(a.topics.State("speaker"), st)
 	}
 }
 
@@ -714,16 +712,13 @@ func onOff(b bool) string {
 // publishVersion: the daemon's version as the Version sensor, the helpers' and the board as its
 // attributes.
 func (a *App) publishVersion() {
-	if a.mqtt == nil {
-		return
-	}
 	info := map[string]string{"yastationd": version.Version, "board": a.prof.Name}
 	if v, ok := a.music.version.Load().(string); ok {
 		info["sendspin_host"] = v
 	}
 	b, _ := json.Marshal(info)
-	a.mqtt.Publish(a.topics.State("version_info"), string(b))
-	a.mqtt.Publish(a.topics.State("version"), version.Version)
+	a.publish(a.topics.State("version_info"), string(b))
+	a.publish(a.topics.State("version"), version.Version)
 }
 
 func ringStateJSON(s persistState) string {

@@ -51,8 +51,40 @@ func (t Topics) IntercomInfoID(topic string) string {
 	return id
 }
 
+// WebInfo is this speaker's retained web UI card; WebInfoAll every speaker's (discovery for the
+// app, docs/web-ui.md).
+func (t Topics) WebInfo() string    { return fmt.Sprintf("%s/%s/web/info", t.prefix, t.id) }
+func (t Topics) WebInfoAll() string { return fmt.Sprintf("%s/+/web/info", t.prefix) }
+
+// ObjectOf is the object of a state or command topic of this device ("" when it is neither).
+func (t Topics) ObjectOf(topic string) string {
+	rest, ok := strings.CutPrefix(topic, t.prefix+"/"+t.id+"/")
+	if !ok {
+		return ""
+	}
+	for _, suf := range []string{"/state", "/set"} {
+		if obj, ok := strings.CutSuffix(rest, suf); ok && !strings.Contains(obj, "/") {
+			return obj
+		}
+	}
+	return ""
+}
+
 // Arbitration is the shared topic where speakers that heard a wake word post their claims.
 func (t Topics) Arbitration() string { return fmt.Sprintf("%s/arbitration", t.prefix) }
 
 // DisplayCmd is the one-shot overlay command topic (JSON {surface,op,args,ttl_ms,priority}).
 func (t Topics) DisplayCmd() string { return fmt.Sprintf("%s/%s/display/cmd", t.prefix, t.id) }
+
+// StateObject is the object of one of this device's state topics ("" when topic is not one).
+func (t Topics) StateObject(topic string) string {
+	rest, ok := strings.CutPrefix(topic, t.prefix+"/"+t.id+"/")
+	if !ok {
+		return ""
+	}
+	obj, ok := strings.CutSuffix(rest, "/state")
+	if !ok || strings.Contains(obj, "/") {
+		return ""
+	}
+	return obj
+}

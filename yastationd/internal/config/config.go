@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/celebeing/yastationd/yastationd/internal/luxcal"
+	"github.com/celebeing/yastationd/yastationd/internal/web"
 	"io"
 	"net"
 	"os"
@@ -104,6 +105,13 @@ type Config struct {
 	// channel, once a minute; docs/hass-integration.md). Keeps the mic open even with the wake
 	// word off; never sends audio.
 	RoomSound bool
+
+	// The web UI (docs/web-ui.md): HTTPAddr is the speaker's HTTP server ("" = none; the setup
+	// page then listens on its own); WebUser and WebPassword (a pbkdf2-sha256 hash, "" = the
+	// documented default password) the login.
+	HTTPAddr    string
+	WebUser     string
+	WebPassword string
 
 	// Wake-word arbitration (docs/wake-arbitration.md): speakers that hear the same «Алиса» agree
 	// over MQTT which one answers — the loudest. ArbitrationWait is the longest a quiet claim
@@ -276,6 +284,8 @@ func Default() Config {
 		RoomSound:           true,
 		LogSpoolKB:          1024,
 		Arbitration:         true,
+		HTTPAddr:            ":80",
+		WebUser:             web.DefaultUser,
 		ArbitrationWait:     700 * time.Millisecond,
 		NetWatchdog:         10 * time.Minute,
 		SpotterBin:          cfw + "/bin/spotter-host",
@@ -421,6 +431,18 @@ func (c *Config) set(k, v string) error {
 		}
 	case "room_sound":
 		c.RoomSound, err = strconv.ParseBool(v)
+	case "http_addr":
+		c.HTTPAddr = v
+	case "web_user":
+		if v == "" {
+			err = fmt.Errorf("empty")
+		}
+		c.WebUser = v
+	case "web_password":
+		if !web.ValidHash(v) {
+			err = fmt.Errorf("want a pbkdf2-sha256$… hash (set it from the web UI)")
+		}
+		c.WebPassword = v
 	case "arbitration":
 		c.Arbitration, err = strconv.ParseBool(v)
 	case "arbitration_wait_ms":
@@ -594,6 +616,11 @@ func (c Config) Path(p string) string {
 // (comments, commented-out examples, other keys) stays byte for byte. The caller validates the
 // result with Parse.
 func Edit(data []byte, changes map[string][]string) []byte {
+	return EditNote(data, changes, "set from the Wi-Fi setup page")
+}
+
+// EditNote is Edit with the comment above appended keys.
+func EditNote(data []byte, changes map[string][]string, note string) []byte {
 	var out []string
 	done := map[string]bool{}
 	lines := strings.SplitAfter(string(data), "\n")
@@ -629,7 +656,7 @@ func Edit(data []byte, changes map[string][]string) []byte {
 		}
 	}
 	if len(added) > 0 {
-		out = append(out, "\n# set from the Wi-Fi setup page\n")
+		out = append(out, "\n# "+note+"\n")
 		out = append(out, added...)
 	}
 	return []byte(strings.Join(out, ""))

@@ -239,13 +239,13 @@ func (a *App) roomSoundLoop(stop <-chan struct{}) {
 			a.log.Debug("room sound", "floor", st.floor, "level", st.level,
 				"over3", st.over[0], "over6", st.over[1], "over10", st.over[2])
 		}
-		if a.mqtt == nil || !a.roomSoundEnabled() {
+		if !a.roomSoundEnabled() {
 			continue
 		}
 		now := time.Now()
 		for obj, v := range vals {
 			if gates[obj].due(v, now) {
-				a.mqtt.Publish(a.topics.State(obj), v)
+				a.publish(a.topics.State(obj), v)
 			}
 		}
 	}

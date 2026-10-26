@@ -51,6 +51,7 @@ func (a *App) newWifiSetup() *wifisetup.Mode {
 		Log:        a.log,
 		OnExit:     func() { a.showSetup(false) },
 		ConfFile:   c.File,
+		SharedHTTP: c.HTTPAddr != "",
 		Restart: func() {
 			if a.quit != nil {
 				a.quit() // Run returns, the daemon exits 0 and the supervisor starts it again in 1 s

@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -45,6 +47,9 @@ type Options struct {
 	// called after leaving setup mode when they were changed, so the daemon loads them.
 	ConfFile string
 	Restart  func()
+	// SharedHTTP: the daemon's own HTTP server already listens on port 80 on every address; the
+	// page is then served through it (Portal) instead of a listener of its own.
+	SharedHTTP bool
 }
 
 type Mode struct {
@@ -61,6 +66,22 @@ type Mode struct {
 	exited  chan struct{} // closed when hostapd exits
 
 	settingsChanged bool // under confMu
+
+	portal atomic.Pointer[portalRoute] // the page while active (SharedHTTP)
+}
+
+type portalRoute struct {
+	ip net.IP
+	h  http.Handler
+}
+
+// Portal is the setup page's handler and the access point's address while setup mode is on
+// (nil otherwise): the daemon's server hands it the requests that arrive on that address.
+func (m *Mode) Portal() (http.Handler, net.IP) {
+	if p := m.portal.Load(); p != nil {
+		return p.h, p.ip
+	}
+	return nil, nil
 }
 
 func New(o Options) *Mode {

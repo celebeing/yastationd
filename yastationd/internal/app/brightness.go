@@ -247,12 +247,9 @@ func (a *App) cmdClockBrightness(payload []byte) {
 }
 
 func (a *App) publishBrightness() {
-	if a.mqtt == nil {
-		return
-	}
 	s := a.store.get()
-	a.mqtt.Publish(a.topics.State("auto_brightness"), onOff(s.ClockAuto))
-	a.mqtt.Publish(a.topics.State("clock_brightness"), strconv.Itoa(s.ClockBright))
+	a.publish(a.topics.State("auto_brightness"), onOff(s.ClockAuto))
+	a.publish(a.topics.State("clock_brightness"), strconv.Itoa(s.ClockBright))
 }
 
 // luxGate keeps the Illuminance sensor from writing a row to HA's recorder every 30 s: the

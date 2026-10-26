@@ -206,15 +206,11 @@ func (a *App) setMute(muted bool) {
 func (a *App) publishMicMute() { a.publishMicMuteValue(a.muted.Load()) }
 
 func (a *App) publishMicMuteValue(muted bool) {
-	if a.mqtt != nil {
-		a.mqtt.Publish(a.topics.State("mic_mute"), onOff(muted))
-	}
+	a.publish(a.topics.State("mic_mute"), onOff(muted))
 }
 
 func (a *App) publishButton(kind string) {
-	if a.mqtt != nil {
-		a.mqtt.PublishEvent(a.topics.State("button"), `{"event_type":"`+kind+`"}`)
-	}
+	a.publishEvent(a.topics.State("button"), `{"event_type":"`+kind+`"}`)
 }
 
 // ---- volume ----
@@ -421,9 +417,7 @@ func (a *App) setMaster(v, edge int, report bool) {
 	if report {
 		a.reportMusicVolume(pct)
 	}
-	if a.mqtt != nil {
-		a.mqtt.Publish(a.topics.State("volume"), strconv.Itoa(pct))
-	}
+	a.publish(a.topics.State("volume"), strconv.Itoa(pct))
 	// Local reflex: the level on the front display for a moment (the display's own volume scene:
 	// a number on seg7, the stock rolling digits on orion). The ring stays for colour/animation.
 	if a.front == nil {

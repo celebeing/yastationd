@@ -77,7 +77,7 @@ func (a *App) newIntercom() *icState {
 	a.ic = ic // intercomOptions reads the name
 	ic.m = intercom.NewManager(intercomOptions(a, func(to string, payload []byte) {
 		if a.mqtt != nil {
-			a.mqtt.PublishEvent(a.topics.IntercomSig(to), string(payload))
+			a.publishEvent(a.topics.IntercomSig(to), string(payload))
 		}
 	}))
 	return ic
@@ -129,11 +129,11 @@ func (a *App) icInCall() bool { return a.ic != nil && a.ic.m.Status().State == i
 func (a *App) intercomSubscribe() {
 	t := a.topics
 	if a.ic == nil {
-		a.mqtt.Publish(t.IntercomInfo(), "") // clear a stale entry from when it was on
+		a.publish(t.IntercomInfo(), "") // clear a stale entry from when it was on
 		return
 	}
 	info, _ := json.Marshal(icInfo{ID: a.cfg.DeviceID, Name: a.ic.name, Port: a.cfg.IntercomPort, V: 1})
-	a.mqtt.Publish(t.IntercomInfo(), string(info))
+	a.publish(t.IntercomInfo(), string(info))
 	a.mqtt.Subscribe(t.IntercomSig(a.cfg.DeviceID), a.ic.m.Handle)
 	a.mqtt.SubscribeTopic(t.IntercomInfoAll(), a.onIntercomInfo)
 	a.mqtt.Subscribe(t.Command("intercom"), a.cmdIntercom)
@@ -221,7 +221,7 @@ func (a *App) publishIntercomDiscovery() {
 	if target == "" {
 		target = icCallTargetNA
 	}
-	a.mqtt.Publish(a.topics.State("intercom_target"), target)
+	a.publish(a.topics.State("intercom_target"), target)
 }
 
 // cmdIntercom: {"action":"call","to":"<device id or room name>"}, {"action":"answer"},
@@ -254,7 +254,7 @@ func (a *App) cmdIntercomTarget(payload []byte) {
 	a.ic.mu.Lock()
 	a.ic.target = p.ID
 	a.ic.mu.Unlock()
-	a.mqtt.Publish(a.topics.State("intercom_target"), p.Name)
+	a.publish(a.topics.State("intercom_target"), p.Name)
 }
 
 // icCallOrAnswer answers a ringing call, or calls `to` (a device id or name; "" = the HA
@@ -291,12 +291,12 @@ func (a *App) publishIntercom(st intercom.Status) {
 	if a.mqtt == nil {
 		return
 	}
-	a.mqtt.Publish(a.topics.State("intercom"), string(st.State))
+	a.publish(a.topics.State("intercom"), string(st.State))
 	attr, _ := json.Marshal(map[string]any{
 		"peer": st.Peer, "peer_name": st.PeerName, "incoming": st.Incoming,
 		"since": st.Since.Format(time.RFC3339), "ended": st.Ended,
 	})
-	a.mqtt.Publish(a.topics.State("intercom_attr"), string(attr))
+	a.publish(a.topics.State("intercom_attr"), string(attr))
 }
 
 // ---- states: the ring, the audio ----

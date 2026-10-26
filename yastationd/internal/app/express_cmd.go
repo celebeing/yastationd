@@ -29,21 +29,21 @@ func (a *App) cmdExpressionSelect(payload []byte) {
 	topic := a.topics.State("expression")
 	if name == animOff {
 		a.unexpress(haSlot)
-		a.mqtt.Publish(topic, animOff)
+		a.publish(topic, animOff)
 		return
 	}
 	d := time.Duration(a.store.get().AnimSecs) * time.Second
 	if !a.express(haSlot, name, d) {
 		a.log.Info("expression not available here", "name", name)
-		a.mqtt.Publish(topic, animOff)
+		a.publish(topic, animOff)
 		return
 	}
-	a.mqtt.Publish(topic, name)
+	a.publish(topic, name)
 	a.animGen.Add(1)
 	gen := a.animGen.Load()
 	time.AfterFunc(d, func() {
 		if a.animGen.Load() == gen {
-			a.mqtt.Publish(topic, animOff)
+			a.publish(topic, animOff)
 		}
 	})
 }
@@ -103,7 +103,7 @@ func (a *App) cmdFaces(payload []byte) {
 			a.matrixStack.Remove(slot)
 		}
 	}
-	a.mqtt.Publish(a.topics.State("display_faces"), onOff(on))
+	a.publish(a.topics.State("display_faces"), onOff(on))
 }
 
 // displayCaps tells HA scripts and an LLM agent what this speaker can show.

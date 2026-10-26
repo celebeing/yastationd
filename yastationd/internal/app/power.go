@@ -38,10 +38,8 @@ func (a *App) powerLoop(stop <-chan struct{}) {
 			continue
 		}
 		bad := powerProblem(pd, a.prof.Power.MinMilliVolts)
-		if a.mqtt != nil {
-			a.mqtt.Publish(a.topics.State("supply_voltage"), strconv.FormatFloat(float64(pd.MilliVolts)/1000, 'f', 1, 64))
-			a.mqtt.Publish(a.topics.State("power_problem"), onOff(bad))
-		}
+		a.publish(a.topics.State("supply_voltage"), strconv.FormatFloat(float64(pd.MilliVolts)/1000, 'f', 1, 64))
+		a.publish(a.topics.State("power_problem"), onOff(bad))
 		if bad {
 			a.powerAlert(pd)
 		}
