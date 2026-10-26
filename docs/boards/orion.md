@@ -271,7 +271,7 @@ Generic detector limits and the bergamot instance: docs/wakeword-mic-array.md §
   is the OTA staging partition; with updates blocked nothing rewrites it. What a factory reset
   does to `/ota` and `/data` is not characterised yet.
 
-- Ambient light: ltr308 (I2C 1-0053) registered as IIO `light-sensor-top`, `in_intensity_*`
+- Ambient light: ltr308 (I2C 0-0053) registered as IIO `light-sensor-top`, `in_intensity_*`
   only; the stock S80light-sensor sets gain 18 / 0.4 s — max values, nothing to override.
   **Measured on device 2026-10-25:** gain 18, 0.4 s integration, 40 Hz sampling, zero offset,
   and `in_intensity_input = in_intensity_raw × 2.25`; dark readings were 4–10 raw (9–22.5
@@ -287,6 +287,25 @@ Generic detector limits and the bergamot instance: docs/wakeword-mic-array.md §
   `min_mv 15000` distinguishes a real 20 V PD source from 9/12 V fallbacks; nothing in
   the vendor tree (quasar.cfg, scripts) carries a textual threshold, so 15000 is our own
   alert line, tuned to the measured contract.
+
+## Sensors survey (2026-10-26)
+
+A read-only pass over I2C, IIO, input, thermal and the device tree, for sensors worth exposing.
+
+| Part | Where | What it gives |
+|---|---|---|
+| `ltr308als01` ambient light | I2C 0-0053, IIO `light-sensor-top` | one broadband channel (`in_intensity_*`); **no colour**. The device tree has no other light sensor (`light-sensor@53` is the only one), so an ambilight that follows the room's colour is not possible with this hardware. The vendor's "ambient lighting colour" features are voice commands, not sensor-driven; maind has a `darkeningLuxThreshold`. |
+| `aw93312` capacitive sensor (`aw933xx` driver) | I2C 0-0012, input event3 | the touch top. Besides the input events, sysfs exposes **12 channels of raw capacitance**: `diff` (live deltas per channel, `DIFF_CHn = …`), `offset` (per-channel offset in pF), `mode_operation` (`Active`), `chip_info`. ~10 channels are the ring's pads; the others are the inner area. Unused so far: interpolating `diff` between neighbouring pads may give the ring a finer position than the input events' ten pads, and the deltas may show a hand approaching (proximity) before it touches. **Read only `diff`, `offset`, `mode_operation`, `chip_info`:** reading `reg` overflows the sysfs page in the vendor driver (4099 bytes; a kernel `WARNING` in `vsnprintf`, harmless otherwise), and `soft_rst`, `update`, `aot` (auto offset tuning) and `awrw` are actions, not values. |
+| `pcf8563` RTC | I2C 0-0051, `/dev/rtc0` | a real-time clock, readable with `hwclock -r` (it was right on 2026-10-26). Whether it keeps time through a power cut (a backup cell or supercap) is untested; if it does, the clock could be right before the network is up. |
+| SoC temperature | `/sys/class/thermal/thermal_zone0` (`soc_thermal`) | millidegrees (38.6 °C idle); trips at 85 / 95 / 105 °C. A cheap diagnostic sensor for HA. |
+| SAR ADC, 8 channels | IIO `meson-c2-saradc` | ch1 ≈ 768 mV, ch5 ≈ 468 mV, the rest near 0-85 mV; nothing in the device tree consumes them (no `io-channels`), so their meaning (board ID straps, an NTC?) is unknown. |
+| Hardware VAD | `/dev/vad`, `/sys/class/vad`, input `vad_keypad` | the SoC's low-power voice activity detector (Amlogic audio VAD); vendor-internal, unused by us. |
+| 4 × `24c02` EEPROM | I2C 0-0052, 1-0052, 2-0051, 3-0050 | one per PCB: an ASCII record with a part number, a revision, a date and a production serial (not calibration data). Treat as private (serials). |
+| `husb238` USB-C PD | I2C 2-0008, `ya_pd` | already used (Supply voltage, Power supply problem). |
+| `acm8625s` amps ×4 | I2C 2-002c, 3-002c/2d/2e | only `settings_file` in sysfs: no temperature or fault status exposed. |
+
+Also: `/proc/net/wireless` is all zeros (the Wi-Fi driver does not fill it), so Wi-Fi signal and
+rate must come from the driver's own tools. The Zigbee radio is in "Zigbee" above.
 
 ## LEDs
 

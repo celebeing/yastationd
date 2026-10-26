@@ -261,7 +261,7 @@ does not block array-phase work. The first experiment will still tell us whether
 
 ## Orion: a colour sensor for the ambilight?
 
-**Status:** to investigate (2026-10-26).
+**Status:** answered 2026-10-26: **no colour sensor** — the ltr308 is the only light sensor in orion's device tree and has one broadband channel ([boards/orion.md](boards/orion.md), "Sensors survey"). Kept for the record; the rest of this entry is the question as it was asked.
 
 If orion senses the colour of the light around it, not only its level, the rear ambilight could
 follow the room (warm in the evening, matching a lamp). What we know so far is against it: the one
