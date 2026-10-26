@@ -382,3 +382,14 @@ everything at once — music at full volume, the SoC busy, the strip RGBW at 255
 USB-C PD supply (`ya_pd`: voltage, the supply sensor in HA), thermal throttling, and whether the
 sound sags or the speaker resets. Until then the music effects stay dim (brightness 64) and do not
 use white by default.
+
+## Wake arbitration vs the context-dependent spotters
+
+Arbitration ([wake-arbitration.md](wake-arbitration.md)) is about the wake word: a wake during an
+intercom call is already left out. But the speakers also run context-dependent spotters — the
+local commands («стоп», «громче»), the intercom's answer/decline words («продолжи», «хватит») while
+ringing or in a call, the commands kept on after music — and two speakers in earshot of each
+other may hear the same word in different contexts (one ringing, the other playing music; both in
+the call's two rooms). Check where a claim from one could suppress or delay the other's
+context-dependent action, and whether such words need their own rule (never arbitrated, or
+arbitrated only among speakers in the same context).
