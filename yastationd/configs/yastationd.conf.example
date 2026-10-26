@@ -18,6 +18,7 @@ tz                    = Europe/Moscow
 ring_brightness       = 128
 ambilight_brightness  = 128
 # ddp_port            = 4048   (boards with an ambilight: LED frames over DDP from LedFx etc.; 0 = off)
+# ambilight_fx_white  = true   (music effects use the white channel; false = drawn as R=G=B)
 clock_brightness      = 128
 # Clock brightness from the light sensor (also an HA switch; this is only the first-start value).
 # auto_brightness = true

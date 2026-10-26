@@ -28,6 +28,8 @@ ambilight_brightness = 64
 # LED frames streamed to the ambilight over DDP (LedFx, WLED tools; docs/ambilight-stream.md).
 # The effects switch and brightness are runtime settings (HA, the web app). 0 = no receiver.
 # ddp_port = 4048
+# The music effects use the strip's white channel (false: drawn as R=G=B instead).
+# ambilight_fx_white = true
 clock_brightness     = 128
 auto_brightness      = true
 # Lux (calibrated: docs/sensor-calibration.md) -> front-display brightness, on log(lux).
