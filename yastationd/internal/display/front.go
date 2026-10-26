@@ -180,6 +180,8 @@ type PixelFront struct {
 	W, H     int
 	Patterns *PixelLibrary
 	Gamma    float64 // the screen's gamma for our own drawings (the patterns carry their own)
+	// TextLines is the text layout (pixeltext.go): 0 auto, 1 one line, 2 two lines.
+	TextLines int
 }
 
 func (f PixelFront) Kind() string { return fmt.Sprintf("pixels %dx%d", f.W, f.H) }

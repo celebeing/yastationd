@@ -96,6 +96,10 @@ type Config struct {
 	// for the browser preview (docs/led-preview.md). "" = off. No authentication: LAN only.
 	FrameTapAddr string
 
+	// TextLines: text on a pixel screen (orion) — 0 auto, 1 one line, 2 two lines
+	// (docs/display-expressions.md, "Text on the pixel screen").
+	TextLines int
+
 	// Room sound sensors for HA (sound_floor, sound_level, sound_activity: levels of a raw mic
 	// channel, once a minute; docs/hass-integration.md). Keeps the mic open even with the wake
 	// word off; never sends audio.
@@ -398,6 +402,15 @@ func (c *Config) set(k, v string) error {
 		c.WyomingPort, err = atoiRange(v, 0, 65535)
 	case "frametap_addr":
 		c.FrameTapAddr = v
+	case "text_lines":
+		switch v {
+		case "auto":
+			c.TextLines = 0
+		case "1", "2":
+			c.TextLines = int(v[0] - '0')
+		default:
+			err = fmt.Errorf("want auto, 1 or 2")
+		}
 	case "room_sound":
 		c.RoomSound, err = strconv.ParseBool(v)
 	case "log_remote":

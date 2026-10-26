@@ -82,6 +82,29 @@ brightness at the end, so half-tones look half as bright on the glass.
   in the first 600 ms of a minute the frame mixes the previous minute's picture in.
 - Before the first time sync: only the colon, blinking (orion shows the time at once: its RTC keeps it, `platform.rtc_backed`).
 
+## Text on the pixel screen (orion)
+
+`show_text`, the `message` display mode, `display/cmd` text, numbers, timers and the intercom's
+call timer are drawn in our own bitmap fonts (`internal/display/pixelfont.go`, `pixeltext.go`),
+like the clock: perceived intensity, the screen's gamma at the end.
+
+- **Fonts:** `font7` (7 rows, ~5 px wide) and `font5` (5 rows, ~3 px wide; wide letters 4–6).
+  Latin and Cyrillic capitals (lower case is drawn as upper case; Cyrillic letters shaped like
+  Latin ones share the glyph), digits, `. , ! ? : ; - — + ± = / \ ( ) [ ] % ° " ' * # _ < > « »
+  № … & @ $ € ₽ ^ ~ | ♥`. An unknown character is a hollow box. In `font5`, `Ё` is drawn as `Е`
+  (no room for the dots).
+- **Digits alone** (a number, a timer's `MM:SS`, `H:MM` from an hour) use the clock's 4×9
+  digits when they fit.
+- **Layouts** (`text_lines` in `yastationd.conf`): `auto` (default) — one line of `font7` if it
+  fits, else two lines of `font5` if they fit, else a scrolling line of `font7`; `1` — always one
+  line, scrolling when it does not fit; `2` — two lines, pages of two lines every 2.5 s when there
+  are more, and the scrolling line when a word is too long for a line.
+- **Wrapping** breaks only at spaces, never inside a word; punctuation standing alone (`—`, `»`,
+  `!`) stays with the word before it, an opening quote or bracket with the word after.
+- **The scrolling line** enters at the right and leaves at the left, a pixel at a time, 1.5× the
+  seg7 marquee's character rate (`marqueeStep`/9 per pixel; tuned on glass 2026-10-26).
+- On glass (2026-10-26) both layouts read well; `auto`'s choice was kept as the default.
+
 ## Screen patterns (pixel, orion)
 
 The 3.21 firmware ships its screen animations in `/system/vendor/quasar/ledpatterns/screen/`
