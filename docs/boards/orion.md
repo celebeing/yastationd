@@ -361,8 +361,8 @@ Three surfaces, every LED a Linux LED class device each mirrored by a framebuffe
   dark half-tones; the vendor keeps the screen at `minBrightness` 127 or more and has a
   backlight node (`/sys/class/backlight/fb1/brightness`) — consider brightness there instead.
 - **Tooling:** the browser preview and the host simulator, [led-preview.md](../led-preview.md).
-- **Volume curve:** check that the percent → `Master Playback Volume` mapping, on top of
-  hardvold's own curves, gives even loudness steps.
+- **Volume curve:** done — the stock `platformToAlsaMap` in the profile's `audio.volume_map`
+  (plus a 5 % point), on top of hardvold's own curves.
 - **Light sensor:** calibrate the intensity units against real lux (later).
 
 ## Boot / egress

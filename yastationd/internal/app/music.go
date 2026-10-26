@@ -78,7 +78,7 @@ func (a *App) musicVolume() int {
 		return a.store.get().MusicVolume
 	}
 	if v, err := a.mixer.Get(a.prof.Audio.Volume); err == nil {
-		return a.prof.Audio.PercentFromRaw(v)
+		return a.percentFromRaw(v)
 	}
 	return 100
 }
@@ -112,7 +112,7 @@ func (a *App) onMusicEvent(ev sendspin.Event) {
 			return
 		}
 		cur, err := a.mixer.Get(a.prof.Audio.Volume)
-		if err == nil && a.prof.Audio.PercentFromRaw(cur) == v {
+		if err == nil && a.percentFromRaw(cur) == v {
 			return // our own report coming back
 		}
 		a.log.Info("music: server set the volume", "pct", v)

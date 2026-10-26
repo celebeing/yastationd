@@ -201,6 +201,16 @@ tweaks without a rebuild: `<cfw>/board.conf` (+ restart).
 
 ## 7. Diagnostics and gotchas
 
+- **Two speakers, different loudness at the same %?** Check, in order: the same `yastationd`
+  version on both (HA's Version sensor; deploy with `tools/deploy.sh` rather than by hand — the
+  volume curve is in the board profile compiled into the binary); the same model (each board has
+  its own stock curve; orion's since v0.8.3); the same firmware — the boot script
+  `S90acm8625-settings` loads a per-firmware amplifier tuning, and a Mini 3 on 0.369 ends up with
+  `main Acm8625 AMP Post Gain` = 13 where 0.6.1.4 has 0 (`amixer -c0 cget name='main Acm8625 AMP
+  Post Gain'`), so the 0.369 unit is louder at every level; no `audio.volume_map` or
+  `volume_max` override in one of them (`<cfw>/board.conf`, `yastationd.conf`). The loudness
+  does not depend on what the vendor stack did before: it never runs, and ALSA state is not
+  stored across boots.
 - **Why did it reboot?** `cat /sys/class/aml_info/reboot_reason` on bergamot (`cold_boot`, `normal`,
   `watchdog_reboot` = the system hung and the watchdog reset it — almost always a kernel module or
   a boot script). pickle has no such file.

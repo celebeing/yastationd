@@ -3,6 +3,18 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Features**
+- `volume_max` (yastationd.conf): the loudest a speaker may go, in % of its curve. The percentage
+  goes through the board's curve first and the result is scaled so that 100 % lands there; the
+  0..100 scale in HA and on the display stays whole.
+
+**Fixes and operations**
+- Orion's volume follows the firmware's own curve (`platformToAlsaMap`): quiet steps at the
+  bottom, fine ones at the top. It was a straight line over the raw range, loud from the first
+  step. The Mini 3 and Mini 3 Pro have had their stock curve since v0.3.0.
+
 ## v0.8.2 — 2026-10-26
 
 Orion: the volume scene and the Wi-Fi setup mode, verified on the unit.

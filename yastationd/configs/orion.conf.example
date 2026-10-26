@@ -29,6 +29,9 @@ auto_brightness_curve = 0.04:4, 0.55:128, 10:255
 # --- physical controls / audio ---
 # One step is one stock 5% level. The outer circular groove accumulates 20 steps per revolution.
 volume_step = 1
+# The loudest the speaker may go, in % of the board's stock curve (keys, the ring, HA, music).
+# 100 % on every scale is then this level: the curve is applied first, its output scaled down.
+# volume_max = 100
 # Orion has no verified volume-tick asset yet.
 volume_beep = false
 

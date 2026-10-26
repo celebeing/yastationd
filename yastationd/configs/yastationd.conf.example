@@ -43,6 +43,9 @@ clock_brightness      = 128
 # --- audio ---
 # Volume steps per key press, 1..4 (one step = 5 % on the board's stock curve); «громче»/«тише» = 2 presses.
 volume_step  = 1
+# The loudest the speaker may go, in % of the board's stock curve (keys, the ring, HA, music).
+# 100 % on every scale is then this level: the curve is applied first, its output scaled down.
+# volume_max = 100
 # Tick the stock volume sound on each volume key press (needs `make sounds`).
 volume_beep  = true
 

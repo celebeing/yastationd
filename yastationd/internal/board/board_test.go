@@ -174,3 +174,15 @@ func TestAbsoluteRangeValidation(t *testing.T) {
 		t.Fatal("reversed abs_range accepted")
 	}
 }
+
+func TestOrionVolumeCurve(t *testing.T) {
+	p, err := Builtin("orion")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct{ pct, raw int }{{0, 0}, {10, 14}, {30, 102}, {50, 163}, {90, 240}, {100, 255}} {
+		if got := p.Audio.RawFromPercent(c.pct); got != c.raw {
+			t.Errorf("orion %d %% = raw %d, want %d (the stock platformToAlsaMap)", c.pct, got, c.raw)
+		}
+	}
+}

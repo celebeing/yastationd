@@ -55,6 +55,7 @@ type Config struct {
 	ClipsDir      string // our converted stock clips (`make clips`), searched before the firmware's
 	ScenariosDir  string // the user's scenarios (*.json), next to the built-in ones
 	VolumeStep    int    // volume curve steps (5 % each) per key press; a voice «громче»/«тише» is 2 presses
+	VolumeMax     int    // the loudest the speaker may go, in % (keys, the ring, HA, music); 100 = no cap
 
 	// Hardware overrides of the board profile (effective only if set in the file).
 	AmixerCard   string
@@ -217,6 +218,7 @@ func Default() Config {
 		AmbilightBrightness: 128,
 		TZ:                  "Europe/Moscow",
 		VolumeStep:          1,
+		VolumeMax:           100,
 		VolumeBeep:          true,
 		AnnounceChime:       true,
 		DisplayFaces:        true,
@@ -469,6 +471,8 @@ func (c *Config) set(k, v string) error {
 		c.VolumeBeep, err = strconv.ParseBool(v)
 	case "volume_step":
 		c.VolumeStep, err = atoiRange(v, 1, 4)
+	case "volume_max":
+		c.VolumeMax, err = atoiRange(v, 5, 100)
 	case "unmute":
 		c.Unmute = append(c.Unmute, v)
 	case "time_sync":

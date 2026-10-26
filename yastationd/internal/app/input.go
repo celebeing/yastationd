@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strconv"
 	"time"
@@ -226,9 +227,11 @@ func (a *App) nudgeVolume(n int) {
 		a.log.Warn("volume get", "err", err)
 		return
 	}
-	nv := a.prof.Audio.StepVolume(cur, n)
+	from := a.unscaleVolume(cur)
+	to := a.prof.Audio.StepVolume(from, n)
+	nv := a.scaleVolume(to)
 	edge := 0
-	if nv == cur && n != 0 { // pushed past the bottom or the top
+	if to == from && n != 0 { // pushed past the bottom or the top
 		edge = 1
 		if n < 0 {
 			edge = -1
@@ -296,8 +299,58 @@ func wavDuration(path string) (time.Duration, error) {
 	return time.Duration(fi.Size()-44) * time.Second / time.Duration(byteRate), nil
 }
 
+// volume_max scales the board's curve: a percentage goes through the curve first, and the raw
+// Master value it gives is then scaled so that 100 % lands on the curve's value at volume_max.
+// The 0..100 scale in HA and on the display stays whole; only the top gets quieter.
+
+// volumeCap is the raw Master value at 100 %.
+func (a *App) volumeCap() int {
+	if a.cfg.VolumeMax <= 0 || a.cfg.VolumeMax >= 100 {
+		return a.prof.Audio.VolumeMax
+	}
+	return a.prof.Audio.RawFromPercent(a.cfg.VolumeMax)
+}
+
+// scaleVolume maps a raw value on the board's full curve to the capped one.
+func (a *App) scaleVolume(raw int) int {
+	full := a.prof.Audio.VolumeMax
+	return int(math.Round(float64(raw) * float64(a.volumeCap()) / float64(full)))
+}
+
+// unscaleVolume is scaleVolume backwards (a Master value read back, or saved).
+func (a *App) unscaleVolume(raw int) int {
+	c := a.volumeCap()
+	if c <= 0 {
+		return 0
+	}
+	return min(int(math.Round(float64(raw)*float64(a.prof.Audio.VolumeMax)/float64(c))), a.prof.Audio.VolumeMax)
+}
+
+// rawFromPercent / percentFromRaw: the user's 0..100 against Master, through the curve and the cap.
+func (a *App) rawFromPercent(pct int) int { return a.scaleVolume(a.prof.Audio.RawFromPercent(pct)) }
+func (a *App) percentFromRaw(raw int) int {
+	est := a.prof.Audio.PercentFromRaw(a.unscaleVolume(raw))
+	// Integer raw values lose a little in the scaling: prefer the nearby percentage that maps to
+	// exactly this raw value, so a level set from HA reads back as itself.
+	best, bestD := est, -1
+	for p := max(est-5, 0); p <= min(est+5, 100); p++ {
+		d := abs(a.rawFromPercent(p)-raw)*1000 + abs(p-est)
+		if bestD < 0 || d < bestD {
+			best, bestD = p, d
+		}
+	}
+	return best
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
+}
+
 func (a *App) setVolumePercent(pct int) {
-	a.applyVolume(a.prof.Audio.RawFromPercent(pct))
+	a.applyVolume(a.rawFromPercent(pct))
 }
 
 func (a *App) applyVolume(v int) { a.applyVolumeEdge(v, 0) }
@@ -305,12 +358,13 @@ func (a *App) applyVolume(v int) { a.applyVolumeEdge(v, 0) }
 // applyVolumeEdge sets Master to v and shows the level; edge (-1/+1) says a nudge hit the bottom
 // or the top.
 func (a *App) applyVolumeEdge(v, edge int) {
+	v = min(v, a.volumeCap())
 	if err := a.mixer.Set(a.prof.Audio.Volume, v); err != nil {
 		a.log.Warn("volume set", "err", err)
 		return
 	}
 	a.store.update(func(s *persistState) { s.Volume = v })
-	pct := a.prof.Audio.PercentFromRaw(v)
+	pct := a.percentFromRaw(v)
 	a.reportMusicVolume(pct)
 	if a.mqtt != nil {
 		a.mqtt.Publish(a.topics.State("volume"), strconv.Itoa(pct))
