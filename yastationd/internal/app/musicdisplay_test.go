@@ -114,3 +114,15 @@ func TestMusicBands(t *testing.T) {
 		t.Fatal("stale levels still drawn")
 	}
 }
+
+// A skip's stream restart looks like a short pause: the new title stays on top of it.
+func TestMusicTitleOverPause(t *testing.T) {
+	a := newMusicApp(t)
+	a.onMusicPlayback(true)
+	a.onMusicMeta(`{"title":"Song","artist":"Band","duration_ms":200000,"progress_ms":0,"speed":1000}`)
+	a.onMusicMeta(`{"title":"Song","artist":"Band","duration_ms":200000,"progress_ms":1500,"speed":0}`)
+	a.matrixStack.Frame(time.Now())
+	if top := a.matrixStack.Top(); top.Name != "music_title" {
+		t.Fatalf("on top: %q, want the title", top.Name)
+	}
+}

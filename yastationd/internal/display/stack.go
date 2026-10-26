@@ -12,7 +12,9 @@ import (
 const (
 	PrioBase     = 0
 	PrioDegraded = 5 // subtle persistent indicator; sits just above the base
-	// The music's track title (the spectrum is part of the base): under HA's overlays.
+	// The music: pause/resume under the track's title (the spectrum is part of the base), both
+	// under HA's overlays.
+	PrioMusicClip  = 9
 	PrioMusicTitle = 10
 	PrioScenario   = 20
 	// Expressions on the front display (faces, clips): above HA overlays, below the local

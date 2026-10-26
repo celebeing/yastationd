@@ -76,6 +76,11 @@ func (a *App) frontAnim(name string) (display.Anim, bool) {
 // removed or (for a one-shot clip) played out. A name that is no expression but a clip plays
 // that clip once. It reports whether anything was shown.
 func (a *App) express(slot, name string, ttl time.Duration) bool {
+	return a.expressAt(slot, name, ttl, display.PrioExpression)
+}
+
+// expressAt is express with the front part at prio.
+func (a *App) expressAt(slot, name string, ttl time.Duration, prio int) bool {
 	e := expressions[name] // no expression: an animation name, front only
 	shown := false
 	var clip display.Anim
@@ -88,7 +93,7 @@ func (a *App) express(slot, name string, ttl time.Duration) bool {
 	// removes the previous state's clip.
 	if haveClip {
 		// A short clip asked for ttl keeps its last frame.
-		a.matrixStack.Push(slot, display.PrioExpression, ttl, clip.Play(e.loop, !e.loop && ttl > 0, a.brightness))
+		a.matrixStack.Push(slot, prio, ttl, clip.Play(e.loop, !e.loop && ttl > 0, a.brightness))
 		shown = true
 	} else {
 		a.matrixStack.Remove(slot)

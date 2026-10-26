@@ -160,7 +160,9 @@ func (a *App) showMusicTitle(s string) {
 
 func (a *App) musicMoment(name string) {
 	if a.cfg.MusicClips {
-		a.moment("music", name, 0)
+		// Under the title: Music Assistant's stream restart after a skip looks like a short pause
+		// (the speed drops to 0 and back), and the new track's title covers it.
+		a.momentAt("music", name, 0, display.PrioMusicClip)
 	}
 }
 

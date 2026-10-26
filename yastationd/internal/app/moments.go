@@ -3,6 +3,8 @@ package app
 import (
 	"strings"
 	"time"
+
+	"github.com/celebeing/yastationd/yastationd/internal/display"
 )
 
 // Moments: what happens in the CFW's life that the speaker reacts to (docs/display-expressions.md,
@@ -66,6 +68,11 @@ func (a *App) momentAvailable(c string) bool {
 // moment shows the first available candidate of the moment in slot for ttl (a scenario runs in its
 // own slot and timing) and reports whether anything was shown.
 func (a *App) moment(slot, name string, ttl time.Duration) bool {
+	return a.momentAt(slot, name, ttl, display.PrioExpression)
+}
+
+// momentAt is moment with the front part at prio.
+func (a *App) momentAt(slot, name string, ttl time.Duration, prio int) bool {
 	for _, c := range a.momentCandidates(name) {
 		if !a.momentAvailable(c) {
 			continue
@@ -75,7 +82,7 @@ func (a *App) moment(slot, name string, ttl time.Duration) bool {
 			a.runScenario(sc)
 			return true
 		}
-		return a.express(slot, c, ttl)
+		return a.expressAt(slot, c, ttl, prio)
 	}
 	return false
 }

@@ -133,7 +133,9 @@ playback state; with `-b <bands>` it computes the music's spectrum. yastationd d
   Assistant restarts its stream, sometimes twice, 0.1–4 s apart, before and after the new
   metadata), so timing cannot tell a pause from a skip. The track's playback speed can: the
   metadata's `progress.playback_speed` is 0 while paused. A pause is the same track's speed going
-  to 0, a resume going back up. Station 3 plays `media/Pause` and
+  to 0, a resume going back up. MA does that on a skip too (the speed drops to 0 for ~0.5 s ~1.5 s
+  after the new track's metadata), so the animations sit under the title (`PrioMusicClip` <
+  `PrioMusicTitle`): during a new title they stay hidden. Station 3 plays `media/Pause` and
   `media/Resume`; the Minis `player_pause` (they have no resume clip).
 - **The spectrum** (`music_levels`, pixel screens only): the clock in the small digits on top and
   one bar per column under it, while music plays and levels keep coming; the clock is back 1.5 s
