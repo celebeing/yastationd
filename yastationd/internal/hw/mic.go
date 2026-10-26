@@ -9,15 +9,18 @@ import (
 	"math"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
+	"time"
 )
 
 // Mic owns the mic-array capture: one arecord on the interleaved capture device (bergamot and
 // pickle open the exclusive raw device; orion the stock 96 kHz "mroute" plug, at its native rate),
 // picking one channel and decimating Rate -> 16 kHz mono S16 for the consumers (Wyoming
 // streaming now, the wake-word spotter later). arecord runs only while at least one consumer
-// is subscribed.
+// is subscribed; if it dies on its own meanwhile, it is restarted (micRestart later), since
+// the wake word subscribes once for the daemon's life.
 type Mic struct {
 	Device   string // capture device, e.g. "hw:0,1" or orion's stock "mroute"
 	Channels int    // interleaved channels the device delivers
@@ -32,6 +35,10 @@ type Mic struct {
 	cmd  *exec.Cmd
 }
 
+// micRestart: the pause before reopening a capture that ended on its own (a busy device fails
+// fast, so this also bounds a retry loop).
+const micRestart = 2 * time.Second
+
 const (
 	MicOutRate    = 16000
 	micChunkFrame = 1024 // output samples per delivered chunk (64 ms)
@@ -45,7 +52,8 @@ func micReadFrames(rate int) int { return rate / 50 }
 func (m *Mic) Subscribe(fn func([]byte)) (unsubscribe func()) { return m.add(&m.subs, fn) }
 
 // SubscribeRaw registers fn for the raw interleaved device frames (Channels x S16LE at Rate), as
-// arecord delivers them — the wake-word host's input. Same rules as Subscribe.
+// arecord delivers them — the wake-word host's input. Same rules as Subscribe; the slice is
+// shared by every raw subscriber, so fn must not modify it.
 func (m *Mic) SubscribeRaw(fn func([]byte)) (unsubscribe func()) { return m.add(&m.raws, fn) }
 
 func (m *Mic) add(set *map[int]func([]byte), fn func([]byte)) func() {
@@ -71,6 +79,41 @@ func (m *Mic) add(set *map[int]func([]byte), fn func([]byte)) func() {
 	}
 }
 
+// restart reopens the capture if it is still wanted and nobody else has.
+func (m *Mic) restart() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.cmd == nil && len(m.subs)+len(m.raws) > 0 {
+		m.start()
+		if m.cmd == nil { // could not even start: try again later
+			time.AfterFunc(micRestart, m.restart)
+		}
+	}
+}
+
+// tailBuffer keeps the last max bytes written to it (arecord's stderr, for the log).
+type tailBuffer struct {
+	mu  sync.Mutex
+	max int
+	b   []byte
+}
+
+func (t *tailBuffer) Write(p []byte) (int, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.b = append(t.b, p...)
+	if over := len(t.b) - t.max; over > 0 {
+		t.b = append(t.b[:0], t.b[over:]...)
+	}
+	return len(p), nil
+}
+
+func (t *tailBuffer) String() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return string(t.b)
+}
+
 // start launches arecord; m.mu held.
 func (m *Mic) start() {
 	// The default hw:0,1 buffer (~43 ms) overruns constantly on this SoC (853 in 12 min under
@@ -78,6 +121,8 @@ func (m *Mic) start() {
 	cmd := exec.Command("arecord", "-q", "-D", m.Device, "-c", strconv.Itoa(m.Channels),
 		"-r", strconv.Itoa(m.Rate), "-f", "S16_LE", "-t", "raw",
 		"--buffer-time=1000000", "--period-time=20000")
+	stderr := &tailBuffer{max: 512}
+	cmd.Stderr = stderr
 	out, err := cmd.StdoutPipe()
 	if err != nil {
 		m.Log.Warn("mic: pipe", "err", err)
@@ -89,34 +134,41 @@ func (m *Mic) start() {
 	}
 	m.cmd = cmd
 	m.Log.Debug("mic: capture started", "device", m.Device, "channel", m.Channel)
-	go m.read(cmd, out)
+	go m.read(cmd, out, stderr)
 }
 
-func (m *Mic) read(cmd *exec.Cmd, out io.Reader) {
-	defer cmd.Wait()
+func (m *Mic) read(cmd *exec.Cmd, out io.Reader, stderr *tailBuffer) {
 	r := bufio.NewReaderSize(out, 64<<10)
 	fsz := 2 * m.Channels
 	block := make([]byte, micReadFrames(m.Rate)*fsz)
 	dec, decErr := NewDecimator(m.Rate)
 	if decErr != nil {
 		m.Log.Warn("mic: decimator", "err", decErr)
+		cmd.Process.Kill()
+		cmd.Wait()
 		return
 	}
 	hpf := NewHighpass(150, float64(m.Rate)) // the PDM channels open with a big DC/LF transient
 	chunk := make([]byte, 0, 2*micChunkFrame)
 	for {
 		if _, err := io.ReadFull(r, block); err != nil {
+			werr := cmd.Wait()
 			m.mu.Lock()
-			if m.cmd == cmd {
-				m.cmd = nil // died on its own; the next Subscribe restarts it
-				m.Log.Warn("mic: capture ended", "err", err)
+			if m.cmd == cmd { // died on its own, not stopped by the last unsubscribe
+				m.cmd = nil
+				m.Log.Warn("mic: capture ended, restarting", "err", err, "exit", werr,
+					"stderr", strings.TrimSpace(stderr.String()))
+				time.AfterFunc(micRestart, m.restart)
 			}
 			m.mu.Unlock()
 			return
 		}
 		m.mu.Lock()
-		for _, fn := range m.raws {
-			fn(append([]byte(nil), block...))
+		if len(m.raws) > 0 {
+			b := append([]byte(nil), block...) // one copy for all: subscribers only read it
+			for _, fn := range m.raws {
+				fn(b)
+			}
 		}
 		mono := len(m.subs) > 0
 		m.mu.Unlock()
