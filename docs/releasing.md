@@ -34,9 +34,12 @@ Go through this for everything that landed since the last tag (`git log <last-ta
    (`make web` leaves no diff in `yastationd/internal/webui/dist`).
 6. **Vendor repo:** binaries we keep but don't rebuild are recorded there with provenance; units
    whose non-stock files changed are re-snapshotted.
-7. **Tests and a real deploy:** `go test ./...` passes; the build ran on at least one speaker of
+7. **A fresh clone builds:** `git clone` the repo into a temporary directory and run
+   `make -C yastationd test build` there — local build outputs hide files that never got
+   committed (v0.13.0 shipped without its web app: a `.gitignore` rule had swallowed it).
+8. **Tests and a real deploy:** `go test ./...` passes; the build ran on at least one speaker of
    each board it touches, and every unit's deploy printed `ok`.
-8. **No private values** in the diff since the last tag (LAN addresses, hostnames, serials).
+9. **No private values** in the diff since the last tag (LAN addresses, hostnames, serials).
 
 ## Cutting a release
 
