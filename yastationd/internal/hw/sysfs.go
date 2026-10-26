@@ -130,8 +130,17 @@ func (r *Ring) Show(f []RGB) error {
 // Ambilight is a logical RGBW strip. Each position may contain multiple physical dies;
 // Show writes every die identically. Names come from a pattern with {color}, {i}, and {die}.
 // A nil *Ambilight (no rear strip on this board) is a no-op.
+//
+// With a framebuffer (UseFB), R, G and B go through it instead — one write per frame instead of
+// one per LED, which on orion is 3.5 ms against 25–34 ms for a full frame — and only W stays on
+// sysfs (the framebuffer has no white).
 type Ambilight struct {
 	px [][][]ledNode // position -> die -> R,G,B,W
+
+	fb      *os.File
+	fbBuf   []byte
+	fbLast  []RGBW
+	fbDirty bool // the last frame was written once: write it again to latch it
 }
 
 func NewAmbilight(root string, pixels int, pattern string, colors, dies []string) (*Ambilight, error) {
@@ -162,6 +171,41 @@ func NewAmbilight(root string, pixels int, pattern string, colors, dies []string
 	return a, nil
 }
 
+// UseFB drives R, G and B through the ledfb framebuffer named name (fbdev "name", e.g.
+// orion's "ambilight"): the RGB LEDs get its trigger (ledfb-<name>), W stays on sysfs. The
+// layout is orion's: per position B, G, R as 16-bit little-endian, the LED level being half the
+// value (510 = full). Without the framebuffer it returns an error and Show keeps to sysfs.
+func (a *Ambilight) UseFB(root, name, pattern string, colors, dies []string) error {
+	dev := ""
+	for i := 0; i < 16 && dev == ""; i++ {
+		b, err := os.ReadFile(root + "/sys/class/graphics/fb" + strconv.Itoa(i) + "/name")
+		if err == nil && strings.TrimSpace(string(b)) == name {
+			dev = root + "/dev/fb" + strconv.Itoa(i)
+		}
+	}
+	if dev == "" {
+		return fmt.Errorf("ambilight: no framebuffer named %q", name)
+	}
+	f, err := os.OpenFile(dev, os.O_WRONLY, 0)
+	if err != nil {
+		return err
+	}
+	for i := range a.px {
+		for _, die := range dies {
+			for _, col := range colors[:3] {
+				led := strings.NewReplacer("{color}", col, "{i}", strconv.Itoa(i), "{die}", die).Replace(pattern)
+				tp := filepath.Join(root+ledBase, led, "trigger")
+				if err := os.WriteFile(tp, []byte("ledfb-"+name), 0o644); err != nil {
+					f.Close()
+					return fmt.Errorf("ambilight %s: trigger: %w", led, err)
+				}
+			}
+		}
+	}
+	a.fb, a.fbBuf = f, make([]byte, 6*len(a.px))
+	return nil
+}
+
 func (a *Ambilight) Pixels() int {
 	if a == nil {
 		return 0
@@ -174,6 +218,9 @@ func (a *Ambilight) Show(f []RGBW) error {
 		return nil
 	}
 	var first error
+	if a.fb != nil {
+		first = a.showFB(f)
+	}
 	for i, color := range f {
 		if i >= len(a.px) {
 			break
@@ -181,6 +228,9 @@ func (a *Ambilight) Show(f []RGBW) error {
 		channels := [4]uint8{color.R, color.G, color.B, color.W}
 		for d := range a.px[i] {
 			for c, value := range channels {
+				if a.fb != nil && c < 3 {
+					continue // R, G, B went through the framebuffer
+				}
 				if err := a.px[i][d][c].set(int(value)); err != nil && first == nil {
 					first = err
 				}
@@ -188,6 +238,32 @@ func (a *Ambilight) Show(f []RGBW) error {
 		}
 	}
 	return first
+}
+
+// showFB writes R, G and B when the frame changed, and once more after that (like the screen,
+// the ledfb glass may take a frame only on the next write).
+func (a *Ambilight) showFB(f []RGBW) error {
+	same := len(f) == len(a.fbLast)
+	for i := 0; same && i < len(f); i++ {
+		same = f[i].R == a.fbLast[i].R && f[i].G == a.fbLast[i].G && f[i].B == a.fbLast[i].B
+	}
+	if same && !a.fbDirty {
+		return nil
+	}
+	a.fbDirty = !same
+	a.fbLast = append(a.fbLast[:0], f...)
+	for i := range a.px {
+		var c RGBW
+		if i < len(f) {
+			c = f[i]
+		}
+		for k, v := range [3]uint8{c.B, c.G, c.R} {
+			x := uint16(v) * 2
+			a.fbBuf[6*i+2*k], a.fbBuf[6*i+2*k+1] = byte(x), byte(x>>8)
+		}
+	}
+	_, err := a.fb.WriteAt(a.fbBuf, 0)
+	return err
 }
 
 // 7-segment bits: A=top, B=top-right, C=bottom-right, D=bottom, E=bottom-left, F=top-left, G=middle.

@@ -31,6 +31,8 @@ type builder struct {
 	Animations   []string
 	FollowModes  []string
 	HasAmbilight bool
+	// HasAmbilightFx adds the switch and brightness of effects streamed to the ambilight (DDP).
+	HasAmbilightFx bool
 	// Expressions are the Expression select's options; HasFaces adds the Display faces switch
 	// (a front display that takes expression clips).
 	Expressions []string
@@ -325,6 +327,25 @@ func (b *builder) Entities() []Entity {
 			"supported_color_modes": []string{"rgbw"},
 			"icon":                  "mdi:led-strip-variant",
 		}})
+	}
+	if b.HasAmbilightFx {
+		entities = append(entities,
+			Entity{"switch", "ambilight_fx", map[string]any{
+				"name":          "Ambilight effects",
+				"state_topic":   t.State("ambilight_fx"),
+				"command_topic": t.Command("ambilight_fx"),
+				"payload_on":    "ON",
+				"payload_off":   "OFF",
+				"icon":          "mdi:led-strip-variant",
+			}},
+			Entity{"number", "ambilight_fx_brightness", map[string]any{
+				"name":          "Ambilight effects brightness",
+				"state_topic":   t.State("ambilight_fx_brightness"),
+				"command_topic": t.Command("ambilight_fx_brightness"),
+				"min":           1, "max": 255, "step": 1, "mode": "slider",
+				"entity_category": "config",
+				"icon":            "mdi:brightness-6",
+			}})
 	}
 	return entities
 }

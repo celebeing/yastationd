@@ -87,6 +87,9 @@ type AmbilightSpec struct {
 	LED    string   // pattern with {color}, {i}, and {die}
 	Colors []string // sysfs colour names in R,G,B,W order
 	Dies   []string // physical die suffixes per logical position
+	// FB names an fbdev framebuffer (sysfs graphics name) that takes R, G and B in one write
+	// (orion's "ambilight", ledfb); W stays on sysfs. "" = all channels on sysfs.
+	FB string
 }
 
 // MatrixSpec: the front display. Kind "seg7" = Digits 7-segment digits, one sysfs LED per
@@ -326,6 +329,8 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Ambilight.Colors = splitList(v)
 	case k == "ambilight.dies":
 		p.Ambilight.Dies = splitList(v)
+	case k == "ambilight.fb":
+		p.Ambilight.FB = v
 	case k == "clips.dir":
 		p.Clips.Dir = v
 	case k == "matrix.kind":

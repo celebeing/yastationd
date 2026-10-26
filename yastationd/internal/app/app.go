@@ -49,6 +49,7 @@ type App struct {
 
 	ring      *hw.Ring
 	ambilight *hw.Ambilight
+	fx        ambilightFx   // streamed effects on it (ambilightfx.go)
 	matrix    *hw.Matrix    // seg7 sysfs display
 	screen    *hw.DotMatrix // fbdev pixel display
 	mixer     *hw.Mixer
@@ -144,6 +145,11 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 	if p := prof.Ambilight; p.Kind == "sysfs-rgbw" {
 		if ambilight, err = hw.NewAmbilight(cfg.SysRoot, p.Pixels, p.LED, p.Colors, p.Dies); err != nil {
 			return nil, err
+		}
+		if p.FB != "" {
+			if err := ambilight.UseFB(cfg.SysRoot, p.FB, p.LED, p.Colors, p.Dies); err != nil {
+				log.Warn("ambilight: framebuffer unavailable, all channels on sysfs", "err", err)
+			}
 		}
 	}
 	var matrix *hw.Matrix
@@ -379,6 +385,7 @@ func (a *App) Run(ctx context.Context) error {
 	b.Animations = ringAnimations()
 	b.FollowModes = followModes
 	b.HasAmbilight = a.ambilight != nil
+	b.HasAmbilightFx = a.ambilightFxOn()
 	b.Expressions = a.expressionOptions()
 	b.HasFaces = a.frontClipsPossible()
 	b.DisplayModes = a.displayModes()
@@ -428,6 +435,8 @@ func (a *App) Run(ctx context.Context) error {
 	if a.cfg.FrameTapAddr != "" || (a.cfg.LEDPreview && a.cfg.HTTPAddr != "") {
 		a.startFrameTap(ctx)
 	}
+
+	a.startAmbilightFx(ctx) // before the render loop: it waits on the receiver's kicks
 
 	stop := make(chan struct{})
 	renderDone := make(chan struct{})
@@ -572,6 +581,8 @@ func (a *App) renderLoop(stop <-chan struct{}) {
 		select {
 		case <-stop:
 			return
+		case <-a.fx.kick: // a streamed frame: at the sender's rate, not the loop's 15 Hz
+			a.showAmbilight(time.Now())
 		case now := <-screenTick:
 			a.stepBrightness(now)
 			if err := a.showScreen(a.matrixStack.Frame(now), fade.Level(now, a.matrixStack.Top())); err != nil {
@@ -587,11 +598,7 @@ func (a *App) renderLoop(stop <-chan struct{}) {
 			}
 			a.tap.Ring(rf)
 			if a.ambilight != nil {
-				af := a.ambilightBase()
-				if err := a.ambilight.Show(af); err != nil {
-					a.log.Debug("ambilight show", "err", err)
-				}
-				a.tap.Ambilight(af)
+				a.showAmbilight(now)
 			}
 			if a.front == nil || a.screen != nil {
 				continue
@@ -652,6 +659,7 @@ func (a *App) publishAllState() {
 	if a.frontClipsPossible() {
 		a.publish(a.topics.State("display_faces"), onOff(s.Faces))
 	}
+	a.publishAmbilightFx()
 	a.publish(a.topics.State("follow_up"), s.FollowUp)
 	a.publish(a.topics.State("text_duration"), strconv.Itoa(s.TextSecs))
 	a.publish(a.topics.State("animation_duration"), strconv.Itoa(s.AnimSecs))

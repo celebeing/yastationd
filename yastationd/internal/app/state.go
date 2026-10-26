@@ -20,16 +20,19 @@ type persistState struct {
 	AmbilightOn     bool    `json:"ambilight_on"`
 	AmbilightRGBW   hw.RGBW `json:"ambilight_rgbw"`
 	AmbilightBright int     `json:"ambilight_bright"` // 0..255
-	Mode            string  `json:"mode"`             // clock|off|message
-	Message         string  `json:"message"`
-	TextSecs        int     `json:"text_secs"`    // show_text duration
-	AnimSecs        int     `json:"anim_secs"`    // ring_animation duration
-	FollowUp        string  `json:"follow_up"`    // dialog mode: off|question|always
-	Volume          int     `json:"volume"`       // Master 0..255; -1 = never set (leave the boot value)
-	ClockAuto       bool    `json:"clock_auto"`   // clock brightness follows the light sensor
-	ClockBright     int     `json:"clock_bright"` // manual clock brightness 1..255
-	MusicVolume     int     `json:"music_volume"` // Music Assistant player volume 0..100 (volume "separate")
-	Faces           bool    `json:"faces"`        // voice expressions on the front display
+	// Streamed effects on the ambilight (DDP): taken at all, and their brightness 1..255.
+	AmbilightFx       bool   `json:"ambilight_fx"`
+	AmbilightFxBright int    `json:"ambilight_fx_bright"`
+	Mode              string `json:"mode"` // clock|off|message
+	Message           string `json:"message"`
+	TextSecs          int    `json:"text_secs"`    // show_text duration
+	AnimSecs          int    `json:"anim_secs"`    // ring_animation duration
+	FollowUp          string `json:"follow_up"`    // dialog mode: off|question|always
+	Volume            int    `json:"volume"`       // Master 0..255; -1 = never set (leave the boot value)
+	ClockAuto         bool   `json:"clock_auto"`   // clock brightness follows the light sensor
+	ClockBright       int    `json:"clock_bright"` // manual clock brightness 1..255
+	MusicVolume       int    `json:"music_volume"` // Music Assistant player volume 0..100 (volume "separate")
+	Faces             bool   `json:"faces"`        // voice expressions on the front display
 }
 
 func defaultState(ringBright, ambilightBright, clockBright int, clockAuto bool) persistState {
@@ -40,14 +43,17 @@ func defaultState(ringBright, ambilightBright, clockBright int, clockAuto bool) 
 		AmbilightOn:     false,
 		AmbilightRGBW:   hw.RGBW{W: 255},
 		AmbilightBright: ambilightBright,
-		Mode:            "clock",
-		TextSecs:        10,
-		AnimSecs:        10,
-		FollowUp:        "question",
-		Volume:          -1,
-		MusicVolume:     100,
-		ClockAuto:       clockAuto,
-		ClockBright:     max(clockBright, 1),
+		AmbilightFx:     true,
+		// Dim: the strip lights the wall behind the speaker like a floodlight.
+		AmbilightFxBright: 64,
+		Mode:              "clock",
+		TextSecs:          10,
+		AnimSecs:          10,
+		FollowUp:          "question",
+		Volume:            -1,
+		MusicVolume:       100,
+		ClockAuto:         clockAuto,
+		ClockBright:       max(clockBright, 1),
 	}
 }
 
@@ -86,6 +92,9 @@ func newStateStore(path string, dflt persistState) *stateStore {
 			}
 			if loaded.AnimSecs <= 0 {
 				loaded.AnimSecs = dflt.AnimSecs
+			}
+			if loaded.AmbilightFxBright <= 0 { // a file from before the effects
+				loaded.AmbilightFx, loaded.AmbilightFxBright = dflt.AmbilightFx, dflt.AmbilightFxBright
 			}
 			if loaded.FollowUp == "" {
 				loaded.FollowUp = dflt.FollowUp

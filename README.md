@@ -60,6 +60,10 @@ HA, from single expressions to timed scenarios across the ring and the display.
 **Controls and sensors (HA MQTT Discovery, one device per speaker)**
 - LED ring as an HA `light` with effects (pulse, comet, blink, rainbow, voice-state presets), plus
   timed ring animations that Assist can trigger.
+- Station 3's rear strip as an RGBW `light`, and a DDP receiver for it: point
+  [LedFx](https://www.ledfx.app/) (or WLED tools) at the speaker as a 12-pixel DDP device and its
+  effects play on the strip, at their own brightness, switchable from HA
+  ([docs/ambilight-stream.md](docs/ambilight-stream.md)).
 - Front display: clock, a text message (long text scrolls), timed text overlays, countdowns.
 - Clock auto-brightness from the ambient-light sensor (dims to barely visible in a dark room).
   Switch and manual level in HA.
@@ -148,7 +152,7 @@ HA, from single expressions to timed scenarios across the ring and the display.
 | `bergamot` | Station Mini 3 | full support, two units in daily use |
 | `pickle` | Station Mini 3 Pro | full support (16-pixel ring, aarch64 userland) |
 | `yandexmidi` | Station 2 | profiled from firmware only, no unit yet |
-| `orion` | Station 3 | initial support: installed and running on a unit — voice with the stock wake word (NPU verifier), playback, volume, circular controls, ring, rear ambilight, the 21×12 screen with the firmware's own animations; the clock still uses the seg7 font |
+| `orion` | Station 3 | initial support: installed and running on a unit — voice with the stock wake word (NPU verifier), playback, volume, circular controls, ring, rear ambilight (with DDP effects), the 21×12 screen with the firmware's own animations, our pixel clock and fonts, music on the screen |
 
 Per-board notes: [docs/boards/](docs/boards/README.md).
 

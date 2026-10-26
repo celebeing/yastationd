@@ -44,10 +44,12 @@ type Config struct {
 	// (docs/sensor-calibration.md); nil = the profile's.
 	LuxCalibration []luxcal.Point
 
-	ClockBrightness     int  // manual clock brightness at first start (later: HA "Clock brightness")
-	RingBrightness      int  // ring light brightness at first start (0..255)
-	AmbilightBrightness int  // rear ambilight brightness at first start (0..255)
-	AutoBrightness      bool // clock brightness from the light sensor at first start (later: HA switch)
+	ClockBrightness     int // manual clock brightness at first start (later: HA "Clock brightness")
+	RingBrightness      int // ring light brightness at first start (0..255)
+	AmbilightBrightness int // rear ambilight brightness at first start (0..255)
+	// DDPPort: UDP port for LED frames streamed to the ambilight (LedFx, WLED tools; 0 = off).
+	DDPPort        int
+	AutoBrightness bool // clock brightness from the light sensor at first start (later: HA switch)
 	// Light-sensor reading -> clock brightness, interpolated on log(lux) between the points
 	// (ascending lux) and clamped at the ends. The reading is the sensor's own scale, not true
 	// lux: the sensor sits behind the grille and its spectrum differs from a lux meter's.
@@ -266,6 +268,7 @@ func Default() Config {
 		BrightnessCurve:     DefaultBrightnessCurve,
 		RingBrightness:      128,
 		AmbilightBrightness: 128,
+		DDPPort:             4048,
 		TZ:                  "Europe/Moscow",
 		VolumeStep:          1,
 		VolumeMax:           100,
@@ -385,6 +388,8 @@ func (c *Config) set(k, v string) error {
 		c.RingBrightness, err = atoiRange(v, 0, 255)
 	case "ambilight_brightness":
 		c.AmbilightBrightness, err = atoiRange(v, 0, 255)
+	case "ddp_port":
+		c.DDPPort, err = atoiRange(v, 0, 65535)
 	case "auto_brightness":
 		c.AutoBrightness, err = strconv.ParseBool(v)
 	case "lux_calibration":

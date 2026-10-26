@@ -20,7 +20,7 @@ scripts branch on its existence.
 | `<cfw>/sendspin/state.json` | its identity (stable client_id) and pairing records, 0600 |
 | `<cfw>/yastationd.conf` | config (generic `yastationd/configs/yastationd.conf.example`; Orion bring-up `orion.conf.example`) |
 | `<cfw>/board.conf` | optional per-unit overrides of board-profile keys |
-| `<cfw>/yastationd.state` | persisted UI state (ring, display, volume, brightness…), written by the daemon |
+| `<cfw>/yastationd.state` | persisted UI state (ring, display, volume, brightness, ambilight effects…), written by the daemon |
 | `<cfw>/sounds/*.wav` | decoded vendor voice lines and call sounds (`make sounds`) |
 | `<cfw>/vendor/vqe_models/noise_reducer/model.nnet` | the VQE's call-mode noise reducer, for the intercom (`make vqe-models`) |
 | `<cfw>/clips/*.scled` | the firmware's clock animations converted to text (`make clips`, firmware 0.369 only; others ship text clips the daemon reads in place) |
@@ -30,6 +30,7 @@ scripts branch on its existence.
 | `<cfw>/yastationd.conf.bak`, `<cfw>/config.trial` | the config before the last save from the web app, and its trial marker while the new one is on trial ([web-ui.md](web-ui.md)) |
 | `<cfw>/log-spool` | log lines waiting for the log server while it is unreachable (`log_remote`, [storage.md](storage.md)) |
 | `<cfw>/yastationd.conf` `frametap_addr` | optional, development only: the LED preview stream on its own port without a login (the host simulator); the web app has the same preview behind its login ([led-preview.md](led-preview.md)) |
+| UDP 4048 (`ddp_port`) | boards with an ambilight: LED frames from LedFx / WLED tools ([ambilight-stream.md](ambilight-stream.md)); `0` = no receiver |
 | `<cfw>/yastationd_off` | kill switch: the supervisor stops respawning while it exists |
 | `/etc/init.d/S52zyastationd` | the only rootfs file: boot hook that starts the supervisor (copy kept in `<cfw>/init.d/`) |
 | `<cfw>/init.d/supervise.sh` | the supervisor (see below); without it the hook falls back to a plain 2 s respawn loop |
@@ -162,8 +163,8 @@ It must print the same `git describe` string that `make build` printed. `frameta
 needs v0.8.1 or newer ([led-preview.md](led-preview.md)); drop the key, or `make deploy`, until
 they match.
 
-**Time.** No supported speaker has an RTC: the clock starts at 1970 and every TLS and timestamped
-thing waits for a sync. The egress lock (§0) drops the vendor's `ntp.yantp.net`, and plenty of
+**Time.** The Minis have no RTC: the clock starts at 1970 and every TLS and timestamped thing
+waits for a sync (Station 3's RTC is battery-backed, `platform.rtc_backed`; it still syncs). The egress lock (§0) drops the vendor's `ntp.yantp.net`, and plenty of
 routers do not answer NTP, so the default fallback candidates fail and the log shows
 `time sync failed tried="ntp.yantp.net…: operation not permitted; <gateway>…: i/o timeout"`. Give
 the speaker a time source on the LAN — either:

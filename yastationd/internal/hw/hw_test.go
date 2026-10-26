@@ -328,3 +328,54 @@ func TestOrionAmbilightLayout(t *testing.T) {
 		t.Fatal("nil ambilight should be a no-op")
 	}
 }
+
+// With the framebuffer, R, G, B go there (B, G, R as 16-bit LE, level x2) and their LEDs get the
+// ledfb trigger; W stays on sysfs.
+func TestOrionAmbilightFB(t *testing.T) {
+	root := t.TempDir()
+	colors := []string{"red", "green", "blue", "white"}
+	dies := []string{"a", "b"}
+	for i := range 12 {
+		for _, die := range dies {
+			for _, color := range colors {
+				dir := filepath.Join(root, "sys/class/leds", "orion:"+color+":ambilight"+strconv.Itoa(i)+die)
+				os.MkdirAll(dir, 0o755)
+				os.WriteFile(filepath.Join(dir, "trigger"), []byte("[none] ledfb-ambilight"), 0o644)
+				os.WriteFile(filepath.Join(dir, "brightness"), []byte("0"), 0o644)
+			}
+		}
+	}
+	os.MkdirAll(filepath.Join(root, "sys/class/graphics/fb0"), 0o755)
+	os.WriteFile(filepath.Join(root, "sys/class/graphics/fb0/name"), []byte("ambilight\n"), 0o644)
+	os.MkdirAll(filepath.Join(root, "dev"), 0o755)
+	fb := filepath.Join(root, "dev/fb0")
+	os.WriteFile(fb, make([]byte, 72), 0o644)
+
+	pattern := "orion:{color}:ambilight{i}{die}"
+	strip, err := NewAmbilight(root, 12, pattern, colors, dies)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := strip.UseFB(root, "ambilight", pattern, colors, dies); err != nil {
+		t.Fatal(err)
+	}
+	frame := make([]RGBW, 12)
+	frame[1] = RGBW{R: 255, G: 2, B: 1, W: 9}
+	if err := strip.Show(frame); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(fb)
+	if got := b[6:12]; string(got) != string([]byte{2, 0, 4, 0, 0xfe, 1}) {
+		t.Fatalf("fb pixel 1 = % x", got)
+	}
+	led := func(c, f string) string {
+		v, _ := os.ReadFile(filepath.Join(root, "sys/class/leds", "orion:"+c+":ambilight1a", f))
+		return string(v)
+	}
+	if led("red", "trigger") != "ledfb-ambilight" || led("white", "trigger") == "ledfb-ambilight" {
+		t.Fatalf("triggers: red %q, white %q", led("red", "trigger"), led("white", "trigger"))
+	}
+	if led("white", "brightness") != "9" || led("red", "brightness") != "0" {
+		t.Fatalf("sysfs: white %q, red %q", led("white", "brightness"), led("red", "brightness"))
+	}
+}
