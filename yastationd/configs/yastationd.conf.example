@@ -109,8 +109,9 @@ wyoming_port = 10700
 # net_watchdog_min = 10
 # Push-to-talk: the voice key starts an Assist pipeline and streams the mic.
 # Wake word «Алиса»: the vendor spotter + VQE (spotter-host serve) as a child process; the mic then
-# stays open. Session audio to HA is the VQE output with a pre-roll. Commands (стоп/хватит/пауза,
-# громче/тише) act locally, only while the speaker is playing. wake_enabled = false -> push-to-talk only.
+# stays open. Session audio to HA is the VQE output with a pre-roll. Commands act locally: стоп /
+# хватит / отмена / выключись end a voice session in any phase; громче / тише / пауза while the
+# speaker plays. wake_enabled = false -> push-to-talk only.
 # wake_enabled = true
 # Waiting for HA's reply (HA has no timeout): our deadline in s, and what a wake word does meanwhile
 # (interrupt = start the new request once HA is back; ignore = blink "busy"). docs/voice-slow-replies.md
@@ -138,3 +139,19 @@ probe = hass=homeassistant.local:8123@lan
 # heartbeat_file = /tmp/yastationd.heartbeat
 # state_file defaults to <cfw>/yastationd.state
 log_level = info
+
+# --- less common keys (defaults shown; docs in brackets) ---
+# web_password =                 (a pbkdf2-sha256$… hash, set from the web app; empty = "yastation")
+# led_preview = true             (the LED preview in the web app; docs/web-ui.md)
+# text_lines = auto              (pixel screens: auto, 1 or 2 lines of text; docs/display-expressions.md)
+# display_faces = true           (voice expressions on the front display at first start)
+# clips_dir = <cfw>/clips        (converted stock clips, searched before the firmware's)
+# scenarios_dir = <cfw>/scenarios
+# lux_path =                     (the light sensor's IIO file; empty = found by the board profile)
+# video_frames = <cfw>/media/video.led   video_audio = <cfw>/media/video.wav   video_av_offset_ms = 0
+#                                (the video display mode; docs/video-mode.md)
+# sendspin_bin = <cfw>/bin/sendspin-host   sendspin_port = 8928   sendspin_state = <cfw>/sendspin/state.json
+# sendspin_unpaired = true       (docs/music-sendspin.md)
+# intercom_record_dir =          (testing: save each call's raw uplink there)
+# Hardware overrides of the board profile (only when set here): mic_device, mic_channels, mic_rate,
+# mic_channel, mic_pdm_gain, spotter_libs, wake_model, command_model

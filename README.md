@@ -27,7 +27,7 @@ wake word engines don't come close.
 
 **A living front display.** The clock face plays the speaker's own animations, read from its
 firmware: eyes, the voice-state bars while it listens, thinks and speaks, a ringing timer, pause
-and track changes. A few more faces of ours fill the gaps (happy, sad, wink, sleep). Every change
+and track changes. A few more faces of ours fill the gaps (happy, sad, angry, wink, sleep). Every change
 on the display is smooth: segments cross-fade per element, so animations join without a blank,
 digits morph into new ones and the clock fades back in after a face. All of it is scriptable from
 HA, from single expressions to timed scenarios across the ring and the display.
@@ -49,7 +49,7 @@ HA, from single expressions to timed scenarios across the ring and the display.
 **Expressions on the display and the ring**
 - The speaker's own clock animations play on the front display: the voice-state bars while the
   assistant listens, thinks and speaks, then a wink as the dialog ends; a greeting (eyes, wink)
-  once per boot; `ringing` for a timer or alarm. Our own faces add happy, sad, wink and sleep.
+  once per boot; `ringing` for a timer or alarm. Our own faces add happy, sad, angry, wink and sleep.
 - Smooth per-segment transitions everywhere: back-to-back animations join without a blank, the
   volume digits morph, the clock fades back in after a face.
 - From HA: an `Expression` select, `express` and `scenario` topics (built-in or your own timed
@@ -64,7 +64,8 @@ HA, from single expressions to timed scenarios across the ring and the display.
 - Clock auto-brightness from the ambient-light sensor (dims to barely visible in a dark room).
   Switch and manual level in HA.
 - Volume (number + hardware keys with an on-display level), mic-mute switch state, buttons as HA
-  events, illuminance, uptime, health.
+  events, illuminance in lux (calibrated per speaker), room sound level and activity, uptime,
+  health.
 - Power self-check: USB-C PD contract voltage and a problem flag. On an unsuitable power supply the
   speaker says so once per boot.
 
@@ -73,6 +74,11 @@ HA, from single expressions to timed scenarios across the ring and the display.
   the assistant on the same speaker. Music ducks while the assistant listens, talks or rings a
   timer; the wake word works over the music; the player volume in MA is the speaker's volume.
   Details: [docs/music-sendspin.md](docs/music-sendspin.md).
+
+**Operations**
+- Logs can go to a syslog server on the LAN, kept on flash while it is unreachable; a network
+  watchdog reboots a speaker whose Wi-Fi stopped passing data ([docs/storage.md](docs/storage.md)).
+- Prometheus metrics at `/metrics`: memory, load, temperature, sensors.
 
 **Keeps working without HA**
 - Clock, volume keys, mute and the display run locally. If the broker or HA goes away, the ring

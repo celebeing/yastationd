@@ -4,8 +4,10 @@ On-device Home Assistant agent for de-Yandexed Yandex Stations. It turns the spe
 normal offline MQTT device: LED ring, front clock/display, volume, mic-mute, button reflexes,
 announcements and a health/watchdog layer. No cloud, no internet.
 
-This is **Phase 1** of [`docs/yastationd-design.md`](../docs/yastationd-design.md). Voice / Wyoming
-satellite, beamforming and the on-device command recogniser are later phases.
+It started as Phase 1 of [`docs/yastationd-design.md`](../docs/yastationd-design.md) and has since
+grown voice (the Wyoming satellite, the vendor wake word and commands through `spotter-host`),
+Music Assistant playback, the intercom, wake-word arbitration, the web app and more — the
+top-level [README](../README.md) is the feature list, [CHANGELOG](../CHANGELOG.md) the history.
 
 ## Layout
 
@@ -109,10 +111,13 @@ plays, the white "thinking" comet while it waits for audio, and nothing once apl
 
 `light` ring (with `effect_list`: none/pulse/comet/blink/rainbow + voice presets) · optional
 `light` ambilight (rear RGBW strip, on boards that declare one) · `select` display_mode
-(clock/off/message, plus video on pixel screens — docs/video-mode.md; long messages scroll) · `text` display_message · `number` volume ·
+(clock/off/message, clock_date and video on pixel screens — docs/video-mode.md; long messages scroll) · `text` display_message · `number` volume ·
 `notify` show_text + `number` text_duration (s) · `select` ring_animation + `number`
-animation_duration (s) · `binary_sensor` mic_mute · `sensor` lux/health/uptime ·
-`binary_sensor` pipeline_ok · `event` button (volume_up/down, voice_command, panel_gesture) ·
+animation_duration (s) · `binary_sensor` mic_mute (On/Off) · `sensor` lux (calibrated lux, the raw
+`reading` as an attribute)/health/uptime/version · `sensor` sound_floor/sound_level (dB SPL with a
+mic calibration, else dBFS)/sound_activity (%) · `sensor` supply_voltage + `binary_sensor`
+power_problem · `switch` auto_brightness + `number` clock_brightness · `select` follow_up ·
+`binary_sensor` pipeline_ok · `event` button (volume_up/down, voice_command, panel_gesture, wake_word) ·
 `select` expression (attributes: the display capabilities) · `switch` display_faces ·
 with `intercom = true`: `sensor` intercom (idle/calling/ringing/in_call; attributes peer, ended) ·
 `select` intercom_target (the other speakers) · `button` intercom_call (also answers) ·
