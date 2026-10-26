@@ -126,9 +126,10 @@ rebuilds it.
 - **Moments:** every moment this speaker maps (its display kind's defaults, the board's, the
   expressions), what each resolves to here, and a button that shows it (6 s at most).
 - **About:** the repository, the changelog, and an update check: the browser asks GitHub's API
-  for the newest `vX.Y.Z` tag (the project tags releases; there are no GitHub Releases, so
-  `releases/latest` is a 404) (it allows any origin; the speakers never go online) and the app marks
-  speakers whose version is older. No internet in the browser, no check.
+  for the newest `vX.Y.Z` tag (it allows any origin; the speakers never go online), links its
+  GitHub Release, and marks speakers whose version is older. The answer is kept for the tab for
+  10 minutes, and asked again at once when a speaker reports a newer version than it. No internet
+  in the browser, no check.
 
 ## Phases
 

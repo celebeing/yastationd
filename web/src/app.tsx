@@ -79,9 +79,16 @@ function Speakers({ home }: { home: Peer }) {
   const [status, setStatus] = useState<Record<string, Status>>({})
   const [sel, setSel] = useState(home.id)
   const [latest, setLatest] = useState<{ tag: string; url: string; date: string } | null>(null)
+  const recheck = useRef(false)
   useEffect(() => {
     api.latestRelease().then(setLatest)
   }, [])
+  // A speaker newer than the known release: the answer is stale, ask GitHub again (once).
+  useEffect(() => {
+    if (!latest || recheck.current || !list.some((p) => api.behind(latest.tag, p.version))) return
+    recheck.current = true
+    api.latestRelease(true).then((r) => r && setLatest(r))
+  }, [latest, list])
 
   async function refresh() {
     let ps: Peer[]

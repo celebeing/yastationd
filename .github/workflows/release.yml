@@ -1,0 +1,56 @@
+# A GitHub Release for every vX.Y.Z tag, its notes taken from that version's CHANGELOG.md section.
+# No build artifacts yet. Run it by hand (Actions → release → Run workflow) to create the releases
+# for tags that have none; a tag given there does just that one.
+name: release
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag (empty: every vX.Y.Z tag without a release)'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      TAG_IN: ${{ inputs.tag }}
+      EVENT: ${{ github.event_name }}
+    steps:
+      - name: Create releases
+        run: |
+          set -eu
+          # notes TAG: the CHANGELOG.md section of TAG, as committed at that tag.
+          notes() {
+            gh api "repos/$REPO/contents/CHANGELOG.md?ref=$1" -H 'Accept: application/vnd.github.raw' |
+              awk -v t="$1" '
+                /^## / { if (on) exit; if ($2 == t) { on = 1; next } }
+                on { print }'
+          }
+          tags=$(gh api --paginate "repos/$REPO/tags?per_page=100" --jq '.[].name' |
+            grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V)
+          newest=$(printf '%s\n' "$tags" | tail -1)
+          if [ "$EVENT" = push ]; then
+            want="${GITHUB_REF_NAME}"
+          elif [ -n "$TAG_IN" ]; then
+            want="$TAG_IN"
+          else
+            want="$tags"
+          fi
+          for t in $want; do
+            if gh release view "$t" -R "$REPO" >/dev/null 2>&1; then
+              echo "$t: has a release"; continue
+            fi
+            latest=false; [ "$t" = "$newest" ] && latest=true
+            notes "$t" > notes.md
+            [ -s notes.md ] || echo "See [CHANGELOG.md](https://github.com/$REPO/blob/$t/CHANGELOG.md)." > notes.md
+            gh release create "$t" -R "$REPO" --verify-tag --title "$t" --notes-file notes.md --latest="$latest"
+            echo "$t: released (latest=$latest)"
+          done

@@ -3,6 +3,15 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.13.3 — 2026-10-26
+
+**Fixes and operations**
+- The web app's update check could show an old release for up to an hour (it kept GitHub's answer
+  for the tab). It keeps it for 10 minutes now, asks again at once when a speaker reports a newer
+  version, and links the release page.
+- Every version tag gets a GitHub Release with its changelog section (a GitHub Actions workflow;
+  run by hand, it creates the missing releases for older tags).
+
 ## v0.13.2 — 2026-10-26
 
 **Fixes and operations**

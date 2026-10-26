@@ -345,3 +345,14 @@ ring.
 
 **Status:** done 2026-10-26 ([display-expressions.md](display-expressions.md), "Text on the pixel
 screen").
+
+## mise for the build tools
+
+Idea, not planned: a `mise.toml` (<https://mise.jdx.dev/>) pinning Go, Node and pnpm, so a
+contributor gets the exact versions with `mise install` and builds the daemon and the web app
+without Docker. The Docker builder would install from the same file, making it the single place the
+versions are pinned (today: the `Dockerfile`, `web/package.json`, the docs). It would let
+`make build` always build the web app and stop committing `internal/webui/dist`. Limits: the
+cross toolchains and sysroots for `spotter-host` stay in Docker; mise stays optional (Docker and
+"install these versions yourself" remain); its tasks would not replace the Makefile; a first
+`mise trust` per checkout.

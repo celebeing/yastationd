@@ -48,7 +48,10 @@ Go through this for everything that landed since the last tag (`git log <last-ta
 3. Tag, signed with the same SSH key as the commits: `git tag -s vX.Y.Z -m "vX.Y.Z"`.
 4. Push the commit and the tag to both remotes: `git push gitea main vX.Y.Z`, then
    `git push origin main vX.Y.Z` (GitHub, a key tap).
-5. Build and deploy (`tools/deploy.sh`, and `make -C sendspin-host` when it changed): the speakers
+5. The tag push to GitHub runs `.github/workflows/release.yml`: it creates the GitHub Release with
+   that version's `CHANGELOG.md` section as the notes (no artifacts yet). Running the workflow by
+   hand creates releases for every tag that has none.
+6. Build and deploy (`tools/deploy.sh`, and `make -C sendspin-host` when it changed): the speakers
    then report the tag.
 
 Grep the diff for private values before pushing, as for every push (`CLAUDE.md`).
