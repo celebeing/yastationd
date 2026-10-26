@@ -2,6 +2,7 @@ package app
 
 import (
 	"testing"
+	"time"
 
 	"github.com/celebeing/yastationd/yastationd/internal/board"
 	"github.com/celebeing/yastationd/yastationd/internal/config"
@@ -42,5 +43,12 @@ func TestRingPercentSteps(t *testing.T) {
 		if got := a.percentFromRaw(a.rawFromPercent(pct)); got != pct {
 			t.Errorf("%d %% reads back as %d %%", pct, got)
 		}
+	}
+}
+
+func TestRingStepAcceleration(t *testing.T) {
+	if ringStepPercent(time.Second) != 1 || ringStepPercent(250*time.Millisecond) != 2 ||
+		ringStepPercent(150*time.Millisecond) != 3 || ringStepPercent(50*time.Millisecond) != 5 {
+		t.Error("ring step sizes")
 	}
 }

@@ -25,8 +25,8 @@ type inputDeviceState struct {
 	circular         map[uint16]*hw.CircularAxis
 	absFailed        map[uint16]bool
 	lastPanelGesture time.Time
-	// Volume ring: one HA event per gesture (a turn is 20 steps), a new one after a pause or a
-	// change of direction.
+	// Volume ring: one HA event per gesture, a new one after a pause or a change of direction; the
+	// time of the last pad crossing also sets the size of the next step (ringStepPercent).
 	lastRingStep time.Time
 	lastRingDir  int
 }
@@ -155,9 +155,9 @@ func (a *App) onAbsoluteInput(f *os.File, state *inputDeviceState, ev hw.InputEv
 	if steps == 0 || a.stopAlarm() {
 		return
 	}
-	a.nudgePercent(steps)
-	a.volumeBeep()
 	dir, now := 1, time.Now()
+	a.nudgePercent(steps * ringStepPercent(now.Sub(state.lastRingStep)))
+	a.volumeBeep()
 	if steps < 0 {
 		dir = -1
 	}
@@ -219,10 +219,26 @@ func (a *App) publishButton(kind string) {
 
 // ---- volume ----
 
-// ringStepsPerTurn: the volume ring moves the level by 1 % per 1/100 turn — a full turn is still the
-// whole scale, but each step is fine (the stock curve's middle is ~4 dB per 5 % level, which made a
-// quick turn jump loud). Keys and voice keep the stock 5 % levels.
-const ringStepsPerTurn = 100
+// The volume ring: orion's touch ring has about ten pads per turn and reports the finger mostly at
+// the pads' centres (100, 200, …) with ±20 of jitter in between (captured 2026-10-26), so finer
+// positions do not exist. A step is one pad crossing (ringStepsPerTurn; the jitter stays below a
+// step), and its size follows the speed, like a mouse wheel's acceleration: a slow turn moves 1 %
+// per pad for fine setting, a quick one up to 5 %. Keys and voice keep the stock 5 % levels.
+const ringStepsPerTurn = 10
+
+// ringStepPercent is the size of one pad crossing, from the time since the previous one.
+func ringStepPercent(since time.Duration) int {
+	switch {
+	case since >= 350*time.Millisecond:
+		return 1
+	case since >= 200*time.Millisecond:
+		return 2
+	case since >= 110*time.Millisecond:
+		return 3
+	default:
+		return 5
+	}
+}
 
 // nudgePercent moves the level by n percent (the ring) and shows it.
 func (a *App) nudgePercent(n int) {

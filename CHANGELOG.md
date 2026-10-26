@@ -6,8 +6,9 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
 ## Unreleased
 
 **Fixes and operations**
-- Orion's volume ring moves the level 1 % per 1/100 turn instead of a 5 % level per 1/20 turn: the
-  stock curve's middle is ~4 dB per level, and a quick turn jumped loud. Keys and voice keep 5 %.
+- Orion's volume ring: a step per pad crossing (the touch ring has about ten pads per turn and no
+  finer position), sized by speed like a mouse wheel — 1 % slow, up to 5 % fast. It was a stock
+  5 % level per 1/20 turn, ~4 dB mid-scale, and a quick turn jumped loud. Keys and voice keep 5 %.
 - Music Assistant's volume events no longer throw the level back while the speaker is turned:
   they are ignored for 1.5 s after a local change and when within 1 % of the level (the server
   echoes our reports late and sometimes rounded), and a level the server set is not reported
