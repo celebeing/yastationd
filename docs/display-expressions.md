@@ -204,7 +204,8 @@ to be reviewed on glass (the stock patterns are still being watched through).
 | `volume` | volume changed (value) | the number | the exact number over a bar (`display/volume.go`; the stock `volume.led` sweeps the tens only) | in code, as the front's `Volume` scene (not a moment: it carries the level and keeps state) |
 | `alarm`, `timer_done` | an alarm / a timer rings | `ringing` | `alarm/alarm_loop`, `timer/timer_bell` | planned |
 | `call_incoming`, `call_outgoing`, `call_connected`, `call_ended`, `call_hold` | intercom | `ringing` for incoming | the stock `call_*` / `calls/*` patterns | planned |
-| `media_pause`, `media_resume`, `media_next`, `media_previous`, `like`, `dislike` | music controls | `pause`, `next`, `previous` | `media/*` | planned |
+| `media_pause`, `media_resume` | music paused / resumed ([music-sendspin.md](music-sendspin.md#on-the-display)) | `pause` (no resume clip) | `media/Pause`, `media/Resume` | in code |
+| `media_next`, `media_previous`, `like`, `dislike` | music controls we sent (deferred: [music-sendspin.md](music-sendspin.md#deferred)) | `next`, `previous`, "LIKE" | `media/*` | planned |
 | `bluetooth_connected`, `bluetooth_disconnected` | A2DP | — | the stock patterns | planned |
 | `setup` | Wi-Fi setup mode | the setup face | `configure` | planned |
 | `update_downloading`, `block` | not ours (updates are blocked) | — | — | not used |
@@ -314,7 +315,9 @@ change of the top layer (80 ms up, 400 ms back down); their patterns carry their
    layer; the ring's voice stages run on it.
 3. Clips + voice on the front — done (see "How the expressions are used"); `make clips`.
 4. HA — done: the topics and entities above, scenarios.
-5. Music: pause / next / previous clips; levels and metadata from sendspin-host for a visualiser.
+5. Music: pause / resume, a new track's title and the spectrum under the clock — done
+   ([music-sendspin.md](music-sendspin.md#on-the-display)); next / previous and like / dislike
+   deferred.
 6. Pixel screens (orion first): the `Front` catalogue and the firmware's screen patterns for every
    expression and the call / alarm / boot / setup states — done blind (host-tested on the 3.21
    dump). Left: check on glass (gamma, frame rate), then proper pixel scenes in place of the seg7

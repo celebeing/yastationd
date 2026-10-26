@@ -123,6 +123,7 @@ size_t AlsaSink::write_once(const uint8_t *data, size_t length, uint32_t timeout
     }
   }
   if (report && on_played) on_played(report, finish_us);
+  if (frames_done && finish_us && on_written) on_written(data, frames_done, finish_us);
   if (lost && frames_done == 0) return length - length % bpf;  // device lost mid-write: discard
   return size_t(frames_done) * bpf;
 }

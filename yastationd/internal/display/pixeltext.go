@@ -194,7 +194,7 @@ func (f PixelFront) Marquee(s string, step time.Duration, brightness func() int)
 	if !f.usesPixelText() {
 		return f.Seg7Front.Marquee(s, step, brightness)
 	}
-	pxStep := max(step/9, 20*time.Millisecond) // ~1.5 characters per seg7 step
+	pxStep := marqueePxStep(step)
 	var start time.Time
 	return func(now time.Time, _ FrontFrame) (FrontFrame, bool) {
 		if start.IsZero() {
@@ -203,6 +203,9 @@ func (f PixelFront) Marquee(s string, step time.Duration, brightness func() int)
 		return FrontFrame{Px: f.textCanvas(s, now.Sub(start), pxStep).pixels(f.Gamma, brightness())}, false
 	}
 }
+
+// marqueePxStep: ~1.5 characters per seg7 step.
+func marqueePxStep(step time.Duration) time.Duration { return max(step/9, 20*time.Millisecond) }
 
 // Number shows n in the clock's digits (or the text font when it is too wide).
 func (f PixelFront) Number(n int, brightness int) FrontFrame {

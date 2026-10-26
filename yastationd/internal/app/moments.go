@@ -17,11 +17,15 @@ var momentDefaults = map[string]map[string][]string{
 		"startup":          {"scenario:startup"},
 		"dialog_end":       {"wink"},
 		"arbitration_lost": {"glance", "sad"},
+		"media_pause":      {"pause"},
+		"media_resume":     {"resume"},
 	},
 	"pixels": {
 		"startup":          {"scenario:startup-pixel", "scenario:startup"},
 		"dialog_end":       {"blink", "wink"},
 		"arbitration_lost": {"scenario_emotion/Deactivation_Output", "sad"},
+		"media_pause":      {"pause"},
+		"media_resume":     {"resume"},
 	},
 }
 

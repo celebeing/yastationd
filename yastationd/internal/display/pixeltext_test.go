@@ -84,3 +84,44 @@ func TestPixelTextLayouts(t *testing.T) {
 		t.Error("the marquee does not move")
 	}
 }
+
+func TestMarqueeTime(t *testing.T) {
+	if MarqueeTime("12", 300*time.Millisecond) != 0 {
+		t.Fatal("seg7: text that fits takes time")
+	}
+	if got := MarqueeTime("ABCDEF", 300*time.Millisecond); got != 11*300*time.Millisecond {
+		t.Fatalf("seg7: %v", got)
+	}
+	f := PixelFront{W: 21, H: 12}
+	if f.MarqueeTime("Hi", 300*time.Millisecond) != 0 {
+		t.Fatal("pixels: text that fits takes time")
+	}
+	long := "Some Band - A Rather Long Song Title That Scrolls"
+	f.TextLines = 1
+	want := time.Duration(runesWidth(font7, long)+21) * marqueePxStep(300*time.Millisecond)
+	if got := f.MarqueeTime(long, 300*time.Millisecond); got != want {
+		t.Fatalf("pixels, one line: %v, want %v", got, want)
+	}
+}
+
+func TestClockLevels(t *testing.T) {
+	f := PixelFront{W: 21, H: 12, Gamma: 1}
+	now := time.Date(2026, 1, 1, 12, 34, 30, 0, time.UTC)
+	bands := make([]float64, 21)
+	bands[0], bands[20] = 1, 0.5
+	px := f.ClockLevels(now, time.UTC, bands, 255).Px
+	lit := func(x, y int) bool { p := px[y*21+x]; return p.R|p.G|p.B != 0 }
+	if !lit(0, 11) || !lit(0, 6) || !lit(20, 11) || lit(20, 6) || lit(10, 11) {
+		t.Fatal("bars: band 0 full, band 20 half, the middle empty")
+	}
+	top := false
+	for x := 0; x < 21; x++ {
+		top = top || lit(x, 1)
+	}
+	if !top {
+		t.Fatal("no clock over the bars")
+	}
+	if (Seg7Front{}).HasLevels() {
+		t.Fatal("seg7 offers levels")
+	}
+}

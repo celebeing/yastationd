@@ -306,6 +306,11 @@ func (a *App) matrixBase(now time.Time) display.FrontFrame {
 		if a.clock != nil && !a.clock.Synced() && !a.rtcTimeTrusted(now) {
 			return a.front.Unsynced(now, a.brightness())
 		}
+		if a.musicLevelsWanted() {
+			if bands := a.musicBands(now); bands != nil { // music plays: the spectrum under the clock
+				return a.front.ClockLevels(now, a.loc, bands, a.brightness())
+			}
+		}
 		if s.Mode == "clock_date" {
 			return a.front.ClockDate(now, a.loc, a.brightness())
 		}

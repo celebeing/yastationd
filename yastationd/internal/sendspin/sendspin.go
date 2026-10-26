@@ -15,10 +15,12 @@ import (
 	"time"
 )
 
-// Event is one host line: Kind READY, CONNECTED, STREAM, VOLUME with its fields.
+// Event is one host line: Kind READY, CONNECTED, STREAM, VOLUME, PLAYBACK, META, LEVELS with its
+// fields; Rest is the line after the kind, as sent (META's JSON).
 type Event struct {
 	Kind   string
 	Fields []string
+	Rest   string
 }
 
 // Int returns field i as an int (def when absent or malformed).
@@ -101,9 +103,11 @@ func (h *Host) runOnce(stop <-chan struct{}) error {
 	}()
 	sc := bufio.NewScanner(stdout)
 	for sc.Scan() {
-		f := strings.Fields(sc.Text())
+		line := sc.Text()
+		f := strings.Fields(line)
 		if len(f) > 0 && h.OnEvent != nil {
-			h.OnEvent(Event{Kind: f[0], Fields: f[1:]})
+			_, rest, _ := strings.Cut(strings.TrimSpace(line), " ")
+			h.OnEvent(Event{Kind: f[0], Fields: f[1:], Rest: strings.TrimSpace(rest)})
 		}
 	}
 	close(done)

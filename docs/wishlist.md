@@ -102,11 +102,12 @@ remains here is the wider picture.
 - Local commands for music: pulsar keeps the command spotter on for a minute after music stops, so
   «продолжи» works after a pause.
 - This also covers open item 3 in `yastationd/README.md` (remote-URL announcements).
-- Music on the front display (phase 5 of [display-expressions.md](display-expressions.md)): the
-  stock `pause` / `next` / `previous` clips on transport changes (needs the player's state and the
-  controller/metadata roles in sendspin-host); a level meter on seg7 and a spectrum on pixel
-  screens from levels sendspin-host computes on the PCM it writes (a `LEVEL` event at ~20 Hz);
-  the track title as a marquee on a track change.
+- Music on the front display: done for pause / resume, the title and the spectrum
+  ([music-sendspin.md](music-sendspin.md#on-the-display)); next / previous and like / dislike are
+  deferred there. No level meter on seg7: it would look poor next to the clock.
+- **A pulse to the music on Station 3's LED bar** (the rear ambilight, a floodlight more than a
+  light: dim and slow, or it lights the room). The ring is no use for it. sendspin-host's
+  spectrum (or its low bands as a beat) is the input.
 
 ## "Someone is asleep here" detection
 

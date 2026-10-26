@@ -59,7 +59,7 @@ SYSROOT_STAMP := $(SYSROOT)/.built
 SS_SRC   := third_party/src
 SS_BUILD := $(BUILD)/third_party
 SS_STAMP := $(SS_BUILD)/.built
-SS_DEFS  := -DSENDSPIN_ENABLE_PLAYER
+SS_DEFS  := -DSENDSPIN_ENABLE_PLAYER -DSENDSPIN_ENABLE_METADATA
 SS_LIBS  := $(SS_BUILD)/sendspin/libsendspin.a \
             $(SS_BUILD)/_deps/micro_flac-build/libmicro_flac.a \
             $(SS_BUILD)/_deps/ixwebsocket-build/libixwebsocket.a \

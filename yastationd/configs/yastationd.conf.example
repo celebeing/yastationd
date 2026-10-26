@@ -20,9 +20,9 @@ ambilight_brightness  = 128
 clock_brightness      = 128
 # Clock brightness from the light sensor (also an HA switch; this is only the first-start value).
 # auto_brightness = true
-# Sensor reading -> brightness, interpolated on log(lux); readings are the sensor's own scale
-# (it sits behind the grille). Calibrate per unit from the HA "Illuminance" history.
-# auto_brightness_curve = 0.04:4, 0.55:128, 10:255
+# Lux (calibrated: docs/sensor-calibration.md) -> brightness, interpolated on log(lux).
+# Default: 0.7:<board minimum>, 9:128, 150:255 (the minimum is the profile's matrix.min_brightness).
+# auto_brightness_curve = 0.7:4, 9:128, 150:255
 
 # --- board (hardware profile, see docs/boards/) ---
 # auto = detect from the device tree; or a codename (bergamot, ...). Single runtime profile keys
@@ -55,6 +55,11 @@ volume_beep  = true
 # sendspin_server = ws://<ma-host>:8927/sendspin      (optional: dial MA instead of waiting for it)
 # sendspin_volume = linked                            (linked: MA volume = speaker volume; separate)
 # music_duck_db   = -26                               (music level under the assistant, -60..0)
+# Music on the front display: a new track's title runs once (not on resume), pause/resume
+# animations, and on pixel screens the spectrum under the clock (seg7 keeps the clock).
+# music_title     = true
+# music_clips     = true
+# music_levels    = true
 # Chime before an HA announcement (needs `make sounds`).
 # announce_chime  = true
 

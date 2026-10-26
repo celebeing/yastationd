@@ -27,18 +27,22 @@ or `tools/deploy.sh` with the arch column set. Then `sendspin = true` in yastati
 ## Interface
 
 ```
-sendspin-host -n NAME -s STATE_FILE [-p PORT] [-D PCM] [-u URL] [-a] [-V VOL] [-G] [-l LEVEL]
+sendspin-host -n NAME -s STATE_FILE [-p PORT] [-D PCM] [-u URL] [-a] [-V VOL] [-G] [-b BANDS] [-l LEVEL]
 ```
 
 Options are documented at the top of `src/main.cpp`. stdin: `duck <0..1>`, `volume <0..100>`;
 EOF ends it. stdout: `READY <client_id> <version>`, `CONNECTED 0|1`, `STREAM start <rate> <ch> <bits>` /
-`STREAM end`, `VOLUME <0..100> <muted>`. Logs on stderr.
+`STREAM end`, `VOLUME <0..100> <muted>`, `PLAYBACK playing|stopped` (the group's state),
+`META <json>` (the track: title, artist, album, track, duration_ms, progress_ms; `META` alone = none)
+and, with `-b BANDS`, `LEVELS <hex>` (the spectrum, one byte per band, ~25/s, each when its audio
+is heard). Logs on stderr.
 
 ## Files
 
 | File | What |
 |---|---|
-| `src/main.cpp` | Options, the client and player role, the stdin/stdout protocol |
+| `src/main.cpp` | Options, the client, the player and metadata roles, the stdin/stdout protocol |
+| `src/levels.{h,cpp}` | The spectrum for the display: an FFT of the PCM written, stamped with when it is heard |
 | `src/alsa_sink.{h,cpp}` | ALSA output with playback-time feedback for Sendspin's sync, volume and a ramped duck gain |
 | `third_party/` | Pinned fetch, the CMake glue for sendspin-cpp, the alsa-lib sysroot, zig toolchain wrappers |
 

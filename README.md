@@ -73,7 +73,9 @@ HA, from single expressions to timed scenarios across the ring and the display.
 - A Sendspin player for Music Assistant (`sendspin-host`): lossless music over the LAN, mixed with
   the assistant on the same speaker. Music ducks while the assistant listens, talks or rings a
   timer; the wake word works over the music; the player volume in MA is the speaker's volume.
-  Details: [docs/music-sendspin.md](docs/music-sendspin.md).
+- On the display: a new track's title runs once, pause / resume animations, and on Station 3 the
+  spectrum under the clock while music plays (each can be switched off: `music_title`,
+  `music_clips`, `music_levels`). Details: [docs/music-sendspin.md](docs/music-sendspin.md).
 
 **Operations**
 - Logs can go to a syslog server on the LAN, kept on flash while it is unreachable; a network

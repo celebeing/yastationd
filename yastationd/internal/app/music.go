@@ -29,6 +29,8 @@ type musicState struct {
 	duck      atomic.Uint32 // math.Float32bits of the level last sent
 
 	reported atomic.Int64 // UnixNano of the last local volume change sent to the server
+
+	screen musicScreen // the music on the front display (musicdisplay.go)
 }
 
 // musicEchoQuiet: after a local volume change the server's volume events are ignored this long.
@@ -66,6 +68,9 @@ func (a *App) newMusic() *sendspin.Host {
 		}
 		if a.linkedVolume() {
 			args = append(args, "-G")
+		}
+		if a.musicLevelsWanted() {
+			args = append(args, "-b", strconv.Itoa(a.musicBandCount()))
 		}
 		return args
 	}
@@ -109,6 +114,12 @@ func (a *App) onMusicEvent(ev sendspin.Event) {
 			a.publishDisplayMode()
 		}
 		a.log.Info("music: stream", "on", on, "rate", ev.Int(1, 0), "channels", ev.Int(2, 0))
+	case "PLAYBACK":
+		a.onMusicPlayback(firstField(ev) == "playing")
+	case "META":
+		a.onMusicMeta(ev.Rest)
+	case "LEVELS":
+		a.onMusicLevels(firstField(ev))
 	case "VOLUME":
 		v := ev.Int(0, -1)
 		if v < 0 || v > 100 {

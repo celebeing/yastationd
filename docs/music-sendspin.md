@@ -14,7 +14,7 @@ the end.
                                                        ▲              (plug → dmix → hw:0,0)
                        duck / volume (stdin)           │                   ▲
  yastationd ───────────────────────────────────────────┘     aplay (TTS, announcements, timer)
-            ◀── READY / CONNECTED / STREAM / VOLUME (stdout)
+            ◀── READY / CONNECTED / STREAM / VOLUME / PLAYBACK / META / LEVELS (stdout)
 ```
 
 - **`sendspin-host`** (`../sendspin-host/`) is a native child process of yastationd, the way
@@ -117,6 +117,45 @@ the host runs at `-l warn`.
 | CPU | ~20 % of one core while playing FLAC 44.1 kHz (whole system 72 % idle) |
 | Output | 44.1 kHz/2 ch/16 bit from MA (Spotify), dmix delay up to 160 ms, 0 xruns in the first test |
 
+## On the display
+
+sendspin-host also takes the **metadata** role (the track, its position) and reports the group's
+playback state; with `-b <bands>` it computes the music's spectrum. yastationd draws them
+(`internal/app/musicdisplay.go`):
+
+- **A new track's title** (`music_title`): "Artist - Title" runs once over the front display
+  (one pass of the running line, 3–30 s) when a track starts that was not the one before. A resume
+  of the same track shows no title, nor does a track first seen well into it (more than 10 s: a
+  reconnect, our restart). A track that arrives while playback is stopped waits for it to start.
+- **Pause and resume** (`music_clips`): the moments `media_pause` and `media_resume`
+  ([display-expressions.md](display-expressions.md)), from the playback state. Sendspin has no
+  "paused": a pause is the group stopping while the track stays. Station 3 plays `media/Pause` and
+  `media/Resume`; the Minis `player_pause` (they have no resume clip).
+- **The spectrum** (`music_levels`, pixel screens only): the clock in the small digits on top and
+  one bar per column under it, while music plays and levels keep coming; the clock is back 1.5 s
+  after they stop. sendspin-host computes it from the PCM it writes, before the volume and the
+  duck (the bars follow the music, not the knob): mono, a 2048-point FFT 25 times a second,
+  log-spaced bands from 50 Hz to 16 kHz, each frame stamped with the time its audio is heard
+  (the sink's finish time) and sent then. The bars span −50..−6 dBFS per band, rise at once and
+  fall at 2.5 heights per second. On seg7 there is no spectrum (it would look poor; the clock
+  stays) and sendspin-host computes none.
+
+Sendspin's own visualizer role (the server sends loudness, spectrum and beats) exists in the
+library but is a draft that Music Assistant does not send; the local spectrum needs no server
+support and matches our output exactly.
+
+### Deferred
+
+- **Next / previous animations.** The protocol does not say why the track changed (a skip, the
+  end of the last one, a jump in the queue). The animations belong to a command we know we sent:
+  local media keys (the controller role) or a voice command routed to the speaker. Until then a
+  track change shows only its title.
+- **Like / dislike.** Not in Sendspin. The way: an HA sentence automation («лайк», «дизлайк»)
+  presses Music Assistant's "favorite the current song" button for the speaker's player and tells
+  the speaker to show the moment `like` (an MQTT moment command, to be added; the web app already
+  calls moments). MA has no dislike: remove the favorite (if it is one) and skip. Station 3 has
+  `media/Like` and `media/Dislike`; on seg7, "LIKE" fits the four digits.
+
 ## Latency seen from the speaker
 
 - "Play" in MA to the stream starting took ~4.7 s, almost all of it MA resolving the album's tracks
@@ -133,6 +172,9 @@ sendspin_name     = <speaker name>       # default: device_name
 sendspin_server   = ws://<ma-host>:8927/sendspin   # optional: dial MA ourselves
 sendspin_volume   = linked               # or separate
 music_duck_db     = -26                  # -60..0
+music_title       = true                 # a new track's title on the front display
+music_clips       = true                 # pause / resume animations
+music_levels      = true                 # the spectrum under the clock (pixel screens)
 # sendspin_port = 8928, sendspin_unpaired = true, sendspin_state = <cfw>/sendspin/state.json,
 # sendspin_bin = <cfw>/bin/sendspin-host
 announce_chime    = true                 # see below
@@ -156,6 +198,9 @@ until it has played. **Not tested on the device yet.**
    `sendspin_server`.
 6. Pairing instead of unpaired access.
 7. Local media keys (e.g. a long press = pause) would need the controller role.
+8. The display features by eye on a speaker: whether a pause in MA reaches us as the group
+   stopping (MA restarts its flow stream on resume, see Latency), the title on track changes,
+   the spectrum's range on Station 3.
 
 ## Group sync by measurement (plan)
 

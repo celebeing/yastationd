@@ -24,6 +24,9 @@
 class AlsaSink {
  public:
   std::function<void(uint32_t frames, int64_t finish_us)> on_played;
+  // The PCM (as received, before the gain) of frames that reached the device; the last one is
+  // heard at finish_us. Called on the sync task, outside the sink's locks.
+  std::function<void(const uint8_t *data, uint32_t frames, int64_t finish_us)> on_written;
   std::string pcm = "default";
 
   ~AlsaSink();

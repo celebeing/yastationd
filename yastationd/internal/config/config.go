@@ -151,6 +151,12 @@ type Config struct {
 	// separate: it is a music-only gain under the speaker's volume.
 	SendspinVolume string
 	MusicDuckDB    int // music level while the assistant listens/talks/rings, dB below normal
+	// The music on the front display (docs/music-sendspin.md): the track's title as a running line
+	// when a new one starts (not on resume), the pause/resume animations, and the spectrum under
+	// the clock (pixel screens only: on seg7 it would look poor, the clock stays).
+	MusicTitle  bool
+	MusicClips  bool
+	MusicLevels bool
 
 	// Wi-Fi setup mode (docs/wifi-setup.md): the speaker becomes an access point with a page for
 	// editing the saved networks, entered by holding the voice key for 5 s with the mic muted
@@ -275,6 +281,9 @@ func Default() Config {
 		SendspinState:       cfw + "/sendspin/state.json",
 		SendspinVolume:      "linked",
 		MusicDuckDB:         -26,
+		MusicTitle:          true,
+		MusicClips:          true,
+		MusicLevels:         true,
 		WifiSetup:           true,
 		WifiSetupChannel:    6,
 		WifiSetupAddress:    "10.42.0.1/24",
@@ -492,6 +501,12 @@ func (c *Config) set(k, v string) error {
 		c.SendspinUnpaired, err = strconv.ParseBool(v)
 	case "sendspin_state":
 		c.SendspinState = v
+	case "music_title":
+		c.MusicTitle, err = strconv.ParseBool(v)
+	case "music_clips":
+		c.MusicClips, err = strconv.ParseBool(v)
+	case "music_levels":
+		c.MusicLevels, err = strconv.ParseBool(v)
 	case "sendspin_volume":
 		if v != "linked" && v != "separate" {
 			return fmt.Errorf("want linked or separate")

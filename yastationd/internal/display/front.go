@@ -56,8 +56,13 @@ type Front interface {
 	// Unsynced is the clock before the first time sync: no digits, a blinking colon.
 	Unsynced(now time.Time, brightness int) FrontFrame
 	Text(s string, brightness int) FrontFrame
-	// Marquee shows s, scrolling when it does not fit.
+	// Marquee shows s, scrolling when it does not fit; MarqueeTime is one pass of it (0: s fits).
 	Marquee(s string, step time.Duration, brightness func() int) RenderFunc[FrontFrame]
+	MarqueeTime(s string, step time.Duration) time.Duration
+	// ClockLevels is the clock with the music's spectrum (bands 0..1, low to high); a display
+	// without room for it (HasLevels false) shows the clock.
+	ClockLevels(now time.Time, loc *time.Location, bands []float64, brightness int) FrontFrame
+	HasLevels() bool
 	Number(n int, brightness int) FrontFrame
 	// Volume is the volume indication (volume.go): stateful, set on every change.
 	Volume(brightness func() int) VolumeScene
@@ -138,6 +143,7 @@ var seg7Anims = map[string][]string{
 	"pause":         {"player_pause", "pause"},
 	"next":          {"player_next_track", "next_track"},
 	"previous":      {"player_previous_track", "previous_track"},
+	"resume":        nil, // no stock clip; the music coming back says it
 	"eyes":          {"eyes", "configuring"},
 	"blink":         {"blink"},
 	"happy":         {"happy"},
@@ -208,6 +214,7 @@ var pixelAnims = map[string][]string{
 	"pause":         {"media/Pause"},
 	"next":          {"media/Next"},
 	"previous":      {"media/Previous"},
+	"resume":        {"media/Resume"},
 	"eyes":          {"scenario_emotion/Smile_Neutral_Output"},
 	"blink":         {"scenario_emotion/Smile_Neutral_Output"},
 	"happy":         {"emotion/joy"},

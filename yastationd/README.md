@@ -174,8 +174,10 @@ With `sendspin = true`, the daemon runs `../sendspin-host` (`internal/sendspin`,
 it restarts it with backoff, ducks the music by `music_duck_db` while the assistant is busy (a
 voice session, a reply pending, HA audio, our own playback, a ringing timer; back 1.5 s after),
 and with `sendspin_volume = linked` maps the player volume in MA onto the speaker's volume and
-reports local changes back. Volume key ticks are skipped while music plays. Design and findings:
-[`../docs/music-sendspin.md`](../docs/music-sendspin.md).
+reports local changes back. Volume key ticks are skipped while music plays. On the front display
+(`internal/app/musicdisplay.go`): a new track's title, pause/resume animations, and on pixel
+screens the spectrum under the clock (`music_title`, `music_clips`, `music_levels`). Design and
+findings: [`../docs/music-sendspin.md`](../docs/music-sendspin.md).
 
 ## Local reflexes (work with the broker down)
 

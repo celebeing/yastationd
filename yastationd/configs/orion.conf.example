@@ -27,9 +27,14 @@ ring_brightness      = 128
 ambilight_brightness = 64
 clock_brightness     = 128
 auto_brightness      = true
-# Sensor reading -> front-display brightness. Calibrate from HA Illuminance history per unit.
-# Default: 0.04:<board minimum>, 0.55:128, 10:255 (the minimum is the profile's matrix.min_brightness).
-# auto_brightness_curve = 0.04:2, 0.55:128, 10:255
+# Lux (calibrated: docs/sensor-calibration.md) -> front-display brightness, on log(lux).
+# Default: 0.7:<board minimum>, 9:128, 150:255 (the minimum is the profile's matrix.min_brightness).
+# auto_brightness_curve = 0.7:2, 9:128, 150:255
+# Music on the screen (docs/music-sendspin.md): the title of a new track, pause/resume, and the
+# spectrum under the clock while music plays.
+# music_title  = true
+# music_clips  = true
+# music_levels = true
 
 # --- physical controls / audio ---
 # One step is one stock 5% level. The outer circular groove accumulates 20 steps per revolution.

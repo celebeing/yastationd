@@ -3,7 +3,8 @@
 // connect (and can also dial one, -u), decodes PCM/FLAC with sendspin-cpp, and plays it through
 // the device's dmix PCM, so music mixes with yastationd's own voice output.
 //
-//   sendspin-host -n NAME -s STATE_FILE [-p PORT] [-D PCM] [-u URL] [-a] [-V VOL] [-G] [-l LEVEL]
+//   sendspin-host -n NAME -s STATE_FILE [-p PORT] [-D PCM] [-u URL] [-a] [-V VOL] [-G] [-b BANDS]
+//                 [-l LEVEL]
 //
 //   -n NAME        friendly name shown in Music Assistant
 //   -s STATE_FILE  identity + pairing records (the static keypair, i.e. the stable client_id)
@@ -14,6 +15,8 @@
 //   -V VOL         player volume 0..100 announced to the server at start (default 100)
 //   -G             the server's volume is not applied as a gain here: yastationd maps it onto the
 //                  speaker's master volume instead ("linked" volume); mute still silences music
+//   -b BANDS       compute the music's spectrum in BANDS bands for the display (LEVELS events;
+//                  default 0 = off, no CPU spent)
 //   -l LEVEL       sendspin-cpp log level: none, error, warn, info (default), debug, verbose
 //
 // stdin, one command per line (from yastationd):
@@ -25,6 +28,11 @@
 //   CONNECTED 0|1          a Sendspin server is connected
 //   STREAM start <rate> <channels> <bits> | STREAM end
 //   VOLUME <0..100> <muted 0|1>   the server's player volume
+//   PLAYBACK playing|stopped      the group's playback state (Sendspin has no "paused")
+//   META <json>            the current track: {"title","artist","album","track","duration_ms",
+//                          "progress_ms"} (fields absent when unknown); META alone = no track
+//   LEVELS <hex>           with -b: one byte per band (0 = -60 dB, ff = full scale), low to high,
+//                          ~25 per second while music plays, each when its audio is heard
 // Logs go to stderr.
 #include <getopt.h>
 #include <poll.h>
@@ -42,10 +50,14 @@
 #include <string>
 #include <thread>
 
+#include <ArduinoJson.h>
+
 #include "alsa_sink.h"
 #include "file_persistence_provider.h"
+#include "levels.h"
 #include "log.h"
 #include "sendspin/client.h"
+#include "sendspin/metadata_role.h"
 #include "sendspin/player_role.h"
 
 using namespace sendspin;
@@ -81,9 +93,10 @@ bool parse_level(const char *s, LogLevel &l) {
 
 struct Listener : PlayerRoleListener {
   AlsaSink &sink;
+  Levels &levels;
   PlayerRole *player = nullptr;
   bool volume_gain = true;  // false with -G
-  explicit Listener(AlsaSink &s) : sink(s) {}
+  Listener(AlsaSink &s, Levels &l) : sink(s), levels(l) {}
 
   size_t on_audio_write(uint8_t *data, size_t length, uint32_t timeout_ms) override {
     return sink.write(data, length, timeout_ms);
@@ -95,10 +108,12 @@ struct Listener : PlayerRoleListener {
       return;
     }
     sink.configure(*p.sample_rate, *p.channels, *p.bit_depth);
+    levels.configure(*p.sample_rate, *p.channels);
     emit("STREAM start %u %u %u", unsigned(*p.sample_rate), unsigned(*p.channels), unsigned(*p.bit_depth));
   }
   void on_stream_end() override {
     sink.release();
+    levels.reset();
     emit("STREAM end");
   }
   void on_volume_changed(uint8_t v) override { report(); }
@@ -111,6 +126,14 @@ struct Listener : PlayerRoleListener {
 };
 
 struct ClientEvents : SendspinClientListener {
+  int playback = -1;  // last reported: 1 playing, 0 stopped
+  void on_group_update(const GroupUpdateObject &g) override {
+    if (!g.playback_state) return;
+    int p = *g.playback_state == SendspinPlaybackState::PLAYING ? 1 : 0;
+    if (p == playback) return;
+    playback = p;
+    emit("PLAYBACK %s", p ? "playing" : "stopped");
+  }
   void on_trust_changed(ConnectionTrust t) override {
     LOGI("server trust: %s", t == ConnectionTrust::USER ? "paired" : "unpaired");
   }
@@ -118,6 +141,26 @@ struct ClientEvents : SendspinClientListener {
   void on_display_pairing_code(const std::string &code, SendspinPairingCodeFormat) override {
     LOGI("pairing code: %s", code.c_str());
   }
+};
+
+// The track, as one JSON line. The server sends the whole state each time (a field it leaves out
+// has no value); progress goes along so yastationd can tell a resume from a new start.
+struct Meta : MetadataRoleListener {
+  void on_metadata(const ServerMetadataStateObject &m) override {
+    JsonDocument d;
+    if (m.title) d["title"] = *m.title;
+    if (m.artist) d["artist"] = *m.artist;
+    if (m.album) d["album"] = *m.album;
+    if (m.track) d["track"] = *m.track;
+    if (m.progress) {
+      d["duration_ms"] = m.progress->track_duration;
+      d["progress_ms"] = m.progress->track_progress;
+    }
+    std::string s;
+    serializeJson(d, s);
+    emit("META %s", s.c_str());
+  }
+  void on_metadata_clear() override { emit("META"); }
 };
 
 struct Network : SendspinNetworkProvider {
@@ -138,7 +181,7 @@ void read_commands(AlsaSink &sink) {
 }
 
 void usage(const char *prog) {
-  std::fprintf(stderr, "usage: %s -n NAME -s STATE_FILE [-p PORT] [-D PCM] [-u URL] [-a] [-V VOL] [-G] [-l LEVEL]\n",
+  std::fprintf(stderr, "usage: %s -n NAME -s STATE_FILE [-p PORT] [-D PCM] [-u URL] [-a] [-V VOL] [-G] [-b BANDS] [-l LEVEL]\n",
                prog);
 }
 
@@ -152,9 +195,9 @@ int main(int argc, char **argv) {
   std::string name, state, url, pcm = "default";
   uint16_t port = SendspinClientConfig::DEFAULT_SERVER_PORT;
   bool unpaired = false, volume_gain = true;
-  int volume = 100;
+  int volume = 100, bands = 0;
   LogLevel level = LogLevel::INFO;
-  for (int c; (c = getopt(argc, argv, "n:s:p:D:u:aV:Gl:h")) != -1;) {
+  for (int c; (c = getopt(argc, argv, "n:s:p:D:u:aV:Gb:l:h")) != -1;) {
     switch (c) {
       case 'n': name = optarg; break;
       case 's': state = optarg; break;
@@ -164,6 +207,7 @@ int main(int argc, char **argv) {
       case 'a': unpaired = true; break;
       case 'V': volume = std::clamp(std::atoi(optarg), 0, 100); break;
       case 'G': volume_gain = false; break;
+      case 'b': bands = std::clamp(std::atoi(optarg), 0, 64); break;
       case 'l':
         if (!parse_level(optarg, level)) return usage(argv[0]), 2;
         break;
@@ -207,11 +251,18 @@ int main(int argc, char **argv) {
   // Announce a real starting volume: the library's default is 0, which a server adopts as the
   // player's volume (Music Assistant then shows 0 while the speaker plays at its own level).
   player.update_volume(uint8_t(volume));
-  Listener listener(sink);
+  Levels levels(bands);
+  Listener listener(sink, levels);
   listener.player = &player;
   listener.volume_gain = volume_gain;
   player.set_listener(&listener);
   sink.on_played = [&player](uint32_t frames, int64_t finish_us) { player.notify_audio_played(frames, finish_us); };
+  if (levels.enabled())
+    sink.on_written = [&levels](const uint8_t *data, uint32_t frames, int64_t finish_us) {
+      levels.feed(reinterpret_cast<const int16_t *>(data), frames, finish_us);
+    };
+  Meta meta;
+  client.add_metadata().set_listener(&meta);
 
   if (!client.start()) {
     LOGE("start failed (port %u busy?)", unsigned(port));
@@ -232,10 +283,17 @@ int main(int argc, char **argv) {
 
   std::thread(read_commands, std::ref(sink)).detach();
   bool connected = false;
+  std::vector<uint8_t> bands_out;
   emit("CONNECTED 0");
   while (running.load()) {
     client.loop();
     if (int v = local_volume.exchange(-1); v >= 0 && v != player.get_volume()) player.update_volume(uint8_t(v));
+    if (levels.due(SendspinClient::now_us(), bands_out)) {
+      static const char hex[] = "0123456789abcdef";
+      std::string s;
+      for (uint8_t b : bands_out) s += hex[b >> 4], s += hex[b & 15];
+      emit("LEVELS %s", s.c_str());
+    }
     if (client.is_connected() != connected) {
       connected = !connected;
       emit("CONNECTED %d", connected ? 1 : 0);
