@@ -15,7 +15,7 @@
 # ($VENDOR/builds/hostapd/<version>/armv7/hostapd, the newest); with neither, a speaker that has
 # no hostapd yet gets a warning (its Wi-Fi setup mode cannot start).
 #
-# Env: SSHKEY (default ~/.ssh/id_yastation), VENDOR (optional, the vendor-tree checkout). Speakers are updated one at a time; the script stops
+# Env: SSHKEY (optional: the key to use; unset, ssh picks one from the agent and ~/.ssh/config), VENDOR (optional, the vendor-tree checkout). Speakers are updated one at a time; the script stops
 # at the first failure so a broken build never reaches the rest.
 #
 # What it does per speaker (the same as `make deploy`): upload the binary next to the live one
@@ -27,13 +27,15 @@ set -eu
 
 here=$(cd "$(dirname "$0")/.." && pwd)
 hosts=${1:-$here/tools/deploy.hosts}
-key=${SSHKEY:-$HOME/.ssh/id_yastation}
 [ -f "$hosts" ] || {
 	echo "no hosts file: $hosts (see the header)" >&2
 	exit 1
 }
 
-ssh_() { ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=5 "$@"; }
+keyopt=
+[ -n "${SSHKEY:-}" ] && keyopt="-i $SSHKEY -o IdentitiesOnly=yes"
+# shellcheck disable=SC2086 # keyopt is two options or none
+ssh_() { ssh $keyopt -o BatchMode=yes -o ConnectTimeout=5 "$@"; }
 
 hap=$here/hostapd/build/hostapd
 if [ ! -x "$hap" ] && [ -n "${VENDOR:-}" ]; then

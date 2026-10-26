@@ -1,6 +1,6 @@
 # Copy to local.mk (gitignored) and fill in your device.
 DEVICE = root@192.0.2.10
-SSHKEY = $(HOME)/.ssh/id_yastation
+# SSHKEY = $(HOME)/.ssh/<key>   # optional; unset, ssh uses the agent and ~/.ssh/config
 PLATFORM = bergamot
 # DESTDIR and HELPER_ARCH come from internal/board/profiles/$(PLATFORM).conf.
 # Per-unit overrides remain possible:

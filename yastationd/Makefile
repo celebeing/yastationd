@@ -54,8 +54,9 @@ clean:
 	rm -rf build
 
 # The device has no scp (dropbear without it), so files are streamed over ssh via `cat >`.
-SSHKEY   ?= $(HOME)/.ssh/id_yastation
-SSH      := ssh -i $(SSHKEY) -o IdentitiesOnly=yes $(DEVICE)
+# SSHKEY: optional; empty, ssh picks the key from the agent and ~/.ssh/config.
+SSHKEY   ?=
+SSH      := ssh $(if $(SSHKEY),-i $(SSHKEY) -o IdentitiesOnly=yes) $(DEVICE)
 
 # Copy the binary + the init hook to $(DESTDIR) (persistent, no rootfs write, no autostart).
 stage: build

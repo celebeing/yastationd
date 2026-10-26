@@ -133,7 +133,7 @@ The exact toolchain versions and a container that pins them: [building.md](build
 
 ```sh
 cd yastationd
-# local.mk (gitignored): DEVICE = root@<speaker>, SSHKEY = <key>, PLATFORM = <codename>
+# local.mk (gitignored): DEVICE = root@<speaker>, SSHKEY = <key> (optional), PLATFORM = <codename>
 make platform-info                                 # confirms derived <cfw> and helper arch
 make stage                                         # binary + init hook copy into <cfw> (no autostart)
 make deploy-spotter                                # profile selects build/<helper-arch>/spotter-host
