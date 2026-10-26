@@ -3,6 +3,33 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.10.0 — 2026-10-26
+
+Logs off the speaker, a network watchdog, smooth brightness, sensors in lux and dB.
+
+**New**
+- Logs to a syslog server on the LAN (`log_remote`, off by default): the daemon's and the system's
+  lines (kernel included) as RFC 5424 over TCP with their own timestamps; while the server is
+  unreachable they are kept in a capped spool on flash (`log_spool_kb`) and sent when it is back,
+  including lines that went into a dead connection. docs/storage.md.
+- Network watchdog (`net_watchdog_min`, default 10, 0 = off): with the gateway unreachable that
+  long the speaker logs the kernel's tail and reboots; the wait doubles after each such reboot,
+  up to 4 h.
+- Light in lux: a calibration per board (`lux.calibration`) and per speaker (`lux_calibration`),
+  measured against a lux meter; the speakers differed up to ×9 and now agree within 4 %.
+  `Illuminance` is lux, with the raw `reading` as an attribute.
+- Room sound in dB: `mic.spl_offset` per board (measured against a noise meter, rough) and
+  `mic_spl_offset` per speaker. docs/sensor-calibration.md.
+- `matrix.min_brightness` per board (Mini 3, Mini 3 Pro 4; Station 3 2).
+
+**Changed**
+- **`auto_brightness_curve` is in lux now.** A curve written before is in one speaker's old
+  reading units: convert it with that speaker's calibration, or drop it (the default is
+  `0.7:<min>, 9:128, 150:255`).
+- Auto-brightness is smooth: a median against spikes, a longer average, and the level glides to
+  its target at an even pace instead of jumping.
+- Station 3 dims its screen through the backlight, so the clock keeps its half-tones in the dark.
+
 ## v0.9.1 — 2026-10-26
 
 Orion shows the time right after boot.
