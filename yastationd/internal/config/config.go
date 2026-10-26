@@ -103,6 +103,8 @@ type Config struct {
 	// TextLines: text on a pixel screen (orion) — 0 auto, 1 one line, 2 two lines
 	// (docs/display-expressions.md, "Text on the pixel screen").
 	TextLines int
+	// MarqueeSpeed scales how fast running lines move (every front display; 1 = the default pace).
+	MarqueeSpeed float64
 
 	// Room sound sensors for HA (sound_floor, sound_level, sound_activity: levels of a raw mic
 	// channel, once a minute; docs/hass-integration.md). Keeps the mic open even with the wake
@@ -282,6 +284,7 @@ func Default() Config {
 		SendspinVolume:      "linked",
 		MusicDuckDB:         -26,
 		MusicTitle:          true,
+		MarqueeSpeed:        1,
 		MusicClips:          true,
 		MusicLevels:         true,
 		WifiSetup:           true,
@@ -435,6 +438,11 @@ func (c *Config) set(k, v string) error {
 		c.FrameTapAddr = v
 	case "led_preview":
 		c.LEDPreview, err = strconv.ParseBool(v)
+	case "marquee_speed":
+		c.MarqueeSpeed, err = strconv.ParseFloat(v, 64)
+		if err == nil && (c.MarqueeSpeed < 0.25 || c.MarqueeSpeed > 4) {
+			err = fmt.Errorf("want 0.25..4")
+		}
 	case "text_lines":
 		switch v {
 		case "auto":

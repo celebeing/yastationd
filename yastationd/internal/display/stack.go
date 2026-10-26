@@ -14,7 +14,7 @@ const (
 	PrioDegraded = 5 // subtle persistent indicator; sits just above the base
 	// The music's track title (the spectrum is part of the base): under HA's overlays.
 	PrioMusicTitle = 10
-	PrioScenario = 20
+	PrioScenario   = 20
 	// Expressions on the front display (faces, clips): above HA overlays, below the local
 	// reflexes (volume bubble, timer ring), which must stay readable. The ring's voice stages
 	// keep PrioVoice.

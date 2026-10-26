@@ -104,6 +104,8 @@ like the clock: perceived intensity, the screen's gamma at the end.
 - **The scrolling line** enters at the middle (not the right edge: its start was lost behind the
   animation before it; seg7 likewise starts two cells in) and leaves at the left, a pixel at a time, 1.5× the
   seg7 marquee's character rate (`marqueeStep`/9 per pixel; tuned on glass 2026-10-26).
+  `marquee_speed` (config, 0.25..4, default 1) scales every running line, seg7 included; Station
+  3 reads well at 1.5.
 - On glass (2026-10-26) both layouts read well; `auto`'s choice was kept as the default.
 
 ## Screen patterns (pixel, orion)

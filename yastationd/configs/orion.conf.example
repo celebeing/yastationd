@@ -53,6 +53,7 @@ wyoming_port = 10700
 # frametap_addr = :8930
 # Text on the screen: auto (one line if it fits, else two, else scrolling), 1 or 2 lines.
 # text_lines = auto
+# marquee_speed = 1   (running lines: 0.25..4 times the default pace)
 # Room sound sensors for HA (Sound floor / level / activity: mic levels once a minute, never
 # audio); they keep the mic open even with the wake word off.
 # room_sound = true

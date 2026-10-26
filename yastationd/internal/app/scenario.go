@@ -134,7 +134,7 @@ func (a *App) showStep(st scenarioStep, d time.Duration) {
 		}
 	}
 	if st.Text != "" && a.front != nil {
-		a.matrixStack.Push(scenarioSlot, display.PrioExpression, d, a.front.Marquee(st.Text, marqueeStep, a.brightness))
+		a.matrixStack.Push(scenarioSlot, display.PrioExpression, d, a.front.Marquee(st.Text, a.marqueeStep(), a.brightness))
 		front = true
 	}
 	if !ring {

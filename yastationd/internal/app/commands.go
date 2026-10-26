@@ -227,7 +227,7 @@ func (a *App) matrixOverlay(op string, args json.RawMessage, prio int, ttl time.
 			Text string `json:"text"`
 		}
 		json.Unmarshal(args, &v)
-		a.matrixStack.Push(name, prio, ttl, a.front.Marquee(v.Text, marqueeStep, a.brightness))
+		a.matrixStack.Push(name, prio, ttl, a.front.Marquee(v.Text, a.marqueeStep(), a.brightness))
 	case "number":
 		var v struct {
 			N int `json:"n"`
@@ -389,7 +389,7 @@ func (a *App) cmdShowText(payload []byte) {
 	}
 	secs := a.store.get().TextSecs
 	a.matrixStack.Push("ov_matrix", display.PrioScenario, time.Duration(secs)*time.Second,
-		a.front.Marquee(string(payload), marqueeStep, a.brightness))
+		a.front.Marquee(string(payload), a.marqueeStep(), a.brightness))
 }
 
 // ring_animation (select): play the chosen effect for AnimSecs, then report "off" again.

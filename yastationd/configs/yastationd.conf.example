@@ -149,6 +149,7 @@ log_level = info
 # web_password =                 (a pbkdf2-sha256$… hash, set from the web app; empty = "yastation")
 # led_preview = true             (the LED preview in the web app; docs/web-ui.md)
 # text_lines = auto              (pixel screens: auto, 1 or 2 lines of text; docs/display-expressions.md)
+# marquee_speed = 1             (how fast running lines move, 0.25..4 x the default pace)
 # display_faces = true           (voice expressions on the front display at first start)
 # clips_dir = <cfw>/clips        (converted stock clips, searched before the firmware's)
 # scenarios_dir = <cfw>/scenarios

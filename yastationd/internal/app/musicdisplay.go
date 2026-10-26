@@ -153,8 +153,8 @@ func (a *App) showMusicTitle(s string) {
 	if !a.cfg.MusicTitle || a.front == nil || strings.TrimSpace(s) == "" {
 		return
 	}
-	ttl := min(max(a.front.MarqueeTime(s, marqueeStep), musicTitleMin), musicTitleMax)
-	a.matrixStack.Push("music_title", display.PrioMusicTitle, ttl, a.front.Marquee(s, marqueeStep, a.brightness))
+	ttl := min(max(a.front.MarqueeTime(s, a.marqueeStep()), musicTitleMin), musicTitleMax)
+	a.matrixStack.Push("music_title", display.PrioMusicTitle, ttl, a.front.Marquee(s, a.marqueeStep(), a.brightness))
 }
 
 func (a *App) musicMoment(name string) {

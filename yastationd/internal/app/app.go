@@ -37,7 +37,7 @@ const (
 	// held three times too long, which reads as noise.
 	screenInterval  = 20 * time.Millisecond
 	volumeBubbleTTL = 2 * time.Second
-	marqueeStep     = 350 * time.Millisecond // one character per step
+	marqueeBaseStep = 350 * time.Millisecond // one character per step, at marquee_speed 1
 )
 
 type App struct {
@@ -280,6 +280,14 @@ func stopVendorLeftovers(names []string, log *slog.Logger) {
 
 // ---- base layers ----
 
+// marqueeStep is the running line's time per character, scaled by marquee_speed.
+func (a *App) marqueeStep() time.Duration {
+	if a.cfg.MarqueeSpeed <= 0 {
+		return marqueeBaseStep
+	}
+	return time.Duration(float64(marqueeBaseStep) / a.cfg.MarqueeSpeed)
+}
+
 func (a *App) matrixBase(now time.Time) display.FrontFrame {
 	s := a.store.get()
 	if a.front == nil {
@@ -295,7 +303,7 @@ func (a *App) matrixBase(now time.Time) display.FrontFrame {
 	case "message":
 		// Long messages scroll; keep the marquee's phase across frames until the text changes.
 		if s.Message != a.marqueeText || a.marquee == nil {
-			a.marqueeText, a.marquee = s.Message, a.front.Marquee(s.Message, marqueeStep, a.brightness)
+			a.marqueeText, a.marquee = s.Message, a.front.Marquee(s.Message, a.marqueeStep(), a.brightness)
 		}
 		f, _ := a.marquee(now, display.FrontFrame{})
 		return f
