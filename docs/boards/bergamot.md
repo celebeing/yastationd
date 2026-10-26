@@ -5,7 +5,7 @@ Profile: `yastationd/internal/board/profiles/bergamot.conf` · Survey: `dumps/su
 
 ## Identity
 - device-tree model `Yandex Bergamot EVT1`, compatible `yandex,bergamot-evt1 yandex,bergamot amlogic, axg`
-- Amlogic AXG, 4x Cortex-A53 1.2 GHz, ~240 MB RAM; **armhf (32-bit) userland, glibc 2.30, arm64 kernel 4.9**
+- Amlogic AXG, 4x Cortex-A53 1.2 GHz, 256 or 512 MB RAM (two revisions, below); **armhf (32-bit) userland, glibc 2.30, arm64 kernel 4.9**
 - quasar `deviceType: bergamot`; hostname `Yandex-Mini3`
 
 ## LED ring
@@ -71,7 +71,9 @@ Profile: `yastationd/internal/board/profiles/bergamot.conf` · Survey: `dumps/su
 - **No RTC** (no `/dev/rtc*`, no `/sys/class/rtc`): the clock starts from scratch after a power loss (unit #2 came up 4 h 20 min behind). The vendor `set_monotonic_time.sh` only keeps it from going backwards (saved stamp in `/data/quasar/data/monotonic_time`); real time comes from chronyd or yastationd's SNTP once the network is up. (The Mini 3 Pro has a PCF8563 — see [pickle](pickle.md).)
 
 ## Firmware variants
-Two units run the same profile (hardware identical: LEDs, inputs, mixer controls, mic layout).
+Two units run the same profile (LEDs, inputs, mixer controls and mic layout identical), but they are
+two hardware revisions: unit #1 has a 256 MB RAM chip, unit #2 (a later batch) 512 MB — same kernel
+reservations (a 20 MB CMA pool, 4 MB more), the RAM ends at 256 vs 512 MB (checked 2026-10-26).
 | | fw `0.369` (unit #1) | factory fw `0.6.1.4` (unit #2, kernel built Nov 2024) |
 |---|---|---|
 | RAM | ~240 MB | ~490 MB |
