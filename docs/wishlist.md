@@ -110,7 +110,8 @@ remains here is the wider picture.
 
 ## "Someone is asleep here" detection
 
-**Status:** idea (2026-10-25); nothing designed.
+**Status:** collecting data since 2026-10-26 (step 1 below: the raw inputs are HA sensors);
+the detector waits for about a week of history.
 
 A heuristic per speaker: is the room it stands in asleep right now? Exposed to HA (a
 `binary_sensor` "Sleeping here", with the inputs as attributes) and used by the speaker itself.
