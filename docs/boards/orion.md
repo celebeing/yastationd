@@ -318,6 +318,11 @@ Three surfaces, every LED a Linux LED class device each mirrored by a framebuffe
 | Ambilight | `orion:{red,green,blue,white}:ambilight{i}{a,b}` (i=0..11) | `fb0` "ambilight" 12×1 | 12 positions × 2 dies; **RGBW** (the only white channel) | own `ambilight{A,B,C}:sync` latch |
 | Screen | — (fb only) | `fb1` "YNDX LED screen" 21×12 **(ioctl-confirmed)**, gowin FPGA | 252 px dot-matrix; glass lags one write behind — needs periodic re-send | plain `write()` works (verified 2026-10-24); no `S29gowin`/ipc needed |
 
+- **Ambilight framebuffer** (`fb0`, 12×1, 48 bpp, stride 72; probed 2026-10-26): per position
+  B, G, R as 16-bit little-endian, the LED level = value/2 (510 = 255), both dies following,
+  for the LEDs whose trigger is `ledfb-ambilight`. No white channel. One frame write = 3.5 ms
+  against 25–34 ms for 96 sysfs writes; `ambilight.fb` uses it
+  ([ambilight-stream.md](../ambilight-stream.md)).
 - Latch pseudo-LEDs `orion:{ring,ambilight}{A,B,C}:sync` (trigger `ledfb-*-sync`): one
   per AW21036 in each chain. bergamot's `logo:sync` is never poked by our sysfs writes and
   the ring works — the same is expected here; `tools/orion-led-probe.sh` verifies it
@@ -349,7 +354,8 @@ Three surfaces, every LED a Linux LED class device each mirrored by a framebuffe
 - **Ambilight hardware probed on device 2026-10-24** — a 12-position strip on the
   **back** of the speaker, top-to-bottom in index order (0→11); the `a`/`b` suffixes
   are two dies of one position and are driven identically. It is RGBW (the only white
-  channel). `ambilight.kind = sysfs-rgbw` exposes it as a separate persisted HA MQTT
+  channel): the white is a real emitter, visibly different from R+G+B at the same level, and
+  RGBW together differs from both (checked by eye over DDP 2026-10-27). `ambilight.kind = sysfs-rgbw` exposes it as a separate persisted HA MQTT
   `light` with brightness and `rgbw` color mode; no voice/music overlays use it. The
   daemon path is host-tested but still needs an on-device smoke test.
 - **Screen backend verified end-to-end on device 2026-10-24:** `hw.DotMatrix`
