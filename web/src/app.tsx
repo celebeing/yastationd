@@ -181,7 +181,7 @@ function About({ list, latest }: { list: Peer[]; latest: { tag: string; url: str
       <p class="small">
         {latest ? (
           <>
-            Latest release: <a href={latest.url} target="_blank">{latest.tag}</a> ({latest.date}). Checked by this browser on GitHub; the
+            Latest release: <a href={latest.url} target="_blank">{latest.tag}</a>. Checked by this browser on GitHub; the
             speakers themselves never go online.
           </>
         ) : (

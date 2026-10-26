@@ -171,17 +171,21 @@ export function tapURL(id: string, base: string, path: string): string {
 export const REPO = 'https://github.com/celebeing/yastationd'
 
 /** latestRelease asks GitHub from the browser (the speakers have no internet; the browser
- * usually does, and GitHub's API allows any origin). null when it cannot be reached. */
+ * usually does, and GitHub's API allows any origin) for the newest vX.Y.Z tag — the project
+ * tags its releases, it does not publish GitHub Releases. null when it cannot be reached. */
 export async function latestRelease(): Promise<{ tag: string; url: string; date: string } | null> {
   try {
     const cached = JSON.parse(sessionStorage.getItem('yst.latest') || 'null')
     if (cached && Date.now() - cached.at < 3600_000) return cached.rel
   } catch {}
   try {
-    const r = await fetch('https://api.github.com/repos/celebeing/yastationd/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
+    const r = await fetch('https://api.github.com/repos/celebeing/yastationd/tags?per_page=100', { headers: { Accept: 'application/vnd.github+json' } })
     if (!r.ok) return null
-    const j = await r.json()
-    const rel = { tag: j.tag_name as string, url: j.html_url as string, date: (j.published_at || '').slice(0, 10) }
+    const tags: { name: string }[] = await r.json()
+    let best = ''
+    for (const t of tags) if (/^v\d+\.\d+\.\d+$/.test(t.name) && (!best || behind(best, t.name))) best = t.name
+    if (!best) return null
+    const rel = { tag: best, url: `${REPO}/blob/${best}/CHANGELOG.md`, date: '' }
     try {
       sessionStorage.setItem('yst.latest', JSON.stringify({ at: Date.now(), rel }))
     } catch {}
