@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import * as api from './api'
-import type { Entity, Peer } from './api'
+import type { Entity, Features, Peer } from './api'
+import { LedTab, MomentsTab, WifiTab } from './extra'
 
 // The app (docs/web-ui.md): the speakers on the LAN, and per speaker its sensors, runtime
 // controls, config and login. It is served by every speaker; the one it came from is "home" and
@@ -77,6 +78,10 @@ function Speakers({ home }: { home: Peer }) {
   const [list, setList] = useState<Peer[]>([home])
   const [status, setStatus] = useState<Record<string, Status>>({})
   const [sel, setSel] = useState(home.id)
+  const [latest, setLatest] = useState<{ tag: string; url: string; date: string } | null>(null)
+  useEffect(() => {
+    api.latestRelease().then(setLatest)
+  }, [])
 
   async function refresh() {
     let ps: Peer[]
@@ -124,11 +129,19 @@ function Speakers({ home }: { home: Peer }) {
             <span class="sname">{p.name}</span>
             <span class="muted small">
               {p.model} · {p.version}
+              {latest && api.behind(p.version, latest.tag) && <span class="badge">{latest.tag} out</span>}
             </span>
           </button>
         ))}
+        <button class={'speaker about' + (sel === ABOUT ? ' sel' : '')} onClick={() => setSel(ABOUT)}>
+          <span />
+          <span class="sname">About</span>
+        </button>
       </aside>
       <main>
+        {sel === ABOUT ? (
+          <About list={list} latest={latest} />
+        ) : (
         <Speaker
           key={peer.id}
           peer={peer}
@@ -136,12 +149,72 @@ function Speakers({ home }: { home: Peer }) {
           status={status[peer.id] || 'checking'}
           onLogin={() => setStatus((s) => ({ ...s, [peer.id]: 'ok' }))}
         />
+        )}
       </main>
     </div>
   )
 }
 
-type Tab = 'overview' | 'controls' | 'config' | 'account'
+const ABOUT = '\u0000about'
+
+function About({ list, latest }: { list: Peer[]; latest: { tag: string; url: string; date: string } | null }) {
+  return (
+    <section class="card about-card">
+      <h2>yastationd</h2>
+      <p>
+        Custom firmware for Yandex smart speakers: offline Home Assistant speakers. MIT license.
+      </p>
+      <p>
+        <a href={api.REPO} target="_blank">
+          {api.REPO.replace('https://', '')}
+        </a>{' '}
+        ·{' '}
+        <a href={api.REPO + '/blob/main/CHANGELOG.md'} target="_blank">
+          changelog
+        </a>{' '}
+        ·{' '}
+        <a href={api.REPO + '/tree/main/docs'} target="_blank">
+          docs
+        </a>
+      </p>
+      <h3>Versions</h3>
+      <p class="small">
+        {latest ? (
+          <>
+            Latest release: <a href={latest.url} target="_blank">{latest.tag}</a> ({latest.date}). Checked by this browser on GitHub; the
+            speakers themselves never go online.
+          </>
+        ) : (
+          <span class="muted">GitHub is not reachable from this browser: no update check.</span>
+        )}
+      </p>
+      <table class="nets">
+        <tbody>
+          {list.map((p) => (
+            <tr>
+              <td>{p.name}</td>
+              <td class="small">{p.version}</td>
+              <td class="small">{latest ? (api.behind(p.version, latest.tag) ? <span class="badge">update: {latest.tag}</span> : <span class="muted">up to date</span>) : ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p class="muted small">Updating is done from a computer: docs/deploying.md.</p>
+    </section>
+  )
+}
+
+type Tab = 'overview' | 'controls' | 'moments' | 'led' | 'wifi' | 'config' | 'account'
+
+const TAB_NAMES: Record<Tab, string> = {
+  overview: 'Overview',
+  controls: 'Controls',
+  moments: 'Moments',
+  led: 'LED',
+  wifi: 'Wi-Fi',
+  config: 'Config',
+  account: 'Account',
+}
 
 function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () => void }) {
   const { peer, base } = props
@@ -149,11 +222,13 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
   const [ents, setEnts] = useState<Entity[] | null>(null)
   const [err, setErr] = useState('')
   const [needLogin, setNeedLogin] = useState(false)
+  const [features, setFeatures] = useState<Features>({})
 
   async function load() {
     try {
       const s = await api.state(peer.id, base)
       setEnts(s.entities)
+      setFeatures((s.info as any).features || {})
       setErr('')
       setNeedLogin(false)
     } catch (e: any) {
@@ -196,17 +271,22 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
           </div>
         </div>
         <nav class="tabs">
-          {(['overview', 'controls', 'config', 'account'] as Tab[]).map((t) => (
-            <button class={tab === t ? 'on' : ''} onClick={() => setTab(t)}>
-              {{ overview: 'Overview', controls: 'Controls', config: 'Config', account: 'Account' }[t]}
-            </button>
-          ))}
+          {(Object.keys(TAB_NAMES) as Tab[])
+            .filter((t) => (t === 'led' ? features.led_preview : t === 'wifi' ? features.wifi : t === 'moments' ? features.moments : true))
+            .map((t) => (
+              <button class={tab === t ? 'on' : ''} onClick={() => setTab(t)}>
+                {TAB_NAMES[t]}
+              </button>
+            ))}
         </nav>
       </header>
       {err && <p class="err">{err}</p>}
       {!ents && <p class="muted">…</p>}
       {ents && tab === 'overview' && <Overview ents={ents} />}
       {ents && tab === 'controls' && <Controls ents={ents} peer={peer} base={base} reload={load} />}
+      {tab === 'moments' && <MomentsTab peer={peer} base={base} />}
+      {tab === 'led' && <LedTab peer={peer} base={base} />}
+      {tab === 'wifi' && <WifiTab peer={peer} base={base} />}
       {tab === 'config' && <ConfigEditor peer={peer} base={base} />}
       {tab === 'account' && <Account peer={peer} base={base} />}
     </div>

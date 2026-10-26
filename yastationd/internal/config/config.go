@@ -96,6 +96,9 @@ type Config struct {
 	// Frame tap: an HTTP listen address (":8930") that streams the LED surfaces and takes commands,
 	// for the browser preview (docs/led-preview.md). "" = off. No authentication: LAN only.
 	FrameTapAddr string
+	// LEDPreview: the frame tap on the web server (/tap/, behind the login) for the app's LED
+	// preview tab (docs/web-ui.md).
+	LEDPreview bool
 
 	// TextLines: text on a pixel screen (orion) — 0 auto, 1 one line, 2 two lines
 	// (docs/display-expressions.md, "Text on the pixel screen").
@@ -285,6 +288,7 @@ func Default() Config {
 		LogSpoolKB:          1024,
 		Arbitration:         true,
 		HTTPAddr:            ":80",
+		LEDPreview:          true,
 		WebUser:             web.DefaultUser,
 		ArbitrationWait:     700 * time.Millisecond,
 		NetWatchdog:         10 * time.Minute,
@@ -420,6 +424,8 @@ func (c *Config) set(k, v string) error {
 		c.WyomingPort, err = atoiRange(v, 0, 65535)
 	case "frametap_addr":
 		c.FrameTapAddr = v
+	case "led_preview":
+		c.LEDPreview, err = strconv.ParseBool(v)
 	case "text_lines":
 		switch v {
 		case "auto":

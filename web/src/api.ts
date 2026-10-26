@@ -150,3 +150,53 @@ export async function setPassword(id: string, base: string, user: string, passwo
   setToken(id, r.token)
   setCred(user, password)
 }
+
+export type Features = { wifi?: boolean; led_preview?: boolean; moments?: boolean }
+export type Net = { id: number; ssid: string; security: string; priority: number; disabled: boolean; hidden: boolean }
+export type Moment = { name: string; candidates: string[]; shows: string }
+
+export const infoFull = (base: string) => req<Peer & { features?: Features }>(base, '/api/info')
+export const wifi = (id: string, base: string) => authed<{ networks: Net[]; current: string; setup_mode: boolean }>(id, base, '/api/wifi')
+export const wifiAdd = (id: string, base: string, n: { ssid: string; psk: string; hidden: boolean; priority: number }) =>
+  authed<{ ok: boolean }>(id, base, '/api/wifi/networks', { method: 'POST', body: JSON.stringify(n) })
+export const moments = (id: string, base: string) => authed<Moment[]>(id, base, '/api/moments')
+export const showMoment = (id: string, base: string, name: string) =>
+  authed<{ shown: boolean }>(id, base, '/api/moment/' + encodeURIComponent(name), { method: 'POST' })
+
+/** tapURL: the frame tap behind the login; the token goes in the query (EventSource). */
+export function tapURL(id: string, base: string, path: string): string {
+  return `${base}/tap${path}?token=${encodeURIComponent(tokenFor(id) || '')}`
+}
+
+export const REPO = 'https://github.com/celebeing/yastationd'
+
+/** latestRelease asks GitHub from the browser (the speakers have no internet; the browser
+ * usually does, and GitHub's API allows any origin). null when it cannot be reached. */
+export async function latestRelease(): Promise<{ tag: string; url: string; date: string } | null> {
+  try {
+    const cached = JSON.parse(sessionStorage.getItem('yst.latest') || 'null')
+    if (cached && Date.now() - cached.at < 3600_000) return cached.rel
+  } catch {}
+  try {
+    const r = await fetch('https://api.github.com/repos/celebeing/yastationd/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
+    if (!r.ok) return null
+    const j = await r.json()
+    const rel = { tag: j.tag_name as string, url: j.html_url as string, date: (j.published_at || '').slice(0, 10) }
+    try {
+      sessionStorage.setItem('yst.latest', JSON.stringify({ at: Date.now(), rel }))
+    } catch {}
+    return rel
+  } catch {
+    return null
+  }
+}
+
+/** behind: version (git describe, e.g. v0.12.1-3-gabc) is older than the release tag. */
+export function behind(version: string, tag: string): boolean {
+  const parse = (v: string) => (v.match(/^v(\d+)\.(\d+)\.(\d+)/) || []).slice(1).map(Number)
+  const a = parse(version),
+    b = parse(tag)
+  if (a.length !== 3 || b.length !== 3) return false
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] < b[i]
+  return false
+}

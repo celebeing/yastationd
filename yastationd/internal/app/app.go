@@ -238,11 +238,14 @@ func (a *App) startFrameTap(ctx context.Context) {
 		}
 		return ok
 	}, a.log)
-	go func() {
-		if err := a.tap.Serve(ctx, a.cfg.FrameTapAddr); err != nil {
-			a.log.Warn("frame tap", "err", err)
-		}
-	}()
+	a.tap.Start(ctx)
+	if a.cfg.FrameTapAddr != "" { // its own listener, no login (the host simulator, old configs)
+		go func() {
+			if err := a.tap.Serve(ctx, a.cfg.FrameTapAddr); err != nil {
+				a.log.Warn("frame tap", "err", err)
+			}
+		}()
+	}
 }
 
 // openScreen opens the board's dot-matrix framebuffer, or a virtual one for matrix.dev =
@@ -409,7 +412,7 @@ func (a *App) Run(ctx context.Context) error {
 		}
 	}
 
-	if a.cfg.FrameTapAddr != "" {
+	if a.cfg.FrameTapAddr != "" || (a.cfg.LEDPreview && a.cfg.HTTPAddr != "") {
 		a.startFrameTap(ctx)
 	}
 

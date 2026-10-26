@@ -183,3 +183,28 @@ func TestWebConfigTrial(t *testing.T) {
 		t.Fatal("marker removed")
 	}
 }
+
+func TestWebMomentsAndTapLogin(t *testing.T) {
+	_, srv := newWebApp(t)
+	_, out := call(t, "POST", srv.URL+"/api/login", "", `{"user":"admin","password":"yastation"}`)
+	tok := out["token"].(string)
+	req, _ := http.NewRequest("GET", srv.URL+"/api/moments", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("moments: %v %v", err, resp)
+	}
+	var ms []momentView
+	json.NewDecoder(resp.Body).Decode(&ms)
+	resp.Body.Close()
+	names := map[string]bool{}
+	for _, m := range ms {
+		names[m.Name] = true
+	}
+	if !names["sad"] || !names["happy"] {
+		t.Fatalf("the expressions are moments too: %v", names)
+	}
+	if code, _ := call(t, "GET", srv.URL+"/tap/info", "", ""); code != 404 {
+		t.Fatalf("no tap without led_preview: %d", code)
+	}
+}

@@ -58,9 +58,10 @@ type Frame struct {
 // Tap collects the surfaces' latest frames and fans them out. A nil Tap ignores everything, so
 // the render loop calls it unconditionally.
 type Tap struct {
-	info Info
-	cmd  func(name string, payload []byte) bool
-	log  *slog.Logger
+	startOnce sync.Once
+	info      Info
+	cmd       func(name string, payload []byte) bool
+	log       *slog.Logger
 
 	mu     sync.Mutex
 	cur    Frame
@@ -157,6 +158,12 @@ func (t *Tap) flush(ctx context.Context) {
 	}
 }
 
+// Start runs the frame flusher until ctx ends; Serve calls it, a tap mounted on another server
+// (Handler) needs it once.
+func (t *Tap) Start(ctx context.Context) {
+	t.startOnce.Do(func() { go t.flush(ctx) })
+}
+
 // Serve listens on addr until ctx ends.
 func (t *Tap) Serve(ctx context.Context, addr string) error {
 	ln, err := net.Listen("tcp", addr)
@@ -164,7 +171,7 @@ func (t *Tap) Serve(ctx context.Context, addr string) error {
 		return err
 	}
 	srv := &http.Server{Handler: t.Handler()}
-	go t.flush(ctx)
+	t.Start(ctx)
 	go func() {
 		<-ctx.Done()
 		srv.Close()

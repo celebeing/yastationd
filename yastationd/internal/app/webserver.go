@@ -50,6 +50,8 @@ type peerInfo struct {
 	Version string `json:"version"`
 	URL     string `json:"url"`
 	Seen    int64  `json:"seen,omitempty"` // unix s, when this speaker last heard it
+	// Features: the app's optional tabs this speaker has (only in /api/info and /api/state).
+	Features map[string]bool `json:"features,omitempty"`
 }
 
 // startWeb listens (an error when it cannot) and serves until ctx ends.
@@ -85,10 +87,15 @@ func (a *App) webHandler() http.Handler {
 	api.HandleFunc("/api/control/", a.authed(a.apiControl))
 	api.HandleFunc("/api/password", a.authed(a.apiPassword))
 	api.HandleFunc("/api/config", a.authed(a.apiConfig))
+	api.HandleFunc("/api/wifi", a.authed(a.apiWifi))
+	api.HandleFunc("/api/wifi/networks", a.authed(a.apiWifiAdd))
+	api.HandleFunc("/api/moments", a.authed(a.apiMoments))
+	api.HandleFunc("/api/moment/", a.authed(a.apiMoment))
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", cors(api))
 	mux.HandleFunc("/metrics", a.serveMetrics)
+	mux.Handle("/tap/", a.tapHandler())
 	mux.Handle("/", webui.Handler())
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -177,7 +184,9 @@ func outboundIP(routeFile string) string {
 }
 
 func (a *App) apiInfo(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, a.selfInfo(r))
+	p := a.selfInfo(r)
+	p.Features = a.features()
+	writeJSON(w, http.StatusOK, p)
 }
 
 func (a *App) apiLogin(w http.ResponseWriter, r *http.Request) {
@@ -314,7 +323,9 @@ func (a *App) webEntities() []webEntity {
 }
 
 func (a *App) apiState(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"info": a.selfInfo(r), "entities": a.webEntities()})
+	p := a.selfInfo(r)
+	p.Features = a.features()
+	writeJSON(w, http.StatusOK, map[string]any{"info": p, "entities": a.webEntities()})
 }
 
 // apiControl runs a control's MQTT command handler with the request body as the payload.
