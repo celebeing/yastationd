@@ -3,6 +3,25 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.12.0 — 2026-10-26
+
+The nearest speaker answers; «стоп» always ends the session.
+
+**New**
+- Wake-word arbitration: speakers that hear one «Алиса» agree over MQTT which one answers — the
+  loudest, compared in calibrated dB SPL; the others blink and stay silent, and nothing said
+  after the wake word is lost while they decide. On by default (`arbitration = false`).
+  docs/wake-arbitration.md.
+
+**Changed**
+- «Стоп», «хватит», «отмена», «выключись» end a voice session in every phase: listening (after a
+  wake word too, so «Алиса, стоп музыка» no longer reaches HA — say «выключи музыку»), waiting
+  for HA, speaking. Before, a «стоп» while listening went to HA as a request.
+
+**Fixes and operations**
+- `tools/deploy.sh` installs hostapd from a recorded build in the vendor tree (`VENDOR=`) when
+  there is no local one, and warns about a speaker left without it.
+
 ## v0.11.0 — 2026-10-26
 
 Station 3 writes text in its own fonts.
