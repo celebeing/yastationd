@@ -294,3 +294,28 @@ firmwares tune the amp differently, docs/deploying.md §7). What we have and lac
 - **Limits:** 16-bit PDM capture and its noise floor bound the dynamic range; orion captures
   at 96 kHz, bergamot and pickle at 48 kHz — enough for the audio band. The capture's own
   high-pass in `hw.Mic` (150 Hz) applies only to our 16 kHz path, not to `arecord` itself.
+
+## Logs that survive, and observability from outside
+
+**Status:** idea (2026-10-26); recorded, not started. Background and measurements:
+[storage.md](storage.md).
+
+Today every log is on tmpfs and a hang ends in a power cycle, so the evidence is gone
+(the Mini 3 Wi-Fi hang of 2026-10-26, yastationd/README.md item 7). Options, not exclusive:
+
+- **Persistent logs on the speaker.** orion: the full daemon log and syslog on its unused `/data`
+  (2.6 GB eMMC) with size-capped rotation. Minis: only WARN/ERROR and the supervisor's lines,
+  appended to a capped file on `<cfw>` every few minutes (negligible NAND wear, storage.md).
+- **Syslog streamed off the speaker.** busybox `syslogd` can send to a LAN host (`-R host:port`,
+  with `-L` to keep the local copy); the daemon would log into syslog too (or send its own lines
+  over UDP). Nothing to store on the speaker, and the lines up to the moment the network dies are
+  kept elsewhere. LAN only, so the egress lock stays as it is; the receiver (e.g. the homelab's
+  Loki) is the user's side.
+- **A Prometheus exporter.** A `/metrics` endpoint in yastationd (configurable address, off by
+  default, LAN only): uptime, CPU and memory, Wi-Fi signal and bit rate (`/proc/net/wireless`,
+  the driver's station info), mic capture restarts, spotter input drops, wake detections, volume,
+  health state, flash wear (UBI `max_ec`, eMMC `life_time`), the room sensors. It would have shown
+  the rate collapse before the hang from the speaker's side; a scrape gap itself marks the hang.
+
+Open: which of these the homelab already collects best (the router's MKTXP metrics covered the
+Wi-Fi side this time), and whether a remote syslog receiver must be set up first.
