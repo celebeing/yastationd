@@ -3,6 +3,17 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.11.0 — 2026-10-26
+
+Station 3 writes text in its own fonts.
+
+**New**
+- Text on Station 3's screen (`show_text`, the message mode, display commands, numbers, timers)
+  in pixel fonts made for it: Latin and Cyrillic, digits, punctuation and symbols (° % « » — №
+  …); numbers and timers in the clock's digits. `text_lines = auto|1|2`: one line if it fits,
+  else two lines wrapped at whole words, else a smooth scrolling line. It was the seg7 picture
+  before, with no Cyrillic. The minis are unchanged.
+
 ## v0.10.1 — 2026-10-26
 
 **Fixes and operations**
