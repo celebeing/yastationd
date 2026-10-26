@@ -319,3 +319,25 @@ Today every log is on tmpfs and a hang ends in a power cycle, so the evidence is
 
 Open: which of these the homelab already collects best (the router's MKTXP metrics covered the
 Wi-Fi side this time), and whether a remote syslog receiver must be set up first.
+
+## Orion: swipe gestures over the top
+
+**Status:** idea (2026-10-26); measured, not built.
+
+The touch top's capacitance sensor (`aw93312`, 12 raw channels in sysfs: ten ring pads, the
+centre, the inner area; [boards/orion.md](boards/orion.md), "Sensors survey") also sees a hand
+moving above it. Measured: a left/right swipe **1-2 cm over the top** registers every time with
+its direction (the signal's centroid over the ten pads moves the swipe's way); at ~5 cm it is
+weak and the direction unreliable; at ~10 cm nothing. A front/back swipe is untested (the run
+touched the top). A hand held still fades into the chip's baseline in ~2 s, so only movement is
+seen, not presence.
+
+Uses considered: switching "home screens" on the front display (clock, clock with date,
+weather, the player…) with a swipe; `swipe_left` / `swipe_right` as HA events. The range is
+the limit: a swipe has to brush the top, almost a touch, so it is less a gesture in the air than
+a contactless flick. How it would work: the daemon polls `diff` (~50 Hz), tells a touch
+(hundreds of thousands, plus the input events) from a swipe (5-70k, no touch), and reads the
+direction from the centroid's path. Open: false triggers from things put on the speaker or
+passing by, whether polling at 50 Hz disturbs the chip's own touch handling, and whether the
+chip's sensitivity (its register settings) could be raised for more range without breaking the
+ring.
