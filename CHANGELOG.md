@@ -3,6 +3,15 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.12.1 — 2026-10-26
+
+**Fixes and operations**
+- A speaker that loses the wake-word arbitration shows it: the Mini 3 and Mini 3 Pro glance
+  aside (` > >`, then `< < `), Station 3 plays its stock deactivation animation. It is a moment
+  (`arbitration_lost`), so it can be re-mapped per board.
+- A new face in the expression bank: `angry` (seg7: eyes in the outer digits, brows bent down to
+  the middle).
+
 ## v0.12.0 — 2026-10-26
 
 The nearest speaker answers; «стоп» always ends the session.
