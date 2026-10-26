@@ -3,6 +3,22 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.9.0 — 2026-10-26
+
+Room sound sensors in HA, and a wake word that survives a dead capture.
+
+**New**
+- Room sound sensors (the first step of "someone is asleep here", docs/wishlist.md): `Sound
+  floor`, `Sound level` (dBFS) and `Sound activity` (%), once a minute from a raw mic channel,
+  only levels, never audio; re-sent on a change or every 15 min. `room_sound = false` turns them
+  off.
+
+**Fixes and operations**
+- A mic capture that ends on its own is reopened: on orion `arecord` exited after ~6 h and the
+  wake word stayed dead until the daemon restarted. arecord's last words now go to the log.
+- `Illuminance` is sent on a 10 % change or every 15 min, not every 30 s.
+- `Mic mute` shows On/Off in HA instead of Problem/OK.
+
 ## v0.8.4 — 2026-10-26
 
 Orion's volume ring: fine when slow, quick when fast; Music Assistant no longer fights it.
