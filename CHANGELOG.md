@@ -3,6 +3,12 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.16.3 — 2026-10-27
+
+**Fixes and operations**
+- Building `sendspin-host` in a checkout that the old builder (before v0.16.2) had built failed:
+  its CMake cache pointed at `/src`. The Makefile now starts such a build directory over.
+
 ## v0.16.2 — 2026-10-27
 
 **Fixes and operations**

@@ -41,6 +41,9 @@ tools/build.sh web hostapd
   build takes seconds.
 - `sendspin-host` and `hostapd` fetch their pinned sources on the first build (network needed
   once); everything else builds offline.
+- A `sendspin-host/build/<arch>` configured in another directory (a moved checkout, or the
+  builder before v0.16.2 that mounted the repo at `/src`) is wiped and built anew by its Makefile:
+  CMake refuses a cache made elsewhere.
 - `tools/deploy.sh` runs it for what it ships (`NATIVE=1` there builds `yastationd` with the host's
   own Go instead). `make build` in `yastationd/` still builds natively with a host Go, and the web
   app through `tools/build-web.sh` (= `build.sh web`).

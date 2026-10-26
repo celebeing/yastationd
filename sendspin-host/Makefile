@@ -58,6 +58,16 @@ SYSROOT_STAMP := $(SYSROOT)/.built
 
 SS_SRC   := third_party/src
 SS_BUILD := $(BUILD)/third_party
+
+# A build directory configured somewhere else (another checkout path, or the old builder that
+# mounted the repo at /src) has a CMake cache and dependency files pointing there, and CMake
+# refuses it: start this arch over.
+ifneq ($(wildcard $(SS_BUILD)/CMakeCache.txt),)
+ifeq ($(shell grep -qx 'CMAKE_CACHEFILE_DIR:INTERNAL=$(CURDIR)/$(SS_BUILD)' $(SS_BUILD)/CMakeCache.txt || echo stale),stale)
+$(info $(BUILD) was configured in another directory: building it anew)
+$(shell rm -rf $(BUILD))
+endif
+endif
 SS_STAMP := $(SS_BUILD)/.built
 SS_DEFS  := -DSENDSPIN_ENABLE_PLAYER -DSENDSPIN_ENABLE_METADATA
 SS_LIBS  := $(SS_BUILD)/sendspin/libsendspin.a \
