@@ -72,6 +72,7 @@ func run(log *slog.Logger, name, screen, patterns, media, addr, root string) err
 	cfg.WyomingPort = 0
 	cfg.Probes = nil
 	cfg.AutoBrightness = false
+	cfg.RoomSound = false
 	cfg.FrameTapAddr = addr
 	cfg.LogLevel = "info"
 

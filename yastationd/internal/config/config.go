@@ -91,6 +91,11 @@ type Config struct {
 	// for the browser preview (docs/led-preview.md). "" = off. No authentication: LAN only.
 	FrameTapAddr string
 
+	// Room sound sensors for HA (sound_floor, sound_level, sound_activity: levels of a raw mic
+	// channel, once a minute; docs/hass-integration.md). Keeps the mic open even with the wake
+	// word off; never sends audio.
+	RoomSound bool
+
 	// Video display mode (docs/video-mode.md): a frames file for the pixel front screen (the .led
 	// pattern format, may be gzipped; path+".gz" is tried too) and its audio track (a WAV for aplay),
 	// both made by cmd/videoconv. VideoAVOffset shifts the picture against the sound: positive =
@@ -243,6 +248,7 @@ func Default() Config {
 		IntercomMax:         30 * time.Minute,
 		IntercomJitterMs:    40,
 		WakeEnabled:         true,
+		RoomSound:           true,
 		SpotterBin:          cfw + "/bin/spotter-host",
 		ReplyTimeout:        90 * time.Second,
 		BootConnectTimeout:  40 * time.Second,
@@ -371,6 +377,8 @@ func (c *Config) set(k, v string) error {
 		c.WyomingPort, err = atoiRange(v, 0, 65535)
 	case "frametap_addr":
 		c.FrameTapAddr = v
+	case "room_sound":
+		c.RoomSound, err = strconv.ParseBool(v)
 	case "video_frames":
 		c.VideoFrames = v
 	case "video_audio":

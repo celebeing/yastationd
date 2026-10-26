@@ -122,3 +122,25 @@ func (a *App) publishBrightness() {
 	a.mqtt.Publish(a.topics.State("auto_brightness"), onOff(s.ClockAuto))
 	a.mqtt.Publish(a.topics.State("clock_brightness"), strconv.Itoa(s.ClockBright))
 }
+
+// luxGate keeps the Illuminance sensor from writing a row to HA's recorder every 30 s: the
+// smoothed reading is re-published when it moved by luxReportRel (and by more than the dark
+// end's noise, luxReportAbs) or after roomRefresh.
+type luxGate struct {
+	last float64
+	at   time.Time
+}
+
+const (
+	luxReportRel = 0.10
+	luxReportAbs = 0.02
+)
+
+func (g *luxGate) due(v float64, now time.Time) bool {
+	d := math.Abs(v - g.last)
+	if !g.at.IsZero() && now.Sub(g.at) < roomRefresh && (d < luxReportAbs || d < luxReportRel*g.last) {
+		return false
+	}
+	g.last, g.at = v, now
+	return true
+}

@@ -87,6 +87,9 @@ volume_beep  = true
 wyoming_port = 10700
 # LED preview stream for development (docs/led-preview.md); no auth, LAN only. Off when unset.
 # frametap_addr = :8930
+# Room sound sensors for HA (Sound floor / level / activity: mic levels once a minute, never
+# audio); they keep the mic open even with the wake word off.
+# room_sound = true
 # Push-to-talk: the voice key starts an Assist pipeline and streams the mic.
 # Wake word «Алиса»: the vendor spotter + VQE (spotter-host serve) as a child process; the mic then
 # stays open. Session audio to HA is the VQE output with a pre-roll. Commands (стоп/хватит/пауза,

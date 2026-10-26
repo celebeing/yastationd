@@ -45,6 +45,9 @@ volume_beep = false
 wyoming_port = 10700
 # LED preview stream for development (docs/led-preview.md); no auth, LAN only. Off when unset.
 # frametap_addr = :8930
+# Room sound sensors for HA (Sound floor / level / activity: mic levels once a minute, never
+# audio); they keep the mic open even with the wake word off.
+# room_sound = true
 # The "video" display mode's files (docs/video-mode.md; `make video VIDEO=<your file>`). Defaults:
 # video_frames       = <cfw>/media/video.led   (video.led.gz is tried too)
 # video_audio        = <cfw>/media/video.wav

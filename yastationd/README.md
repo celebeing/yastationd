@@ -214,5 +214,15 @@ reports local changes back. Volume key ticks are skipped while music plays. Desi
     LLM (see `docs/ha-assistant-setup.md` §8 for the HA-side workarounds). Fix here: start the stream
     at the spotter's end-of-phrase position (the event carries a stream offset) instead of
     `now - preroll`, keeping only a few tens of ms before it.
+12. **Room sound sensors — added 2026-10-26** (the inputs for "someone is asleep here",
+    docs/wishlist.md): `Sound floor`, `Sound level` (dBFS) and `Sound activity` (%), once a
+    minute from the raw voice mic channel (before the VQE and its AGC; 150 Hz high-pass, 20 ms
+    blocks, short enough for a click or a key press to lift one): the floor is the 10th
+    percentile of the minute's blocks, the level their energy average, the activity the share
+    more than 6 dB above the floor. Blocks while the speaker plays or the mic is muted are left
+    out; a minute that is mostly those reads unknown. Values are re-sent only on a change (1 dB,
+    1 %) or every 15 min. Only levels leave the speaker. `room_sound = false` turns them off
+    (they keep the mic open even with the wake word off). `Illuminance` is now sent on a 10 %
+    change or every 15 min.
 
 Installed and autostarting on the device since 2026-10-22 (see the top-level README).

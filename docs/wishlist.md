@@ -138,6 +138,10 @@ announcement in that room, the intercom's allow switch).
    detector exists: the noise floor (a slow low percentile of the mic level), a short-term
    level / activity, the smoothed light reading (already there), maybe key/voice activity. Cheap,
    and useful on its own.
+   **Built (2026-10-26):** `Sound floor`, `Sound level` and `Sound activity` (see
+   `internal/app/roomsound.go` and yastationd/README.md); `Illuminance` now reports on a change
+   of 10 % or every 15 min instead of every 30 s. Key and voice activity are the `Button` event
+   entity, already in HA's history.
 2. **After about a week, compare** them against what HA already knows about sleep in those rooms
    (other sensors: lights, presence/motion, phones charging, bed/TV states…) **plus Apple
    Health sleep data** (asleep/in-bed intervals) as the ground truth.
@@ -254,3 +258,39 @@ remap) or the detector must tolerate the carrier inside the refs. Hardware hones
 the earlier idx-5 spike was transient; two-pass tests on both units cleared it, so it
 does not block array-phase work. The first experiment will still tell us whether
 `raw_mic` channels see the carrier at all.
+
+## Orion: a colour sensor for the ambilight?
+
+**Status:** to investigate (2026-10-26).
+
+If orion senses the colour of the light around it, not only its level, the rear ambilight could
+follow the room (warm in the evening, matching a lamp). What we know so far is against it: the one
+light sensor found is an ltr308 (`light-sensor-top`, I2C 1-0053; [boards/orion.md](boards/orion.md),
+"Lux / power"), a single-channel ambient light sensor with only `in_intensity_*`. Worth checking
+before giving up: the rest of the I2C buses and the device tree for an RGB/colour part (e.g. a
+TCS34xx, an APDS-99xx, an ltr381), what the vendor's ambilight settings in `quasar.cfg` and maind's
+strings depend on, and whether the ltr308 driver exposes more channels than the IIO node shows.
+
+## The mics' frequency response: a speaker as a measurement mic
+
+**Status:** idea (2026-10-26); nothing measured.
+
+With the mics' frequency response known, a speaker could serve as a reference microphone:
+measure another speaker's frequency response in the room (a sweep from one, recorded by the
+other), find room modes, check what an EQ or the amp's settings do, compare units (the Mini 3
+firmwares tune the amp differently, docs/deploying.md §7). What we have and lack:
+
+- **No published response.** The vendor does not publish the mics' parts or curves. The PDM
+  mics are probably common MEMS parts with a flat response from ~100 Hz to ~10 kHz and a rise
+  near their resonance, but the grille, the gasket and the port in front of them shape it, so a
+  datasheet curve would not be enough anyway.
+- **The vendor may have one.** Factory tests or the VQE presets may carry per-model mic
+  calibration: look in the firmware for calibration tables, an equaliser in the `vqe` presets,
+  or the factory-test tools' sweep files.
+- **Measure it ourselves.** Put a measurement mic with a calibration file (e.g. a UMIK-1) next
+  to the speaker, play a log sweep from a third source and compare the two recordings: the
+  speaker's mic response, per channel. Once per model, ideally on two units to see the spread.
+  The raw channels are the ones to use (the VQE and its AGC change the level and the spectrum).
+- **Limits:** 16-bit PDM capture and its noise floor bound the dynamic range; orion captures
+  at 96 kHz, bergamot and pickle at 48 kHz — enough for the audio band. The capture's own
+  high-pass in `hw.Mic` (150 Hz) applies only to our 16 kHz path, not to `arecord` itself.

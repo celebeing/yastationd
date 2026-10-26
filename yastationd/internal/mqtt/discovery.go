@@ -40,6 +40,8 @@ type builder struct {
 	// Intercom adds the call entities; their target select lists the other speakers, which
 	// change at runtime (SetIntercomPeers, then Publish again).
 	Intercom bool
+	// RoomSound adds the room sound level sensors.
+	RoomSound bool
 
 	mu            sync.Mutex
 	intercomPeers []string
@@ -186,12 +188,11 @@ func (b *builder) Entities() []Entity {
 		// Wyoming satellite (assist_satellite.announce); the raw yastation/<id>/speaker/set topic
 		// still plays local files for mqtt.publish automations.
 		{"binary_sensor", "mic_mute", map[string]any{
-			"name":         "Mic mute",
-			"state_topic":  t.State("mic_mute"),
-			"payload_on":   "ON",
-			"payload_off":  "OFF",
-			"device_class": "problem",
-			"icon":         "mdi:microphone-off",
+			"name":        "Mic mute",
+			"state_topic": t.State("mic_mute"),
+			"payload_on":  "ON",
+			"payload_off": "OFF",
+			"icon":        "mdi:microphone-off",
 		}},
 		{"sensor", "lux", map[string]any{
 			"name":                "Illuminance",
@@ -287,6 +288,21 @@ func (b *builder) Entities() []Entity {
 				"command_topic": t.Command("intercom_hangup"),
 				"icon":          "mdi:phone-hangup",
 			}})
+	}
+	if b.RoomSound {
+		for _, s := range []struct{ obj, name, unit, icon string }{
+			{"sound_floor", "Sound floor", "dBFS", "mdi:volume-low"},
+			{"sound_level", "Sound level", "dBFS", "mdi:waveform"},
+			{"sound_activity", "Sound activity", "%", "mdi:account-voice"},
+		} {
+			entities = append(entities, Entity{"sensor", s.obj, map[string]any{
+				"name":                s.name,
+				"state_topic":         t.State(s.obj),
+				"unit_of_measurement": s.unit,
+				"state_class":         "measurement",
+				"icon":                s.icon,
+			}})
+		}
 	}
 	if b.HasAmbilight {
 		entities = append(entities, Entity{"light", "ambilight", map[string]any{

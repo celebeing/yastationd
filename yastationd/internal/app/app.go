@@ -351,6 +351,7 @@ func (a *App) Run(ctx context.Context) error {
 	b.HasFaces = a.frontClipsPossible()
 	b.DisplayModes = a.displayModes()
 	b.Intercom = a.ic != nil
+	b.RoomSound = a.roomSoundEnabled()
 	a.builder = b
 
 	a.hmon = health.New(a.cfg.Path(a.cfg.HeartbeatFile), a.onHealthChange)
@@ -405,6 +406,9 @@ func (a *App) Run(ctx context.Context) error {
 	go a.telemetryLoop(stop)
 	go a.powerLoop(stop)
 	go a.luxLoop(stop)
+	if a.roomSoundEnabled() {
+		go a.roomSoundLoop(stop)
+	}
 	if a.clock != nil {
 		go a.clock.Run(stop)
 	}
@@ -594,6 +598,7 @@ func (a *App) publishAllState() {
 func (a *App) telemetryLoop(stop <-chan struct{}) {
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
+	var lux luxGate
 	for {
 		select {
 		case <-stop:
@@ -604,7 +609,7 @@ func (a *App) telemetryLoop(stop <-chan struct{}) {
 			}
 			a.mqtt.Publish(a.topics.State("uptime"), strconv.Itoa(int(time.Since(a.start).Seconds())))
 			if a.luxPath != "" {
-				if b := a.luxSmooth.Load(); b != 0 {
+				if b := a.luxSmooth.Load(); b != 0 && lux.due(math.Float64frombits(b), time.Now()) {
 					a.mqtt.Publish(a.topics.State("lux"), strconv.FormatFloat(math.Float64frombits(b), 'f', 3, 64))
 				}
 			}
