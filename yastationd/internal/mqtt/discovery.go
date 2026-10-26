@@ -40,8 +40,10 @@ type builder struct {
 	// Intercom adds the call entities; their target select lists the other speakers, which
 	// change at runtime (SetIntercomPeers, then Publish again).
 	Intercom bool
-	// RoomSound adds the room sound level sensors.
+	// RoomSound adds the room sound level sensors; SoundSPL: their levels are calibrated dB SPL,
+	// not dBFS.
 	RoomSound bool
+	SoundSPL  bool
 
 	mu            sync.Mutex
 	intercomPeers []string
@@ -195,11 +197,12 @@ func (b *builder) Entities() []Entity {
 			"icon":        "mdi:microphone-off",
 		}},
 		{"sensor", "lux", map[string]any{
-			"name":                "Illuminance",
-			"state_topic":         t.State("lux"),
-			"device_class":        "illuminance",
-			"unit_of_measurement": "lx",
-			"state_class":         "measurement",
+			"name":                  "Illuminance",
+			"state_topic":           t.State("lux"),
+			"json_attributes_topic": t.State("lux_attr"),
+			"device_class":          "illuminance",
+			"unit_of_measurement":   "lx",
+			"state_class":           "measurement",
 		}},
 		{"sensor", "supply_voltage", map[string]any{
 			"name":                "Supply voltage",
@@ -290,18 +293,26 @@ func (b *builder) Entities() []Entity {
 			}})
 	}
 	if b.RoomSound {
+		level := "dBFS"
+		if b.SoundSPL {
+			level = "dB"
+		}
 		for _, s := range []struct{ obj, name, unit, icon string }{
-			{"sound_floor", "Sound floor", "dBFS", "mdi:volume-low"},
-			{"sound_level", "Sound level", "dBFS", "mdi:waveform"},
+			{"sound_floor", "Sound floor", level, "mdi:volume-low"},
+			{"sound_level", "Sound level", level, "mdi:waveform"},
 			{"sound_activity", "Sound activity", "%", "mdi:account-voice"},
 		} {
-			entities = append(entities, Entity{"sensor", s.obj, map[string]any{
+			cfg := map[string]any{
 				"name":                s.name,
 				"state_topic":         t.State(s.obj),
 				"unit_of_measurement": s.unit,
 				"state_class":         "measurement",
 				"icon":                s.icon,
-			}})
+			}
+			if s.unit == "dB" {
+				cfg["device_class"] = "sound_pressure"
+			}
+			entities = append(entities, Entity{"sensor", s.obj, cfg})
 		}
 	}
 	if b.HasAmbilight {

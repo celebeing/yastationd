@@ -21,6 +21,7 @@ import (
 	"github.com/celebeing/yastationd/yastationd/internal/frametap"
 	"github.com/celebeing/yastationd/yastationd/internal/health"
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
+	"github.com/celebeing/yastationd/yastationd/internal/logship"
 	"github.com/celebeing/yastationd/yastationd/internal/mqtt"
 	"github.com/celebeing/yastationd/yastationd/internal/timesync"
 	"github.com/celebeing/yastationd/yastationd/internal/version"
@@ -64,7 +65,8 @@ type App struct {
 	clock     *timesync.Syncer // nil when time_sync is off
 	setup     *wifisetup.Mode  // Wi-Fi setup mode; nil when off
 	combo     keyCombo
-	ic        *icState // intercom; nil when off
+	ic        *icState         // intercom; nil when off
+	ship      *logship.Shipper // logs to the LAN syslog server; nil when off
 
 	ringStack   *display.Stack[display.RingFrame]
 	matrixStack *display.Stack[display.FrontFrame]
@@ -87,7 +89,8 @@ type App struct {
 	brightAt    time.Time     // last stepBrightness; render goroutine only
 	backlight   *hw.Backlight // the front screen's backlight; nil = dim the frames
 	blPrev      int           // the backlight of the frame written last; render goroutine only
-	luxSmooth   atomic.Uint64 // smoothed light reading (float64 bits), published to HA
+	luxSmooth   atomic.Uint64 // smoothed light in lux (float64 bits), published to HA
+	luxReading  atomic.Uint64 // the same reading before the calibration (float64 bits)
 
 	baseFx    display.RenderFunc[display.RingFrame] // ring effect layer; render goroutine only
 	baseFxKey string
@@ -360,6 +363,7 @@ func (a *App) Run(ctx context.Context) error {
 	b.DisplayModes = a.displayModes()
 	b.Intercom = a.ic != nil
 	b.RoomSound = a.roomSoundEnabled()
+	b.SoundSPL = a.splOffset() != 0
 	a.builder = b
 
 	a.hmon = health.New(a.cfg.Path(a.cfg.HeartbeatFile), a.onHealthChange)
@@ -414,6 +418,18 @@ func (a *App) Run(ctx context.Context) error {
 	go a.telemetryLoop(stop)
 	go a.powerLoop(stop)
 	go a.luxLoop(stop)
+	if a.cfg.LogRemote != "" {
+		cfw := a.prof.Platform.CFWRoot
+		a.ship = &logship.Shipper{Addr: a.cfg.LogRemote, Host: a.cfg.DeviceID, Log: a.log,
+			Sources: []logship.Source{
+				{Path: a.cfg.Path("/tmp/yastationd.log"), App: "yastationd"},
+				{Path: a.cfg.Path("/var/log/messages"), App: "syslog"},
+			},
+			Spool: a.cfg.Path(cfw + "/log-spool"), SpoolMax: a.cfg.LogSpoolKB << 10,
+			PosFile: a.cfg.Path("/tmp/yastationd.logship")}
+		go a.ship.Run(stop)
+	}
+	go a.netWatchLoop(stop)
 	if a.roomSoundEnabled() {
 		go a.roomSoundLoop(stop)
 	}
@@ -635,7 +651,8 @@ func (a *App) telemetryLoop(stop <-chan struct{}) {
 			a.mqtt.Publish(a.topics.State("uptime"), strconv.Itoa(int(time.Since(a.start).Seconds())))
 			if a.luxPath != "" {
 				if b := a.luxSmooth.Load(); b != 0 && lux.due(math.Float64frombits(b), time.Now()) {
-					a.mqtt.Publish(a.topics.State("lux"), strconv.FormatFloat(math.Float64frombits(b), 'f', 3, 64))
+					a.mqtt.Publish(a.topics.State("lux"), strconv.FormatFloat(math.Float64frombits(b), 'f', 2, 64))
+					a.mqtt.Publish(a.topics.State("lux_attr"), a.luxAttrs())
 				}
 			}
 		}

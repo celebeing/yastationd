@@ -5,6 +5,7 @@ package config
 import (
 	"bufio"
 	"fmt"
+	"github.com/celebeing/yastationd/yastationd/internal/luxcal"
 	"io"
 	"net"
 	"os"
@@ -38,6 +39,9 @@ type Config struct {
 	BoardFile string
 
 	LuxPath string // empty = the board's IIO lux sensor
+	// LuxCalibration: this unit's own "reading:lux" points, over the board profile's
+	// (docs/sensor-calibration.md); nil = the profile's.
+	LuxCalibration []luxcal.Point
 
 	ClockBrightness     int  // manual clock brightness at first start (later: HA "Clock brightness")
 	RingBrightness      int  // ring light brightness at first start (0..255)
@@ -66,6 +70,7 @@ type Config struct {
 	MicRate      int
 	MicChannel   int
 	MicPDMGain   int
+	MicSPLOffset float64 // this unit's dBFS -> dB SPL offset, over the profile's (0 = the profile's)
 	SpotterLibs  string
 	WakeModel    string
 	CommandModel string
@@ -95,6 +100,15 @@ type Config struct {
 	// channel, once a minute; docs/hass-integration.md). Keeps the mic open even with the wake
 	// word off; never sends audio.
 	RoomSound bool
+
+	// Logs off the speaker (internal/logship): the daemon's and the system's log lines go as
+	// syslog over TCP to LogRemote ("host:port"; "" = off); while it is unreachable they wait in
+	// a spool file on flash capped at LogSpoolKB.
+	LogRemote  string
+	LogSpoolKB int
+	// NetWatchdog: with the default gateway unreachable this long the speaker reboots (a Wi-Fi
+	// that stopped passing data needs it); longer after each watchdog reboot. 0 = off.
+	NetWatchdog time.Duration
 
 	// Video display mode (docs/video-mode.md): a frames file for the pixel front screen (the .led
 	// pattern format, may be gzipped; path+".gz" is tried too) and its audio track (a WAV for aplay),
@@ -176,10 +190,11 @@ type CurvePoint struct {
 	Level int
 }
 
-// DefaultBrightnessCurve: calibrated on a bergamot 2026-10-23 against a lux meter next to it —
-// ~1 lx (lights off) reads 0.03 and wants 4 (the dimmest still readable in the dark), 37 lx
-// (normal room light) reads 0.55 and wants 128, office light reads 10+ and gets 255.
-var DefaultBrightnessCurve = []CurvePoint{{0.04, 4}, {0.55, 128}, {10, 255}}
+// DefaultBrightnessCurve, in lux (the sensors are calibrated, docs/sensor-calibration.md): the
+// curve the black bergamot was tuned with on 2026-10-23 (reading 0.04 → 4, the dimmest still
+// readable in the dark, which the board minimum replaces; 0.55 → 128, comfortable in a lit room;
+// 10 → 255), turned into lux by that unit's calibration of 2026-10-26.
+var DefaultBrightnessCurve = []CurvePoint{{0.7, 4}, {9, 128}, {150, 255}}
 
 func parseCurve(v string) ([]CurvePoint, error) {
 	var out []CurvePoint
@@ -249,6 +264,8 @@ func Default() Config {
 		IntercomJitterMs:    40,
 		WakeEnabled:         true,
 		RoomSound:           true,
+		LogSpoolKB:          1024,
+		NetWatchdog:         10 * time.Minute,
 		SpotterBin:          cfw + "/bin/spotter-host",
 		ReplyTimeout:        90 * time.Second,
 		BootConnectTimeout:  40 * time.Second,
@@ -332,6 +349,8 @@ func (c *Config) set(k, v string) error {
 		c.AmbilightBrightness, err = atoiRange(v, 0, 255)
 	case "auto_brightness":
 		c.AutoBrightness, err = strconv.ParseBool(v)
+	case "lux_calibration":
+		c.LuxCalibration, err = luxcal.Parse(v)
 	case "auto_brightness_curve":
 		c.BrightnessCurve, err = parseCurve(v)
 	case "tz":
@@ -369,6 +388,8 @@ func (c *Config) set(k, v string) error {
 		c.WakeWhileWaiting = v
 	case "preroll_ms":
 		c.PrerollMs, err = atoiRange(v, 0, 2000)
+	case "mic_spl_offset":
+		c.MicSPLOffset, err = strconv.ParseFloat(v, 64)
 	case "mic_pdm_gain":
 		c.MicPDMGain, err = atoiRange(v, -1, 48)
 	case "mic_channel":
@@ -379,6 +400,14 @@ func (c *Config) set(k, v string) error {
 		c.FrameTapAddr = v
 	case "room_sound":
 		c.RoomSound, err = strconv.ParseBool(v)
+	case "log_remote":
+		c.LogRemote = v
+	case "log_spool_kb":
+		c.LogSpoolKB, err = atoiRange(v, 64, 65536)
+	case "net_watchdog_min":
+		var n int
+		n, err = atoiRange(v, 0, 1440)
+		c.NetWatchdog = time.Duration(n) * time.Minute
 	case "video_frames":
 		c.VideoFrames = v
 	case "video_audio":

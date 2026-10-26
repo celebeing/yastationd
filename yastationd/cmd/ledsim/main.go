@@ -73,6 +73,7 @@ func run(log *slog.Logger, name, screen, patterns, media, addr, root string) err
 	cfg.Probes = nil
 	cfg.AutoBrightness = false
 	cfg.RoomSound = false
+	cfg.NetWatchdog = 0 // never reboot the host
 	cfg.FrameTapAddr = addr
 	cfg.LogLevel = "info"
 

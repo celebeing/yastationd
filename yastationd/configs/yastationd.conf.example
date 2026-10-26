@@ -90,6 +90,16 @@ wyoming_port = 10700
 # Room sound sensors for HA (Sound floor / level / activity: mic levels once a minute, never
 # audio); they keep the mic open even with the wake word off.
 # room_sound = true
+# This speaker's own sensor calibrations, over the board's (docs/sensor-calibration.md):
+# lux_calibration = <reading>:<lux>, <reading>:<lux>
+# mic_spl_offset  = <dB SPL - dBFS>
+# Logs to a syslog server on the LAN (TCP), spooled on flash while it is unreachable
+# (docs/storage.md). Off when unset.
+# log_remote   = <syslog-host>:514
+# log_spool_kb = 1024
+# Reboot when the default gateway is unreachable this many minutes (doubling after each such
+# reboot, up to 4 h); 0 = off.
+# net_watchdog_min = 10
 # Push-to-talk: the voice key starts an Assist pipeline and streams the mic.
 # Wake word «Алиса»: the vendor spotter + VQE (spotter-host serve) as a child process; the mic then
 # stays open. Session audio to HA is the VQE output with a pre-roll. Commands (стоп/хватит/пауза,

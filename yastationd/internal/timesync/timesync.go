@@ -310,3 +310,6 @@ func stepClock(off time.Duration) error {
 	tv := syscall.NsecToTimeval(time.Now().Add(off).UnixNano())
 	return syscall.Settimeofday(&tv)
 }
+
+// DefaultGateway is the IPv4 default gateway from a /proc/net/route file ("" = none).
+func DefaultGateway(routeFile string) string { return defaultGateway(routeFile) }

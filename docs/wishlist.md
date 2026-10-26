@@ -293,8 +293,9 @@ firmwares tune the amp differently, docs/deploying.md §7). What we have and lac
 
 ## Logs that survive, and observability from outside
 
-**Status:** idea (2026-10-26); recorded, not started. Background and measurements:
-[storage.md](storage.md).
+**Status:** partly built 2026-10-26: syslog to a LAN server with a flash spool during outages
+(`log_remote`) and a network watchdog ([storage.md](storage.md)). Still open: persistent logs on
+the speaker itself, the Prometheus exporter.
 
 Today every log is on tmpfs and a hang ends in a power cycle, so the evidence is gone
 (the Mini 3 Wi-Fi hang of 2026-10-26, yastationd/README.md item 7). Options, not exclusive:

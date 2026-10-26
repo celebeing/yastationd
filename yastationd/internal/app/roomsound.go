@@ -148,6 +148,15 @@ func (g *changeGate) due(v string, now time.Time) bool {
 	return true
 }
 
+// splOffset: dBFS -> dB SPL for the room sound levels (the unit's, else the board's; 0 = levels
+// stay in dBFS).
+func (a *App) splOffset() float64 {
+	if a.cfg.MicSPLOffset != 0 {
+		return a.cfg.MicSPLOffset
+	}
+	return a.prof.Mic.SPLOffset
+}
+
 func (a *App) roomSoundEnabled() bool {
 	return a.cfg.RoomSound && a.prof.Mic.Device != ""
 }
@@ -170,8 +179,9 @@ func (a *App) roomSoundLoop(stop <-chan struct{}) {
 		st := r.take()
 		vals := map[string]string{"sound_floor": "None", "sound_level": "None", "sound_activity": "None"}
 		if st.ok {
-			vals["sound_floor"] = strconv.Itoa(int(math.Round(st.floor)))
-			vals["sound_level"] = strconv.Itoa(int(math.Round(st.level)))
+			off := a.splOffset()
+			vals["sound_floor"] = strconv.Itoa(int(math.Round(st.floor + off)))
+			vals["sound_level"] = strconv.Itoa(int(math.Round(st.level + off)))
 			vals["sound_activity"] = strconv.Itoa(int(math.Round(st.activity)))
 			a.log.Debug("room sound", "floor", st.floor, "level", st.level,
 				"over3", st.over[0], "over6", st.over[1], "over10", st.over[2])

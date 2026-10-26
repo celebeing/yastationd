@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"math"
 	"sort"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"github.com/celebeing/yastationd/yastationd/internal/board"
 	"github.com/celebeing/yastationd/yastationd/internal/config"
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
+	"github.com/celebeing/yastationd/yastationd/internal/luxcal"
 )
 
 // Clock auto-brightness: the light sensor is read every second; a median of the last few
@@ -25,12 +27,12 @@ import (
 // and the frame the remaining fraction (2/3..1), so the level still moves smoothly.
 
 const (
-	luxEvery    = time.Second
-	luxMedianN  = 5                // readings in the spike-rejecting median
-	luxTau      = 10 * time.Second // EMA time constant
-	luxMinLux   = 0.005            // floor before log(): the sensor reads 0 in the dark
-	brightDelta = 0.08             // relative change needed to move the target (and ≥ 1 step)
-	brightGlide = time.Second      // the shown level's time constant towards the target
+	luxEvery      = time.Second
+	luxMedianN    = 5                // readings in the spike-rejecting median
+	luxTau        = 10 * time.Second // EMA time constant
+	luxMinReading = 0.005            // floor before log(): the sensor reads 0 in the dark
+	brightDelta   = 0.08             // relative change needed to move the target (and ≥ 1 step)
+	brightGlide   = time.Second      // the shown level's time constant towards the target
 	// brightMaxRate caps the glide's speed (ln units per second): a big change runs at an even
 	// pace for the eye, a doubling or halving per 1.5 s, however fast the target moved.
 	brightMaxRate = math.Ln2 / 1.5
@@ -122,6 +124,7 @@ func (a *App) luxLoop(stop <-chan struct{}) {
 	}
 	alpha := 1 - math.Exp(-float64(luxEvery)/float64(luxTau))
 	curve := brightnessCurve(a.cfg, a.prof)
+	cal := a.luxCalibration()
 	var ema float64
 	var recent []float64
 	have := false
@@ -137,7 +140,7 @@ func (a *App) luxLoop(stop <-chan struct{}) {
 		if err != nil {
 			continue
 		}
-		recent = append(recent, math.Log(math.Max(lx, luxMinLux)))
+		recent = append(recent, math.Log(math.Max(lx, luxMinReading)))
 		if len(recent) > luxMedianN {
 			recent = recent[1:]
 		}
@@ -147,13 +150,44 @@ func (a *App) luxLoop(stop <-chan struct{}) {
 		} else {
 			ema += alpha * (l - ema)
 		}
-		a.luxSmooth.Store(math.Float64bits(math.Exp(ema)))
-		target := curveLevel(curve, math.Exp(ema))
+		reading := math.Exp(ema)
+		if reading <= luxMinReading*1.0001 {
+			reading = 0
+		}
+		a.luxReading.Store(math.Float64bits(reading))
+		lux := luxcal.Lux(cal, reading)
+		a.luxSmooth.Store(math.Float64bits(lux))
+		target := curveLevel(curve, math.Max(lux, 1e-6))
 		cur := math.Float64frombits(a.autoBright.Load())
 		if cur == 0 || moveBrightness(cur, target, a.backlight != nil) {
 			a.autoBright.Store(math.Float64bits(target))
 		}
 	}
+}
+
+// luxCalibration: the unit's own (config) or the board's (profile).
+func (a *App) luxCalibration() []luxcal.Point {
+	if a.cfg.LuxCalibration != nil {
+		return a.cfg.LuxCalibration
+	}
+	return a.prof.Lux.Calibration
+}
+
+// luxAttrs are the Illuminance sensor's attributes: the smoothed raw reading (what a
+// calibration is made from) and where the calibration came from.
+func (a *App) luxAttrs() string {
+	src := "none"
+	switch {
+	case a.cfg.LuxCalibration != nil:
+		src = "unit: " + luxcal.String(a.cfg.LuxCalibration)
+	case len(a.prof.Lux.Calibration) > 0:
+		src = "board: " + luxcal.String(a.prof.Lux.Calibration)
+	}
+	b, _ := json.Marshal(map[string]any{
+		"reading":     math.Round(math.Float64frombits(a.luxReading.Load())*10000) / 10000,
+		"calibration": src,
+	})
+	return string(b)
 }
 
 func median(v []float64) float64 {

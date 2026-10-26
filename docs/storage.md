@@ -30,6 +30,8 @@ twice (the upload and the `.prev` copy, ~17 MB each).
 | `<cfw>/sendspin/state.json` (sendspin-host) | a Music Assistant server pairs |
 | `wpa_supplicant.conf` | only from the Wi-Fi setup page |
 | `<cfw>/intercom-*.raw` | only with `intercom_record_dir` set (testing) |
+| `<cfw>/log-spool` | only while the log server is unreachable, once a minute, capped (`log_spool_kb`) |
+| `<cfw>/netwatch.count` | a network-watchdog reboot (one write) |
 
 Not written: the light-sensor readings, auto-brightness, room sound levels, the heartbeat
 (`/tmp/yastationd.heartbeat`), the once-per-boot markers (in `/tmp`).
@@ -51,7 +53,40 @@ and had to be power-cycled, and every trace on the speaker was gone (yastationd/
 7). Whatever the next cause is, a hang ends in a power cycle, so evidence must already be on
 flash when it happens.
 
-## Options for persistent logs (not built)
+## Logs off the speaker (built 2026-10-26)
+
+With `log_remote = <syslog-host>:<port>` in `yastationd.conf` (off by default) the daemon ships
+logs to a syslog server on the LAN (`internal/logship`):
+
+- **What:** new lines of `/tmp/yastationd.log` (the daemon and its supervisor) and of
+  `/var/log/messages` (busybox syslogd: the kernel, dropbear, the vendor's boot scripts). After a
+  reboot both are read from their start, so the boot's kernel lines go too; a daemon restart
+  resumes where it left (positions in `/tmp/yastationd.logship`).
+- **How:** RFC 5424 over TCP, newline-framed, each line with its own time and zone (slog's
+  `time=`, syslogd's stamp; a stamp before 2026, a boot before the clock is set, gets the time it
+  was read). HOSTNAME is the `device_id`; app is `yastationd` or the syslog tag (`kernel`,
+  `dropbear`…), severity from the line. Any syslog server that takes TCP works; the author's is
+  VictoriaLogs.
+- **While the server is unreachable:** lines wait in memory and once a minute are appended to
+  `<cfw>/log-spool` on flash, capped at `log_spool_kb` (default 1024; the oldest lines go first).
+  When the server is back the spool is sent first, then deleted. Flash is written only during an
+  outage, once a minute.
+- **A dead link** (the Wi-Fi hang: writes into the socket still succeed, nothing is
+  acknowledged): the connection has a 20 s TCP user timeout, and data unacknowledged for 20 s
+  (`SIOCOUTQ`) drops it; the unacknowledged lines go back to the queue and from there to the spool.
+  Some may arrive twice; none is lost. Tested on orion by blocking the port for 90 s: the lines
+  written meanwhile were spooled on flash and arrived after.
+
+The **network watchdog** (`net_watchdog_min`, default 10; 0 = off) goes with it: with the default
+gateway unreachable that long (and the broker disconnected; not in Wi-Fi setup mode) it logs the
+kernel's last 40 lines, flushes the spool and reboots. Each watchdog reboot doubles the next wait
+(10 → 20 → 40 min … up to 4 h, counted in `<cfw>/netwatch.count`, measured in uptime because a
+mini's clock is stale after a reboot); an hour of good network resets it. So a speaker whose
+Wi-Fi stops passing data comes back by itself, and its last lines, kernel included, reach the log
+server after the reboot.
+
+## Options for persistent logs on the speaker itself (not built)
+
 
 - **orion:** plenty of room and an eMMC with its own wear levelling: keep the daemon's log (and
   syslog) on `/data` or `<cfw>/log/` with size-capped rotation. A few MB a day is nothing next to

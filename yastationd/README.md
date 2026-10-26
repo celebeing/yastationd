@@ -197,6 +197,10 @@ reports local changes back. Volume key ticks are skipped while music plays. Desi
    On orion the level goes to the screen's backlight (`matrix.backlight`), with the frame at
    2/3..full scale making up the fraction: a dimmed frame lost its half-tones at the dark end,
    a dim backlight keeps them (A/B on glass).
+   **Calibrated in lux since 2026-10-26** ([sensor-calibration.md](../docs/sensor-calibration.md)):
+   the reading goes through the board's `lux.calibration` or the unit's `lux_calibration`;
+   `Illuminance` is lux (the raw `reading` and the calibration as attributes) and
+   `auto_brightness_curve` is in lux (default `0.7:<min>, 9:128, 150:255`).
 6. **Demo / self-test mode** (future): triggerable from HA and after first setup — cycles ring
    effects and matrix, plays test sounds, reacts distinctly to each button, so every function can be
    checked end-to-end. `cmd/ringdemo` is the seed of it.
@@ -213,6 +217,11 @@ reports local changes back. Volume key ticks are skipped while music plays. Desi
    (bcmdhd, `dhd` in dmesg) stopped passing data. Logs are lost (syslog and the daemon's log
    are on tmpfs). If it repeats: a LAN self-check (gateway unreachable for minutes → reload the
    Wi-Fi interface, never touching wpa_supplicant.conf), and a log kept across reboots.
+   It hung again the same afternoon (the rates fell to 1 Mbps over a few minutes, still
+   associated, signal fine). **Since then:** logs go to a LAN syslog server with a flash spool
+   while it is unreachable (`log_remote`), and a network watchdog reboots a speaker whose gateway
+   has been unreachable for 10 min, backing off after each such reboot (`net_watchdog_min`;
+   [storage.md](../docs/storage.md)).
 8. **Multi-speaker timers:** HA's timers are bound to the device the request came from
    (`HassStartTimer` has no target slot), so a timer rings only on that speaker. Ringing on several
    rooms needs our own Assist tool (script → per-speaker MQTT countdown + local alarm).
@@ -239,7 +248,9 @@ reports local changes back. Volume key ticks are skipped while music plays. Desi
     percentile of the minute's blocks, the level their energy average, the activity the share
     more than 6 dB above the floor. Blocks while the speaker plays or the mic is muted are left
     out; a minute that is mostly those reads unknown. Values are re-sent only on a change (1 dB,
-    1 %) or every 15 min. Only levels leave the speaker. `room_sound = false` turns them off
+    1 %) or every 15 min. Only levels leave the speaker. With a `mic.spl_offset` (the board's: the
+    vendor's `splCalibShift`) or `mic_spl_offset` (the unit's) the levels are dB SPL
+    ([sensor-calibration.md](../docs/sensor-calibration.md)). `room_sound = false` turns them off
     (they keep the mic open even with the wake word off). `Illuminance` is now sent on a 10 %
     change or every 15 min.
 

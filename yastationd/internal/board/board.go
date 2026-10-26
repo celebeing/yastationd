@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"embed"
 	"fmt"
+	"github.com/celebeing/yastationd/yastationd/internal/luxcal"
 	"io"
 	"math"
 	"os"
@@ -219,6 +220,9 @@ type MicSpec struct {
 	Channels int    // interleaved channels delivered
 	Rate     int    // capture rate (3 x 16 kHz)
 	Voice    int    // channel used for raw (no-VQE) voice streaming
+	// SPLOffset turns the voice channel's level in dBFS into dB SPL (dB SPL = dBFS + offset),
+	// measured against a sound level meter (docs/sensor-calibration.md); 0 = not calibrated.
+	SPLOffset float64
 }
 
 // WakeSpec: the vendor voice front-end (VQE) + spotter models for spotter-host serve.
@@ -247,6 +251,10 @@ type LuxSpec struct {
 	IIOPrefix       string
 	Gain            string
 	IntegrationTime string
+	// Calibration turns the sensor's reading into lux (luxcal; measured against a lux meter on
+	// the board's units, docs/sensor-calibration.md). A unit's own overrides it (config
+	// lux_calibration).
+	Calibration []luxcal.Point
 }
 
 // Parse reads a profile, starting from an empty one.
@@ -389,6 +397,8 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Mic.Rate, err = strconv.Atoi(v)
 	case k == "mic.voice":
 		p.Mic.Voice, err = strconv.Atoi(v)
+	case k == "mic.spl_offset":
+		p.Mic.SPLOffset, err = strconv.ParseFloat(v, 64)
 	case k == "wake.vqe_preset":
 		p.Wake.VQEPreset = v
 	case k == "wake.mics":
@@ -415,6 +425,8 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Lux.Gain = v
 	case k == "lux.integration_time":
 		p.Lux.IntegrationTime = v
+	case k == "lux.calibration":
+		p.Lux.Calibration, err = luxcal.Parse(v)
 	case strings.HasPrefix(k, "moment."):
 		name := strings.TrimPrefix(k, "moment.")
 		if name == "" {
