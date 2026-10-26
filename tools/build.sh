@@ -73,6 +73,7 @@ build_hostapd() {
 }
 
 build_sendspin() {
+	case $1 in armhf | aarch64) ;; *) echo "sendspin:$1: arch must be armhf or aarch64" >&2; exit 2 ;; esac
 	echo "== sendspin-host ($1)"
 	run zig sendspin-host "make -s ARCH=$1 binary"
 }
@@ -85,7 +86,12 @@ build_spotter() {
 	*) echo "spotter: arch must be armhf or aarch64" >&2; exit 2 ;;
 	esac
 	if [ -z "$sr" ]; then
-		[ "$2" = 1 ] && { echo "spotter:$1: set SPOTTER_SYSROOT_$(echo "$1" | tr a-z A-Z) (tools/build.env)" >&2; exit 2; }
+		[ "$2" = 1 ] && {
+			echo "spotter:$1: spotter-host links the vendor's libraries and needs a sysroot (the firmware's" >&2
+			echo "  lib/ and system/vendor/quasar/libs/): set SPOTTER_SYSROOT_$(echo "$1" | tr a-z A-Z) in tools/build.env" >&2
+			echo "  (copy tools/build.env.example; docs/building.md, \"The sysroot\")" >&2
+			exit 2
+		}
 		echo "== spotter-host ($1): skipped, no SPOTTER_SYSROOT_$(echo "$1" | tr a-z A-Z)"
 		return 0
 	fi
