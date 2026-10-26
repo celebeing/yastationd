@@ -49,11 +49,13 @@ with the field at the top; the list stays in the URL).
 
 ## The viewer
 
-- One panel per source: the screen as round dots, the ring as a circle (index 0 at the top,
+- One panel per source: the screen as square cells with no gaps (Station 3's screen LEDs are
+  square and touch), the ring as a circle (index 0 at the top,
   clockwise, as on the unit), the ambilight as a vertical strip (top to bottom), with the source's
   version, frame rate, sequence number and dropped frames.
 - **perceived** (on by default): the values are LED drive levels, linear light; the page undoes the
-  gamma (1/2.2) so the monitor shows roughly what an eye sees on the glass. Off shows the raw drive
+  gamma (1/2.2) so the monitor shows roughly what an eye sees on the glass. Either way a lit LED starts at a visible
+  grey (48/255) and an unlit one is near black: on the glass a drive of 1 is still a visible dot. Off shows the raw drive
   values — a pixel driven at 1 is then black on the monitor, while on the glass it is a visible dot.
 - Hover a screen dot: its coordinates and drive value.
 - **Pause** (Space) freezes all sources; **◀ / ▶** (arrow keys) step through the last 30 s of

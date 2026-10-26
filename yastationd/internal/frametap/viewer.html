@@ -99,8 +99,12 @@ const unhex = (s, n) => { const a = new Uint8Array(s.length / 2);
 const err = msg => { $("err").textContent = msg || ""; };
 
 // LED drive values are linear light; a monitor expects gamma-encoded values.
-const perceivedLUT = new Uint8Array(256).map((_, i) => Math.round(255 * Math.pow(i / 255, 1 / 2.2)));
-const show = v => $("perceived").checked ? perceivedLUT[v] : v;
+// A lit LED also starts at a visible level (LIT_FLOOR): on the glass even a drive of 1 is a dot you
+// can see, while 1/2.2 alone draws it darker than an unlit dot.
+const LIT_FLOOR = 48;
+const perceivedLUT = new Uint8Array(256).map((_, i) => i === 0 ? 0 : Math.round(LIT_FLOOR + (255 - LIT_FLOOR) * Math.pow(i / 255, 1 / 2.2)));
+const linearLUT = new Uint8Array(256).map((_, i) => i === 0 ? 0 : Math.round(LIT_FLOOR + (255 - LIT_FLOOR) * i / 255));
+const show = v => $("perceived").checked ? perceivedLUT[v] : linearLUT[v];
 
 function addSource(url) {
   url = url.replace(/\/+$/, "");
@@ -157,7 +161,7 @@ function dot(ctx, x, y, r, R, G, B, glow) {
   if (glow && (R | G | B)) {
     ctx.shadowColor = `rgb(${R},${G},${B})`; ctx.shadowBlur = r * 1.6;
   } else ctx.shadowBlur = 0;
-  ctx.fillStyle = (R | G | B) ? `rgb(${R},${G},${B})` : "#15181c";
+  ctx.fillStyle = (R | G | B) ? `rgb(${R},${G},${B})` : "#0b0c0e";
   ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
 }
 
@@ -166,12 +170,13 @@ function draw(s, f) {
   s.cur = f;
   const c = s.ctx, g = s.g, glow = $("glow").checked;
   c.shadowBlur = 0; c.fillStyle = "#000"; c.fillRect(0, 0, s.canvas.width, s.canvas.height);
-  if (f.screen && g.w) {
+  if (f.screen && g.w) { // Station 3's screen LEDs are square and touch each other: cells, not dots
     const px = unhex(f.screen);
+    c.shadowBlur = 0;
     for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
-      const k = (y * g.w + x) * 3;
-      dot(c, g.sx + x * g.P + g.P / 2, g.sy + y * g.P + g.P / 2, g.P * 0.4,
-          show(px[k]), show(px[k + 1]), show(px[k + 2]), glow);
+      const k = (y * g.w + x) * 3, R = show(px[k]), G = show(px[k + 1]), B = show(px[k + 2]);
+      c.fillStyle = (R | G | B) ? `rgb(${R},${G},${B})` : "#0b0c0e";
+      c.fillRect(g.sx + x * g.P, g.sy + y * g.P, g.P, g.P);
     }
   }
   if (f.ring && s.info.ring) {

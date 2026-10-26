@@ -147,7 +147,12 @@ export function MomentsTab({ peer, base }: { peer: Peer; base: string }) {
 type TapInfo = { name: string; board: string; screen: [number, number]; ring: number; ambilight: number }
 type Frame = { seq: number; screen?: string; ring?: string; ambilight?: string }
 
-const LUT = new Uint8Array(256).map((_, i) => Math.round(255 * Math.pow(i / 255, 1 / 2.2)))
+// Drive values are linear light; a monitor wants gamma-encoded ones. A lit LED also starts at a
+// visible level (LIT_FLOOR): on the glass even a drive of 1 is a dot you can see, while 1/2.2
+// alone draws it darker than an unlit dot.
+const LIT_FLOOR = 48
+const LUT = new Uint8Array(256).map((_, i) => (i === 0 ? 0 : Math.round(LIT_FLOOR + (255 - LIT_FLOOR) * Math.pow(i / 255, 1 / 2.2))))
+const LIN = new Uint8Array(256).map((_, i) => (i === 0 ? 0 : Math.round(LIT_FLOOR + ((255 - LIT_FLOOR) * i) / 255)))
 const unhex = (s: string) => {
   const out = new Uint8Array(s.length / 2)
   for (let i = 0; i < out.length; i++) out[i] = parseInt(s.substr(i * 2, 2), 16)
@@ -210,7 +215,7 @@ export function LedTab({ peer, base }: { peer: Peer; base: string }) {
 function draw(c: HTMLCanvasElement | null, i: TapInfo, f: Frame, perceived: boolean) {
   if (!c) return
   const ctx = c.getContext('2d')!
-  const show = (v: number) => (perceived ? LUT[v] : v)
+  const show = (v: number) => (perceived ? LUT[v] : LIN[v])
   const [w, h] = i.screen || [0, 0]
   const P = 16
   const sw = w * P,
@@ -228,18 +233,23 @@ function draw(c: HTMLCanvasElement | null, i: TapInfo, f: Frame, perceived: bool
   ctx.fillStyle = '#000'
   ctx.fillRect(0, 0, width, height)
   const dot = (x: number, y: number, r: number, R: number, G: number, B: number) => {
-    ctx.fillStyle = R | G | B ? `rgb(${R},${G},${B})` : '#15181c'
+    ctx.fillStyle = R | G | B ? `rgb(${R},${G},${B})` : '#0b0c0e'
     ctx.beginPath()
     ctx.arc(x, y, r, 0, 2 * Math.PI)
     ctx.fill()
   }
   if (f.screen && w) {
+    // Station 3's screen LEDs are square and touch each other: cells, not dots.
     const px = unhex(f.screen)
     const y0 = (height - sh) / 2
     for (let y = 0; y < h; y++)
       for (let x = 0; x < w; x++) {
         const k = (y * w + x) * 3
-        dot(20 + x * P + P / 2, y0 + y * P + P / 2, P * 0.4, show(px[k]), show(px[k + 1]), show(px[k + 2]))
+        const R = show(px[k]),
+          G = show(px[k + 1]),
+          B = show(px[k + 2])
+        ctx.fillStyle = R | G | B ? `rgb(${R},${G},${B})` : '#0b0c0e'
+        ctx.fillRect(20 + x * P, y0 + y * P, P, P)
       }
   }
   if (f.ring && i.ring) {
