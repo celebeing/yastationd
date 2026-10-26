@@ -365,3 +365,11 @@ app's Moments tab only lists that and plays it. Idea: let the owner choose per m
 pick from the speaker's animations and expressions (the LED preview's list), preview it there,
 and save it as a config override (a `moment.<name> = <clip|expression>` style key, validated
 against what the board can show, falling back to the default when the clip is missing).
+
+## The web app keeps its login across restarts
+
+Today every restart of `yastationd` (a redeploy, a config save, a crash) logs everyone out of the
+web app: the bearer tokens live only in memory (`internal/web/auth.go`). Options: sign the tokens
+(an HMAC with a secret kept in `<cfw>/`, written once; expiry inside the token; a password change
+rotates the secret, which logs everyone out on purpose), or store the issued tokens' hashes in a
+small file. Signed tokens need no writes per login, which suits the flash (`docs/storage.md`).
