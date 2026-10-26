@@ -22,7 +22,11 @@ internal/health       liveness state machine (TCP probes + heartbeat)
 internal/wifisetup    Wi-Fi setup mode: hostapd handoff, DHCP/DNS, the setup page, wpa_supplicant.conf edits
 internal/intercom     1-to-1 calls between speakers: signed signalling, AES-GCM RTP/L16 media, jitter buffer, voice phrases
 internal/sendspin     supervises sendspin-host (Music Assistant player) and relays its events
-internal/app          wiring: render loop, command handlers, evdev reflexes
+internal/app          wiring: render loop, command handlers, evdev reflexes, the web server's API
+internal/web          web login: PBKDF2 password hashes, bearer tokens, login throttling
+internal/webui        the embedded web app (built from ../web into dist/, committed; make web)
+internal/logship      logs to a LAN syslog server, spooled on flash during outages
+internal/luxcal       light sensor calibration (reading:lux points, log-log)
 configs/              generic and Orion-specific yastationd.conf examples
 init.d/               S52zyastationd boot hook + supervise.sh (backoff, .prev rollback, log rotation)
 ```
@@ -53,6 +57,14 @@ make build     # -> build/yastationd (ELF 32-bit ARM, static)
 make test      # host unit tests (config, display stack, matrix glyphs, evdev decode, mixer parse)
 make vet
 ```
+
+## Web UI
+
+`http://<speaker-ip>/` — login **admin / yastation** until changed from the app (it writes
+`web_user` and a `web_password` hash into the config). The app is embedded in the binary, so a
+deploy of `yastationd` updates it; `make web` rebuilds it from `../web` when its source changed
+(Node 18+, pnpm; the output in `internal/webui/dist` is committed). Port and toggles:
+`http_addr` (default `:80`, `""` = off), `led_preview`. Details: [docs/web-ui.md](../docs/web-ui.md).
 
 ## Deploy
 

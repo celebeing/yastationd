@@ -27,7 +27,9 @@ scripts branch on its existence.
 | `<cfw>/scenarios/*.json` | your own display/ring scenarios (optional) |
 | `<cfw>/bin/yastationd.prev` | the previous agent, kept by every update; the supervisor swaps it back in if the new one crash-loops (the bad one is then kept as `.bad`) |
 | `<cfw>/egress.sh` | the egress lock, IPv4 + IPv6 (`make deploy-egress`; §0); `<cfw>/iptables/` = a bundled iptables-legacy where the firmware has none |
-| `<cfw>/yastationd.conf` `frametap_addr` | optional, development units only: the LED preview stream ([led-preview.md](led-preview.md)) |
+| `<cfw>/yastationd.conf.bak`, `<cfw>/config.trial` | the config before the last save from the web app, and its trial marker while the new one is on trial ([web-ui.md](web-ui.md)) |
+| `<cfw>/log-spool` | log lines waiting for the log server while it is unreachable (`log_remote`, [storage.md](storage.md)) |
+| `<cfw>/yastationd.conf` `frametap_addr` | optional, development only: the LED preview stream on its own port without a login (the host simulator); the web app has the same preview behind its login ([led-preview.md](led-preview.md)) |
 | `<cfw>/yastationd_off` | kill switch: the supervisor stops respawning while it exists |
 | `/etc/init.d/S52zyastationd` | the only rootfs file: boot hook that starts the supervisor (copy kept in `<cfw>/init.d/`) |
 | `<cfw>/init.d/supervise.sh` | the supervisor (see below); without it the hook falls back to a plain 2 s respawn loop |
@@ -226,6 +228,18 @@ First-time voice setup (STT/TTS servers, agent, pipeline): [ha-assistant-setup.m
 - `hass/scripts.json`: the Assist-callable scripts (ring animation, show text). Create them once per
   HA instance.
 
+## 3a. The web app
+
+Every speaker serves the app at `http://<speaker-ip>/` (port 80, `http_addr`). Log in with
+**admin / yastation** — the documented default; change it under Account (it is written into that
+speaker's `yastationd.conf` as `web_user` and a `web_password` hash; each speaker has its own). It
+lists the other speakers by itself (they announce themselves over MQTT), shows sensors and the
+runtime controls, the LED preview, moments, the saved Wi-Fi networks (add only), and edits the
+config with a validated save: the speaker restarts with it on trial and goes back to the old one if
+it gets worse ([web-ui.md](web-ui.md)). Nothing to install: the app is embedded in `yastationd`
+and every deploy updates it. Port 80 is open to the LAN; the egress lock only filters outgoing
+traffic.
+
 ## 4. Updating
 
 One speaker: `make deploy` (build, upload aside along with `supervise.sh`, stop → keep the old
@@ -239,7 +253,11 @@ the first failing speaker.
 hook's `stop` kills processes by that path and takes your ssh session down with it, leaving the
 daemon stopped. Both tools run the swap as a script on stdin for this reason.
 
-Config changes: edit `<cfw>/yastationd.conf`, then `/etc/init.d/S52zyastationd restart`. Profile
+The web app comes with the binary: a deploy updates it. If you changed `web/`, run `make web`
+(Node 18+, pnpm) before building; its output in `yastationd/internal/webui/dist` is committed.
+
+Config changes: from the web app (Config tab: validated, restarted on trial, rolled back if worse),
+or edit `<cfw>/yastationd.conf` and `/etc/init.d/S52zyastationd restart`. Profile
 tweaks without a rebuild: `<cfw>/board.conf` (+ restart).
 
 ## 5. Disabling and removing

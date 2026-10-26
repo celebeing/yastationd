@@ -203,9 +203,14 @@ clips:
 # script on stdin (`sh -s`) so no process command line contains the binary's path — the init
 # hook's stop matches processes by path, and an ssh command mentioning it would be killed with them.
 # The running binary is kept as .prev: the supervisor swaps it back in if the new one crash-loops.
-# The web app (../web), built into internal/webui/dist (committed; docs/web-ui.md).
+# The web app (../web), built into internal/webui/dist (committed; docs/web-ui.md). With no pnpm
+# on the host it builds in a pinned container (../tools/build-web.sh).
 web:
-	cd ../web && pnpm install --frozen-lockfile && pnpm build
+	@if command -v pnpm >/dev/null 2>&1; then \
+		cd ../web && pnpm install --frozen-lockfile && pnpm build; \
+	else \
+		../tools/build-web.sh; \
+	fi
 
 deploy: build
 	$(SSH) 'cat > $(DESTDIR)/bin/$(BIN).upload' < $(OUT)

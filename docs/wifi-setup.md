@@ -10,6 +10,11 @@ Status (2026-10-24): implemented and checked on a bergamot unit:
 On pickle, over SSH (no phone): the access point came up, the page's API, DNS and the captive
 redirect answered, and the Wi-Fi client was back 10 s after leaving.
 
+From a speaker that is online, the web app's Wi-Fi tab lists the saved networks and **adds** one
+without touching the connection in use ([web-ui.md](web-ui.md)); changing and removing networks
+stays here, in setup mode, where the setup page is now served by the same web server on the access
+point's address.
+
 ## Why
 
 A speaker that can't join its Wi-Fi (the router changed, a password changed, a bad edit) used to

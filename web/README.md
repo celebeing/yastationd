@@ -7,6 +7,7 @@ TypeScript + Preact, built with Vite (versions pinned exactly in `package.json`,
 ```sh
 pnpm install --frozen-lockfile
 pnpm build                       # type-check, then build into ../yastationd/internal/webui/dist
+../tools/build-web.sh            # the same in a pinned container (web/Dockerfile), no Node needed
 YASTATION=http://<speaker> pnpm dev   # live development against a real speaker's API
 ```
 

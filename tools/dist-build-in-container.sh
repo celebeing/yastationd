@@ -16,6 +16,9 @@ dist=/src/dist
 rm -rf "$dist"
 mkdir -p "$dist/$ARCH"
 
+echo "== web app (embedded in yastationd: rebuilt here so dist never ships a stale one)"
+(cd /src/web && pnpm install --frozen-lockfile && pnpm build)
+
 echo "== yastationd (Go, static armv7 — one binary for every board)"
 make -s -C /src/yastationd test build
 cp /src/yastationd/build/yastationd "$dist/yastationd"

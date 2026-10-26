@@ -38,6 +38,9 @@ HA, from single expressions to timed scenarios across the ring and the display.
 - Wake word «Алиса», using the device's own front-end and spotter models: 3-mic echo-cancelled,
   noise-reduced audio is streamed to HA's STT, and the answer is played back.
 - Push-to-talk on the voice key; dialog follow-up (keeps listening after a question).
+- Several speakers in earshot agree which one answers: the nearest (the loudest «Алиса»); the
+  others glance aside and stay silent ([docs/wake-arbitration.md](docs/wake-arbitration.md)).
+- «Стоп» ends a voice session at once, whether it listens, thinks or speaks.
 - Announcements and TTS from HA (`assist_satellite.announce`, any media URL).
 - HA voice timers: countdown on the clock, an alarm on finish, any touch key stops it. A paused timer
   blinks its remainder briefly, then the clock comes back.
@@ -76,6 +79,14 @@ HA, from single expressions to timed scenarios across the ring and the display.
   shows a dim "degraded" dot, and everything reconnects and re-publishes by itself.
 - Time is kept from the LAN NTP server. The clock blinks its colon until the time is confirmed, and a
   stale clock after power-on is corrected right away.
+
+**A web app on every speaker**
+- Open `http://<speaker-ip>/` (login **admin / yastation** until you change it from the app):
+  every speaker on the LAN in one list, found by itself; per speaker its sensors, the runtime
+  controls HA has (display, expressions, brightness, volume…), a live LED preview, the moments it
+  shows and a button to try them, the saved Wi-Fi networks (add one), the config file with a
+  validated save that rolls itself back if the speaker gets worse, the login, and an update check.
+  Prometheus metrics at `/metrics`. Details: [docs/web-ui.md](docs/web-ui.md).
 
 **Recovery when the Wi-Fi changes**
 - Mute the mic, then hold the voice key for 5 s (the ring fills with yellow): the speaker becomes

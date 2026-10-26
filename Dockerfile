@@ -17,6 +17,8 @@ FROM debian:bookworm-slim
 
 ARG ZIG_VERSION=0.14.1
 ARG GO_VERSION=1.22.5
+ARG NODE_VERSION=18.20.8
+ARG PNPM_VERSION=8.14.1
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
@@ -30,6 +32,14 @@ RUN curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${Z
       | tar -xJ -C /opt \
  && ln -s "/opt/zig-x86_64-linux-${ZIG_VERSION}/zig" /usr/local/bin/zig \
  && zig version
+
+# Node + pnpm: the web app (web/, embedded in yastationd; the same pins as web/Dockerfile)
+RUN curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
+      | tar -xJ -C /opt \
+ && ln -s "/opt/node-v${NODE_VERSION}-linux-x64/bin/node" /usr/local/bin/node \
+ && ln -s "/opt/node-v${NODE_VERSION}-linux-x64/bin/npm" /usr/local/bin/npm \
+ && npm install -g "pnpm@${PNPM_VERSION}" --prefix /usr/local \
+ && pnpm --version
 
 # Go: yastationd (CGO off, GOARCH=arm GOARM=7 — one static binary for every board)
 RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" | tar -xz -C /usr/local

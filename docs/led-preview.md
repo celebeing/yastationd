@@ -13,6 +13,10 @@ asked what it shows. Two pieces fix that:
   the 20 ms screen tick, the 15 Hz ring), so where the simulator and a unit differ, the cause is
   the unit's state (brightness, what HA set) or the glass, not the rendering.
 
+**In the web app:** every speaker has the preview behind its login, in the app's LED tab
+(`led_preview`, on by default; [web-ui.md](web-ui.md)). The standalone tap below (`frametap_addr`,
+its own port, no login, the comparison viewer) is for development and the host simulator.
+
 ## Running
 
 ```sh
