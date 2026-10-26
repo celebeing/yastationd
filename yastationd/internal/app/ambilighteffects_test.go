@@ -54,3 +54,11 @@ func TestMusicEffects(t *testing.T) {
 		t.Fatal("none/unknown made an effect")
 	}
 }
+
+func TestFoldWhite(t *testing.T) {
+	f := []hw.RGBW{{R: 10, B: 250, W: 20}}
+	foldWhite(f)
+	if f[0] != (hw.RGBW{R: 30, G: 20, B: 255}) {
+		t.Fatalf("folded %v", f[0])
+	}
+}

@@ -48,8 +48,11 @@ type Config struct {
 	RingBrightness      int // ring light brightness at first start (0..255)
 	AmbilightBrightness int // rear ambilight brightness at first start (0..255)
 	// DDPPort: UDP port for LED frames streamed to the ambilight (LedFx, WLED tools; 0 = off).
-	DDPPort        int
-	AutoBrightness bool // clock brightness from the light sensor at first start (later: HA switch)
+	DDPPort int
+	// AmbilightFxWhite: the music effects use the strip's white channel (else what would go
+	// there is drawn as R=G=B). Off by default.
+	AmbilightFxWhite bool
+	AutoBrightness   bool // clock brightness from the light sensor at first start (later: HA switch)
 	// Light-sensor reading -> clock brightness, interpolated on log(lux) between the points
 	// (ascending lux) and clamped at the ends. The reading is the sensor's own scale, not true
 	// lux: the sensor sits behind the grille and its spectrum differs from a lux meter's.
@@ -390,6 +393,8 @@ func (c *Config) set(k, v string) error {
 		c.AmbilightBrightness, err = atoiRange(v, 0, 255)
 	case "ddp_port":
 		c.DDPPort, err = atoiRange(v, 0, 65535)
+	case "ambilight_fx_white":
+		c.AmbilightFxWhite, err = strconv.ParseBool(v)
 	case "auto_brightness":
 		c.AutoBrightness, err = strconv.ParseBool(v)
 	case "lux_calibration":

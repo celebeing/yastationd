@@ -106,10 +106,22 @@ func (a *App) ambilightShown(now time.Time) []hw.RGBW {
 	s := a.store.get()
 	if s.AmbilightFx && a.ambilightFxOn() && a.musicLevelsFresh(now) {
 		if fx := a.musicEffect(); fx != nil {
-			return scaleFrame(fx.frame(now, a.ambilight.Pixels()), s.AmbilightFxBright)
+			f := fx.frame(now, a.ambilight.Pixels())
+			if !a.cfg.AmbilightFxWhite {
+				foldWhite(f)
+			}
+			return scaleFrame(f, s.AmbilightFxBright)
 		}
 	}
 	return a.ambilightBase()
+}
+
+// foldWhite draws the white channel as R=G=B (ambilight_fx_white off).
+func foldWhite(f []hw.RGBW) {
+	add := func(c, w uint8) uint8 { return uint8(min(255, int(c)+int(w))) }
+	for i, c := range f {
+		f[i] = hw.RGBW{R: add(c.R, c.W), G: add(c.G, c.W), B: add(c.B, c.W)}
+	}
 }
 
 func scaleFrame(f []hw.RGBW, k int) []hw.RGBW {
