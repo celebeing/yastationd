@@ -82,7 +82,9 @@ Check, and set up what's missing (keep an `.orig` of every file you change):
   public address.
 - **Wi-Fi.** `wpa_supplicant.conf` should list only the networks you mean it to use: a vendor
   stack that once ran may have stored extra ones. Editing it can cut your access, so only with a
-  physical fallback ready and the user's go-ahead.
+  physical fallback ready and the user's go-ahead. Deploy the setup mode first — `hostapd` in
+  `<cfw>/bin` plus `wifi_setup = true` ([wifi-setup.md](wifi-setup.md)); the key combo is the one
+  recovery path that does not depend on the network you are about to change.
 
 rootfs edits: `mount -o remount,rw /` … `sync; mount -o remount,ro /`.
 
@@ -92,8 +94,17 @@ rootfs edits: `mount -o remount,rw /` … `sync; mount -o remount,ro /`.
 cd yastationd && make test build                  # -> build/yastationd
 ```
 
-`spotter-host` links the vendor front-end library, so it needs a sysroot from the device itself:
-its `/lib` and `/system/vendor/quasar/libs`. Pull them into the gitignored `dumps/`:
+`spotter-host` links the vendor front-end library, so it needs a sysroot: the vendor `/lib` and
+`/system/vendor/quasar/libs`. Take it from your **`<vendor-repo>`** (a private checkout of vendor trees, never published) — `vendor/<board>/<version_full>/`
+holds exactly that tree, verbatim, for every firmware we have a unit or a dump from:
+
+```sh
+SYSROOT=/path/to/<vendor-repo>/vendor/orion/0.13.1.36.3322101745.20250823.factory-13
+ARCH=aarch64 SYSROOT=$SYSROOT OUT=spotter-host/build/aarch64/spotter-host sh spotter-host/build.sh
+```
+
+Only when that board/firmware is not in the vendor repo, pull the two directories off the unit into
+the gitignored `dumps/`:
 
 ```sh
 mkdir -p dumps/sysroot-<board> && ssh root@<speaker> 'tar cf - /lib /system/vendor/quasar/libs' | tar xf - -C dumps/sysroot-<board>
@@ -107,6 +118,14 @@ both arches with zig 0.14.1 (see its README).
 
 `hostapd` (the Wi-Fi setup mode's access point) likewise: `make -C hostapd` builds one static
 binary for every board with zig 0.14.1 (see [wifi-setup.md](wifi-setup.md)).
+
+**Build all three helpers before you start the install.** They are only ever `make deploy-*`-ed from
+the host; the speaker is offline by design and cannot fetch or compile anything later. A missing
+helper is not fatal at runtime, which is what makes it easy to miss: without `spotter-host` the
+daemon logs `wake word disabled: spotter binary missing` and runs push-to-talk only; without
+`sendspin-host`, `sendspin = true` in the config is ignored.
+
+The exact toolchain versions and a container that pins them: [building.md](building.md).
 
 ## 2. First install
 
@@ -125,8 +144,35 @@ make clips                                         # firmware 0.369 only: its bi
 Config: copy `configs/yastationd.conf.example` to `<cfw>/yastationd.conf`; for Orion, start from
 `configs/orion.conf.example`. Set at least `device_id` (unique per speaker: it names the MQTT
 topics and HA device), `device_name`, `mqtt_host`, the `probe` lines (broker + HA, for the health
-state), and `wake_enabled`. The Orion example pins `board = orion`; its stock «Алиса» model runs
+state; leave them out on a unit with no HA), and `wake_enabled`. The Orion example pins `board = orion`; its stock «Алиса» model runs
 with the NPU verifier on the unit.
+
+A config key the binary does not know is **fatal**, not ignored: `load config err="…: unknown
+key"`, exit 1, five times in a row, then the supervisor swaps in `yastationd.prev`. That is what a
+config newer than the binary looks like (the examples in the tree track the current source). Check
+which build you just put there:
+
+```sh
+ssh root@<speaker> '<cfw>/bin/yastationd -version'
+```
+
+It must print the same `git describe` string that `make build` printed. `frametap_addr` for one
+needs v0.8.1 or newer ([led-preview.md](led-preview.md)); drop the key, or `make deploy`, until
+they match.
+
+**Time.** No supported speaker has an RTC: the clock starts at 1970 and every TLS and timestamped
+thing waits for a sync. The egress lock (§0) drops the vendor's `ntp.yantp.net`, and plenty of
+routers do not answer NTP, so the default fallback candidates fail and the log shows
+`time sync failed tried="ntp.yantp.net…: operation not permitted; <gateway>…: i/o timeout"`. Give
+the speaker a time source on the LAN — either:
+
+- `ntp_server = <lan-ntp>` in `<cfw>/yastationd.conf` (repeatable; tried before the rest), or
+- `server <lan-ntp> iburst` in `/etc/chrony.conf`, on firmware where chronyd runs and then owns
+  the sync (`time_sync` only verifies it).
+
+Anything speaking SNTP works: `chrony`/`ntpd` on the router or HA host, or `dnsmasq`'s built-in
+server when enabled. Until the clock is confirmed the front display shows only its blinking colon
+([status-indication.md](status-indication.md)).
 
 Dry run in the foreground before autostart. Ring and clock will light up:
 
@@ -135,7 +181,17 @@ ssh root@<speaker> '<cfw>/bin/yastationd -config <cfw>/yastationd.conf'   # Ctrl
 ```
 
 Expect `board profile=<name>`, `mqtt connected`, `wyoming listening`, `health state=online`, and
-`wake: spotter ready` if the wake word is on. Then:
+`wake: spotter ready` if the wake word is on. Lines that are *not* an error but people read as one:
+`wake word disabled: spotter binary missing` (no `spotter-host` deployed — see §1) and
+`music player disabled: sendspin-host missing` (nothing built, or `sendspin` left off).
+
+On the ring, a **red pulse after ~40 s** means the first connection did not happen
+(`boot_connect_timeout`): the broker is not reachable, or HA has not taken the Wyoming satellite
+connection yet — add the integration in §3 and it goes away. A **dim red pulse** after that means a
+`probe` host does not answer; the speaker still works. For a local-only unit (no HA at all), leave
+`mqtt_host` empty and remove the `probe` lines, otherwise the health state can never be satisfied.
+
+Then:
 
 ```sh
 make install-initd                                 # copies the hook into /etc/init.d (remount rw/ro)
@@ -159,6 +215,14 @@ First-time voice setup (STT/TTS servers, agent, pipeline): [ha-assistant-setup.m
   `POST /api/config/config_entries/flow {"handler":"wyoming"}` then `{"host":…, "port":10700}`).
   Then pick the Assist pipeline on the satellite's `…_assistant` select and put the device in its
   area, so room-relative commands work.
+- **This step is what makes the speaker "ready".** The daemon counts itself connected only when the
+  broker is up *and* HA holds the Wyoming satellite link; until then the log says
+  `status: no connection to HA yet after=40s` and `voice: no HA satellite connection` (a wake word
+  is detected and then dropped), and the ring pulses red. A fresh install that looks broken is
+  usually just missing this integration — add it before diagnosing anything else.
+- HA offers the Wyoming integration and, when you first build a pipeline, a Wyoming/piper add-on.
+  Only the satellite runs on the speaker: STT, TTS and the conversation agent are HA-side or on
+  another host ([ha-assistant-setup.md](ha-assistant-setup.md)).
 - `hass/scripts.json`: the Assist-callable scripts (ring animation, show text). Create them once per
   HA instance.
 
@@ -189,7 +253,12 @@ tweaks without a rebuild: `<cfw>/board.conf` (+ restart).
 
 ## 6. Verification checklist
 
-- [ ] `ps w`: one `yastationd`, one `spotter-host` (wake on), no vendor stack processes.
+- [ ] `ps w`: one `yastationd`, one `spotter-host` (wake on), no vendor stack processes;
+      one `sendspin-host` when `sendspin = true`.
+- [ ] `<cfw>/bin/` holds what the config asks for: `spotter-host` for wake, `sendspin-host` for
+      music, `hostapd` for the Wi-Fi setup mode (a missing helper only shows as a log line).
+- [ ] `yastationd -version` equals the build you deployed (a config key from a newer tree makes the
+      daemon exit 1 on start, not warn).
 - [ ] Log clean after start: profile, MQTT, Wyoming, health online, clock confirmed/in sync.
 - [ ] HA: device with ring light, display, volume, brightness, mic mute, illuminance, supply voltage;
       the Wyoming satellite shows idle.
@@ -201,6 +270,39 @@ tweaks without a rebuild: `<cfw>/board.conf` (+ restart).
 
 ## 7. Diagnostics and gotchas
 
+- **`load config err="…: unknown key"`, exit 1, over and over.** The config knows a key the binary
+  does not — the binary is older than the tree the config was copied from. Unknown keys are fatal by
+  design (a typo must not be silently ignored). The supervisor counts five crashes in a row, moves
+  the old binary back from `yastationd.prev` (which is just as old) and keeps retrying every 5 min;
+  `touch <cfw>/yastationd_off` stops that. Fix the pair, don't edit around it: `yastationd -version`
+  tells you the binary, and `make deploy` (or `tools/deploy.sh`) brings it up to the source. Known
+  dates: `frametap_addr` and the `video_*` keys need v0.8.1+, and anything merged since the last tag
+  exists only in a build from `main`. Both examples in `configs/` follow the current source, so an
+  old binary plus a fresh example is exactly this failure.
+- **`time sync failed tried="ntp.yantp.net…: operation not permitted; <gateway>…: i/o timeout"`.**
+  Not a bug: the egress lock (§0) drops the vendor server, and the gateway is not an NTP server.
+  Set `ntp_server = <lan-ntp>` in the config, or a `server` line in `/etc/chrony.conf` where chronyd
+  runs (§2). Meanwhile the front display shows a bare blinking colon and anything comparing
+  timestamps is wrong.
+- **`wake word disabled: spotter binary missing path=<cfw>/bin/spotter-host`.** The helper was never
+  built or deployed; the daemon deliberately runs on (push-to-talk still works). Build it against a
+  sysroot from `<vendor-repo>` and `make deploy-spotter` (§1, §2). Same story for
+  `sendspin-host` and music, and for `hostapd` and the Wi-Fi setup mode.
+- **Music does not play although HA shows the player.** Check the helper first:
+  `<cfw>/bin/sendspin-host` exists (`sendspin = true` without it does nothing) and
+  `ps w | grep sendspin`. Then the two volumes: with `sendspin_volume = linked` the Music
+  Assistant player's level *is* the speaker's, so a speaker at 5 % is inaudible; with `separate`
+  they are independent. Music Assistant discovers the player by itself — no entry to add by hand.
+- **Front display shows a blinking digit instead of the clock.** A blinking *colon* is the
+  "time not confirmed" face ([status-indication.md](status-indication.md)); a lone blinking digit
+  is not a documented state. If `date` is right and the log says the clock is confirmed, capture
+  the display-related lines from the start and compare with a second unit on the same tag — and
+  check `auto_brightness`: a lux reading near 0 (sensor behind the grille) drives brightness to
+  the low end of `auto_brightness_curve`.
+- **Ring red on a fresh install.** Red pulse = no first connection within `boot_connect_timeout`
+  (broker unreachable, or HA has not added the Wyoming satellite yet); dim red pulse = a `probe`
+  target does not answer. Both are status, not failure — see §2 and
+  [status-indication.md](status-indication.md).
 - **Two speakers, different loudness at the same %?** Check, in order: the same `yastationd`
   version on both (HA's Version sensor; deploy with `tools/deploy.sh` rather than by hand — the
   volume curve is in the board profile compiled into the binary); the same model (each board has
@@ -210,7 +312,11 @@ tweaks without a rebuild: `<cfw>/board.conf` (+ restart).
   Post Gain'`), so the 0.369 unit is louder at every level; no `audio.volume_map` or
   `volume_max` override in one of them (`<cfw>/board.conf`, `yastationd.conf`). The loudness
   does not depend on what the vendor stack did before: it never runs, and ALSA state is not
-  stored across boots.
+  stored across boots. On the unit itself: `amixer -c 0 sget 'Master Playback Volume'` (0..255,
+  what the curve gave), every `… Acm8625 AMP mute status` must be 0, and `ps w | grep hardvold`
+  (without it the master control does not reach the amps). A different curve without a rebuild:
+  `audio.volume_map = 0:0, 4:20, 8:60, 12:120, 20:255` in `<cfw>/board.conf` (levels 0..20, raw up
+  to `audio.volume_max`).
 - **Why did it reboot?** `cat /sys/class/aml_info/reboot_reason` on bergamot (`cold_boot`, `normal`,
   `watchdog_reboot` = the system hung and the watchdog reset it — almost always a kernel module or
   a boot script). pickle has no such file.

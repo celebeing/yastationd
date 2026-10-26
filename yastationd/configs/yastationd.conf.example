@@ -58,7 +58,7 @@ volume_beep  = true
 # Chime before an HA announcement (needs `make sounds`).
 # announce_chime  = true
 
-# --- Wi-Fi setup mode (docs/wifi-setup.md): hold volume-down + voice + mute for 5 s; the speaker
+# --- Wi-Fi setup mode (docs/wifi-setup.md): mute the mic, then hold the voice key for 5 s; the speaker
 # becomes an access point with a page for its saved networks, until left or rebooted.
 # wifi_setup         = true
 # wifi_setup_ssid    = yastation-<device_id>

@@ -1,0 +1,3 @@
+# The image carries toolchains only; sources are mounted at run time by tools/build-dist.sh.
+*
+!Dockerfile

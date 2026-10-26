@@ -113,8 +113,9 @@ type Config struct {
 	MusicDuckDB    int // music level while the assistant listens/talks/rings, dB below normal
 
 	// Wi-Fi setup mode (docs/wifi-setup.md): the speaker becomes an access point with a page for
-	// editing the saved networks, entered by holding volume-down + voice + mute for 5 s. Lasts
-	// until it is left or the speaker reboots.
+	// editing the saved networks, entered by holding the voice key for 5 s with the mic muted
+	// (the same combo on every board; orion has no volume keys). Lasts until it is left or the
+	// speaker reboots.
 	WifiSetup        bool
 	WifiSetupSSID    string // "" = yastation-<device_id>
 	WifiSetupPSK     string // "" = an open network

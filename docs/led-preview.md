@@ -35,6 +35,10 @@ On a unit, add to `<cfw>/yastationd.conf` and restart the daemon:
 frametap_addr = :8930
 ```
 
+The key exists from **v0.8.1** (commit `6e99fba`). An older binary treats it as an unknown key,
+which is fatal: `load config err="…: unknown key"`, exit 1, five times in a row, then the
+supervisor restores `yastationd.prev`. Check `yastationd -version` first, or leave the key out.
+
 To compare, open the simulator's page with both sources:
 `http://localhost:8930/?src=http://localhost:8930&src=http://<speaker-ip>:8930` (or add a source
 with the field at the top; the list stays in the URL).

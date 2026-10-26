@@ -29,3 +29,6 @@ spotter-host/build/
 # Emulator work dir: kernel sources/builds, flash images made from dumps, seeds copied from units
 emu/work/
 .claude/worktrees/
+
+# Artifacts from the pinned build container (tools/build-dist.sh)
+dist/

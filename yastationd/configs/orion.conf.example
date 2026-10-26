@@ -1,12 +1,16 @@
 # Orion (Yandex Station 3) example configuration.
 # Copy to /bkupgrade/cfw/yastationd.conf and replace the placeholder values before starting yastationd.
+#
+# A key this binary does not know is fatal (`load config err="…: unknown key"`), so check
+# `yastationd -version` against the tree this file came from before replacing a live config.
 
 # Unique MQTT/HA identity for this speaker. Use lowercase letters, digits, '_' or '-'.
 device_id   = orion
 device_name = Yandex Station 3
 
 # --- MQTT broker / Home Assistant ---
-# Leave mqtt_host empty for local-only operation.
+# Leave mqtt_host empty for local-only operation. While the broker and the HA Wyoming link are not
+# both up the ring pulses red (normal on a fresh unit; docs/status-indication.md, boot_connect_timeout).
 mqtt_host = <mqtt-host>
 mqtt_port = 1883
 # mqtt_user = <mqtt-user>
@@ -51,8 +55,14 @@ preroll_ms   = 300
 # --- clock / health ---
 time_sync   = true
 chrony_conf = /etc/chrony.conf
-probe = broker=<mqtt-host>:1883@broker
-probe = hass=<ha-host>:8123@lan
+# Orion has no RTC, and the egress lock drops the vendor's ntp.yantp.net: name a time source that
+# actually answers on your LAN (repeatable; tried before chrony_conf and the default gateway).
+# ntp_server = <lan-ntp>
+# Health probes: name=host:port@role, role broker|pipeline|lan. A failing probe turns the ring a
+# dim red pulse and the state says degraded; the speaker keeps working. The placeholders below are
+# not hostnames — point them at real hosts, or leave the probe lines out on a local-only unit.
+# probe = broker=<mqtt-host>:1883@broker
+# probe = hass=<ha-host>:8123@lan
 
 # Use debug while validating the circular panel; change to info afterwards.
 log_level = debug
