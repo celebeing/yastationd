@@ -31,4 +31,4 @@ emu/work/
 .claude/worktrees/
 
 # Artifacts from the pinned build container (tools/build-dist.sh)
-dist/
+/dist/

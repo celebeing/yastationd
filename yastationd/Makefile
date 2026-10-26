@@ -26,7 +26,7 @@ VERSION  := $(shell git describe --tags --match 'v*' --dirty --always 2>/dev/nul
 GOFLAGS  := -trimpath -ldflags="-s -w -X github.com/celebeing/yastationd/yastationd/internal/version.Version=$(VERSION)"
 GOENV    := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: web all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds vqe-models deploy deploy-spotter deploy-sendspin clips deploy-egress ota-block video video-convert
+.PHONY: web webui-dist all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds vqe-models deploy deploy-spotter deploy-sendspin clips deploy-egress ota-block video video-convert
 
 
 all: test build
@@ -34,12 +34,17 @@ all: test build
 platform-info:
 	@printf 'platform=%s cfw_root=%s userland_arch=%s\n' '$(PLATFORM)' '$(DESTDIR)' '$(HELPER_ARCH)'
 
-build:
+# The embedded web app must exist before Go builds (internal/webui embeds dist/). It is committed;
+# a checkout that somehow lacks it gets it built (locally or in the pinned container).
+webui-dist:
+	@[ -f internal/webui/dist/index.html ] || $(MAKE) web
+
+build: webui-dist
 	$(GOENV) go build $(GOFLAGS) -o $(OUT) $(PKG)
 	@file $(OUT)
 	@echo "version $(VERSION)"
 
-test:
+test: webui-dist
 	go test ./...
 
 vet:
