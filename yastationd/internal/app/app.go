@@ -147,8 +147,20 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 			return nil, err
 		}
 		if p.FB != "" {
-			if err := ambilight.UseFB(cfg.SysRoot, p.FB, p.LED, p.Colors, p.Dies); err != nil {
+			format := p.FBFormat
+			if format == "" {
+				format = "rgb48"
+			}
+			err := ambilight.UseFB(cfg.SysRoot, p.FB, format, p.FBCompatible, p.LED, p.Colors, p.Dies)
+			if err != nil && format != "rgb48" {
+				log.Warn("ambilight: framebuffer with white unavailable, trying rgb48", "err", err)
+				format = "rgb48"
+				err = ambilight.UseFB(cfg.SysRoot, p.FB, format, "", p.LED, p.Colors, p.Dies)
+			}
+			if err != nil {
 				log.Warn("ambilight: framebuffer unavailable, all channels on sysfs", "err", err)
+			} else {
+				log.Info("ambilight: framebuffer", "format", format)
 			}
 		}
 	}

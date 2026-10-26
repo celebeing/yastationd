@@ -326,7 +326,11 @@ Three surfaces, every LED a Linux LED class device each mirrored by a framebuffe
   `compatible = "yandex,ledfb-rgb48"`; a white LED put on the trigger logs "ledfb: Using white
   color with RGB framebuffer. Check device tree configuration." and stays dark. The format cannot
   be changed at runtime (`FBIOPUT_VSCREENINFO` with 32 or 64 bpp: `EINVAL`, 2026-10-27), and the
-  device tree is part of the boot chain we do not touch, so the white stays on sysfs. One frame write = 3.5 ms
+  device tree is part of the boot chain we do not touch. But orion applies **runtime** overlays
+  (configfs `device-tree/overlays`, `dtbocfg`): an overlay setting the node's compatible to
+  `yandex,ledfb-rgbw64` plus an unbind/bind of `ledfb` gives a 64 bpp framebuffer, B, G, R, W
+  16-bit LE, both dies (verified 2026-10-27, by eye and by readback; gone on reboot). yastationd
+  does that at start (`ambilight.fb_format = rgbw64`, [ambilight-stream.md](../ambilight-stream.md)). One frame write = 3.5 ms
   against 25–34 ms for 96 sysfs writes; `ambilight.fb` uses it
   ([ambilight-stream.md](../ambilight-stream.md)).
 - Latch pseudo-LEDs `orion:{ring,ambilight}{A,B,C}:sync` (trigger `ledfb-*-sync`): one

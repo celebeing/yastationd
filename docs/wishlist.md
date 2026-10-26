@@ -387,3 +387,12 @@ entry points go through the wrapper by default, `NATIVE=1` bypasses it for quick
 `build-dist.sh` becomes a use of the same wrapper. Costs: docker for every build (2.2 GB image,
 once), about a second per container start. Next step it opens: GitHub Releases with artifacts
 (`yastationd`, `hostapd`, `sendspin-host`; not `spotter-host`, whose sysroot is private).
+
+## Station 3: the power budget with the white channel on
+
+The firmware keeps the rear strip's framebuffer without white (`ledfb-rgb48`); we switch it to
+RGBW at runtime ([ambilight-stream.md](ambilight-stream.md)). If the reason was power: load
+everything at once — music at full volume, the SoC busy, the strip RGBW at 255 — and watch the
+USB-C PD supply (`ya_pd`: voltage, the supply sensor in HA), thermal throttling, and whether the
+sound sags or the speaker resets. Until then the music effects stay dim (brightness 64) and do not
+use white by default.

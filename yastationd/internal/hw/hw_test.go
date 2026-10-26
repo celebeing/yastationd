@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -356,7 +357,7 @@ func TestOrionAmbilightFB(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := strip.UseFB(root, "ambilight", pattern, colors, dies); err != nil {
+	if err := strip.UseFB(root, "ambilight", "rgb48", "", pattern, colors, dies); err != nil {
 		t.Fatal(err)
 	}
 	frame := make([]RGBW, 12)
@@ -377,5 +378,74 @@ func TestOrionAmbilightFB(t *testing.T) {
 	}
 	if led("white", "brightness") != "9" || led("red", "brightness") != "0" {
 		t.Fatalf("sysfs: white %q, red %q", led("white", "brightness"), led("red", "brightness"))
+	}
+}
+
+// rgbw64: the device-tree node is switched by an overlay and the device rebound, then all four
+// channels go through the framebuffer (B, G, R, W as 16-bit LE).
+func TestOrionAmbilightFBRGBW(t *testing.T) {
+	root := t.TempDir()
+	colors := []string{"red", "green", "blue", "white"}
+	dies := []string{"a", "b"}
+	for i := range 12 {
+		for _, die := range dies {
+			for _, color := range colors {
+				dir := filepath.Join(root, "sys/class/leds", "orion:"+color+":ambilight"+strconv.Itoa(i)+die)
+				os.MkdirAll(dir, 0o755)
+				os.WriteFile(filepath.Join(dir, "trigger"), []byte("[none] ledfb-ambilight"), 0o644)
+				os.WriteFile(filepath.Join(dir, "brightness"), []byte("0"), 0o644)
+			}
+		}
+	}
+	node := filepath.Join(root, "sys/firmware/devicetree/base/ambilight-framebuffer")
+	dev := filepath.Join(root, "sys/devices/platform/ambilight-framebuffer")
+	drv := filepath.Join(root, "sys/bus/platform/drivers/ledfb")
+	fbs := filepath.Join(root, "sys/class/graphics/fb0")
+	for _, d := range []string{node, dev, drv, fbs, filepath.Join(root, "dev"), filepath.Join(root, overlayDir)} {
+		os.MkdirAll(d, 0o755)
+	}
+	os.WriteFile(node+"/compatible", []byte("yandex,ledfb-rgb48\x00"), 0o644)
+	os.Symlink(node, dev+"/of_node")
+	os.Symlink(drv, dev+"/driver")
+	os.Symlink(dev, fbs+"/device")
+	os.WriteFile(drv+"/bind", nil, 0o644)
+	os.WriteFile(drv+"/unbind", nil, 0o644)
+	os.WriteFile(fbs+"/name", []byte("ambilight\n"), 0o644)
+	os.WriteFile(fbs+"/bits_per_pixel", []byte("64\n"), 0o644)
+	fb := filepath.Join(root, "dev/fb0")
+	os.WriteFile(fb, make([]byte, 96), 0o644)
+
+	pattern := "orion:{color}:ambilight{i}{die}"
+	strip, err := NewAmbilight(root, 12, pattern, colors, dies)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := strip.UseFB(root, "ambilight", "rgbw64", "yandex,ledfb-rgbw64", pattern, colors, dies); err != nil {
+		t.Fatal(err)
+	}
+	ov := filepath.Join(root, overlayDir, "yastationd-ambilight")
+	if b, _ := os.ReadFile(ov + "/status"); string(b) != "1" {
+		t.Fatalf("overlay status %q", b)
+	}
+	if b, _ := os.ReadFile(ov + "/dtbo"); !strings.Contains(string(b), "yandex,ledfb-rgbw64") || !strings.Contains(string(b), "/ambilight-framebuffer") {
+		t.Fatal("overlay does not set the node's compatible")
+	}
+	for _, f := range []string{"unbind", "bind"} {
+		if b, _ := os.ReadFile(drv + "/" + f); string(b) != "ambilight-framebuffer" {
+			t.Fatalf("%s got %q", f, b)
+		}
+	}
+	frame := make([]RGBW, 12)
+	frame[1] = RGBW{R: 1, G: 2, B: 3, W: 255}
+	if err := strip.Show(frame); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(fb)
+	if got := b[8:16]; string(got) != string([]byte{6, 0, 4, 0, 2, 0, 0xfe, 1}) {
+		t.Fatalf("fb pixel 1 = % x", got)
+	}
+	w, _ := os.ReadFile(filepath.Join(root, "sys/class/leds/orion:white:ambilight1b/trigger"))
+	if string(w) != "ledfb-ambilight" {
+		t.Fatalf("white trigger %q", w)
 	}
 }

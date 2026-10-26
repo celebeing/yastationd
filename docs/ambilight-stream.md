@@ -67,16 +67,36 @@ Tuning (thresholds, colours, speeds) is by eye on the speaker and still open.
 
 Writing a full frame as sysfs LEDs is 12 positions × 2 dies × 4 channels = 96 writes, each going
 to the LED driver: **25–34 ms per frame** on orion (measured 2026-10-26) — half a core at 15 fps,
-all of it at effect rates. The strip also has a ledfb framebuffer, `fb0` "ambilight" (12×1,
-48 bpp, stride 72): per position **B, G, R as 16-bit little-endian**, the LED level being half
-the value (510 = 255), both dies following. One write per frame: **3.5 ms**. It has no white:
-the driver has RGBW formats, but the device tree configures this one as `ledfb-rgb48`, and the
-format cannot be switched at runtime ([boards/orion.md](boards/orion.md)).
+all of it at effect rates. The strip also has a ledfb framebuffer, `fb0` "ambilight": one write
+per frame, **3.5 ms**, both dies following, the LED level being half the value (510 = 255).
 
-So with `ambilight.fb = ambilight` in the board profile, `hw.Ambilight` sets the R, G and B LEDs'
-trigger to `ledfb-ambilight` and writes them through the framebuffer (when the frame changed, and
-once more after, in case the glass latches on the next write like the screen's), while W stays
-on sysfs. Streaming at 50 fps keeps yastationd at ~2% CPU.
+### White through the framebuffer
+
+As the firmware sets it up the framebuffer is `rgb48` (per position B, G, R as 16-bit LE): no
+white. That is configuration, not hardware: the driver (`quasar_led_ring.ko`) also has
+`ledfb-rgbw32` (one die only) and `ledfb-rgbw64`, and the device tree's `ambilight-framebuffer`
+node simply says `compatible = "yandex,ledfb-rgb48"`. The format cannot be switched with
+`FBIOPUT_VSCREENINFO`, but orion's kernel applies device-tree overlays at runtime through configfs
+(`/sys/kernel/config/device-tree/overlays`, its `dtbocfg` driver — the firmware loads its own
+`i2c_top` overlay that way). So with
+
+```
+ambilight.fb            = ambilight
+ambilight.fb_format     = rgbw64
+ambilight.fb_compatible = yandex,ledfb-rgbw64
+```
+
+`hw.Ambilight` (`internal/hw/overlay.go`), when the node says otherwise: unbinds the device from
+its driver, writes an overlay `yastationd-ambilight` that sets the node's `compatible` (a
+70-line FDT builder, byte-identical to dtc's output), applies it, binds the device again and
+waits for the framebuffer. Then it is 64 bpp: per position **B, G, R, W as 16-bit LE**, both dies,
+3.7 ms a frame. The overlay lives until the next boot and nothing on flash changes; a later start
+of the daemon finds the node already switched and does nothing. If any step fails the strip
+falls back to `rgb48` with W on sysfs, then to sysfs alone. RGBW is visibly brighter than RGB.
+
+Why the firmware left white out is not known. Its strip has three patterns (`boot`, `qc`,
+`violet`), all RGB, and its per-case-colour current matrices (`ledconfigs/*.json`) are 3×3 RGB;
+a power budget reason is possible but unproven ([wishlist](wishlist.md)).
 
 ## Trying it without LedFx
 

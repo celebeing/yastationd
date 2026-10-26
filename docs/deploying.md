@@ -30,6 +30,7 @@ scripts branch on its existence.
 | `<cfw>/yastationd.conf.bak`, `<cfw>/config.trial` | the config before the last save from the web app, and its trial marker while the new one is on trial ([web-ui.md](web-ui.md)) |
 | `<cfw>/log-spool` | log lines waiting for the log server while it is unreachable (`log_remote`, [storage.md](storage.md)) |
 | `<cfw>/yastationd.conf` `frametap_addr` | optional, development only: the LED preview stream on its own port without a login (the host simulator); the web app has the same preview behind its login ([led-preview.md](led-preview.md)) |
+| runtime device-tree overlay `yastationd-ambilight` | orion: applied at start to give the ambilight framebuffer a white channel (configfs, until the next boot; nothing on flash; [ambilight-stream.md](ambilight-stream.md)) |
 | UDP 4048 (`ddp_port`) | boards with an ambilight: LED frames from LedFx / WLED tools ([ambilight-stream.md](ambilight-stream.md)); `0` = no receiver |
 | `<cfw>/yastationd_off` | kill switch: the supervisor stops respawning while it exists |
 | `/etc/init.d/S52zyastationd` | the only rootfs file: boot hook that starts the supervisor (copy kept in `<cfw>/init.d/`) |
