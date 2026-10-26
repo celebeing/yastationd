@@ -195,6 +195,15 @@ reports local changes back. Volume key ticks are skipped while music plays. Desi
    6–220 ms and a 6 MB ssh upload took minutes (it took seconds before the reboot); signal -54 dBm,
    CPU 76 % idle. Suspect the wifi chip's power save re-enabled at boot. Only look into it if it
    causes real problems (voice is unaffected so far).
+   **A Wi-Fi hang, 2026-10-26** (a bergamot, 14 h after boot, v0.8.3): the speaker vanished from
+   the LAN (no ping, no ARP reply, MQTT's last will in HA) and stayed so until it was power-cycled.
+   The router's view: the signal fell from -51 to -59 dBm a few minutes before (something moved
+   near it); then over ~4 min both rates fell from 72/21 Mbps to the 1 Mbps floor and the byte
+   counters stopped, while the station stayed associated for 2 h more. busybox `watchdog -T 5`
+   on `/dev/watchdog` did not reboot it, so the kernel and userland were alive: the Wi-Fi
+   (bcmdhd, `dhd` in dmesg) stopped passing data. Logs are lost (syslog and the daemon's log
+   are on tmpfs). If it repeats: a LAN self-check (gateway unreachable for minutes → reload the
+   Wi-Fi interface, never touching wpa_supplicant.conf), and a log kept across reboots.
 8. **Multi-speaker timers:** HA's timers are bound to the device the request came from
    (`HassStartTimer` has no target slot), so a timer rings only on that speaker. Ringing on several
    rooms needs our own Assist tool (script → per-speaker MQTT countdown + local alarm).
