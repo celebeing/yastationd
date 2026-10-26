@@ -89,7 +89,7 @@ func TestMarqueeTime(t *testing.T) {
 	if MarqueeTime("12", 300*time.Millisecond) != 0 {
 		t.Fatal("seg7: text that fits takes time")
 	}
-	if got := MarqueeTime("ABCDEF", 300*time.Millisecond); got != 11*300*time.Millisecond {
+	if got := MarqueeTime("ABCDEF", 300*time.Millisecond); got != 9*300*time.Millisecond {
 		t.Fatalf("seg7: %v", got)
 	}
 	f := PixelFront{W: 21, H: 12}
@@ -98,7 +98,7 @@ func TestMarqueeTime(t *testing.T) {
 	}
 	long := "Some Band - A Rather Long Song Title That Scrolls"
 	f.TextLines = 1
-	want := time.Duration(runesWidth(font7, long)+21) * marqueePxStep(300*time.Millisecond)
+	want := time.Duration(runesWidth(font7, long)+21-10) * marqueePxStep(300*time.Millisecond)
 	if got := f.MarqueeTime(long, 300*time.Millisecond); got != want {
 		t.Fatalf("pixels, one line: %v, want %v", got, want)
 	}

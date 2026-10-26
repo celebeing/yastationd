@@ -87,8 +87,8 @@ func TestMarqueeScrollsLongText(t *testing.T) {
 	r := Marquee("123456", 100*time.Millisecond, func() int { return 1 })
 	now := time.Now()
 	f0, _ := r(now, MatrixFrame{})
-	f4, _ := r(now.Add(450*time.Millisecond), MatrixFrame{})
-	if f0.Seg == f4.Seg || f4.Seg != Text("1234", 1).Seg {
+	f4, _ := r(now.Add(250*time.Millisecond), MatrixFrame{}) // starts two cells in (marqueeLead)
+	if f0.Seg != Text("  12", 1).Seg || f4.Seg != Text("1234", 1).Seg {
 		t.Fatalf("frame@0 %v, frame@4 steps %v", f0.Seg, f4.Seg)
 	}
 }

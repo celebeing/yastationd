@@ -44,7 +44,15 @@ func TestMusicTitleAndClips(t *testing.T) {
 	}
 	a.matrixStack.Remove("music_title")
 
+	// A stop that ends at once is a track change restarting the stream: neither animation.
 	a.onMusicPlayback(false)
+	a.onMusicPlayback(true)
+	time.Sleep(musicPauseAfter + 100*time.Millisecond)
+	if a.matrixStack.Has("music") {
+		t.Fatal("a short stop showed pause or resume")
+	}
+	a.onMusicPlayback(false)
+	time.Sleep(musicPauseAfter + 100*time.Millisecond)
 	if !a.matrixStack.Has("music") {
 		t.Fatal("no pause animation")
 	}
@@ -77,6 +85,7 @@ func TestMusicDisplayOff(t *testing.T) {
 	a.onMusicMeta(`{"title":"Song","duration_ms":200000,"progress_ms":0}`)
 	a.onMusicPlayback(true)
 	a.onMusicPlayback(false)
+	time.Sleep(musicPauseAfter + 100*time.Millisecond)
 	if a.matrixStack.Has("music_title") || a.matrixStack.Has("music") {
 		t.Fatal("music on the display with music_title and music_clips off")
 	}

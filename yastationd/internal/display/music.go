@@ -19,7 +19,7 @@ func MarqueeTime(s string, step time.Duration) time.Duration {
 		return 0
 	}
 	n := len([]rune(strings.NewReplacer(":", "", ".", "").Replace(s))) + 8 // the padding both sides
-	return time.Duration(n-hw.Digits+1) * step
+	return time.Duration(n-hw.Digits+1-marqueeLead) * step
 }
 
 func (Seg7Front) MarqueeTime(s string, step time.Duration) time.Duration { return MarqueeTime(s, step) }
@@ -49,7 +49,7 @@ func (f PixelFront) MarqueeTime(s string, step time.Duration) time.Duration {
 	if fits {
 		return 0
 	}
-	return time.Duration(runesWidth(font7, s)+f.W) * marqueePxStep(step)
+	return time.Duration(runesWidth(font7, s)+f.W-f.W/2) * marqueePxStep(step)
 }
 
 // HasLevels: the small clock and at least four rows of bars fit.

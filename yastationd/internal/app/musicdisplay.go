@@ -29,6 +29,8 @@ const (
 	// musicTitleMin / Max bound how long the title stays when it fits (or is very long).
 	musicTitleMin = 3 * time.Second
 	musicTitleMax = 30 * time.Second
+	// musicPauseAfter: a stop shorter than this is not a pause (a track change restarts the stream).
+	musicPauseAfter = 1500 * time.Millisecond
 	// musicTitleLate: a track first seen this far in was already playing (no title).
 	musicTitleLate = 10_000 // ms
 )
@@ -63,6 +65,8 @@ type musicScreen struct {
 	shown    []float64 // what the bars show, falling towards bands
 	levelsAt time.Time
 	drawnAt  time.Time
+	gen      int  // playback changes, to drop a pause that turned out to be a track change
+	paused   bool // the pause animation was shown: the next start is a resume
 }
 
 // musicLevelsWanted: the spectrum is on and this display can draw it (sendspin-host computes it
@@ -89,13 +93,29 @@ func (a *App) onMusicPlayback(playing bool) {
 	if playing == was {
 		return
 	}
+	a.log.Debug("music: playback", "playing", playing)
+	m.mu.Lock()
+	m.gen++ // a pause waiting to be shown is off
+	gen, paused := m.gen, m.paused
+	m.paused = false
+	m.mu.Unlock()
 	switch {
 	case playing && pending != "":
 		a.showMusicTitle(pending)
-	case playing && known:
+	case playing && paused:
 		a.musicMoment("media_resume")
 	case !playing && known:
-		a.musicMoment("media_pause")
+		// Music Assistant restarts its stream on a track change (stopped, then playing again
+		// ~0.5 s later): only a stop that lasts is a pause, and only a shown pause gets a resume.
+		time.AfterFunc(musicPauseAfter, func() {
+			m.mu.Lock()
+			still := m.gen == gen && !m.playing
+			m.paused = still
+			m.mu.Unlock()
+			if still {
+				a.musicMoment("media_pause")
+			}
+		})
 	}
 }
 

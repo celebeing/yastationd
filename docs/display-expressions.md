@@ -101,7 +101,8 @@ like the clock: perceived intensity, the screen's gamma at the end.
   are more, and the scrolling line when a word is too long for a line.
 - **Wrapping** breaks only at spaces, never inside a word; punctuation standing alone (`—`, `»`,
   `!`) stays with the word before it, an opening quote or bracket with the word after.
-- **The scrolling line** enters at the right and leaves at the left, a pixel at a time, 1.5× the
+- **The scrolling line** enters at the middle (not the right edge: its start was lost behind the
+  animation before it; seg7 likewise starts two cells in) and leaves at the left, a pixel at a time, 1.5× the
   seg7 marquee's character rate (`marqueeStep`/9 per pixel; tuned on glass 2026-10-26).
 - On glass (2026-10-26) both layouts read well; `auto`'s choice was kept as the default.
 

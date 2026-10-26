@@ -129,7 +129,9 @@ playback state; with `-b <bands>` it computes the music's spectrum. yastationd d
   reconnect, our restart). A track that arrives while playback is stopped waits for it to start.
 - **Pause and resume** (`music_clips`): the moments `media_pause` and `media_resume`
   ([display-expressions.md](display-expressions.md)), from the playback state. Sendspin has no
-  "paused": a pause is the group stopping while the track stays. Station 3 plays `media/Pause` and
+  "paused": a pause is the group stopping while the track stays. Music Assistant also stops and
+  restarts its stream on every track change (~0.5 s apart, ~2.5 s after the new track's
+  metadata), so only a stop that lasts 1.5 s is a pause, and only a shown pause gets a resume. Station 3 plays `media/Pause` and
   `media/Resume`; the Minis `player_pause` (they have no resume clip).
 - **The spectrum** (`music_levels`, pixel screens only): the clock in the small digits on top and
   one bar per column under it, while music plays and levels keep coming; the clock is back 1.5 s
@@ -199,8 +201,8 @@ until it has played. **Not tested on the device yet.**
 6. Pairing instead of unpaired access.
 7. Local media keys (e.g. a long press = pause) would need the controller role.
 8. The display features by eye on a speaker: whether a pause in MA reaches us as the group
-   stopping (MA restarts its flow stream on resume, see Latency), the title on track changes,
-   the spectrum's range on Station 3.
+   stopping, the title on track changes, the spectrum's range on Station 3 — checked on Station 3
+   (2026-10-26); the Minis' pause clip not yet seen.
 
 ## Group sync by measurement (plan)
 

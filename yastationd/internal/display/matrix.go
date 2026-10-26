@@ -96,6 +96,9 @@ func textCells(s string) int {
 
 // Marquee returns a render func that shows s statically if it fits, else scrolls it by one
 // character every step, padded with blanks, looping until the layer's TTL ends it.
+// marqueeLead: the running line starts this many cells in, from the display's middle.
+const marqueeLead = 2
+
 func Marquee(s string, step time.Duration, brightness func() int) RenderFunc[MatrixFrame] {
 	if textCells(s) <= hw.Digits {
 		return func(time.Time, MatrixFrame) (MatrixFrame, bool) { return Text(s, brightness()), false }
@@ -104,7 +107,8 @@ func Marquee(s string, step time.Duration, brightness func() int) RenderFunc[Mat
 	padded := append(append([]rune("    "), rs...), []rune("    ")...)
 	start := time.Now()
 	return func(now time.Time, _ MatrixFrame) (MatrixFrame, bool) {
-		i := int(now.Sub(start)/step) % (len(padded) - hw.Digits + 1)
+		// In from the middle (two cells of the leading padding skipped), out at the left.
+		i := (int(now.Sub(start)/step) + marqueeLead) % (len(padded) - hw.Digits + 1)
 		return Text(string(padded[i:i+hw.Digits]), brightness()), false
 	}
 }

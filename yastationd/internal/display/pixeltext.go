@@ -170,8 +170,10 @@ func (f PixelFront) textCanvas(s string, t, pxStep time.Duration) canvas {
 		c.drawRunes(font7, s, (f.W-w)/2, y, 1)
 		return c
 	}
-	period := w + f.W // in from the right, out at the left
-	x := f.W - int(t/pxStep)%period
+	// In from the middle (so the start is not lost behind whatever was on screen before), out at
+	// the left; a repeat comes in from the middle again.
+	period := w + f.W - f.W/2
+	x := f.W/2 - int(t/pxStep)%period
 	c.drawRunes(font7, s, x, y, 1)
 	return c
 }
