@@ -44,22 +44,24 @@ func TestMusicTitleAndClips(t *testing.T) {
 	}
 	a.matrixStack.Remove("music_title")
 
-	// A stop that ends at once is a track change restarting the stream: neither animation.
+	// A track change: the group stops and plays again (Music Assistant restarts its stream):
+	// neither animation.
 	a.onMusicPlayback(false)
 	a.onMusicPlayback(true)
-	time.Sleep(musicPauseAfter + 100*time.Millisecond)
 	if a.matrixStack.Has("music") {
-		t.Fatal("a short stop showed pause or resume")
+		t.Fatal("a stream restart showed pause or resume")
 	}
-	a.onMusicPlayback(false)
-	time.Sleep(musicPauseAfter + 100*time.Millisecond)
+	// A pause is the track's speed going to 0; a resume, back up. No title on resume.
+	a.onMusicMeta(`{"title":"Song","artist":"Band","duration_ms":200000,"progress_ms":60000,"speed":0}`)
 	if !a.matrixStack.Has("music") {
 		t.Fatal("no pause animation")
 	}
 	a.matrixStack.Remove("music")
-	// Resume of the same track: the resume animation, no title (its metadata comes again).
-	a.onMusicPlayback(true)
-	a.onMusicMeta(`{"title":"Song","artist":"Band","duration_ms":200000,"progress_ms":61000}`)
+	a.onMusicMeta(`{"title":"Song","artist":"Band","duration_ms":200000,"progress_ms":60000,"speed":0}`)
+	if a.matrixStack.Has("music") {
+		t.Fatal("pause shown twice")
+	}
+	a.onMusicMeta(`{"title":"Song","artist":"Band","duration_ms":200000,"progress_ms":61000,"speed":1000}`)
 	if !a.matrixStack.Has("music") || a.matrixStack.Has("music_title") {
 		t.Fatalf("resume: animation %v, title %v", a.matrixStack.Has("music"), a.matrixStack.Has("music_title"))
 	}
@@ -82,10 +84,9 @@ func TestMusicTitleNotForTrackAlreadyPlaying(t *testing.T) {
 func TestMusicDisplayOff(t *testing.T) {
 	a := newMusicApp(t)
 	a.cfg.MusicTitle, a.cfg.MusicClips = false, false
-	a.onMusicMeta(`{"title":"Song","duration_ms":200000,"progress_ms":0}`)
+	a.onMusicMeta(`{"title":"Song","duration_ms":200000,"progress_ms":0,"speed":1000}`)
 	a.onMusicPlayback(true)
-	a.onMusicPlayback(false)
-	time.Sleep(musicPauseAfter + 100*time.Millisecond)
+	a.onMusicMeta(`{"title":"Song","duration_ms":200000,"progress_ms":0,"speed":0}`)
 	if a.matrixStack.Has("music_title") || a.matrixStack.Has("music") {
 		t.Fatal("music on the display with music_title and music_clips off")
 	}

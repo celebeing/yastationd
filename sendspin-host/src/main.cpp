@@ -30,7 +30,8 @@
 //   VOLUME <0..100> <muted 0|1>   the server's player volume
 //   PLAYBACK playing|stopped      the group's playback state (Sendspin has no "paused")
 //   META <json>            the current track: {"title","artist","album","track","duration_ms",
-//                          "progress_ms"} (fields absent when unknown); META alone = no track
+//                          "progress_ms","speed"} (speed: 1000 = playing, 0 = paused; fields
+//                          absent when unknown); META alone = no track
 //   LEVELS <hex>           with -b: one byte per band (0 = -60 dB, ff = full scale), low to high,
 //                          ~25 per second while music plays, each when its audio is heard
 // Logs go to stderr.
@@ -155,6 +156,7 @@ struct Meta : MetadataRoleListener {
     if (m.progress) {
       d["duration_ms"] = m.progress->track_duration;
       d["progress_ms"] = m.progress->track_progress;
+      d["speed"] = m.progress->playback_speed;  // 1000 = normal, 0 = paused
     }
     std::string s;
     serializeJson(d, s);

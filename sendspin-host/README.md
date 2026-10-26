@@ -33,7 +33,8 @@ sendspin-host -n NAME -s STATE_FILE [-p PORT] [-D PCM] [-u URL] [-a] [-V VOL] [-
 Options are documented at the top of `src/main.cpp`. stdin: `duck <0..1>`, `volume <0..100>`;
 EOF ends it. stdout: `READY <client_id> <version>`, `CONNECTED 0|1`, `STREAM start <rate> <ch> <bits>` /
 `STREAM end`, `VOLUME <0..100> <muted>`, `PLAYBACK playing|stopped` (the group's state),
-`META <json>` (the track: title, artist, album, track, duration_ms, progress_ms; `META` alone = none)
+`META <json>` (the track: title, artist, album, track, duration_ms, progress_ms, speed — 0 when paused;
+`META` alone = none)
 and, with `-b BANDS`, `LEVELS <hex>` (the spectrum, one byte per band, ~25/s, each when its audio
 is heard). Logs on stderr.
 

@@ -29,8 +29,6 @@ const (
 	// musicTitleMin / Max bound how long the title stays when it fits (or is very long).
 	musicTitleMin = 3 * time.Second
 	musicTitleMax = 30 * time.Second
-	// musicPauseAfter: a stop shorter than this is not a pause (a track change restarts the stream).
-	musicPauseAfter = 1500 * time.Millisecond
 	// musicTitleLate: a track first seen this far in was already playing (no title).
 	musicTitleLate = 10_000 // ms
 )
@@ -41,6 +39,7 @@ type musicTrack struct {
 	Album    string `json:"album"`
 	Duration int    `json:"duration_ms"`
 	Progress int    `json:"progress_ms"`
+	Speed    *int   `json:"speed"` // 1000 = playing, 0 = paused; nil when the server sent no progress
 }
 
 func (t musicTrack) id() string { return t.Title + "\x00" + t.Artist + "\x00" + t.Album }
@@ -65,8 +64,7 @@ type musicScreen struct {
 	shown    []float64 // what the bars show, falling towards bands
 	levelsAt time.Time
 	drawnAt  time.Time
-	gen      int  // playback changes, to drop a pause that turned out to be a track change
-	paused   bool // the pause animation was shown: the next start is a resume
+	paused   bool // the track's playback speed is 0
 }
 
 // musicLevelsWanted: the spectrum is on and this display can draw it (sendspin-host computes it
@@ -88,34 +86,33 @@ func (a *App) onMusicPlayback(playing bool) {
 	m.playing = playing
 	pending := m.pending
 	m.pending = ""
-	known := m.track != ""
 	m.mu.Unlock()
 	if playing == was {
 		return
 	}
-	a.log.Debug("music: playback", "playing", playing)
+	a.log.Info("music: playback", "playing", playing)
+	// The group's state flips on every track change too (Music Assistant restarts its stream,
+	// sometimes twice, seconds apart), so it says nothing about a pause: the track's playback
+	// speed does (onMusicMeta). It only releases a title waiting for playback.
+	if playing && pending != "" {
+		a.showMusicTitle(pending)
+	}
+}
+
+// onMusicSpeed: the same track's playback speed changed — 0 is a pause, back to >0 a resume.
+func (a *App) onMusicSpeed(speed int) {
+	m := &a.music.screen
 	m.mu.Lock()
-	m.gen++ // a pause waiting to be shown is off
-	gen, paused := m.gen, m.paused
-	m.paused = false
+	was := m.paused
+	m.paused = speed == 0
 	m.mu.Unlock()
 	switch {
-	case playing && pending != "":
-		a.showMusicTitle(pending)
-	case playing && paused:
+	case speed == 0 && !was:
+		a.log.Info("music: paused")
+		a.musicMoment("media_pause")
+	case speed > 0 && was:
+		a.log.Info("music: resumed")
 		a.musicMoment("media_resume")
-	case !playing && known:
-		// Music Assistant restarts its stream on a track change (stopped, then playing again
-		// ~0.5 s later): only a stop that lasts is a pause, and only a shown pause gets a resume.
-		time.AfterFunc(musicPauseAfter, func() {
-			m.mu.Lock()
-			still := m.gen == gen && !m.playing
-			m.paused = still
-			m.mu.Unlock()
-			if still {
-				a.musicMoment("media_pause")
-			}
-		})
 	}
 }
 
@@ -128,9 +125,13 @@ func (a *App) onMusicMeta(rest string) {
 	m.mu.Lock()
 	if t.id() == m.track {
 		m.mu.Unlock()
-		return // the same track: progress, a resume, a reconnect
+		if t.Speed != nil {
+			a.onMusicSpeed(*t.Speed)
+		}
+		return // the same track: progress, a pause or resume, a reconnect
 	}
 	m.track = t.id()
+	m.paused = t.Speed != nil && *t.Speed == 0 // a new track does not start with a pause animation
 	if t.Duration > 0 && t.Progress > musicTitleLate {
 		// Already well into it: first sight of a track that was playing (a reconnect, our
 		// restart), not a new one starting.
