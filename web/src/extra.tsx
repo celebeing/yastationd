@@ -144,7 +144,16 @@ export function MomentsTab({ peer, base }: { peer: Peer; base: string }) {
   )
 }
 
-type TapInfo = { name: string; board: string; screen: [number, number]; ring: number; ambilight: number }
+type TapInfo = {
+  name: string
+  board: string
+  screen: [number, number]
+  ring: number
+  ambilight: number
+  expressions?: string[]
+  patterns?: string[]
+  commands?: string[]
+}
 type Frame = { seq: number; screen?: string; ring?: string; ambilight?: string }
 
 // Drive values are linear light; a monitor wants gamma-encoded ones. A lit LED also starts at a
@@ -208,7 +217,60 @@ export function LedTab({ peer, base }: { peer: Peer; base: string }) {
       <label class="inline small">
         <input type="checkbox" checked={perceived} onChange={(e) => setPerceived(e.currentTarget.checked)} /> perceived brightness (undo the LEDs' gamma)
       </label>
+      {info && <Playground peer={peer} base={base} info={info} onErr={setErr} />}
     </section>
+  )
+}
+
+/** Playground: play any of the speaker's screen animations and expressions, as the old frame-tap
+ * viewer did (the tap's /cmd/ endpoint, behind the same login). */
+function Playground({ peer, base, info, onErr }: { peer: Peer; base: string; info: TapInfo; onErr: (s: string) => void }) {
+  const [filter, setFilter] = useState('')
+  const [pattern, setPattern] = useState('')
+  const [loop, setLoop] = useState(false)
+  const has = (c: string) => (info.commands || []).includes(c)
+  const patterns = (info.patterns || []).filter((n) => n.toLowerCase().includes(filter.toLowerCase()))
+  const cur = patterns.includes(pattern) ? pattern : patterns[0] || ''
+
+  async function cmd(name: string, payload: unknown) {
+    onErr('')
+    try {
+      const r = await fetch(api.tapURL(peer.id, base, '/cmd/' + name), { method: 'POST', body: JSON.stringify(payload) })
+      if (!r.ok) onErr(`${name}: ${(await r.text()) || r.statusText}`)
+    } catch (e: any) {
+      onErr(`${name}: ${e.message || e}`)
+    }
+  }
+
+  return (
+    <>
+      {has('display') && (info.patterns || []).length > 0 && (
+        <div class="row">
+          <span class="k">Animation</span>
+          <input type="text" placeholder={`filter ${info.patterns!.length}`} value={filter} onInput={(e) => setFilter(e.currentTarget.value)} />
+          <select value={cur} onChange={(e) => setPattern(e.currentTarget.value)}>
+            {patterns.map((n) => (
+              <option value={n}>{n}</option>
+            ))}
+          </select>
+          <label class="inline small">
+            <input type="checkbox" checked={loop} onChange={(e) => setLoop(e.currentTarget.checked)} /> loop
+          </label>
+          <button disabled={!cur} onClick={() => cmd('display', { surface: 'matrix', op: 'clip', args: { name: cur, loop }, ttl_ms: loop ? 60000 : 0 })}>
+            Play
+          </button>
+          <button onClick={() => cmd('display', { surface: 'matrix', op: 'clear' })}>Clear</button>
+        </div>
+      )}
+      {has('express') && (info.expressions || []).length > 0 && (
+        <div class="row">
+          <span class="k">Expression</span>
+          {['off', ...info.expressions!.filter((n) => n !== 'off')].map((n) => (
+            <button onClick={() => cmd('express', { name: n, ttl_ms: 15000 })}>{n}</button>
+          ))}
+        </div>
+      )}
+    </>
   )
 }
 

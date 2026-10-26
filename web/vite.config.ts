@@ -5,7 +5,7 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   esbuild: { jsx: 'automatic', jsxImportSource: 'preact' },
   build: {
-    outDir: '../yastationd/internal/webui/dist',
+    outDir: '../yastationd/internal/webui/dist/app',
     emptyOutDir: true,
     assetsDir: 'assets',
     target: 'es2020',

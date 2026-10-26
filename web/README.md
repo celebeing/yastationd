@@ -5,11 +5,10 @@ speakers on the LAN, and per speaker its sensors, runtime controls, config edito
 TypeScript + Preact, built with Vite (versions pinned exactly in `package.json`, Node 18+).
 
 ```sh
-pnpm install --frozen-lockfile
-pnpm build                       # type-check, then build into ../yastationd/internal/webui/dist
-../tools/build-web.sh            # the same in a pinned container (web/Dockerfile), no Node needed
+../tools/build-web.sh            # build into ../yastationd/internal/webui/dist/app (pinned container)
+pnpm install --frozen-lockfile && pnpm build   # the same with a local Node 18+ and pnpm 8
 YASTATION=http://<speaker> pnpm dev   # live development against a real speaker's API
 ```
 
-The build output in `yastationd/internal/webui/dist/` is committed, so building `yastationd`
-never needs Node; rebuild and commit it with the source (`make web` in `yastationd/`).
+The build output is not committed: `make build` in `yastationd/` runs `tools/build-web.sh` whenever
+the source here changed, in the pinned builder image (the root `Dockerfile`).

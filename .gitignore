@@ -32,3 +32,8 @@ emu/work/
 
 # Artifacts from the pinned build container (tools/build-dist.sh)
 /dist/
+
+# The web app, built by make (tools/build-web.sh); embedded, not committed
+/yastationd/internal/webui/dist/app/
+/web/node_modules/
+/.pnpm-store/

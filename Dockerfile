@@ -33,7 +33,7 @@ RUN curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${Z
  && ln -s "/opt/zig-x86_64-linux-${ZIG_VERSION}/zig" /usr/local/bin/zig \
  && zig version
 
-# Node + pnpm: the web app (web/, embedded in yastationd; the same pins as web/Dockerfile)
+# Node + pnpm: the web app (web/, embedded in yastationd; tools/build-web.sh runs this image too)
 RUN curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
       | tar -xJ -C /opt \
  && ln -s "/opt/node-v${NODE_VERSION}-linux-x64/bin/node" /usr/local/bin/node \

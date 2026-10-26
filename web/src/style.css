@@ -71,6 +71,8 @@ input[type='number'] { width: 5.5rem; }
 .login label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.9em; color: var(--muted); }
 textarea.config { width: 100%; min-height: 60vh; font: 13px/1.45 ui-monospace, 'SF Mono', Menlo, Consolas, monospace; white-space: pre; }
 .row { display: flex; gap: 0.6rem; align-items: center; margin-top: 0.75rem; flex-wrap: wrap; }
+.row .k { min-width: 6.5rem; color: var(--muted); }
+.row select { max-width: 100%; }
 .badge { margin-left: 0.5rem; font-size: 0.75rem; padding: 0.1rem 0.45rem; border-radius: 99px; background: var(--warn); color: #fff; text-transform: none; letter-spacing: 0; }
 .switch { position: relative; display: inline-block; width: 42px; height: 24px; }
 .switch input { opacity: 0; width: 0; height: 0; }

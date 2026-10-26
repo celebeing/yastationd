@@ -16,7 +16,7 @@ below are the ones in use.
 | `spotter-host` | `aarch64-linux-gnu-gcc` or `arm-linux-gnueabihf-gcc` **plus a vendor sysroot**, glibc of the device (2.30 armhf / 2.36 aarch64) | `spotter-host/build.sh`; it links the vendor `libyandex_evil.so` |
 | `sendspin-host` | **zig 0.14.1**, cmake ≥ 3.16, ninja, git, curl | `sendspin-host/Makefile` refuses 0.11–0.13: those emit armhf C++ binaries that crash before `main` |
 | `hostapd` | **zig 0.14.1**, git, curl | `hostapd/Makefile`; one static armv7/musl binary, links nothing from the device |
-| `web` (the app) | Node 18+ and pnpm, **or just docker** | `web/` (`make web` in `yastationd/`; without pnpm it runs `tools/build-web.sh`, a pinned Node 18.20.8 + pnpm 8.14.1 container, `web/Dockerfile`). The output in `yastationd/internal/webui/dist` is committed, so a Go build needs no Node; the dist container rebuilds it |
+| `web` (the app) | Node 18.20.8 + pnpm 8.14.1, in the builder image: **the host needs docker** | `web/`. `make build` in `yastationd/` runs `tools/build-web.sh` (the root `Dockerfile` image) whenever `web/` changed, into `yastationd/internal/webui/dist/app` (not committed); the dist container builds it too |
 
 A rolling distro will hand you a newer zig (or none), and the build either stops at the version
 check or produces a binary that dies on the speaker. That is the whole reason for the container.

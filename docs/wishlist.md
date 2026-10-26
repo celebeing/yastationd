@@ -351,8 +351,17 @@ screen").
 Idea, not planned: a `mise.toml` (<https://mise.jdx.dev/>) pinning Go, Node and pnpm, so a
 contributor gets the exact versions with `mise install` and builds the daemon and the web app
 without Docker. The Docker builder would install from the same file, making it the single place the
-versions are pinned (today: the `Dockerfile`, `web/package.json`, the docs). It would let
-`make build` always build the web app and stop committing `internal/webui/dist`. Limits: the
+versions are pinned (today: the `Dockerfile`, `web/package.json`, the docs), and the web app
+would build without docker too. Limits: the
 cross toolchains and sysroots for `spotter-host` stay in Docker; mise stays optional (Docker and
 "install these versions yourself" remain); its tasks would not replace the Makefile; a first
 `mise trust` per checkout.
+
+## Customizable moments
+
+Today a moment (`arbitration_lost`, the wake, errors, …) shows what the display kind's defaults,
+the board profile and the expression bank resolve it to (`docs/display-expressions.md`); the web
+app's Moments tab only lists that and plays it. Idea: let the owner choose per moment what plays —
+pick from the speaker's animations and expressions (the LED preview's list), preview it there,
+and save it as a config override (a `moment.<name> = <clip|expression>` style key, validated
+against what the board can show, falling back to the default when the clip is missing).

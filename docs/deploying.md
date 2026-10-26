@@ -253,8 +253,9 @@ the first failing speaker.
 hook's `stop` kills processes by that path and takes your ssh session down with it, leaving the
 daemon stopped. Both tools run the swap as a script on stdin for this reason.
 
-The web app comes with the binary: a deploy updates it. If you changed `web/`, run `make web`
-(Node 18+, pnpm) before building; its output in `yastationd/internal/webui/dist` is committed.
+The web app comes with the binary: a deploy updates it. `make build` (which `tools/deploy.sh`
+runs) builds it from `web/` in the pinned builder container whenever its source changed, so the
+build machine needs docker (`docs/building.md`).
 
 Config changes: from the web app (Config tab: validated, restarted on trial, rolled back if worse),
 or edit `<cfw>/yastationd.conf` and `/etc/init.d/S52zyastationd restart`. Profile

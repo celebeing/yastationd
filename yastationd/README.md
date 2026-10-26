@@ -26,7 +26,7 @@ internal/intercom     1-to-1 calls between speakers: signed signalling, AES-GCM 
 internal/sendspin     supervises sendspin-host (Music Assistant player) and relays its events
 internal/app          wiring: render loop, command handlers, evdev reflexes, the web server's API
 internal/web          web login: PBKDF2 password hashes, bearer tokens, login throttling
-internal/webui        the embedded web app (built from ../web into dist/, committed; make web)
+internal/webui        the embedded web app (built from ../web into dist/app by make build; not committed)
 internal/logship      logs to a LAN syslog server, spooled on flash during outages
 internal/luxcal       light sensor calibration (reading:lux points, log-log)
 configs/              generic and Orion-specific yastationd.conf examples
@@ -64,8 +64,8 @@ make vet
 
 `http://<speaker-ip>/` — login **admin / yastation** until changed from the app (it writes
 `web_user` and a `web_password` hash into the config). The app is embedded in the binary, so a
-deploy of `yastationd` updates it; `make web` rebuilds it from `../web` when its source changed
-(Node 18+, pnpm; the output in `internal/webui/dist` is committed). Port and toggles:
+deploy of `yastationd` updates it; `make build` rebuilds it from `../web` when its source changed,
+in the pinned builder container (needs docker). Port and toggles:
 `http_addr` (default `:80`, `""` = off), `led_preview`. Details: [docs/web-ui.md](../docs/web-ui.md).
 
 ## Deploy

@@ -81,8 +81,7 @@ A feature is not done when the code works. In the **same change**, whenever it:
 - **adds a config key or a board-profile key** → both `yastationd/configs/*.example`, and
   `docs/porting-a-speaker.md` for profile keys;
 - **needs a new build step or toolchain** (a helper, a front-end, a pinned tool) → its Makefile
-  target, `docs/building.md`, the `Dockerfile` + `tools/dist-build-in-container.sh`, and a
-  committed build output where the repo keeps one (`yastationd/internal/webui/dist`: `make web`);
+  target, `docs/building.md`, the `Dockerfile` + `tools/dist-build-in-container.sh`;
 - **is something a user would notice** → `README.md` (and `yastationd/README.md` for the daemon),
   with any login, address or default they need;
 - **uses or produces a binary we don't rebuild from source each time** (a vendor library, a

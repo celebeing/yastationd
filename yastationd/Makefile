@@ -34,17 +34,23 @@ all: test build
 platform-info:
 	@printf 'platform=%s cfw_root=%s userland_arch=%s\n' '$(PLATFORM)' '$(DESTDIR)' '$(HELPER_ARCH)'
 
-# The embedded web app must exist before Go builds (internal/webui embeds dist/). It is committed;
-# a checkout that somehow lacks it gets it built (locally or in the pinned container).
-webui-dist:
-	@[ -f internal/webui/dist/index.html ] || $(MAKE) web
+# The web app (../web), built into internal/webui/dist for go:embed in the pinned builder container
+# (../tools/build-web.sh; docs/web-ui.md). Not committed: `make build` rebuilds it whenever its
+# source changed. Plain `go build`/`go test` work without it (the daemon then serves a "not built"
+# page instead of the app).
+WEB_SRC := $(shell find ../web/src -type f) $(wildcard ../web/index.html ../web/package.json ../web/pnpm-lock.yaml ../web/vite.config.ts ../web/tsconfig.json)
+webui-dist: internal/webui/dist/app/index.html
+internal/webui/dist/app/index.html: $(WEB_SRC)
+	../tools/build-web.sh
+web:
+	../tools/build-web.sh
 
 build: webui-dist
 	$(GOENV) go build $(GOFLAGS) -o $(OUT) $(PKG)
 	@file $(OUT)
 	@echo "version $(VERSION)"
 
-test: webui-dist
+test:
 	go test ./...
 
 vet:
@@ -209,15 +215,6 @@ clips:
 # script on stdin (`sh -s`) so no process command line contains the binary's path — the init
 # hook's stop matches processes by path, and an ssh command mentioning it would be killed with them.
 # The running binary is kept as .prev: the supervisor swaps it back in if the new one crash-loops.
-# The web app (../web), built into internal/webui/dist (committed; docs/web-ui.md). With no pnpm
-# on the host it builds in a pinned container (../tools/build-web.sh).
-web:
-	@if command -v pnpm >/dev/null 2>&1; then \
-		cd ../web && pnpm install --frozen-lockfile && pnpm build; \
-	else \
-		../tools/build-web.sh; \
-	fi
-
 deploy: build
 	$(SSH) 'cat > $(DESTDIR)/bin/$(BIN).upload' < $(OUT)
 	$(SSH) 'mkdir -p $(DESTDIR)/init.d && cat > $(DESTDIR)/init.d/supervise.sh.new && mv $(DESTDIR)/init.d/supervise.sh.new $(DESTDIR)/init.d/supervise.sh' < init.d/supervise.sh

@@ -30,13 +30,14 @@ Go through this for everything that landed since the last tag (`git log <last-ta
 4. **Config:** every new key is in `yastationd/configs/yastationd.conf.example` and
    `orion.conf.example`; every new profile key in `docs/porting-a-speaker.md`.
 5. **Builds:** new components have a Makefile target, a row in `docs/building.md`, and a step in
-   the `Dockerfile` / `tools/dist-build-in-container.sh`; committed build outputs are fresh
-   (`make web` leaves no diff in `yastationd/internal/webui/dist`).
+   the `Dockerfile` / `tools/dist-build-in-container.sh`.
 6. **Vendor repo:** binaries we keep but don't rebuild are recorded there with provenance; units
    whose non-stock files changed are re-snapshotted.
 7. **A fresh clone builds:** `git clone` the repo into a temporary directory and run
    `make -C yastationd test build` there — local build outputs hide files that never got
-   committed (v0.13.0 shipped without its web app: a `.gitignore` rule had swallowed it).
+   committed (v0.13.0 shipped without its web app: a `.gitignore` rule had swallowed it). Check
+   that the binary carries the app: `curl http://<speaker>/` after the deploy is the app, not the
+   "built without its web app" page.
 8. **Tests and a real deploy:** `go test ./...` passes; the build ran on at least one speaker of
    each board it touches, and every unit's deploy printed `ok`.
 9. **No private values** in the diff since the last tag (LAN addresses, hostnames, serials).
