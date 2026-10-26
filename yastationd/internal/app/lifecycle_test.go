@@ -39,3 +39,15 @@ func TestLifecycle(t *testing.T) {
 		t.Fatal("degraded at once after ready: must wait out the grace")
 	}
 }
+
+func TestRTCTimeTrusted(t *testing.T) {
+	a := &App{}
+	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
+	if a.rtcTimeTrusted(now) {
+		t.Fatal("no RTC on the board: wait for the sync")
+	}
+	a.prof.Platform.RTCBacked = true
+	if !a.rtcTimeTrusted(now) || a.rtcTimeTrusted(time.Unix(0, 0)) || a.rtcTimeTrusted(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)) {
+		t.Fatal("RTC: trust a real date, not a reset one")
+	}
+}

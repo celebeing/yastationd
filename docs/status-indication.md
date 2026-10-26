@@ -18,7 +18,9 @@ reconnect after a drop of ours (~3 s) and the probe interval (the monitor rechec
 broker connects or the speaker becomes ready, so a stale probe does not show red after a boot).
 
 - **The clock before the first time sync** shows no digits, only a blinking colon: a stale or zero
-  clock reads as a plausible but wrong time. The digits appear once the time is confirmed.
+  clock reads as a plausible but wrong time. The digits appear once the time is confirmed. A board
+  whose RTC keeps time without power (`platform.rtc_backed`, orion) shows the time at once, unless
+  the clock is before 2026 (the RTC lost it).
 - **Degraded with HA still reachable** (e.g. one probe fails): the dim red pulse shows, but the
   speaker keeps working and answers normally — by design, only a missing HA link refuses voice.
 - **A voice attempt with no HA to talk to** (wake word or key, no satellite connection): a bright

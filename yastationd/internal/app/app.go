@@ -283,8 +283,9 @@ func (a *App) matrixBase(now time.Time) display.FrontFrame {
 		return f
 	default:
 		// Until the first sync the time is nonsense (a stale or zero clock): no digits, only a
-		// blinking colon. The digits appear once the time is confirmed.
-		if a.clock != nil && !a.clock.Synced() {
+		// blinking colon. The digits appear once the time is confirmed — or at once on a board
+		// whose RTC kept the time, unless it plainly did not.
+		if a.clock != nil && !a.clock.Synced() && !a.rtcTimeTrusted(now) {
 			return a.front.Unsynced(now, a.brightness())
 		}
 		if s.Mode == "clock_date" {

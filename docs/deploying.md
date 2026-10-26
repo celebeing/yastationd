@@ -172,7 +172,7 @@ the speaker a time source on the LAN — either:
 
 Anything speaking SNTP works: `chrony`/`ntpd` on the router or HA host, or `dnsmasq`'s built-in
 server when enabled. Until the clock is confirmed the front display shows only its blinking colon
-([status-indication.md](status-indication.md)).
+([status-indication.md](status-indication.md)); orion, whose RTC keeps time, shows it at once.
 
 Dry run in the foreground before autostart. Ring and clock will light up:
 

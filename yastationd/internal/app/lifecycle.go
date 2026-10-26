@@ -158,3 +158,12 @@ func (a *App) voiceUnavailable() {
 	}
 	a.announce(a.cfg.Path(snd))
 }
+
+// rtcSaneAfter: a clock before this is an RTC that lost its time (a pcf8563 that lost power
+// boots the system at its reset date, or the kernel leaves 1970).
+var rtcSaneAfter = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+// rtcTimeTrusted: the board's battery-backed RTC set the clock at boot and it looks real.
+func (a *App) rtcTimeTrusted(now time.Time) bool {
+	return a.prof.Platform.RTCBacked && now.After(rtcSaneAfter)
+}

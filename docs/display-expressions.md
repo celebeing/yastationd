@@ -77,7 +77,7 @@ brightness at the end, so half-tones look half as bright on the glass.
   one).
 - A minute change cross-fades the old picture into the new one over 600 ms. It needs no state:
   in the first 600 ms of a minute the frame mixes the previous minute's picture in.
-- Before the first time sync: only the colon, blinking.
+- Before the first time sync: only the colon, blinking (orion shows the time at once: its RTC keeps it, `platform.rtc_backed`).
 
 ## Screen patterns (pixel, orion)
 

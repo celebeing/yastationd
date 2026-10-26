@@ -59,10 +59,14 @@ type ClipsSpec struct {
 // StopInitd names vendor init.d scripts whose leftovers outlive the gated vendor stack and would
 // fight the daemon for a surface (orion's S31animation loops led-play on the ring framebuffer until
 // maind would have stopped it); the daemon runs "/etc/init.d/<name> stop" once at startup.
+// RTCBacked: a real-time clock that keeps time without power sets the system clock at boot
+// (orion's pcf8563), so the clock may show the time before an SNTP check confirms it; boards
+// without one boot with a stale clock and wait for the check.
 type PlatformSpec struct {
 	CFWRoot      string   // e.g. "/bkupgrade/cfw" or "/data/cfw"
 	UserlandArch string   // "armhf" | "aarch64"
 	StopInitd    []string // e.g. S31animation
+	RTCBacked    bool
 }
 
 // RingSpec: an RGB ring of Pixels, each pixel = one sysfs LED per colour. LED names come from
@@ -288,6 +292,8 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Platform.UserlandArch = v
 	case k == "platform.stop_initd":
 		list(&p.Platform.StopInitd)
+	case k == "platform.rtc_backed":
+		p.Platform.RTCBacked, err = strconv.ParseBool(v)
 	case k == "ring.kind":
 		p.Ring.Kind = v
 	case k == "ring.pixels":
