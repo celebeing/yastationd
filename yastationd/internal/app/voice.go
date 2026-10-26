@@ -210,15 +210,15 @@ func (s *satellite) dropConn(why string) {
 	}
 }
 
-// abortFollowUp: «стоп» while a dialog follow-up listens means "no more questions", not a
-// request: end the session and drop the connection before HA turns it into one (it took a lone
-// "Stop." for "cancel the timers"). After a wake word «стоп» may be part of the request, so only
-// follow-ups are cut.
-func (s *satellite) abortFollowUp(why string) bool {
+// abortListening: «стоп» while we listen ends the session at once, whatever started it: drop the
+// connection before HA turns the speech into a request (it took a lone "Stop." for "cancel the
+// timers"). With the playback stop and the pending-reply cancel (onCommand), «стоп» ends a voice
+// session in every phase.
+func (s *satellite) abortListening(why string) bool {
 	s.mu.Lock()
 	v := s.listen
 	s.mu.Unlock()
-	if v == nil || v.src != srcFollow {
+	if v == nil {
 		return false
 	}
 	s.dropConn(why)

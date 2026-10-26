@@ -129,8 +129,8 @@ func (a *App) onCommand(phrase string) {
 	if a.icCommand(phrase) {
 		return
 	}
-	if isStop(phrase) && a.sat.abortFollowUp("«"+phrase+"» during a follow-up") {
-		a.log.Info("command: follow-up cancelled", "phrase", phrase)
+	if isStop(phrase) && a.sat.abortListening("«"+phrase+"»") {
+		a.log.Info("command: session cancelled", "phrase", phrase)
 		a.express("voice", "blink", 0)
 		return
 	}
@@ -146,16 +146,16 @@ func (a *App) onCommand(phrase string) {
 		return
 	}
 	a.log.Info("command", "phrase", phrase)
-	switch strings.ToLower(phrase) {
-	case "стоп", "хватит", "пауза", "выключись":
+	switch p := strings.ToLower(phrase); {
+	case isStop(p) || p == "пауза":
 		a.sat.mu.Lock()
 		a.sat.follow = false // "стоп" during a question means: don't ask me
 		a.sat.mu.Unlock()
 		a.stopAlarm()
 		a.player.Stop()
-	case "громче":
+	case p == "громче":
 		a.nudgeVolume(+2 * a.cfg.VolumeStep)
-	case "тише":
+	case p == "тише":
 		a.nudgeVolume(-2 * a.cfg.VolumeStep)
 	default:
 		a.log.Info("command not mapped", "phrase", phrase)

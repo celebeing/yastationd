@@ -43,6 +43,13 @@ two heard the wake word; in each of six rounds the level gap was 1–2 dB, and e
 speaker on the caller's side answered, the other blinked. Loud claims decided in 100–200 ms,
 quiet ones waited out the 700 ms.
 
+## «Стоп»
+
+«Стоп», «хватит», «отмена», «выключись» (the local command spotter) end a voice session in
+every phase: while it listens (the connection is dropped before HA turns the speech into a
+request — a lone "Stop." was taken for "cancel the timers"), while HA thinks (the pending reply
+is cancelled), while it speaks (playback stops and no follow-up opens).
+
 ## Not done
 
 - A neighbour's spoken reply taken for a request — matters less here, since every request needs a
