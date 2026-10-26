@@ -3,6 +3,18 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.9.1 — 2026-10-26
+
+Orion shows the time right after boot.
+
+**Fixes and operations**
+- Orion's clock shows the time at boot instead of a blinking colon until the SNTP check: its
+  pcf8563 RTC keeps the time without power (a new board profile flag, `platform.rtc_backed`).
+  A clock before 2026 (the RTC lost it) still waits for the check. The minis have no such RTC
+  and are unchanged.
+- Docs: a storage and logs audit of all boards (docs/storage.md); orion's sensors survey (no
+  colour sensor; the touch top's raw capacitance, the RTC, the board EEPROMs, the ADC).
+
 ## v0.9.0 — 2026-10-26
 
 Room sound sensors in HA, and a wake word that survives a dead capture.
