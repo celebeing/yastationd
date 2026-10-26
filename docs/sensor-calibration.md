@@ -8,7 +8,7 @@ wins over the profile.
 | What | Profile key (base, per board) | Config key (this speaker) | Reported as |
 |---|---|---|---|
 | Light | `lux.calibration` | `lux_calibration` | HA `Illuminance`, lux |
-| Mic level | `mic.spl_offset` | `mic_spl_offset` | HA `Sound floor` / `Sound level`, dB SPL (dBFS without one) |
+| Mic level | `mic.spl_offset` (none yet) | `mic_spl_offset` | HA `Sound floor` / `Sound level`, dB SPL (dBFS without one) |
 
 ## Light
 
@@ -117,9 +117,11 @@ an offset, `Sound floor` / `Sound level` are dB SPL: dB SPL = dBFS + offset.
 
 The firmware has a factory calibration for this: `quasar.cfg` → `spl.splCalibShift`, per model
 (Mini 3 124.3, Mini 3 Pro 122.9, Station 3 121.8), used by the vendor's ambient-noise volume
-(`volumeLevelSpls`). The profiles take these values as their base. **Not verified on our side:**
-the vendor's dBFS convention and mic channel may differ from ours (we take the RMS of the voice
-channel's samples, full scale = 0 dBFS, after a 150 Hz high-pass, unweighted).
+(`volumeLevelSpls`). They are recorded in the profiles' comments but **not applied**: the
+vendor's dBFS convention and mic channel may differ from ours (we take the RMS of the voice
+channel's samples, full scale = 0 dBFS, after a 150 Hz high-pass, unweighted). Applied for a few
+minutes on 2026-10-26, they put a quiet room's floor at 60 dB SPL on the minis, which is too high,
+so they do not carry over as they are. No profile has an offset yet; the levels are dBFS.
 
 To check or set a speaker's own offset you need a sound level meter (Z- or C-weighted matches our
 unweighted level best; A-weighting reads lower in a room with low hum):

@@ -248,8 +248,9 @@ reports local changes back. Volume key ticks are skipped while music plays. Desi
     percentile of the minute's blocks, the level their energy average, the activity the share
     more than 6 dB above the floor. Blocks while the speaker plays or the mic is muted are left
     out; a minute that is mostly those reads unknown. Values are re-sent only on a change (1 dB,
-    1 %) or every 15 min. Only levels leave the speaker. With a `mic.spl_offset` (the board's: the
-    vendor's `splCalibShift`) or `mic_spl_offset` (the unit's) the levels are dB SPL
+    1 %) or every 15 min. Only levels leave the speaker. With a `mic.spl_offset` (the board's; none
+    yet — the vendor's `splCalibShift` is recorded, not applied) or `mic_spl_offset` (the unit's)
+    the levels are dB SPL
     ([sensor-calibration.md](../docs/sensor-calibration.md)). `room_sound = false` turns them off
     (they keep the mic open even with the wake word off). `Illuminance` is now sent on a 10 %
     change or every 15 min.

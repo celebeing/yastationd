@@ -73,7 +73,7 @@ then fold them into the profile.
 | `power.pd/min_mv/alert_sound` | `/sys/class/power_supply/*` | Each PD read makes the driver re-query (and log), so poll rarely. Vendor sounds may be opus even when named `.wav`; `make sounds` decodes them |
 | `lux.iio_prefix/gain/integration_time` | `/sys/bus/iio/devices/*/name`, `*_available` | Behind a grille the stock gain gives a couple of counts; raise gain/integration |
 | `lux.calibration` | a lux meter next to a unit, [sensor-calibration.md](sensor-calibration.md) | `reading:lux` points: the board's base light calibration (a unit may override with `lux_calibration`) |
-| `mic.spl_offset` | the firmware's `quasar.cfg` `spl.splCalibShift`, or a sound level meter | dBFS → dB SPL for the room sound sensors |
+| `mic.spl_offset` | a sound level meter next to a unit (the firmware's `quasar.cfg` `spl.splCalibShift` is a hint, not a value to copy: its dBFS need not be ours) | dBFS → dB SPL for the room sound sensors |
 
 Verify in this order (each step depends on the previous one): display
 (`cmd/fbleddemo -clock` or `-uwu`, when framebuffer-backed), ring
