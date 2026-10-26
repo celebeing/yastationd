@@ -26,7 +26,7 @@ VERSION  := $(shell git describe --tags --match 'v*' --dirty --always 2>/dev/nul
 GOFLAGS  := -trimpath -ldflags="-s -w -X github.com/celebeing/yastationd/yastationd/internal/version.Version=$(VERSION)"
 GOENV    := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds vqe-models deploy deploy-spotter deploy-sendspin clips deploy-egress ota-block video video-convert
+.PHONY: web all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds vqe-models deploy deploy-spotter deploy-sendspin clips deploy-egress ota-block video video-convert
 
 
 all: test build
@@ -203,6 +203,10 @@ clips:
 # script on stdin (`sh -s`) so no process command line contains the binary's path — the init
 # hook's stop matches processes by path, and an ssh command mentioning it would be killed with them.
 # The running binary is kept as .prev: the supervisor swaps it back in if the new one crash-loops.
+# The web app (../web), built into internal/webui/dist (committed; docs/web-ui.md).
+web:
+	cd ../web && pnpm install --frozen-lockfile && pnpm build
+
 deploy: build
 	$(SSH) 'cat > $(DESTDIR)/bin/$(BIN).upload' < $(OUT)
 	$(SSH) 'mkdir -p $(DESTDIR)/init.d && cat > $(DESTDIR)/init.d/supervise.sh.new && mv $(DESTDIR)/init.d/supervise.sh.new $(DESTDIR)/init.d/supervise.sh' < init.d/supervise.sh

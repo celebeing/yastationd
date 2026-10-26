@@ -2,7 +2,8 @@
 
 **Status:** designed 2026-10-26; phases 1 (server, login, API, metrics, discovery, the setup page
 under the same server) and 2 (the config editor's API with the trial; tested on Station 3 with
-a config that broke Wyoming — rolled back in 3 s — and a good one — accepted) built the same day; the rest in phases (below).
+a config that broke Wyoming — rolled back in 3 s — and a good one — accepted) built the same day; phase 3 (the app: speakers, overview, controls, config
+editor, login) the same evening, first version; phase 4 left.
 
 Every speaker runs one HTTP server in `yastationd`. It serves a static front-end app (built from
 `web/`, embedded in the binary), a JSON API behind a login, Prometheus metrics, and — moved here —

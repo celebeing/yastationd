@@ -1,0 +1,19 @@
+{
+  "name": "yastationd-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "The speakers' web app (docs/web-ui.md): built into yastationd/internal/webui/dist and embedded in the daemon.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "preact": "10.29.8"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "5.4.21"
+  }
+}
