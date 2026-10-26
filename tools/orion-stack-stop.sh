@@ -11,8 +11,11 @@
 # and would miss begemot, whose comm is renamed to NehTFunc, and rootkeeper.sh, whose
 # comm is 'sh'):
 #   - quasar_launcher2  - the supervisor; killed first so it cannot respawn maind
-#   - rootkeeper.sh     - Yandex's watchdog that restarts the stack; its orphaned
-#                         'sleep infinity' child may linger in ps - harmless
+#   - rootkeeper.sh     - process running from /data/quasar/rootkeeper.sh. Its job is
+#                         NOT confirmed: it may be a vendor watchdog that restarts the
+#                         stack, or a keeper installed by other tooling (the path is the
+#                         same either way). Killed here because it may restart the stack;
+#                         after this run, check whether anything came back on its own.
 #   - maind (all 5 facets, audiod inside platformd), begemot, bulbik
 # What stays: hardvold (Master->ACM volume mapping, needed by our own beep test),
 # bluealsa/bluetoothd, wpa_supplicant/dhcpcd (wifi), adbd (this shell).
@@ -38,7 +41,7 @@ for p in $(ps w | awk '/quasar/ && !/awk|grep/ {print $1}'); do
 done
 sleep 5
 
-# Pass 2: KILL survivors and anything rootkeeper managed to restart in between.
+# Pass 2: KILL survivors and anything that came back in the meantime (from any source).
 for p in $(ps w | awk '/quasar/ && !/awk|grep/ {print $1}'); do
 	kill -9 "$p" 2>/dev/null && echo "KILL $p"
 done
