@@ -1,7 +1,7 @@
 # LED preview: the frame tap and the host simulator
 
-Developing scenes and animations for orion's 21×12 screen, 36 px ring and 12 px ambilight on the
-glass alone is slow, and the screen's framebuffer reads back as zeros, so a unit cannot even be
+Developing scenes and animations for orion's 21×12 screen, 36 px ring and 12 px ambilight (and
+the minis' 7-segment clock and ring) on the glass alone is slow, and the screen's framebuffer reads back as zeros, so a unit cannot even be
 asked what it shows. Two pieces fix that:
 
 - **The frame tap** (`internal/frametap`): an optional HTTP endpoint in `yastationd` that streams
@@ -25,6 +25,8 @@ go run ./cmd/ledsim -patterns ../dumps/orion/quasar/ledpatterns/screen   # any c
                                                                           # firmware's ledpatterns/screen
 # open http://localhost:8930/
 ```
+
+`-board bergamot` (or `pickle`) simulates a mini: its 7-segment clock and its ring.
 
 Flags: `-board` (default `orion`), `-screen WxH` (the virtual screen, default `21x12`), `-addr`
 (default `localhost:8930`), `-dir` (keep the sysroot, including `yastationd.state`, between runs),
@@ -50,7 +52,8 @@ with the field at the top; the list stays in the URL).
 ## The viewer
 
 - One panel per source: the screen as square cells with no gaps (Station 3's screen LEDs are
-  square and touch), the ring as a circle (index 0 at the top,
+  square and touch), or the minis' 7-segment clock (drawn after a photo of a Mini 3 with every
+  element lit: bevelled segments, a dash between the colon's dots, the degree mark), the ring as a circle (index 0 at the top,
   clockwise, as on the unit), the ambilight as a vertical strip (top to bottom), with the source's
   version, frame rate, sequence number and dropped frames.
 - **perceived** (on by default): the values are LED drive levels, linear light; the page undoes the
@@ -71,8 +74,8 @@ with the field at the top; the list stays in the URL).
 | Path | What |
 |---|---|
 | `GET /` | the viewer |
-| `GET /info` | `device`, `name`, `board`, `model`, `version`, `screen` `[w, h]`, `ring`, `ambilight` (pixel counts), `expressions`, `ring_effects`, `patterns` (what a `clip` can name), `commands` |
-| `GET /frames` | server-sent events, one JSON frame per message: `t` (ms, the daemon's clock), `seq`, `screen` (hex RGB per pixel, row-major), `ring` (hex RGB), `ambilight` (hex RGBW) |
+| `GET /info` | `device`, `name`, `board`, `model`, `version`, `screen` `[w, h]` (`[0, 0]` without a pixel screen), `seg7` (a 7-segment clock instead: `digits`, and whether it has the `colon`, the `dot` (DM) and the `degree` mark), `ring`, `ambilight` (pixel counts), `expressions`, `ring_effects`, `patterns` (what a `clip` can name), `commands` |
+| `GET /frames` | server-sent events, one JSON frame per message: `t` (ms, the daemon's clock), `seq`, `screen` (hex RGB per pixel, row-major), `seg7` (hex, a drive level per element: digits 0..3 × segments A..G, then the colon, DM, the degree), `ring` (hex RGB), `ambilight` (hex RGBW) |
 | `POST /cmd/<name>` | runs a command; the body is its MQTT payload; 404 for an unknown name |
 
 A frame carries the latest state of every surface and is sent only when something changed, at most
@@ -93,3 +96,28 @@ units only. It listens on all interfaces (`:8930`); the egress lock filters only
   modelled. Glass comparisons are by eye.
 - The simulator does not know a unit's persisted state; set brightness and colours from the page
   on both sides before comparing.
+
+## Demo reels
+
+`cmd/demoreel` records the front display of a tap into an animated GIF the way the glass shows it:
+each LED's light diffused a little, with a wide glow, seen through the fabric (a fine square weave
+on Station 3, diagonal stripes on the minis, after photos of the units), in 64 greys. It drives
+the tap through a script of the viewer's commands (`orion`, `seg7`) and records from the first
+one. The README's reels are made with the simulator:
+
+```sh
+cd yastationd
+go run ./cmd/ledsim -patterns <screen patterns> -media <dir> -addr localhost:8931 &   # Station 3
+go run ./cmd/ledsim -board bergamot -addr localhost:8932 &                             # Mini 3
+curl -X POST localhost:8931/cmd/clock_brightness -d 255                               # likewise :8932
+go run ./cmd/demoreel -tap http://localhost:8931 -media <dir> -script orion -scale 13 -o ../docs/media/reel-station3.gif
+go run ./cmd/demoreel -tap http://localhost:8932 -script seg7 -o ../docs/media/reel-mini3.gif
+```
+
+The `orion` script plays three pieces of a converted video ([video-mode.md](video-mode.md)) in
+the video mode: before each, demoreel copies `<dir>/ba1.led.gz` (`ba2`, `ba3`) over
+`<dir>/video.led.gz`, the file the simulator's video mode loads. The README's are 6 s of Bad Apple
+each, cut from the 30 fps conversion: lines 260–440, 1530–1710 and 6220–6400
+(`zcat video.led.gz | sed -n 260,440p | gzip > ba1.led.gz`). The GIFs keep at most 20
+pictures a second and only the changed pixels of each; the Station 3 reel is about 9 MB, the
+Mini 3 one about 5 MB.

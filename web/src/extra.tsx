@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import * as api from './api'
 import type { Moment, Net, Peer } from './api'
+import { SEG7_BOX, seg7Shapes } from './seg7'
 
 // The optional tabs: Wi-Fi, moments, the LED preview (docs/web-ui.md).
 
@@ -148,13 +149,14 @@ type TapInfo = {
   name: string
   board: string
   screen: [number, number]
+  seg7?: { digits: number; colon: boolean; dot: boolean; degree: boolean }
   ring: number
   ambilight: number
   expressions?: string[]
   patterns?: string[]
   commands?: string[]
 }
-type Frame = { seq: number; screen?: string; ring?: string; ambilight?: string }
+type Frame = { seq: number; screen?: string; seg7?: string; ring?: string; ambilight?: string }
 
 // Drive values are linear light; a monitor wants gamma-encoded ones. A lit LED also starts at a
 // visible level (LIT_FLOOR): on the glass even a drive of 1 is a dot you can see, while 1/2.2
@@ -292,16 +294,52 @@ function Playground({ peer, base, info, onErr }: { peer: Peer; base: string; inf
   )
 }
 
+// The glass: room around the front display for its glow, a reused canvas for it, and the fabric's
+// weave as a tile (a fine square weave turned 45° on Station 3, diagonal stripes on the minis).
+const GLASS_PAD = 24
+let front: HTMLCanvasElement | null = null
+function frontCanvas(w: number, h: number) {
+  front ??= document.createElement('canvas')
+  if (front.width !== Math.ceil(w) || front.height !== Math.ceil(h)) {
+    front.width = Math.ceil(w)
+    front.height = Math.ceil(h)
+  }
+  return front
+}
+const tiles: Record<string, HTMLCanvasElement> = {}
+function weaveTile(kind: 'grid' | 'stripes') {
+  if (tiles[kind]) return tiles[kind]
+  const n = 8,
+    period = 4
+  const t = document.createElement('canvas')
+  t.width = t.height = n
+  const c = t.getContext('2d')!
+  const img = c.createImageData(n, n)
+  for (let y = 0; y < n; y++)
+    for (let x = 0; x < n; x++) {
+      const a = 0.5 + 0.5 * Math.cos((2 * Math.PI * (x + y)) / period),
+        b = 0.5 + 0.5 * Math.cos((2 * Math.PI * (x - y)) / period)
+      const hole = kind === 'stripes' ? (1 - a) ** 2 : ((1 - a) * (1 - b)) ** 0.7
+      const v = Math.round(255 * (1 - 0.5 * hole)),
+        o = (y * n + x) * 4
+      img.data[o] = img.data[o + 1] = img.data[o + 2] = v
+      img.data[o + 3] = 255
+    }
+  c.putImageData(img, 0, 0)
+  return (tiles[kind] = t)
+}
+
 function draw(c: HTMLCanvasElement | null, i: TapInfo, f: Frame, perceived: boolean) {
   if (!c) return
   const ctx = c.getContext('2d')!
   const show = (v: number) => (perceived ? LUT[v] : LIN[v])
   const [w, h] = i.screen || [0, 0]
   const P = 16
-  const sw = w * P,
-    sh = h * P
+  const S7 = 1.3 // px per seg7 unit (a digit is 100 high)
+  const sw = i.seg7 ? (SEG7_BOX.x1 - SEG7_BOX.x0) * S7 : w * P,
+    sh = i.seg7 ? (SEG7_BOX.y1 - SEG7_BOX.y0) * S7 : h * P
   const rr = Math.max(60, sh / 2)
-  const rx = (w ? 20 + sw + 36 : 20) + rr
+  const rx = (sw ? 20 + sw + 36 : 20) + rr
   const height = Math.max(sh, 2 * rr) + 40
   const ry = height / 2
   const ax = rx + rr + 40
@@ -318,19 +356,61 @@ function draw(c: HTMLCanvasElement | null, i: TapInfo, f: Frame, perceived: bool
     ctx.arc(x, y, r, 0, 2 * Math.PI)
     ctx.fill()
   }
+  // The front display is drawn on its own canvas, then put on the glass: its light diffused (a soft
+  // edge and a wide glow) and seen through the fabric's weave, as in cmd/demoreel.
+  const fx = 20,
+    fy = (height - sh) / 2
+  const fc = frontCanvas(sw + 2 * GLASS_PAD, sh + 2 * GLASS_PAD)
+  const fctx = fc.getContext('2d')!
+  fctx.fillStyle = '#000'
+  fctx.fillRect(0, 0, fc.width, fc.height)
+  let edge = 0,
+    halo = 0,
+    weave: 'grid' | 'stripes' = 'grid'
   if (f.screen && w) {
     // Station 3's screen LEDs are square and touch each other: cells, not dots.
     const px = unhex(f.screen)
-    const y0 = (height - sh) / 2
     for (let y = 0; y < h; y++)
       for (let x = 0; x < w; x++) {
         const k = (y * w + x) * 3
         const R = show(px[k]),
           G = show(px[k + 1]),
           B = show(px[k + 2])
-        ctx.fillStyle = R | G | B ? `rgb(${R},${G},${B})` : '#0b0c0e'
-        ctx.fillRect(20 + x * P, y0 + y * P, P, P)
+        fctx.fillStyle = R | G | B ? `rgb(${R},${G},${B})` : '#0b0c0e'
+        fctx.fillRect(GLASS_PAD + x * P, GLASS_PAD + y * P, P, P)
       }
+    ;[edge, halo] = [P * 0.12, P * 0.7]
+  }
+  if (f.seg7 && i.seg7) {
+    const lv = unhex(f.seg7)
+    const ox = GLASS_PAD - SEG7_BOX.x0 * S7,
+      oy = GLASS_PAD - SEG7_BOX.y0 * S7
+    for (const sh7 of seg7Shapes(i.seg7.colon, i.seg7.dot, i.seg7.degree)) {
+      const v = show(lv[sh7.el])
+      fctx.fillStyle = v ? `rgb(${v},${v},${v})` : '#16171a'
+      fctx.beginPath()
+      if (sh7.circle) fctx.arc(ox + sh7.circle[0] * S7, oy + sh7.circle[1] * S7, sh7.circle[2] * S7, 0, 2 * Math.PI)
+      else sh7.poly!.forEach(([x, y], k) => (k ? fctx.lineTo : fctx.moveTo).call(fctx, ox + x * S7, oy + y * S7))
+      fctx.fill()
+    }
+    ;[edge, halo, weave] = [S7 * 1.2, S7 * 9, 'stripes']
+  }
+  if (sw) {
+    const gx = fx - GLASS_PAD,
+      gy = fy - GLASS_PAD
+    ctx.save()
+    ctx.filter = `blur(${edge}px)`
+    ctx.drawImage(fc, gx, gy)
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = 0.3
+    ctx.filter = `blur(${halo}px)`
+    ctx.drawImage(fc, gx, gy)
+    ctx.globalAlpha = 1
+    ctx.filter = 'none'
+    ctx.globalCompositeOperation = 'multiply'
+    ctx.fillStyle = ctx.createPattern(weaveTile(weave), 'repeat')!
+    ctx.fillRect(gx, gy, fc.width, fc.height)
+    ctx.restore()
   }
   if (f.ring && i.ring) {
     const px = unhex(f.ring)

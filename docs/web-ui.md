@@ -143,7 +143,8 @@ paper's 85 % reflectance; the page converts as it is typed) — live, no restart
 
 - **LED preview** (`led_preview`, on by default): the frame tap under `/tap/` on the web server,
   behind the login (the token also as `?token=`, since an EventSource sends no headers); the tab
-  draws the screen, the ring and the ambilight like the old viewer. Nothing is encoded while no
+  draws the screen (or the minis' 7-segment clock), the ring and the ambilight like the old viewer;
+  the front display as on the glass, its light diffused and seen through the fabric's weave. Nothing is encoded while no
   one watches. `frametap_addr` still opens the tap's own listener without a login (the host
   simulator).
 - **Wi-Fi:** the saved networks (no passwords), the one connected now (`wpa_cli status`), and

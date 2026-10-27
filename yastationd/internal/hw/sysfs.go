@@ -350,6 +350,46 @@ func NewMatrix(root, segment string, colon []string, dot, degree string) *Matrix
 	return m
 }
 
+// Seg7Elems is the number of a MatrixFrame's elements: 4×7 segments, the colon, DM, the degree.
+const Seg7Elems = Digits*7 + 3
+
+// Drive is the level written to each element, brightness applied: the segments of digit 0 A..G,
+// then digits 1..3, then the colon, the DM dot and the degree.
+func (f MatrixFrame) Drive() [Seg7Elems]uint8 {
+	var d [Seg7Elems]uint8
+	b := min(max(f.Brightness, 0), 255)
+	lv := func(l uint8) uint8 { return uint8(int(l) * b / 255) }
+	on := func(x bool) uint8 {
+		if x {
+			return uint8(b)
+		}
+		return 0
+	}
+	for p := 0; p < Digits; p++ {
+		for s := 0; s < 7; s++ {
+			if f.Graded {
+				d[p*7+s] = lv(f.Level.Seg[p][s])
+			} else {
+				d[p*7+s] = on(f.Seg[p]&(1<<s) != 0)
+			}
+		}
+	}
+	if f.Graded {
+		d[28], d[29], d[30] = lv(f.Level.Colon), lv(f.Level.DM), lv(f.Level.Degree)
+	} else {
+		d[28], d[29], d[30] = on(f.Colon), on(f.DM), on(f.Degree)
+	}
+	return d
+}
+
+// Elements reports which of the extra elements this display has.
+func (m *Matrix) Elements() (colon, dot, degree bool) {
+	if m == nil {
+		return false, false, false
+	}
+	return len(m.colon) > 0, m.hasDot, m.hasDegree
+}
+
 func (m *Matrix) Show(f MatrixFrame) error {
 	if m == nil {
 		return nil
@@ -360,43 +400,20 @@ func (m *Matrix) Show(f MatrixFrame) error {
 			first = err
 		}
 	}
-	on := func(b bool) int {
-		if b {
-			return f.Brightness
-		}
-		return 0
-	}
-	if f.Graded {
-		lv := func(l uint8) int { return int(l) * f.Brightness / 255 }
-		for p := 0; p < Digits; p++ {
-			for s := 0; s < 7; s++ {
-				keep(m.seg[p][s].set(lv(f.Level.Seg[p][s])))
-			}
-		}
-		for i := range m.colon {
-			keep(m.colon[i].set(lv(f.Level.Colon)))
-		}
-		if m.hasDot {
-			keep(m.dot.set(lv(f.Level.DM)))
-		}
-		if m.hasDegree {
-			keep(m.degr.set(lv(f.Level.Degree)))
-		}
-		return first
-	}
+	d := f.Drive()
 	for p := 0; p < Digits; p++ {
 		for s := 0; s < 7; s++ {
-			keep(m.seg[p][s].set(on(f.Seg[p]&(1<<s) != 0)))
+			keep(m.seg[p][s].set(int(d[p*7+s])))
 		}
 	}
 	for i := range m.colon {
-		keep(m.colon[i].set(on(f.Colon)))
+		keep(m.colon[i].set(int(d[28])))
 	}
 	if m.hasDot {
-		keep(m.dot.set(on(f.DM)))
+		keep(m.dot.set(int(d[29])))
 	}
 	if m.hasDegree {
-		keep(m.degr.set(on(f.Degree)))
+		keep(m.degr.set(int(d[30])))
 	}
 	return first
 }

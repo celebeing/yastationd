@@ -247,6 +247,10 @@ func (a *App) startFrameTap(ctx context.Context) {
 	}
 	if a.front != nil {
 		info.Patterns = a.front.Anims()
+		if a.screen == nil && a.matrix != nil {
+			colon, dot, degree := a.matrix.Elements()
+			info.Seg7 = &frametap.Seg7{Digits: hw.Digits, Colon: colon, Dot: dot, Degree: degree}
+		}
 	}
 	for name := range cmds {
 		info.Commands = append(info.Commands, name)
@@ -625,10 +629,11 @@ func (a *App) renderLoop(stop <-chan struct{}) {
 			if a.front == nil || a.screen != nil {
 				continue
 			}
-			frame := a.matrixStack.Frame(now)
-			if err := a.matrix.Show(smooth.Frame(now, frame.Seg, a.matrixStack.Top())); err != nil {
+			frame := smooth.Frame(now, a.matrixStack.Frame(now).Seg, a.matrixStack.Top())
+			if err := a.matrix.Show(frame); err != nil {
 				a.log.Debug("matrix show", "err", err)
 			}
+			a.tap.Seg7(frame)
 		}
 	}
 }

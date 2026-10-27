@@ -2,6 +2,8 @@
 
 [Русский](README.md) · English
 
+<p align="center"><img src="docs/media/reel-station3.gif" height="180" alt="Station 3: clock, date, animations, a marquee, Bad Apple">&emsp;&emsp;&emsp;<img src="docs/media/reel-mini3.gif" height="180" alt="Station Mini 3: clock, animations, volume, a marquee, a timer"><br><sub>Station 3 and Station Mini 3 in the simulator: clock, date, animations, a marquee, a timer, Bad Apple.</sub></p>
+
 A custom firmware layer that turns a family of compact smart speakers into **offline Home Assistant
 speakers**. The vendor's assistant stack does not run. Its place is taken by a small on-device agent,
 `yastationd`, that talks only to Home Assistant on the LAN: MQTT for controls and sensors, Wyoming

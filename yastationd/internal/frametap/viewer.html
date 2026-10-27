@@ -145,8 +145,10 @@ function connect(s) {
 // Geometry: the screen as round dots, the ring as a circle, the ambilight as a vertical strip.
 function layout(s) {
   const i = s.info, [w, h] = i.screen; const P = 22; // px per screen dot (canvas units)
-  s.g = { P, w, h, sx: 20, sy: 20 };
-  const sw = w * P, sh = h * P;
+  s.g = { P, w, h, sx: 20, sy: 20, S7: 1.6 };
+  const sw = i.seg7 ? (SEG7_BOX.x1 - SEG7_BOX.x0) * s.g.S7 : w * P;
+  const sh = i.seg7 ? (SEG7_BOX.y1 - SEG7_BOX.y0) * s.g.S7 : h * P;
+  if (i.seg7) s.g.shapes = seg7Shapes(i.seg7);
   s.g.rr = Math.max(80, sh / 2);              // ring radius
   s.g.rx = s.g.sx + sw + 40 + s.g.rr;         // ring centre
   s.g.ry = s.g.sy + Math.max(sh, 2 * s.g.rr) / 2;
@@ -155,6 +157,25 @@ function layout(s) {
   s.canvas.width = (i.ambilight ? s.g.ax + 40 : s.g.rx + s.g.rr + 30);
   s.canvas.height = height;
   s.g.ay0 = 20; s.g.ay1 = height - 20;
+}
+
+// The minis' 7-segment clock, as in web/src/seg7.ts (drawn after a photo of a lit Mini 3).
+// Units: a digit is 100 high; elements in the tap's order: digits 0..3 × A..G, colon, DM, degree.
+const SEG7_BOX = { x0: -2, y0: -9, x1: 303, y1: 102 };
+function seg7Shapes(e) {
+  const T = 6.5, GAP = 2, W = 54, out = [];
+  const hbar = (x0, x1, y, t = T) => [[x0, y], [x0 + t, y - t], [x1 - t, y - t], [x1, y], [x1 - t, y + t], [x0 + t, y + t]];
+  const vbar = (x, y0, y1) => [[x, y0], [x + T, y0 + T], [x + T, y1 - T], [x, y1], [x - T, y1 - T], [x - T, y0 + T]];
+  [0, 62, 166, 228].forEach((ox, d) => {
+    const L = ox + T, R = ox + W - T;
+    [hbar(L + GAP, R - GAP, T), vbar(R, T + GAP, 50 - GAP), vbar(R, 50 + GAP, 100 - T - GAP),
+     hbar(L + GAP, R - GAP, 100 - T), vbar(L, 50 + GAP, 100 - T - GAP), vbar(L, T + GAP, 50 - GAP),
+     hbar(L + GAP, R - GAP, 50)].forEach((poly, k) => out.push({ el: d * 7 + k, poly }));
+  });
+  if (e.colon) out.push({ el: 28, circle: [141, 37, 8] }, { el: 28, circle: [141, 82, 8] });
+  if (e.dot) out.push({ el: 29, poly: hbar(127, 155, 60, 5.5) });
+  if (e.degree) out.push({ el: 30, circle: [294, 0, 6.5] });
+  return out;
 }
 
 function dot(ctx, x, y, r, R, G, B, glow) {
@@ -178,6 +199,19 @@ function draw(s, f) {
       c.fillStyle = (R | G | B) ? `rgb(${R},${G},${B})` : "#0b0c0e";
       c.fillRect(g.sx + x * g.P, g.sy + y * g.P, g.P, g.P);
     }
+  }
+  if (f.seg7 && g.shapes) {
+    const lv = unhex(f.seg7), k = g.S7, ox = g.sx - SEG7_BOX.x0 * k, oy = g.sy - SEG7_BOX.y0 * k;
+    for (const e of g.shapes) {
+      const v = show(lv[e.el]);
+      if (glow && v) { c.shadowColor = `rgb(${v},${v},${v})`; c.shadowBlur = 10; } else c.shadowBlur = 0;
+      c.fillStyle = v ? `rgb(${v},${v},${v})` : "#16171a";
+      c.beginPath();
+      if (e.circle) c.arc(ox + e.circle[0] * k, oy + e.circle[1] * k, e.circle[2] * k, 0, 2 * Math.PI);
+      else e.poly.forEach(([x, y], n) => n ? c.lineTo(ox + x * k, oy + y * k) : c.moveTo(ox + x * k, oy + y * k));
+      c.fill();
+    }
+    c.shadowBlur = 0;
   }
   if (f.ring && s.info.ring) {
     const px = unhex(f.ring), n = s.info.ring;

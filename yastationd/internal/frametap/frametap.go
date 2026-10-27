@@ -35,13 +35,22 @@ type Info struct {
 	Board       string   `json:"board"`
 	Model       string   `json:"model"`
 	Version     string   `json:"version"`
-	Screen      [2]int   `json:"screen"` // w, h; 0, 0 = no pixel screen
+	Screen      [2]int   `json:"screen"`         // w, h; 0, 0 = no pixel screen
+	Seg7        *Seg7    `json:"seg7,omitempty"` // a 7-segment front display instead
 	Ring        int      `json:"ring"`
 	Ambilight   int      `json:"ambilight"`
 	Expressions []string `json:"expressions"`
 	RingEffects []string `json:"ring_effects"`
 	Patterns    []string `json:"patterns"` // the screen patterns a "clip" display command can name
 	Commands    []string `json:"commands"`
+}
+
+// Seg7 describes a 4-digit 7-segment front display: which extra elements it has.
+type Seg7 struct {
+	Digits int  `json:"digits"`
+	Colon  bool `json:"colon"`
+	Dot    bool `json:"dot"`    // DM, the dash between the colon's dots on the minis
+	Degree bool `json:"degree"` // the mark after the last digit
 }
 
 // Frame is one message of the stream: the latest state of every surface, hex RGB (RGBW for the
@@ -51,6 +60,7 @@ type Frame struct {
 	T         int64  `json:"t"`
 	Seq       uint64 `json:"seq"`
 	Screen    string `json:"screen,omitempty"`
+	Seg7      string `json:"seg7,omitempty"` // drive level per element, hw.MatrixFrame.Drive order
 	Ring      string `json:"ring,omitempty"`
 	Ambilight string `json:"ambilight,omitempty"`
 }
@@ -107,6 +117,14 @@ func (t *Tap) set(f func(*Frame)) {
 
 // Screen records the pixels just written to the front screen.
 func (t *Tap) Screen(px []hw.RGB) { t.set(func(f *Frame) { f.Screen = hexRGB(px) }) }
+
+// Seg7 records the 7-segment frame just written.
+func (t *Tap) Seg7(f hw.MatrixFrame) {
+	t.set(func(fr *Frame) {
+		d := f.Drive()
+		fr.Seg7 = hex.EncodeToString(d[:])
+	})
+}
 
 // Ring records the ring frame just written.
 func (t *Tap) Ring(px []hw.RGB) { t.set(func(f *Frame) { f.Ring = hexRGB(px) }) }

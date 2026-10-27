@@ -3,6 +3,18 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**New**
+- The LED preview shows the minis' 7-segment clock too: the frame tap streams a drive level per
+  element (`seg7` in `/info` and in each frame), and the web app's LED tab and the standalone
+  viewer draw it, after a photo of a Mini 3 with every element lit. `cmd/ledsim -board bergamot`
+  simulates a mini. The web app draws the front display as on the glass: the light diffused and
+  seen through the fabric's weave.
+- `cmd/demoreel` records a tap's front display into a GIF as the glass shows it (diffusion, the
+  fabric's weave); the README opens with two reels made with it (docs/led-preview.md).
+- The README is in Russian; the English one is `README.en.md`. Both have an install section.
+
 ## v0.16.7 — 2026-10-27
 
 **Fixes and operations**
