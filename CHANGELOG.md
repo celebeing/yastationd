@@ -3,6 +3,15 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.16.7 — 2026-10-27
+
+**Fixes and operations**
+- Station 3's voice front-end ran without its noise reducer model: the daemon pointed it at an
+  empty `<cfw>/vendor/vqe_models` (left by a `make vqe-models` that found no `model_call.nnet` on
+  firmware 3.21). It now uses the CFW's directory only with the model in it; Station 3 uses its
+  firmware's own `noise_reducer/model.nnet`, which is what its library loads, and
+  `make vqe-models` does nothing there. This is what the intercom's call mode needs on Station 3.
+
 ## v0.16.6 — 2026-10-27
 
 **Fixes and operations**
