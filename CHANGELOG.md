@@ -3,7 +3,7 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.16.9 — 2026-10-27
 
 **Fixes and operations**
 - The web app's login survives restarts, redeploys and config saves: tokens are signed with a
