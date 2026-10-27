@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,10 +31,14 @@ import (
 // The controls and sensors are the MQTT discovery entities with their mirrored state and their
 // MQTT command handlers — described once, served twice.
 
-const tokenTTL = 30 * 24 * time.Hour
+const (
+	tokenTTL      = 30 * 24 * time.Hour
+	webSecretFile = "web.secret"
+)
 
 type webServer struct {
 	tokens   web.Tokens
+	secret   []byte // signs the tokens with the login (webSecret)
 	throttle web.Throttle
 
 	mu       sync.Mutex
@@ -75,6 +80,8 @@ func (a *App) ddpInfo() *ddpInfo {
 func (a *App) startWeb(ctx context.Context) error {
 	a.web.tokens.TTL = tokenTTL
 	a.web.user, a.web.password = a.cfg.WebUser, a.cfg.WebPassword
+	a.web.secret = a.webSecret()
+	a.web.tokens.SetKey(web.TokenKey(a.web.secret, a.web.user, a.web.password))
 	ln, err := net.Listen("tcp", a.cfg.HTTPAddr)
 	if err != nil {
 		return err
@@ -263,9 +270,25 @@ func (a *App) apiPassword(w http.ResponseWriter, r *http.Request) {
 	a.web.mu.Lock()
 	a.web.user, a.web.password = user, hash
 	a.web.mu.Unlock()
-	a.web.tokens.RevokeAll()
+	a.web.tokens.SetKey(web.TokenKey(a.web.secret, user, hash)) // everyone else is logged out
 	a.log.Info("web: login changed", "user", user)
 	writeJSON(w, http.StatusOK, map[string]string{"token": a.web.tokens.New()})
+}
+
+// webSecret is the speaker's token secret, <cfw>/web.secret: 32 random bytes written on first use,
+// so a login survives restarts and redeploys. When it cannot be kept, a secret for this run only
+// (a restart logs everyone out, as before).
+func (a *App) webSecret() []byte {
+	path := a.cfg.Path(a.prof.Platform.CFWRoot + "/" + webSecretFile)
+	if b, err := os.ReadFile(path); err == nil && len(b) >= 32 {
+		return b
+	}
+	b := make([]byte, 32)
+	rand.Read(b)
+	if err := os.WriteFile(path, b, 0o600); err != nil {
+		a.log.Warn("web: token secret not kept, a restart logs everyone out", "err", err)
+	}
+	return b
 }
 
 // editConfig changes keys in the config file in place (validated, the old file kept as .bak).

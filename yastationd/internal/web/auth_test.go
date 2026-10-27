@@ -25,14 +25,26 @@ func TestPasswords(t *testing.T) {
 }
 
 func TestTokensAndThrottle(t *testing.T) {
+	secret := []byte("0123456789abcdef0123456789abcdef")
 	tk := Tokens{TTL: time.Hour}
+	tk.SetKey(TokenKey(secret, "admin", ""))
 	a := tk.New()
-	if !tk.Valid(a) || tk.Valid("nope") || tk.Valid("") {
+	if !tk.Valid(a) || tk.Valid("nope") || tk.Valid("") || tk.Valid(a[:len(a)-1]+"A") {
 		t.Fatal("tokens")
 	}
-	tk.RevokeAll()
+	again := Tokens{TTL: time.Hour} // a restart: same secret and login, nothing else kept
+	again.SetKey(TokenKey(secret, "admin", ""))
+	if !again.Valid(a) {
+		t.Fatal("token lost on a restart")
+	}
+	tk.SetKey(TokenKey(secret, "admin", HashPassword("new")))
 	if tk.Valid(a) {
-		t.Fatal("revoked")
+		t.Fatal("a password change must revoke")
+	}
+	old := Tokens{TTL: -time.Second}
+	old.SetKey(TokenKey(secret, "admin", ""))
+	if old.Valid(old.New()) {
+		t.Fatal("expired")
 	}
 	var th Throttle
 	th.Result("c", false)

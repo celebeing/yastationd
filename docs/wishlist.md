@@ -52,26 +52,6 @@ For us: it is protocol-independent and would fit next to the Wyoming satellite. 
 much the near/far level gap really is on our units (not measured anywhere), and whether the
 on-device firewall and the access point pass LAN broadcast.
 
-## ESPHome Native API instead of MQTT + Wyoming
-
-**Status:** a direction worth keeping open; not a rewrite we're starting.
-
-We have already hit Wyoming's limits in the HA integration. Linux Voice Assistant (LVA, a Linux
-voice satellite that speaks the ESPHome protocol to HA) is reported to work much better than
-Wyoming. pulsar shows that the protocol itself is practical on these speakers.
-
-What it would give:
-- one connection for entities, voice and media, with no MQTT broker;
-- mDNS discovery in HA;
-- first-class `assist_satellite` and `media_player` entities (the latter also visible to Music
-  Assistant);
-- device logs in HA;
-- Noise encryption (today's broker is anonymous and Wyoming is plaintext).
-
-Note that `hass-integration.md` §2.4 ("Why NOT ESPHome") argues against ESPHome the firmware
-builder. That argument does not cover the API protocol. Cost: the whole HA integration layer
-(`internal/mqtt`, `internal/wyoming`) would be replaced.
-
 ## Voice pipeline robustness
 
 **Status:** note; unclear we need it.
@@ -346,17 +326,6 @@ ring.
 **Status:** done 2026-10-26 ([display-expressions.md](display-expressions.md), "Text on the pixel
 screen").
 
-## mise for the build tools
-
-Idea, not planned: a `mise.toml` (<https://mise.jdx.dev/>) pinning Go, Node and pnpm, so a
-contributor gets the exact versions with `mise install` and builds the daemon and the web app
-without Docker. The Docker builder would install from the same file, making it the single place the
-versions are pinned (today: `docker/*.Dockerfile`, `web/package.json`, the docs), and builds
-would work without docker too. Limits: the
-cross toolchains and sysroots for `spotter-host` stay in Docker; mise stays optional (Docker and
-"install these versions yourself" remain); its tasks would not replace the Makefile; a first
-`mise trust` per checkout.
-
 ## Customizable moments
 
 Today a moment (`arbitration_lost`, the wake, errors, …) shows what the display kind's defaults,
@@ -365,14 +334,6 @@ app's Moments tab only lists that and plays it. Idea: let the owner choose per m
 pick from the speaker's animations and expressions (the LED preview's list), preview it there,
 and save it as a config override (a `moment.<name> = <clip|expression>` style key, validated
 against what the board can show, falling back to the default when the clip is missing).
-
-## The web app keeps its login across restarts
-
-Today every restart of `yastationd` (a redeploy, a config save, a crash) logs everyone out of the
-web app: the bearer tokens live only in memory (`internal/web/auth.go`). Options: sign the tokens
-(an HMAC with a secret kept in `<cfw>/`, written once; expiry inside the token; a password change
-rotates the secret, which logs everyone out on purpose), or store the issued tokens' hashes in a
-small file. Signed tokens need no writes per login, which suits the flash (`docs/storage.md`).
 
 ## Station 3: the power budget with the white channel on
 

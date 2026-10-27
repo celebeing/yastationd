@@ -33,10 +33,15 @@ to the binary. Flash is written only when the config is saved.
   The default is written and documented on purpose: a speaker starts its life with open root adb
   anyway; hardening is the owner's call. Both can be changed from the app, which writes them into
   `yastationd.conf`.
-- `POST /api/login {user, password}` → a bearer token (random, kept in memory, valid 30 days,
-  lost on a restart). Every `/api` call but `/api/info` and `/api/login` needs
-  `Authorization: Bearer <token>`. Tokens in a header, not cookies: the app talks to other
-  speakers cross-origin, CORS is open, and there is no cookie to forge requests with.
+- `POST /api/login {user, password}` → a bearer token, valid 30 days. Every `/api` call but
+  `/api/info` and `/api/login` needs `Authorization: Bearer <token>`. Tokens in a header, not
+  cookies: the app talks to other speakers cross-origin, CORS is open, and there is no cookie to
+  forge requests with.
+- A token is signed, not stored: its expiry and a nonce with an HMAC-SHA256 of them, keyed by
+  the speaker's secret (`<cfw>/web.secret`, 32 random bytes written on first start) and the login
+  (user and password hash). So a login survives restarts, redeploys and config saves; changing the
+  password re-keys and logs everyone else out, and deleting `web.secret` logs everyone out. Until
+  v0.16.8 tokens lived in memory and every restart logged everyone out.
 - Failed logins are slowed down (a pause per failure per client).
 - `/metrics` needs no login (read-only, the exporter convention); the frame tap needs one (it
   drives the displays).

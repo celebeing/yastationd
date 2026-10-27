@@ -36,7 +36,7 @@ This is the index of project documentation. Read the relevant doc here **before*
 | [releasing.md](releasing.md) | Versions (SemVer tags, burned into the build, shown in HA) and how to cut a release |
 | [intercom.md](intercom.md) | Two-way 1-to-1 calls between speakers: plan and v1 design — VQE uplink, RTP/L16 over UDP with AES-GCM, jitter buffer and drift, MQTT signalling, the voice scenario, HA entities, device checklist |
 | [ha-intercom-setup.md](ha-intercom-setup.md) | **Guide:** the intercom with HA — speaker config, the entities, the "call a room" script for «Алиса, позвони в спальню», voice control during a call, automation ideas |
-| [wishlist.md](wishlist.md) | Ideas under consideration, not planned: nearest-speaker arbitration (with refinements from another multi-speaker project), ESPHome API instead of MQTT+Wyoming, pipeline robustness, music, "someone is asleep here" detection, orion's ultrasound sonar rig; notes from reviewing pulsar |
+| [wishlist.md](wishlist.md) | Ideas under consideration, not planned: nearest-speaker arbitration (with refinements from another multi-speaker project), pipeline robustness, music, "someone is asleep here" detection, orion's ultrasound sonar rig; notes from reviewing pulsar |
 | [speaker-id.md](speaker-id.md) | Speaker identification design (who is talking) for the HA voice pipeline, with a status log |
 
 Also: [`../yastationd/README.md`](../yastationd/README.md) (daemon usage, entities, open items) and

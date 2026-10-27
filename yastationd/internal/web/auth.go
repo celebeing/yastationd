@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"strconv"
 	"strings"
@@ -83,49 +84,62 @@ func ValidHash(s string) bool {
 	return len(f) == 4 && f[0] == hashPrefix
 }
 
-// Tokens are bearer tokens, in memory only (a restart logs everyone out).
+// Tokens are signed bearer tokens: an expiry and a nonce with an HMAC of them. Nothing is kept
+// per token, so they survive a restart as long as the key does; the app derives the key from a
+// secret kept on flash and the login (TokenKey), so changing the password logs everyone out.
 type Tokens struct {
 	TTL time.Duration
 	mu  sync.Mutex
-	m   map[string]time.Time
+	key []byte
+}
+
+const (
+	tokenData = 16 // expiry (8 bytes, unix seconds) and a nonce (8)
+	tokenSig  = 16 // the HMAC-SHA256, truncated
+)
+
+// TokenKey is the signing key for a login: secret is the speaker's own (random, kept), user and
+// hash the login's, so a new password or user invalidates every token signed before.
+func TokenKey(secret []byte, user, hash string) []byte {
+	mac := hmac.New(sha256.New, secret)
+	mac.Write([]byte(user + "\x00" + hash))
+	return mac.Sum(nil)
+}
+
+// SetKey sets the signing key (tokens signed with another key stop being valid).
+func (t *Tokens) SetKey(key []byte) {
+	t.mu.Lock()
+	t.key = append([]byte(nil), key...)
+	t.mu.Unlock()
+}
+
+func (t *Tokens) sign(data []byte) []byte {
+	t.mu.Lock()
+	key := t.key
+	t.mu.Unlock()
+	mac := hmac.New(sha256.New, key)
+	mac.Write(data)
+	return mac.Sum(nil)[:tokenSig]
 }
 
 // New issues a token.
 func (t *Tokens) New() string {
-	b := make([]byte, 24)
-	rand.Read(b)
-	tok := base64.RawURLEncoding.EncodeToString(b)
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.m == nil {
-		t.m = map[string]time.Time{}
-	}
-	now := time.Now()
-	for k, exp := range t.m {
-		if now.After(exp) {
-			delete(t.m, k)
-		}
-	}
-	t.m[tok] = now.Add(t.TTL)
-	return tok
+	b := make([]byte, tokenData, tokenData+tokenSig)
+	binary.BigEndian.PutUint64(b, uint64(time.Now().Add(t.TTL).Unix()))
+	rand.Read(b[8:tokenData])
+	return base64.RawURLEncoding.EncodeToString(append(b, t.sign(b)...))
 }
 
-// Valid reports whether tok is a live token.
+// Valid reports whether tok was signed with the current key and has not expired.
 func (t *Tokens) Valid(tok string) bool {
-	if tok == "" {
+	b, err := base64.RawURLEncoding.DecodeString(tok)
+	if err != nil || len(b) != tokenData+tokenSig {
 		return false
 	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	exp, ok := t.m[tok]
-	return ok && time.Now().Before(exp)
-}
-
-// RevokeAll logs everyone out (after a password change).
-func (t *Tokens) RevokeAll() {
-	t.mu.Lock()
-	t.m = nil
-	t.mu.Unlock()
+	if !hmac.Equal(b[tokenData:], t.sign(b[:tokenData])) {
+		return false
+	}
+	return time.Now().Unix() < int64(binary.BigEndian.Uint64(b))
 }
 
 // Throttle slows down repeated failed logins from one client: each failure in a row doubles
