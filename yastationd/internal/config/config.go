@@ -137,6 +137,14 @@ type Config struct {
 	// NetWatchdog: with the default gateway unreachable this long the speaker reboots (a Wi-Fi
 	// that stopped passing data needs it); longer after each watchdog reboot. 0 = off.
 	NetWatchdog time.Duration
+	// Before that the watchdog tries to bring the Wi-Fi back like the firmware does
+	// (docs/storage.md): NetWifiRecovery on/off; wpa_supplicant reloads its configuration after
+	// NetWifiReconfigure, the controller is reset after NetWifiReset and again every
+	// NetWifiResetEvery (0 = that step off).
+	NetWifiRecovery    bool
+	NetWifiReconfigure time.Duration
+	NetWifiReset       time.Duration
+	NetWifiResetEvery  time.Duration
 
 	// Video display mode (docs/video-mode.md): a frames file for the pixel front screen (the .led
 	// pattern format, may be gzipped; path+".gz" is tried too) and its audio track (a WAV for aplay),
@@ -310,6 +318,10 @@ func Default() Config {
 		WebUser:             web.DefaultUser,
 		ArbitrationWait:     700 * time.Millisecond,
 		NetWatchdog:         10 * time.Minute,
+		NetWifiRecovery:     true,
+		NetWifiReconfigure:  2 * time.Minute,
+		NetWifiReset:        4 * time.Minute,
+		NetWifiResetEvery:   10 * time.Minute,
 		SpotterBin:          cfw + "/bin/spotter-host",
 		ReplyTimeout:        90 * time.Second,
 		BootConnectTimeout:  40 * time.Second,
@@ -493,6 +505,21 @@ func (c *Config) set(k, v string) error {
 		c.LogRemote = v
 	case "log_spool_kb":
 		c.LogSpoolKB, err = atoiRange(v, 64, 65536)
+	case "net_wifi_recovery":
+		c.NetWifiRecovery, err = strconv.ParseBool(v)
+	case "net_wifi_reconfigure_min", "net_wifi_reset_min", "net_wifi_reset_every_min":
+		var n int
+		if n, err = atoiRange(v, 0, 1440); err == nil {
+			d := time.Duration(n) * time.Minute
+			switch k {
+			case "net_wifi_reconfigure_min":
+				c.NetWifiReconfigure = d
+			case "net_wifi_reset_min":
+				c.NetWifiReset = d
+			default:
+				c.NetWifiResetEvery = d
+			}
+		}
 	case "net_watchdog_min":
 		var n int
 		n, err = atoiRange(v, 0, 1440)

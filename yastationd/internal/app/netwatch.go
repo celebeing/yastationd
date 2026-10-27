@@ -15,10 +15,10 @@ import (
 // something resets it — seen on both Mini 3 (the Wi-Fi chip's firmware hangs: "fw recovery not
 // finish" in the kernel log, yastationd/README.md item 7). It climbs the ladder the firmware's own
 // WifiWatcher climbs (docs/storage.md, "The network watchdog"): with the default gateway
-// unreachable for netWifiReconfigure it has wpa_supplicant reload its configuration; after
-// netWifiReset it resets the Wi-Fi controller with the board's platform.wifi_reset (the
+// unreachable for net_wifi_reconfigure_min it has wpa_supplicant reload its configuration; after
+// net_wifi_reset_min it resets the Wi-Fi controller with the board's platform.wifi_reset (the
 // firmware's yandex-wifireset: driver out, SDIO power cycled, back in), again every
-// netWifiResetEvery; after cfg.NetWatchdog it logs the kernel's last lines, puts the waiting log
+// net_wifi_reset_every_min (net_wifi_recovery = false: neither); after cfg.NetWatchdog it logs the kernel's last lines, puts the waiting log
 // lines on flash and reboots. Each watchdog reboot doubles the next wait (up to netWatchMax) so
 // that a router outage does not reboot every speaker every few minutes; an hour of good network
 // resets it. The count lives in <cfw>/netwatch.count and is measured in uptime, not wall time: a
@@ -30,10 +30,7 @@ const (
 	netWatchReset = time.Hour
 	netWatchCount = "netwatch.count"
 
-	netWifiReconfigure = 2 * time.Minute
-	netWifiReset       = 4 * time.Minute
-	netWifiResetEvery  = 10 * time.Minute
-	netWifiCmdTimeout  = time.Minute
+	netWifiCmdTimeout = time.Minute
 )
 
 type netAction int
@@ -53,7 +50,11 @@ type netWatch struct {
 	count        int
 	reconfigured bool      // this outage
 	resetAt      time.Time // the last controller reset in this outage
-	canReset     bool      // the board has a reset command
+
+	// The recovery rungs (config): 0 = that rung off.
+	reconfigureAfter time.Duration
+	resetAfter       time.Duration // 0 also without a reset command on the board
+	resetEvery       time.Duration
 }
 
 // netWatchLimit is the outage allowed after n watchdog reboots in a row.
@@ -83,10 +84,11 @@ func (w *netWatch) step(now time.Time, up bool, uptime time.Duration) netAction 
 	switch {
 	case down >= w.limit && uptime >= w.limit:
 		return netReboot
-	case w.canReset && down >= netWifiReset && (w.resetAt.IsZero() || now.Sub(w.resetAt) >= netWifiResetEvery):
+	case w.resetAfter > 0 && down >= w.resetAfter &&
+		(w.resetAt.IsZero() || (w.resetEvery > 0 && now.Sub(w.resetAt) >= w.resetEvery)):
 		w.resetAt = now
 		return netWifiResetAction
-	case !w.reconfigured && down >= netWifiReconfigure:
+	case w.reconfigureAfter > 0 && !w.reconfigured && down >= w.reconfigureAfter:
 		w.reconfigured = true
 		return netReconfigure
 	}
@@ -98,7 +100,13 @@ func (a *App) netWatchLoop(stop <-chan struct{}) {
 		return
 	}
 	countFile := a.cfg.Path(a.prof.Platform.CFWRoot + "/" + netWatchCount)
-	w := netWatch{canReset: a.prof.Platform.WifiReset != ""}
+	w := netWatch{}
+	if c := a.cfg; c.NetWifiRecovery {
+		w.reconfigureAfter, w.resetEvery = c.NetWifiReconfigure, c.NetWifiResetEvery
+		if a.prof.Platform.WifiReset != "" {
+			w.resetAfter = c.NetWifiReset
+		}
+	}
 	if b, err := os.ReadFile(countFile); err == nil {
 		w.count, _ = strconv.Atoi(strings.TrimSpace(string(b)))
 	}
@@ -128,7 +136,7 @@ func (a *App) netWatchLoop(stop <-chan struct{}) {
 		}
 		switch w.step(now, up, uptime()) {
 		case netDown:
-			a.log.Warn("network: gateway unreachable", "wifi_reset_after", netWifiReset, "reboot_after", w.limit)
+			a.log.Warn("network: gateway unreachable", "wifi_reset_after", w.resetAfter, "reboot_after", w.limit)
 		case netReconfigure:
 			a.log.Warn("network: still down, reloading the Wi-Fi configuration")
 			a.netCommand("wpa_cli", "-i", "wlan0", "reconfigure")

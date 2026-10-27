@@ -21,7 +21,7 @@ func TestNetWatchLimitBacksOff(t *testing.T) {
 // The ladder: down -> reconfigure at 2 min -> controller reset at 4 min (again every 10) ->
 // reboot at the limit; any good check starts it over.
 func TestNetWatchLadder(t *testing.T) {
-	w := netWatch{limit: 30 * time.Minute, canReset: true}
+	w := netWatch{limit: 30 * time.Minute, reconfigureAfter: 2 * time.Minute, resetAfter: 4 * time.Minute, resetEvery: 10 * time.Minute}
 	t0 := time.Unix(1000, 0)
 	up := time.Hour // uptime well past the limit
 	var got []string
@@ -56,7 +56,7 @@ func TestNetWatchLadder(t *testing.T) {
 
 // Without a reset command the ladder skips that rung; a young speaker is not rebooted.
 func TestNetWatchNoResetYoung(t *testing.T) {
-	w := netWatch{limit: 10 * time.Minute}
+	w := netWatch{limit: 10 * time.Minute, reconfigureAfter: 2 * time.Minute}
 	t0 := time.Unix(1000, 0)
 	for s := 0; s <= 11*60; s += 30 {
 		a := w.step(t0.Add(time.Duration(s)*time.Second), false, 5*time.Minute)

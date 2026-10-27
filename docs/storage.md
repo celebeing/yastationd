@@ -83,8 +83,9 @@ in Wi-Fi setup mode). It climbs the ladder the firmware's own `WifiWatcher` clim
 `wpa_cli reconfigure`, `ip link set wlan0 down/up`, `yandex-wifireset`, then a reboot; its
 `wifiReseter` acts after 120 s without internet, `quasar.cfg`):
 
-1. down 2 min: `wpa_cli -i wlan0 reconfigure`;
-2. down 4 min, then every 10 min: the board's `platform.wifi_reset` — the firmware's
+1. down `net_wifi_reconfigure_min` (2): `wpa_cli -i wlan0 reconfigure`;
+2. down `net_wifi_reset_min` (4), then every `net_wifi_reset_every_min` (10): the board's
+   `platform.wifi_reset` — the firmware's
    `/usr/bin/yandex-wifireset`, which stops wpa_supplicant and Bluetooth, unloads the Wi-Fi
    driver, cycles the SDIO power (`wifi_power 0/1`), loads the driver and starts them again. This
    is what a hung Wi-Fi chip needs ("fw recovery not finish" in the kernel log: the black Mini
@@ -94,7 +95,7 @@ in Wi-Fi setup mode). It climbs the ladder the firmware's own `WifiWatcher` clim
    `<cfw>/netwatch.count`, measured in uptime because a mini's clock is stale after a reboot); an
    hour of good network resets it.
 
-Each step and the commands' results are logged; the lines reach the log server once the network
+`net_wifi_recovery = false` skips both steps (a 0 skips one). Each step and the commands' results are logged; the lines reach the log server once the network
 is back (the spool). **Until v0.16.4 the watchdog never fired on a speaker with a broker
 configured:** it took paho's `IsConnected()` for "connected", and that is also true while the
 client keeps reconnecting — so the network always looked up (the lilac Mini 2026-10-27 stayed off

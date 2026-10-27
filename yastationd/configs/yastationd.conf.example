@@ -114,6 +114,13 @@ wyoming_port = 10700
 # Reboot when the default gateway is unreachable this many minutes (doubling after each such
 # reboot, up to 4 h); 0 = off.
 # net_watchdog_min = 10
+# Before that, bring the Wi-Fi back like the stock firmware does: wpa_supplicant reloads its
+# configuration after _reconfigure_, the Wi-Fi controller is reset (platform.wifi_reset) after
+# _reset_ and again every _reset_every_ minutes; 0 = that step off.
+# net_wifi_recovery        = true
+# net_wifi_reconfigure_min = 2
+# net_wifi_reset_min       = 4
+# net_wifi_reset_every_min = 10
 # Push-to-talk: the voice key starts an Assist pipeline and streams the mic.
 # Wake word «Алиса»: the vendor spotter + VQE (spotter-host serve) as a child process; the mic then
 # stays open. Session audio to HA is the VQE output with a pre-roll. Commands act locally: стоп /
