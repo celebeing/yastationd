@@ -132,7 +132,7 @@ func (s *satellite) startListeningWith(src string, held *heldWake) {
 	s.setAwaiting(false) // a new session supersedes a reply still pending
 
 	a.log.Info("voice: listening", "src", src)
-	a.express("voice", "listening", stageTTL)
+	a.moment("voice", "listening", stageTTL)
 	if src == srcWake { // lets HA show which wake word started the run
 		c.Send(wyoming.Event{Type: wyoming.TypeDetection, Data: map[string]any{"name": "alisa"}})
 	}
@@ -270,7 +270,7 @@ func (s *satellite) interruptForWake() {
 			a.express("voice", "error", errorTTL)
 		}
 	})
-	a.express("voice", "listening", stageTTL)
+	a.moment("voice", "listening", stageTTL)
 	s.setAwaiting(false)
 	s.dropConn("wake word interrupts a pending reply")
 }
@@ -320,7 +320,7 @@ func (s *satellite) setAwaiting(on bool) {
 	}
 	time.AfterFunc(slowReplyAfter, func() {
 		if still() {
-			s.a.express("voice", "waiting", timeout)
+			s.a.moment("voice", "waiting", timeout)
 		}
 	})
 	time.AfterFunc(timeout, func() {

@@ -728,7 +728,7 @@ func (a *App) icWoke() {
 	a.ic.mu.Lock()
 	a.ic.wokeAt = time.Now()
 	a.ic.mu.Unlock()
-	a.express("voice", "listening", icWakeCommandWindow)
+	a.moment("voice", "listening", icWakeCommandWindow)
 }
 
 // icWindow: «Алиса» was heard during this call just now.

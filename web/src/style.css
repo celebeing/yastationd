@@ -131,3 +131,28 @@ button.linklike { border: 0; background: none; padding: 0; color: var(--accent);
 .exposure p { margin: 0 0 0.25rem; }
 label.field { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.9em; color: var(--muted); }
 label.field input { width: 5.5rem; }
+
+/* Moments (moments.tsx) */
+.moments { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem; }
+.moment { border: 1px solid var(--line); border-radius: 10px; padding: 0.6rem 0.8rem; }
+.moment.open { border-color: var(--accent); }
+.mhead { display: grid; grid-template-columns: minmax(10rem, 1fr) 2fr auto; gap: 0.8rem; align-items: center; }
+.mshows { overflow-wrap: anywhere; }
+.mbtns { display: flex; gap: 0.4rem; }
+.badge { font-size: 0.75em; padding: 0.05rem 0.4rem; border-radius: 6px; background: var(--accent); color: #fff; vertical-align: middle; }
+.medit { margin-top: 0.6rem; border-top: 1px solid var(--line); padding-top: 0.4rem; }
+.cand { border-left: 3px solid var(--line); padding-left: 0.6rem; margin-top: 0.6rem; }
+.cand .row, .steps .row { margin-top: 0.4rem; }
+.steps { margin-left: 1.5rem; }
+.steps .k { min-width: 1.5rem; }
+.medit .row > button.ghost { background: transparent; color: var(--fg); border-color: var(--line); }
+.medit .row > button.ghost:hover:not(:disabled) { border-color: var(--accent); }
+.medit button.icon { padding: 0.2rem 0.5rem; }
+.steps .row { flex-wrap: nowrap; }
+.steps select, .steps input { min-width: 0; }
+.steps .grow { flex: 0 0 0.5rem; }
+.steps input.anim { flex: 1 1 14rem; max-width: none; }
+.grow { flex: 1; }
+input.ms { width: 5.5rem; }
+input.anim { min-width: 8rem; flex: 1; max-width: 22rem; }
+@media (max-width: 760px) { .mhead { grid-template-columns: 1fr; } .steps { margin-left: 0; } .steps .row { flex-wrap: wrap; } }

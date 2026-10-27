@@ -32,6 +32,7 @@ func main() {
 	patterns := flag.String("patterns", "", "the firmware's screen patterns (ledpatterns/screen of a dump or a unit)")
 	media := flag.String("media", "", "directory with the video mode's files (video.led[.gz], video.wav from cmd/videoconv)")
 	addr := flag.String("addr", "localhost:8930", "frame tap listen address")
+	web := flag.String("http", "", "also serve the web app here (e.g. localhost:8940; login admin / yastation)")
 	dir := flag.String("dir", "", "sysroot to (re)use; default: a fresh temporary one")
 	verbose := flag.Bool("v", false, "debug log")
 	flag.Parse()
@@ -41,13 +42,13 @@ func main() {
 		level = slog.LevelDebug
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
-	if err := run(log, *boardName, *screen, *patterns, *media, *addr, *dir); err != nil {
+	if err := run(log, *boardName, *screen, *patterns, *media, *addr, *web, *dir); err != nil {
 		log.Error("ledsim", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(log *slog.Logger, name, screen, patterns, media, addr, root string) error {
+func run(log *slog.Logger, name, screen, patterns, media, addr, web, root string) error {
 	prof, err := board.Builtin(name)
 	if err != nil {
 		return err
@@ -74,7 +75,7 @@ func run(log *slog.Logger, name, screen, patterns, media, addr, root string) err
 	cfg.AutoBrightness = false
 	cfg.RoomSound = false
 	cfg.NetWatchdog = 0 // never reboot the host
-	cfg.HTTPAddr = ""   // the frame tap serves the preview here
+	cfg.HTTPAddr = web  // off by default: the frame tap serves the preview
 	cfg.FrameTapAddr = addr
 	cfg.LogLevel = "info"
 
@@ -123,7 +124,7 @@ func sysroot(root string, p board.Profile, screen, patterns, media string) error
 	if err := os.WriteFile(filepath.Join(root, "board.conf"), []byte(override), 0o644); err != nil {
 		return err
 	}
-	for _, d := range []string{config.CFWRoot(), "/tmp"} {
+	for _, d := range []string{config.CFWRoot(), p.Platform.CFWRoot, "/tmp"} {
 		if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
 			return err
 		}

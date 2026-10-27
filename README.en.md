@@ -101,8 +101,8 @@ HA, from single expressions to timed scenarios across the ring and the display.
 **A web app on every speaker**
 - Open `http://<speaker-ip>/` (login **admin / yastation** until you change it from the app):
   every speaker on the LAN in one list, found by itself; per speaker its sensors, the runtime
-  controls HA has (display, expressions, brightness, volume…), a live LED preview, the moments it
-  shows and a button to try them, the saved Wi-Fi networks (add one), its logs, a light-sensor
+  controls HA has (display, expressions, brightness, volume…), a live LED preview, the moments
+  (what it shows for each event, with an editor), the saved Wi-Fi networks (add one), its logs, a light-sensor
   calibration against a lux meter, the config file with a
   validated save that rolls itself back if the speaker gets worse, the login, and an update check.
   Prometheus metrics at `/metrics`. Details: [docs/web-ui.md](docs/web-ui.md).

@@ -59,7 +59,7 @@ type App struct {
 	spot      *wake.Spotter // nil when the wake word is off
 	lifeState atomic.Int32  // lifecycle (lifecycle.go)
 	front     display.Front // the front display's scenes and animations; nil = no front display
-	scen      scenarioRunner
+	seqs      sequences
 	music     musicState  // Music Assistant player; music.host nil when off
 	playing   atomic.Bool // our aplay is running
 	sat       *satellite
@@ -91,15 +91,16 @@ type App struct {
 	luxPath string
 	pdDir   string // USB-C PD sink in sysfs ("" = none)
 
-	autoBright  atomic.Uint64                  // auto clock brightness target (float64 bits; 0 = no reading yet)
-	shownBright atomic.Uint64                  // the level shown now (float64 bits), gliding to the target
-	brightAt    time.Time                      // last stepBrightness; render goroutine only
-	backlight   *hw.Backlight                  // the front screen's backlight; nil = dim the frames
-	blPrev      int                            // the backlight of the frame written last; render goroutine only
-	luxSmooth   atomic.Uint64                  // smoothed light in lux (float64 bits), published to HA
-	luxReading  atomic.Uint64                  // the same reading before the calibration (float64 bits)
-	luxUnitCal  atomic.Pointer[[]luxcal.Point] // set from the web app (lightcal.go); nil = the config's
-	luxCalBusy  atomic.Bool                    // a calibration measurement is running
+	autoBright  atomic.Uint64                     // auto clock brightness target (float64 bits; 0 = no reading yet)
+	shownBright atomic.Uint64                     // the level shown now (float64 bits), gliding to the target
+	brightAt    time.Time                         // last stepBrightness; render goroutine only
+	backlight   *hw.Backlight                     // the front screen's backlight; nil = dim the frames
+	blPrev      int                               // the backlight of the frame written last; render goroutine only
+	luxSmooth   atomic.Uint64                     // smoothed light in lux (float64 bits), published to HA
+	luxReading  atomic.Uint64                     // the same reading before the calibration (float64 bits)
+	userMoments atomic.Pointer[map[string][]show] // <cfw>/moments.json (moments.go)
+	luxUnitCal  atomic.Pointer[[]luxcal.Point]    // set from the web app (lightcal.go); nil = the config's
+	luxCalBusy  atomic.Bool                       // a calibration measurement is running
 
 	baseFx    display.RenderFunc[display.RingFrame] // ring effect layer; render goroutine only
 	baseFxKey string
@@ -226,6 +227,9 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 
 	a.ringStack = display.NewStack(a.ringBase)
 	a.matrixStack = display.NewStack(a.matrixBase)
+	if err := a.loadMoments(); err != nil {
+		a.log.Warn("moments: the owner's file is ignored", "err", err)
+	}
 	return a, nil
 }
 

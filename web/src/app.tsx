@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import * as api from './api'
 import type { Entity, Features, Peer } from './api'
-import { CalibrationTab, LedTab, LogTab, MomentsTab, WifiTab } from './extra'
+import { CalibrationTab, LedTab, LogTab, WifiTab } from './extra'
+import { MomentsTab } from './moments'
 
 // The app (docs/web-ui.md): the speakers on the LAN, and per speaker its sensors, runtime
 // controls, config and login. It is served by every speaker; the one it came from is "home" and

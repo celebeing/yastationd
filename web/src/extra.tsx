@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import * as api from './api'
-import type { Moment, Net, Peer } from './api'
+import type { Net, Peer } from './api'
 import { SEG7_BOX, seg7Shapes } from './seg7'
 
 // The optional tabs: Wi-Fi, moments, the LED preview (docs/web-ui.md).
@@ -98,50 +98,6 @@ export function WifiTab({ peer, base }: { peer: Peer; base: string }) {
         <button type="submit">Add</button>
       </form>
     </div>
-  )
-}
-
-export function MomentsTab({ peer, base }: { peer: Peer; base: string }) {
-  const [list, setList] = useState<Moment[] | null>(null)
-  const [err, setErr] = useState('')
-  useEffect(() => {
-    api.moments(peer.id, base).then(setList, (e) => setErr(e.message || String(e)))
-  }, [peer.id])
-  async function show(m: Moment) {
-    setErr('')
-    try {
-      const r = await api.showMoment(peer.id, base, m.name)
-      if (!r.shown) setErr(`${m.name}: nothing to show on this speaker`)
-    } catch (e: any) {
-      setErr(e.message || String(e))
-    }
-  }
-  return (
-    <section class="card">
-      <h3>Moments</h3>
-      <p class="muted small">What the speaker shows when something happens. Each resolves to the first of its candidates this speaker has.</p>
-      {err && <p class="err">{err}</p>}
-      {!list && <p class="muted">…</p>}
-      {list && (
-        <table class="nets">
-          <tbody>
-            {list.map((m) => (
-              <tr>
-                <td>
-                  <b>{m.name}</b>
-                </td>
-                <td class="small">{m.shows ? m.shows : <span class="muted">— nothing here</span>}</td>
-                <td>
-                  <button disabled={!m.shows} onClick={() => show(m)}>
-                    Show
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </section>
   )
 }
 

@@ -30,7 +30,7 @@ go run ./cmd/ledsim -patterns ../dumps/orion/quasar/ledpatterns/screen   # any c
 
 Flags: `-board` (default `orion`), `-screen WxH` (the virtual screen, default `21x12`), `-addr`
 (default `localhost:8930`), `-dir` (keep the sysroot, including `yastationd.state`, between runs),
-`-media <dir>` (the video mode's `video.led[.gz]` and `video.wav`, e.g. `build/media` from
+`-http <addr>` (also serve the web app, e.g. `localhost:8940`, login admin / yastation: the Moments editor, the LED tab and the rest against the simulator), `-media <dir>` (the video mode's `video.led[.gz]` and `video.wav`, e.g. `build/media` from
 `make video-convert`; [video-mode.md](video-mode.md)), `-v`. Without `-patterns` the screen has no
 stock animations (the seg7 fallback still draws the clock and text). No MQTT, audio, wake word or
 time sync (the video mode plays silently); the input and mixer warnings at start are expected.

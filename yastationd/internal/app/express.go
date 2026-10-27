@@ -79,8 +79,15 @@ func (a *App) express(slot, name string, ttl time.Duration) bool {
 	return a.expressAt(slot, name, ttl, display.PrioExpression)
 }
 
-// expressAt is express with the front part at prio.
+// expressAt is express with the front part at prio. It stops a sequence running in slot.
 func (a *App) expressAt(slot, name string, ttl time.Duration, prio int) bool {
+	a.cancelSteps(slot)
+	return a.expressIn(slot, name, ttl, prio, false)
+}
+
+// expressIn shows the expression in slot (a sequence's step); keepRing leaves the slot's ring
+// alone when the expression has no ring part.
+func (a *App) expressIn(slot, name string, ttl time.Duration, prio int, keepRing bool) bool {
 	e := expressions[name] // no expression: an animation name, front only
 	shown := false
 	var clip display.Anim
@@ -98,7 +105,7 @@ func (a *App) expressAt(slot, name string, ttl time.Duration, prio int) bool {
 	} else {
 		a.matrixStack.Remove(slot)
 	}
-	if e.ring == "" { // the slot moves on as a whole: no ring part left from its previous state
+	if e.ring == "" && !keepRing { // the slot moves on as a whole: no ring part left from before
 		a.ringStack.Remove(slot)
 	}
 	if e.ring != "" {
@@ -119,8 +126,9 @@ func (a *App) expressAt(slot, name string, ttl time.Duration, prio int) bool {
 	return shown
 }
 
-// unexpress clears slot on every surface.
+// unexpress clears slot on every surface (and stops a sequence running there).
 func (a *App) unexpress(slot string) {
+	a.cancelSteps(slot)
 	a.ringStack.Remove(slot)
 	a.matrixStack.Remove(slot)
 }

@@ -206,15 +206,21 @@ func TestWebMomentsAndTapLogin(t *testing.T) {
 	if err != nil || resp.StatusCode != 200 {
 		t.Fatalf("moments: %v %v", err, resp)
 	}
-	var ms []momentView
-	json.NewDecoder(resp.Body).Decode(&ms)
+	var got struct {
+		Moments []momentView
+		Catalog momentCatalogView
+	}
+	json.NewDecoder(resp.Body).Decode(&got)
 	resp.Body.Close()
 	names := map[string]bool{}
-	for _, m := range ms {
+	for _, m := range got.Moments {
 		names[m.Name] = true
 	}
-	if !names["sad"] || !names["happy"] {
-		t.Fatalf("the expressions are moments too: %v", names)
+	if !names["listening"] || !names["dialog_end"] || names["sad"] {
+		t.Fatalf("moments: %v", names)
+	}
+	if len(got.Catalog.Scenarios) == 0 || len(got.Catalog.RingEffects) == 0 {
+		t.Fatalf("catalog: %+v", got.Catalog)
 	}
 	if code, _ := call(t, "GET", srv.URL+"/tap/info", "", ""); code != 404 {
 		t.Fatalf("no tap without led_preview: %d", code)
@@ -253,5 +259,72 @@ func TestWebLog(t *testing.T) {
 	}
 	if l := tailLines(filepath.Join(root, "tmp/yastationd.log"), 20); !strings.HasPrefix(l[0], "line ") {
 		t.Fatalf("a cut first line kept: %q", l[0])
+	}
+}
+
+func TestWebMomentsEdit(t *testing.T) {
+	a, srv := newWebApp(t)
+	m := newMomentApp(t) // the surfaces and a CFW root
+	a.ringStack, a.matrixStack, a.matrix, a.front, a.store = m.ringStack, m.matrixStack, m.matrix, m.front, m.store
+	a.cfg.SysRoot, a.prof = m.cfg.SysRoot, m.prof
+	_, out := call(t, "POST", srv.URL+"/api/login", "", `{"user":"admin","password":"yastation"}`)
+	tok := out["token"].(string)
+	moment := func(name string) map[string]any {
+		_, out := call(t, "GET", srv.URL+"/api/moments", tok, "")
+		for _, x := range out["moments"].([]any) {
+			if x := x.(map[string]any); x["name"] == name {
+				return x
+			}
+		}
+		t.Fatalf("no %s in %v", name, out)
+		return nil
+	}
+	if x := moment("dialog_end"); x["custom"] != nil || x["shows"].(float64) != 0 {
+		t.Fatalf("defaults: %v", x)
+	}
+	seq := `[{"steps":[{"express":"happy","ms":50},{"anim":"wink","hold":true}]},"wink"]`
+	if code, out := call(t, "PUT", srv.URL+"/api/moments/dialog_end", tok, seq); code != 200 {
+		t.Fatalf("put: %d %v", code, out)
+	}
+	x := moment("dialog_end")
+	if c, _ := x["custom"].([]any); len(c) != 2 || c[1] != "wink" {
+		t.Fatalf("custom: %v", x["custom"])
+	}
+	if b, err := os.ReadFile(a.momentPath()); err != nil || !strings.Contains(string(b), `"hold": true`) {
+		t.Fatalf("file: %s %v", b, err)
+	}
+	// errors: unknown moment, not a list, a broken sequence, no login, wrong method
+	for _, c := range []struct {
+		method, path, tok, body string
+		code                    int
+	}{
+		{"PUT", "/api/moments/nope", tok, `["wink"]`, 404},
+		{"PUT", "/api/moments/dialog_end", tok, `"wink"`, 400},
+		{"PUT", "/api/moments/dialog_end", tok, `[{"steps":[]}]`, 400},
+		{"PUT", "/api/moments/dialog_end", "", `["wink"]`, 401},
+		{"POST", "/api/moments/dialog_end", tok, `["wink"]`, 405},
+		{"POST", "/api/moment/nope", tok, ``, 404},
+		{"GET", "/api/moment/dialog_end", tok, ``, 405},
+	} {
+		if code, out := call(t, c.method, srv.URL+c.path, c.tok, c.body); code != c.code {
+			t.Errorf("%s %s %s: %d, want %d (%v)", c.method, c.path, c.body, code, c.code, out)
+		}
+	}
+	// play as saved, then a draft (not saved), then a draft of nothing
+	if _, out := call(t, "POST", srv.URL+"/api/moment/dialog_end", tok, ""); out["shown"] != true || !a.ringStack.Has("ov_moment") {
+		t.Fatalf("play saved: %v", out)
+	}
+	if _, out := call(t, "POST", srv.URL+"/api/moment/dialog_end", tok, `["wink"]`); out["shown"] != true || a.ringStack.Has("ov_moment") {
+		t.Fatalf("play draft (front only, the saved happy ring must be gone): %v", out)
+	}
+	if _, out := call(t, "POST", srv.URL+"/api/moment/dialog_end", tok, `[]`); out["shown"] != false {
+		t.Fatalf("an empty draft showed something: %v", out)
+	}
+	if c, _ := moment("dialog_end")["custom"].([]any); len(c) != 2 {
+		t.Fatal("a draft was saved")
+	}
+	// back to the defaults
+	if code, _ := call(t, "DELETE", srv.URL+"/api/moments/dialog_end", tok, ""); code != 200 || moment("dialog_end")["custom"] != nil {
+		t.Fatal("reset")
 	}
 }

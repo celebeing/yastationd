@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/celebeing/yastationd/yastationd/internal/display"
 	"github.com/celebeing/yastationd/yastationd/internal/wifisetup"
 )
 
@@ -67,73 +68,130 @@ func (a *App) apiWifiAdd(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// momentView is a moment and what it shows on this speaker ("" = nothing here).
+// momentView is a moment for the web app's editor: its default candidates, the owner's (null =
+// the defaults apply), and which candidate shows here (-1: none).
 type momentView struct {
-	Name       string   `json:"name"`
-	Candidates []string `json:"candidates"`
-	Shows      string   `json:"shows"`
+	momentInfo
+	Default []show `json:"default"`
+	Custom  []show `json:"custom"`
+	Shows   int    `json:"shows"`
 }
 
-// momentNames: every moment with a mapping here — the defaults of this display's kind, the
-// board's own, and the expressions (rule 3).
-func (a *App) momentNames() []string {
-	set := map[string]bool{}
-	if a.front != nil {
-		kind := a.front.Kind()
-		if strings.HasPrefix(kind, "pixels") {
-			kind = "pixels"
-		}
-		for n := range momentDefaults[kind] {
-			set[n] = true
-		}
-	}
-	for n := range a.prof.Moments {
-		set[n] = true
-	}
-	for _, n := range expressionNames {
-		set[n] = true
-	}
-	out := make([]string, 0, len(set))
-	for n := range set {
-		out = append(out, n)
-	}
-	sort.Strings(out)
-	return out
+// momentCatalogView is what a moment can be made of on this speaker.
+type momentCatalogView struct {
+	Display     string     `json:"display"` // the front display's kind: seg7, pixels, ""
+	Expressions []string   `json:"expressions"`
+	Scenarios   []string   `json:"scenarios"`
+	Anims       []animInfo `json:"anims"`
+	RingEffects []string   `json:"ring_effects"`
 }
 
-func (a *App) apiMoments(w http.ResponseWriter, r *http.Request) {
+type animInfo struct {
+	Name string `json:"name"`
+	Ms   int    `json:"ms"`
+	Loop bool   `json:"loop,omitempty"`
+}
+
+func (a *App) momentViews() []momentView {
+	custom := a.userMomentMap()
 	var out []momentView
-	for _, n := range a.momentNames() {
-		v := momentView{Name: n, Candidates: a.momentCandidates(n)}
-		for _, c := range v.Candidates {
-			if a.momentAvailable(c) {
-				v.Shows = c
+	for _, m := range momentCatalog {
+		v := momentView{momentInfo: m, Default: a.momentDefault(m.Name), Custom: custom[m.Name], Shows: -1}
+		for i, c := range a.momentCandidates(m.Name) {
+			if a.available(c) {
+				v.Shows = i
 				break
 			}
 		}
 		out = append(out, v)
 	}
-	writeJSON(w, http.StatusOK, out)
+	return out
+}
+
+func (a *App) momentCatalogView() momentCatalogView {
+	c := momentCatalogView{Display: a.frontKind(), Scenarios: a.scenarioNames(), RingEffects: ringEffects}
+	for n := range expressions {
+		if a.refAvailable(n) {
+			c.Expressions = append(c.Expressions, n)
+		}
+	}
+	sort.Strings(c.Expressions)
+	if a.front != nil {
+		for _, n := range a.front.Anims() {
+			if an, ok := a.front.Anim(n); ok {
+				c.Anims = append(c.Anims, animInfo{Name: n, Ms: int(an.Duration() / time.Millisecond), Loop: an.Looping()})
+			}
+		}
+	}
+	return c
+}
+
+// apiMoments: GET the moments and the catalogue; PUT /api/moments/<name> [candidates] sets the
+// owner's choice, DELETE /api/moments/<name> goes back to the defaults.
+func (a *App) apiMoments(w http.ResponseWriter, r *http.Request) {
+	name := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/moments"), "/")
+	if name == "" {
+		if r.Method != http.MethodGet {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "GET"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"moments": a.momentViews(), "catalog": a.momentCatalogView()})
+		return
+	}
+	if !knownMoment(name) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such moment"})
+		return
+	}
+	var shows []show
+	switch r.Method {
+	case http.MethodPut:
+		if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&shows); err != nil || shows == nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "want a list of candidates"})
+			return
+		}
+	case http.MethodDelete:
+	default:
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "PUT or DELETE"})
+		return
+	}
+	if err := a.setMoment(name, shows); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	a.log.Info("web: moment set", "moment", name, "custom", shows != nil)
+	writeJSON(w, http.StatusOK, map[string]any{"moments": a.momentViews()})
+}
+
+func knownMoment(name string) bool {
+	for _, m := range momentCatalog {
+		if m.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // momentPreview is how long a previewed moment may stay (a looping one would never end).
 const momentPreview = 6 * time.Second
 
+// apiMoment plays a moment: POST /api/moment/<name>, as it is set, or with a body of candidates,
+// a draft that is not saved.
 func (a *App) apiMoment(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "POST"})
 		return
 	}
 	name := strings.TrimPrefix(r.URL.Path, "/api/moment/")
-	known := false
-	for _, n := range a.momentNames() {
-		known = known || n == name
-	}
-	if !known {
+	if !knownMoment(name) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such moment"})
 		return
 	}
-	shown := a.moment("ov_moment", name, momentPreview)
+	shows := a.momentCandidates(name)
+	var draft []show
+	if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&draft); err == nil && draft != nil {
+		shows = draft
+	}
+	shown := a.play("ov_moment", name, shows, momentPreview, display.PrioExpression)
 	writeJSON(w, http.StatusOK, map[string]any{"shown": shown})
 }
 

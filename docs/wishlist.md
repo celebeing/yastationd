@@ -326,14 +326,12 @@ ring.
 **Status:** done 2026-10-26 ([display-expressions.md](display-expressions.md), "Text on the pixel
 screen").
 
-## Customizable moments
+## Moments: apply to speakers of the same kind
 
-Today a moment (`arbitration_lost`, the wake, errors, …) shows what the display kind's defaults,
-the board profile and the expression bank resolve it to (`docs/display-expressions.md`); the web
-app's Moments tab only lists that and plays it. Idea: let the owner choose per moment what plays —
-pick from the speaker's animations and expressions (the LED preview's list), preview it there,
-and save it as a config override (a `moment.<name> = <clip|expression>` style key, validated
-against what the board can show, falling back to the default when the clip is missing).
+The Moments tab edits one speaker ([display-expressions.md](display-expressions.md), "The owner's
+moments"). Speakers of one display kind (two Mini 3s) usually want the same choices: an "apply to
+all <kind> speakers" button in the editor could PUT the moment to every peer with the same
+display kind (the app already talks to them), flagging candidates a peer lacks.
 
 ## Station 3: the power budget with the white channel on
 

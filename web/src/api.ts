@@ -153,14 +153,28 @@ export async function setPassword(id: string, base: string, user: string, passwo
 
 export type Features = { wifi?: boolean; led_preview?: boolean; moments?: boolean }
 export type Net = { id: number; ssid: string; security: string; priority: number; disabled: boolean; hidden: boolean }
-export type Moment = { name: string; candidates: string[]; shows: string }
+/** A moment's candidate: a reference ("wink", "anim:media/Like", "scenario:startup") or a sequence. */
+export type Step = { express?: string; anim?: string; matrix?: string; ring?: string; text?: string; ms?: number; hold?: boolean }
+export type Show = string | { steps: Step[] }
+/** custom: the owner's candidates (null = the defaults); shows: the index of the one shown here (-1 none). */
+export type Moment = { name: string; when: string; default: Show[]; custom: Show[] | null; shows: number }
+export type MomentCatalog = {
+  display: string
+  expressions: string[] | null
+  scenarios: string[] | null
+  anims: { name: string; ms: number; loop?: boolean }[] | null
+  ring_effects: string[] | null
+}
 
 export type DDP = { port: number; pixels: number; order: string; first: string }
 export const infoFull = (base: string) => req<Peer & { features?: Features; ddp?: DDP }>(base, '/api/info')
 export const wifi = (id: string, base: string) => authed<{ networks: Net[]; current: string; setup_mode: boolean }>(id, base, '/api/wifi')
 export const wifiAdd = (id: string, base: string, n: { ssid: string; psk: string; hidden: boolean; priority: number }) =>
   authed<{ ok: boolean }>(id, base, '/api/wifi/networks', { method: 'POST', body: JSON.stringify(n) })
-export const moments = (id: string, base: string) => authed<Moment[]>(id, base, '/api/moments')
+export const moments = (id: string, base: string) => authed<{ moments: Moment[]; catalog: MomentCatalog }>(id, base, '/api/moments')
+/** setMoment saves the owner's candidates (null: back to the defaults). */
+export const setMoment = (id: string, base: string, name: string, shows: Show[] | null) =>
+  authed<{ moments: Moment[] }>(id, base, '/api/moments/' + encodeURIComponent(name), shows ? { method: 'PUT', body: JSON.stringify(shows) } : { method: 'DELETE' })
 export type LightCal = { calibration: string; source: 'unit' | 'board' | 'none'; reading: number; lux: number; measured?: number; before?: number }
 export const lightCal = (id: string, base: string) => authed<LightCal>(id, base, '/api/calibrate/light')
 /** calibrateLight takes ~16 s on the speaker (it measures), hence the long timeout. */
@@ -169,8 +183,9 @@ export const calibrateLight = (id: string, base: string, lux: number) =>
 export const removeLightCal = (id: string, base: string) => authed<LightCal>(id, base, '/api/calibrate/light', { method: 'DELETE' })
 export const log = (id: string, base: string, source: string, lines: number) =>
   authed<{ source: string; lines: string[] }>(id, base, `/api/log?source=${encodeURIComponent(source)}&lines=${lines}`)
-export const showMoment = (id: string, base: string, name: string) =>
-  authed<{ shown: boolean }>(id, base, '/api/moment/' + encodeURIComponent(name), { method: 'POST' })
+/** showMoment plays a moment as it is set, or a draft of candidates (not saved). */
+export const showMoment = (id: string, base: string, name: string, draft?: Show[]) =>
+  authed<{ shown: boolean }>(id, base, '/api/moment/' + encodeURIComponent(name), { method: 'POST', body: draft ? JSON.stringify(draft) : '' })
 
 /** tapURL: the frame tap behind the login; the token goes in the query (EventSource). */
 export function tapURL(id: string, base: string, path: string): string {

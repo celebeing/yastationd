@@ -262,7 +262,7 @@ func (s *satellite) pump(st *sndStream, w io.WriteCloser) {
 		cur := s.cur == st
 		s.mu.Unlock()
 		if cur {
-			s.a.express("voice", name, 0)
+			s.a.moment("voice", name, 0)
 		}
 	}
 	gone := func() { // aplay exited under us: drop the rest so the read loop never blocks
@@ -401,7 +401,7 @@ func (s *satellite) voiceStage(name string) {
 		ttl = s.a.cfg.ReplyTimeout
 	}
 	if !playing {
-		s.a.express("voice", name, ttl)
+		s.a.moment("voice", name, ttl)
 	}
 }
 

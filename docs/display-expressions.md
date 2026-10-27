@@ -171,6 +171,7 @@ nothing on a Mini 3 and the stock `bluetooth_connected` pattern on orion. Hard-c
 **The rule:** code that reacts to an event calls `a.moment(name)`, never `express(…)` with a
 picture. A moment resolves through, first match wins:
 
+0. the owner's choice, `<cfw>/moments.json`, set from the web app's Moments tab (below);
 1. `<cfw>/board.conf` and the board profile: `moment.<name> = <candidate>, <candidate>, …` (the
    board.conf override already covers every profile key, so a user re-maps a moment there);
 2. the defaults of the front display's kind in code (`seg7`, `pixels`), next to the per-display
@@ -185,6 +186,46 @@ list is a fallback chain from the richest to the plainest. Later: `random(a, b, 
 available ones for variety (never the same twice in a row), and parameters for moments that carry
 a value (`volume` → the level, `timer` → the time left) are passed through to scenes that take them.
 
+### The owner's moments
+
+The web app's Moments tab edits them; they are kept in `<cfw>/moments.json` (written atomically,
+the previous file as `moments.json.bak`) and apply at once, no restart. The file maps a moment to
+its candidates; a missing moment keeps its defaults, an empty list shows nothing. A candidate is a
+reference (a string, as above: `"blink"`, `"anim:media/Like"`, `"scenario:startup"`) or a
+sequence of its own:
+
+```json
+{
+  "dialog_end": ["happy", "wink"],
+  "listening": [{"steps": [
+    {"anim": "oknix/01-activation"},
+    {"anim": "oknix/03-listening-loop", "hold": true}
+  ]}]
+}
+```
+
+A step is the scenario step: `express` (an expression, ring and front), `anim` (an animation of
+the front display), `ring` (a ring effect), `text`, and `ms`; `ms` left out takes the animation's
+own length (2 s without one). The last step may `hold`: it stays, looping, until the moment ends
+(the slot moves on, or the caller's TTL). Without hold a sequence ends with its last step.
+
+Sequences, scenarios and `anim:` references play in the moment's own slot (`internal/app/
+sequence.go`): anything else shown in the slot (the next voice stage, an error, a clear) stops
+them, so a chain never outlives its moment. A moment named after an expression with a ring part
+(the voice stages) keeps that ring under the owner's show when the show has no ring of its own:
+re-drawing `listening` on the front does not lose the listening ring.
+
+The voice stages (`listening`, `thinking`, `speaking`, `waiting`) are moments since v0.17: their
+defaults are the expressions of their names, so nothing changes until the owner sets them. A
+stage lasts until the next one, so its sequence should hold its last step (the editor says so).
+
+API (behind the login): `GET /api/moments` → `{moments: [{name, when, default, custom, shows}],
+catalog: {display, expressions, scenarios, anims: [{name, ms, loop}], ring_effects}}` (`custom`
+null = the defaults; `shows` the index of the candidate shown here, −1 none; the catalogue holds
+what this speaker has); `PUT /api/moments/<name>` with a list of candidates; `DELETE
+/api/moments/<name>` back to the defaults; `POST /api/moment/<name>` plays it, with a body of
+candidates plays that draft unsaved (6 s at most).
+
 Moments stay above the layers they use: priorities, slots and TTLs are those of the expression
 or scenario a moment resolves to, and the ring and the ambilight follow the same rules as before.
 HA keeps its direct access to expressions, scenarios and patterns; a moment can also be triggered
@@ -198,10 +239,10 @@ to be reviewed on glass (the stock patterns are still being watched through).
 
 | Moment | When | seg7 (Mini 3, Mini 3 Pro) | pixels (orion) | Status |
 |---|---|---|---|---|
+| `listening`, `thinking`, `speaking`, `waiting` | voice stages | the expressions | the expressions (`oknix/`) | in code (moments since v0.17) |
 | `startup` | once per device boot | `scenario:startup` (eyes, wink) | `scenario:startup-pixel` (eyes, blink) | in code |
 | `dialog_end` | a reply played and no follow-up listening | `wink` | `blink` | in code |
 | `arbitration_lost` | another speaker heard the wake word louder and answers ([wake-arbitration.md](wake-arbitration.md)) | `glance` (` > >` quick, then `< < `; ours) | `scenario_emotion/Deactivation_Output` | in code |
-| `listening`, `thinking`, `speaking` | voice stages | the expressions | the expressions (`oknix/`) | via rule 3 |
 | `error` | voice / network failure | the expression | `error` | via rule 3 |
 | `mute`, `unmute` | the mic switch | — | `anim:mute`, `anim:unmute` | planned |
 | `volume` | volume changed (value) | the number | the exact number over a bar (`display/volume.go`; the stock `volume.led` sweeps the tens only) | in code, as the front's `Volume` scene (not a moment: it carries the level and keeps state) |

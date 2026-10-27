@@ -3,6 +3,19 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**New**
+- Moments are the owner's to choose: the web app's Moments tab edits what each moment shows — an
+  expression, an animation of the front display, a scenario, or a sequence of steps of its own
+  (expressions, animations, ring effects, text; the last step can hold) — with a fallback list,
+  an unsaved preview and a reset. Kept in `<cfw>/moments.json`, applied at once.
+- The voice stages (`listening`, `thinking`, `speaking`, `waiting`) are moments, so the
+  activation chain on Station 3 or the bars on the minis can be redrawn; the voice ring stays
+  under a front-only choice.
+- Scenarios and moment sequences share one runner: a step's length may be left out (the
+  animation's own), and a sequence stops when anything else takes its slot.
+
 ## v0.16.9 — 2026-10-27
 
 **Fixes and operations**

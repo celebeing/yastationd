@@ -157,8 +157,13 @@ paper's 85 % reflectance; the page converts as it is typed) — live, no restart
   (the old one as `.before-web`), wpa_supplicant is not reloaded: the new network is used at the
   next reconnect or reboot, so the connection in use is never touched. The rest is the setup
   mode's.
-- **Moments:** every moment this speaker maps (its display kind's defaults, the board's, the
-  expressions), what each resolves to here, and a button that shows it (6 s at most).
+- **Moments:** the moments the app announces (the voice stages, the startup, the end of a
+  dialog, arbitration, music), what each shows here, a Play button, and an editor: per moment a
+  list of candidates (the first this speaker has plays), each an expression, an animation of its
+  front display (typed to filter: Station 3 has about a hundred), a scenario, or a sequence of
+  steps (expression, animation, ring effect, text; a length or the animation's own; the last one
+  may hold). "Play draft" shows it unsaved, Save keeps it in `<cfw>/moments.json`, "Reset to
+  default" drops it ([display-expressions.md](display-expressions.md), "The owner's moments").
 - **Log:** the tail of the daemon's log (`/tmp/yastationd.log`) or of the system log
   (`/var/log/messages` with `messages.0`: the kernel, the Wi-Fi driver, dropbear), 100–2000 lines,
   a filter, warnings and errors coloured; while "follow" is on it refreshes every 3 s and stays at
