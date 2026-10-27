@@ -3,15 +3,19 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased (proposed: v0.17.0)
+## v0.16.6 — 2026-10-27
 
-**New**
-- Light sensor calibration from the web app (Settings → Calibration): measure the light beside
-  the speaker's top with a lux meter, enter it, press Measure. The speaker measures for 15 s with
-  its own lights off and stores the point in its config, applied at once; a second point in
-  clearly different light gives the slope.
-- The web app's speaker view has two levels: Status (sensors, log), Controls (display and voice,
-  moments, LED), Settings (options, calibration, Wi-Fi, config file, login).
+**Fixes and operations**
+- Light sensor calibration from the web app (Settings → Calibration): enter the light at the
+  speaker's top and press Measure; the speaker measures for 15 s with its own lights off and
+  stores the point in its config, applied at once (a second point in clearly different light
+  gives the slope). Two ways: an incident light meter (lux, or EV / an exposure, converted with
+  C = 250 — checked against a Sekonic to 1 %), or a phone or camera metering a sheet of white
+  paper on the speaker in reflected light (converted for 85 % reflectance, K = 12.5). The page
+  converts as you type.
+- The web app's speaker view: a section menu beside the content (Status, Controls, Settings), the
+  layout filling the window, settings and controls as narrow settings pages (name and control on
+  one line), the open section in the address (`#options`).
 
 ## v0.16.5 — 2026-10-27
 
