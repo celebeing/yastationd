@@ -8,9 +8,10 @@
 #   web               the web app             yastationd/internal/webui/dist/app/   (node)
 #   yastationd        tests + the daemon      yastationd/build/yastationd           (go; builds web first when stale)
 #   hostapd           the Wi-Fi setup AP      hostapd/build/hostapd                 (zig)
+#   dropbear          the SSH server          dropbear/build/dropbearmulti          (zig)
 #   sendspin:<arch>   the music player        sendspin-host/build/<arch>/sendspin-host (zig; armhf | aarch64)
 #   spotter:<arch>    the voice front-end     spotter-host/build/<arch>/spotter-host   (cross gcc + a vendor sysroot)
-#   sendspin, spotter both arches; all = web yastationd hostapd sendspin spotter
+#   sendspin, spotter both arches; all = web yastationd hostapd dropbear sendspin spotter
 #
 # spotter-host links the vendor's libraries: it needs SPOTTER_SYSROOT_ARMHF / SPOTTER_SYSROOT_AARCH64
 # (a directory with lib/ and system/vendor/quasar/libs/ of the firmware the units run). Set them in
@@ -67,6 +68,11 @@ build_yastationd() {
 	run go yastationd 'make -s test build WEB_SRC='
 }
 
+build_dropbear() {
+	echo "== dropbear"
+	run zig dropbear 'make -s'
+}
+
 build_hostapd() {
 	echo "== hostapd"
 	run zig hostapd 'make -s'
@@ -108,6 +114,7 @@ for t in "$@"; do
 	web) build_web ;;
 	yastationd) build_yastationd ;;
 	hostapd) build_hostapd ;;
+	dropbear) build_dropbear ;;
 	sendspin)
 		build_sendspin armhf
 		build_sendspin aarch64
@@ -123,6 +130,7 @@ for t in "$@"; do
 		build_web
 		build_yastationd
 		build_hostapd
+		build_dropbear
 		build_sendspin armhf
 		build_sendspin aarch64
 		build_spotter armhf 0

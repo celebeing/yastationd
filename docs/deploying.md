@@ -16,6 +16,7 @@ scripts branch on its existence.
 | `<cfw>/bin/yastationd` | the agent (static armv7, same binary for every board) |
 | `<cfw>/bin/spotter-host` | the voice front-end host, built for the device's userland arch |
 | `<cfw>/bin/sendspin-host` | the Music Assistant player (optional, `sendspin = true`), built for the userland arch |
+| `<cfw>/bin/dropbearmulti`, `<cfw>/bin/scp` (a link to it), `dropbearmulti.prev` | the SSH server, our build of dropbear (static aarch64, with scp; [dropbear/README.md](../dropbear/README.md)), when the speaker already runs dropbear from there; replaced on a first deploy or with `DROPBEAR=1`, the one before kept as `.prev` |
 | `<cfw>/bin/hostapd` | the access point for the Wi-Fi setup mode (static armv7, same binary for every board; [wifi-setup.md](wifi-setup.md)) |
 | `<cfw>/sendspin/state.json` | its identity (stable client_id) and pairing records, 0600 |
 | `<cfw>/yastationd.conf` | config (generic `yastationd/configs/yastationd.conf.example`; Orion bring-up `orion.conf.example`) |
@@ -251,6 +252,16 @@ binary as `.prev` → swap → start, tail the log). Several: `tools/deploy.sh` 
 <platform> [cfw-root override] [helper-arch override]`; the board profile supplies omitted
 values. The script also rolls out `spotter-host` (and `sendspin-host` when built, and `hostapd` — a local build, else the newest recorded one in `$VENDOR/builds/hostapd/`; a speaker left without one gets a warning) and stops at
 the first failing speaker.
+
+**dropbear.** On a first deploy (no `yastationd` on the speaker yet), or with `DROPBEAR=1`,
+`tools/deploy.sh` also replaces the speaker's SSH server with ours (`dropbear/`), where it runs from
+`<cfw>/bin/dropbearmulti`. The swap cannot lock you out on its own: the new binary first runs as a
+test server on port 2222 with the live listener's arguments (same host key); only a login through
+it does the swap, keeping the old binary as `dropbearmulti.prev`, and restarts the port-22
+listener (sessions in progress stay up). A login on port 22 then confirms it and stops the test
+server; if port 22 does not answer, the old binary is put back through port 2222 and the run
+stops. The boot hook starts the same path, so a reboot keeps the new one. To go back by hand:
+`mv <cfw>/bin/dropbearmulti.prev <cfw>/bin/dropbearmulti` and restart the listener (or reboot).
 
 **Don't** improvise the swap as one ssh command line that contains the binary's path. The init
 hook's `stop` kills processes by that path and takes your ssh session down with it, leaving the

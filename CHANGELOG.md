@@ -9,6 +9,10 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
 - The web app's login survives restarts, redeploys and config saves: tokens are signed with a
   secret the speaker keeps (`<cfw>/web.secret`, written once) and its login, instead of being
   held in memory. Changing the password still logs everyone else out.
+- dropbear, the SSH server, is ours now: `tools/build.sh dropbear` builds 2026.94 from the
+  pinned release (static aarch64, every board, with scp), and `tools/deploy.sh` puts it on a
+  speaker on its first deploy or with `DROPBEAR=1`, trying it on port 2222 before the swap. The
+  speakers ran 2022.83, which predates the Terrapin fix (2024.84) and has no scp.
 
 ## v0.16.8 — 2026-10-27
 

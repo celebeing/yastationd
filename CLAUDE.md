@@ -49,7 +49,8 @@ not be recoverable by us. Hence the hard rules:
   (the firmware's own `/bkupgrade` is a symlink to the writable ext4 `/ota`). `yastationd` is static armv7 and runs on all three; anything
   linking vendor libs (`spotter-host`) must match the userland.
 - No python / compiler / MQTT client on the devices; `aplay/arecord/amixer`, busybox tools are
-  there. **Missing:** `scp` (stream files via `ssh … 'cat > f' < f`), `timeout`, `pkill`/`pgrep`
+  there. **Missing:** `scp` until our dropbear is on the unit (`dropbear/`, with scp; otherwise stream
+  files via `ssh … 'cat > f' < f`, which works everywhere), `timeout`, `pkill`/`pgrep`
   (find pids via `ps w`; don't match by substring of a command line — it hits your own ssh session).
 - Interfaces driven from the shell: LEDs/display (`/sys/class/leds/*`), ALSA, evdev input, IIO
   light sensor, USB-C PD (`/sys/class/power_supply/ya_pd`). Details in the board docs,

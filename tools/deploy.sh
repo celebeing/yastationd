@@ -16,8 +16,13 @@
 # your vendor tree ($VENDOR/builds/hostapd/<version>/armv7/hostapd, the newest); with neither, a
 # speaker that has no hostapd yet gets a warning (its Wi-Fi setup mode cannot start).
 #
+# dropbear (the speaker's SSH server, dropbear/) is replaced only on a first deploy (no yastationd
+# on the speaker yet) or with DROPBEAR=1, and only where it runs from <cfw>/bin/dropbearmulti. The
+# new one is tried on port 2222 first and swaps itself in from there; the old one stays as
+# dropbearmulti.prev.
+#
 # Env: SSHKEY (optional: the key to use; unset, ssh picks one from the agent and ~/.ssh/config),
-# VENDOR (optional, the vendor-tree checkout), NATIVE=1 (build yastationd with the host's
+# VENDOR (optional, the vendor-tree checkout), DROPBEAR=1 (replace dropbear, above), NATIVE=1 (build yastationd with the host's
 # toolchain, ship the helpers as they are). Speakers are updated one at a time; the script stops
 # at the first failure so a broken build never reaches the rest.
 #
@@ -81,7 +86,7 @@ echo "== build"
 if [ "${NATIVE:-0}" = 1 ]; then
 	(cd "$here/yastationd" && make -s test build)
 else
-	targets="yastationd hostapd"
+	targets="yastationd hostapd dropbear"
 	for a in $arches; do targets="$targets sendspin:$a spotter-if:$a"; done
 	# shellcheck disable=SC2086 # targets is a list
 	"$here/tools/build.sh" $targets
@@ -92,6 +97,66 @@ if [ ! -x "$hap" ] && [ -n "${VENDOR:-}" ]; then
 	hap=$(ls -1d "$VENDOR"/builds/hostapd/*/armv7/hostapd 2>/dev/null | sort -V | tail -1)
 fi
 [ -n "$hap" ] && [ -x "$hap" ] && echo "hostapd: $hap" || hap=
+dbm=$here/dropbear/build/dropbearmulti
+
+# DB_ARGS: on the speaker, the live dropbear listener's command line (its pid file is the init
+# hook's /var/run/dropbear.pid).
+DB_ARGS='args=$(tr "\0" " " </proc/$(cat /var/run/dropbear.pid)/cmdline)'
+
+# update_dropbear: swap the speaker's dropbear for ours (see the header). A test server on port
+# 2222 runs the new binary with the live one's arguments; a login through it does the swap and
+# restarts the port-22 listener (sessions in progress stay up); a login on 22 confirms it, else the
+# old binary goes back. Anything failing before the swap leaves everything as it was.
+update_dropbear() {
+	[ -x "$dbm" ] || { echo "  dropbear: no $dbm (tools/build.sh dropbear), not replaced" >&2; return 0; }
+	if ! ssh_ "$target" "test -x $cfw/bin/dropbearmulti && test -f /var/run/dropbear.pid" </dev/null; then
+		echo "  dropbear: not run from $cfw/bin/dropbearmulti here, not replaced" >&2
+		return 0
+	fi
+	put "$dbm" "cat > $cfw/bin/dropbearmulti.upload && chmod 755 $cfw/bin/dropbearmulti.upload"
+	if ! ssh_ "$target" 'sh -s' <<EOF; then
+set -e
+$DB_ARGS
+\$(echo "\$args" | sed -e 's|/dropbearmulti |/dropbearmulti.upload |' -e 's| -p [0-9]*| -p 2222|' \
+	-e 's| -P [^ ]*| -P /var/run/dropbear-test.pid|')
+EOF
+		echo "  dropbear: the new one did not start, not replaced" >&2
+		ssh_ "$target" "rm -f $cfw/bin/dropbearmulti.upload" </dev/null || true
+		return 0
+	fi
+	sleep 1
+	if ! ssh_ -p 2222 "$target" 'sh -s' <<EOF; then
+set -e
+D=$cfw/bin
+$DB_ARGS
+cp -p \$D/dropbearmulti \$D/dropbearmulti.prev
+mv \$D/dropbearmulti.upload \$D/dropbearmulti
+ln -sf dropbearmulti \$D/scp
+kill \$(cat /var/run/dropbear.pid)
+sleep 1
+\$args
+EOF
+		ssh_ "$target" "kill \$(cat /var/run/dropbear-test.pid); rm -f $cfw/bin/dropbearmulti.upload" </dev/null || true
+		echo "  dropbear: no login through the new one on port 2222, not replaced" >&2
+		return 0
+	fi
+	sleep 1
+	if v=$(ssh_ "$target" "kill \$(cat /var/run/dropbear-test.pid); $cfw/bin/dropbearmulti dropbear -V 2>&1 | head -1" </dev/null); then
+		echo "  dropbear: $v"
+		return 0
+	fi
+	# Port 22 does not answer with the new binary: put the old one back through the test server.
+	ssh_ -p 2222 "$target" 'sh -s' <<EOF || true
+D=$cfw/bin
+$DB_ARGS
+mv \$D/dropbearmulti.prev \$D/dropbearmulti
+kill \$(cat /var/run/dropbear.pid)
+sleep 1
+\$args
+kill \$(cat /var/run/dropbear-test.pid)
+EOF
+	fail "dropbear on $target: port 22 did not answer with the new binary; the old one is back"
+}
 
 grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target platform cfw arch; do
 	case "$platform" in
@@ -141,6 +206,9 @@ grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target platform cfw arc
 	*) fail "$cfw/bin missing on $target — not installed here?" ;;
 	esac
 
+	first=0
+	ssh_ "$target" "test -e $cfw/bin/yastationd" </dev/null || first=1
+
 	put "$bin" "cat > $cfw/bin/yastationd.upload"
 	put "$here/yastationd/init.d/supervise.sh" "mkdir -p $cfw/init.d && cat > $cfw/init.d/supervise.sh.new && mv $cfw/init.d/supervise.sh.new $cfw/init.d/supervise.sh"
 	if [ -n "${arch:-}" ]; then
@@ -178,4 +246,7 @@ n=\$(ps w | awk -v b="\$D/bin/yastationd" '\$3 == b' | wc -l)
 tail -n +\$((l0 + 1)) /tmp/yastationd.log | grep -E 'level=(ERROR|WARN)' | tail -3 | sed 's/^/  log: /'
 echo "  ok"
 EOF
+	if [ "$first" = 1 ] || [ "${DROPBEAR:-0}" = 1 ]; then
+		update_dropbear
+	fi
 done

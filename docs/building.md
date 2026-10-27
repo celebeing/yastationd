@@ -13,13 +13,13 @@ One image per toolchain, in `docker/` (built on first use, then cached by docker
 |---|---|---|---|
 | `yastation-go` | `docker/go.Dockerfile` | `yastationd` (tests too) | Go 1.22.5 (`golang:1.22.5-bookworm`), `GOTOOLCHAIN=local`; one static armv7 binary for every board |
 | `yastation-node` | `docker/node.Dockerfile` | the web app (`web/`), embedded in yastationd | Node 18.20.8, pnpm 8.14.1 |
-| `yastation-zig` | `docker/zig.Dockerfile` | `sendspin-host` (per arch), `hostapd` | **zig 0.14.1** (0.11–0.13 emit armhf C++ binaries that crash before `main`), cmake, ninja, git, curl |
+| `yastation-zig` | `docker/zig.Dockerfile` | `sendspin-host` (per arch), `hostapd`, `dropbear` | **zig 0.14.1** (0.11–0.13 emit armhf C++ binaries that crash before `main`), cmake, ninja, git, curl |
 | `yastation-cross` | `docker/cross.Dockerfile` | `spotter-host` (per arch) | Ubuntu 22.04's gcc 11 cross toolchains (glibc 2.35): the toolchain the deployed builds were made with — its output is byte-identical to them (checked 2026-10-27) |
 
 ## tools/build.sh
 
 ```sh
-tools/build.sh                 # all: web yastationd hostapd sendspin spotter
+tools/build.sh                 # all: web yastationd hostapd dropbear sendspin spotter
 tools/build.sh yastationd      # tests + the daemon (the web app first, when its source changed)
 tools/build.sh sendspin:armhf  # one arch; "sendspin" = both
 tools/build.sh spotter:aarch64 # needs a sysroot (below); "spotter" = both, skipping one without
@@ -31,6 +31,7 @@ tools/build.sh web hostapd
 | `web` | `yastationd/internal/webui/dist/app/` (not committed) |
 | `yastationd` | `yastationd/build/yastationd` |
 | `hostapd` | `hostapd/build/hostapd` |
+| `dropbear` | `dropbear/build/dropbearmulti` (static aarch64, every board; [dropbear/README.md](../dropbear/README.md)) |
 | `sendspin:<arch>` | `sendspin-host/build/<arch>/sendspin-host` |
 | `spotter:<arch>` | `spotter-host/build/<arch>/spotter-host` |
 
@@ -39,7 +40,7 @@ tools/build.sh web hostapd
 - Caches survive between runs in `${XDG_CACHE_HOME:-~/.cache}/yastation-build` (Go build and
   module caches, zig's cache; the pnpm store sits in `web/node_modules/`). A warm `yastationd`
   build takes seconds.
-- `sendspin-host` and `hostapd` fetch their pinned sources on the first build (network needed
+- `sendspin-host`, `hostapd` and `dropbear` fetch their pinned sources on the first build (network needed
   once); everything else builds offline.
 - A `sendspin-host/build/<arch>` configured in another directory (a moved checkout, or the
   builder before v0.16.2 that mounted the repo at `/src`) is wiped and built anew by its Makefile:
