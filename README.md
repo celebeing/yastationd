@@ -1,190 +1,220 @@
+<div align="center">
+
 # yastationd
 
-A custom firmware layer that turns a family of compact smart speakers into **offline Home Assistant
-speakers**. The vendor's assistant stack does not run. Its place is taken by a small on-device agent,
-`yastationd`, that talks only to Home Assistant on the LAN: MQTT for controls and sensors, Wyoming
-for voice. The speaker needs no cloud and no internet, and works the same with the WAN unplugged.
+**Станции в Home Assistant: голос, свет и музыка без облака**
 
-The base Linux of the device (init, Wi-Fi, ALSA, LEDs, input) stays as shipped. The CFW adds files
-next to it and drives the hardware directly. The one vendor piece it reuses is the voice front-end
-library (echo cancellation, noise reduction and the wake-word engine), which it loads in a separate
-helper process, `spotter-host`, so the vendor code never runs inside the agent.
+[![Release](https://img.shields.io/github/v/release/celebeing/yastationd)](https://github.com/celebeing/yastationd/releases)
+[![License: MIT](https://img.shields.io/github/license/celebeing/yastationd)](LICENSE)
 
-## Highlights
+Русский · [English](README.en.md)
 
-**Made for Home Assistant power users.** Everything on the speaker is an HA entity you can
-automate: the ring, the display, volume, the keys as events, the light sensor, power health. Voice
-goes into your own Assist pipeline, so you choose the STT, the TTS and the conversation agent, a
-local LLM included. The speaker is also a Music Assistant player for whole-home audio. Settings
-live in plain config files on the device, with per-unit overrides, and the docs cover the HA side
-as well: pipeline setup, entity exposure, prompting.
+[Возможности](#возможности) · [Колонки](#поддерживаемые-колонки) · [Установка](#установка) · [Документация](docs/index.md) · [Изменения](CHANGELOG.md)
 
-**The stock wake word, tuned for this hardware.** «Алиса», «стоп», «громче» and the other local
-commands run on the speaker's own spotter and voice front-end: the models, echo cancellation,
-noise reduction and mic-array processing that the manufacturer tuned for this exact device. It
-works phenomenally well and hears the wake word even over the speaker's own music. Open-source
-wake word engines don't come close.
+</div>
 
-**A living front display.** The clock face plays the speaker's own animations, read from its
-firmware: eyes, the voice-state bars while it listens, thinks and speaks, a ringing timer, pause
-and track changes. A few more faces of ours fill the gaps (happy, sad, angry, wink, sleep). Every change
-on the display is smooth: segments cross-fade per element, so animations join without a blank,
-digits morph into new ones and the clock fades back in after a face. All of it is scriptable from
-HA, from single expressions to timed scenarios across the ring and the display.
+Кастомная прошивка (CFW) для умных колонок семейства Станция. Штатный ассистент на колонке не
+запускается. Вместо него работает агент `yastationd`, который общается только с Home Assistant в
+локальной сети: по MQTT идут управление и датчики, по Wyoming — голос. Интернет колонке не нужен,
+с отключённым WAN она работает так же.
 
-## What the speaker does with the CFW
+Базовый Linux устройства (init, Wi-Fi, ALSA, светодиоды, кнопки) остаётся заводским. CFW кладёт
+свои файлы рядом и работает с железом напрямую. Из штатного софта используется только библиотека
+голосового фронтенда: эхоподавление, шумоподавление и споттер. Её загружает отдельный процесс
+`spotter-host`, поэтому чужой код в самом агенте не исполняется.
 
-**Voice (Wyoming satellite in HA's Assist pipeline)**
-- Wake word «Алиса», using the device's own front-end and spotter models: 3-mic echo-cancelled,
-  noise-reduced audio is streamed to HA's STT, and the answer is played back.
-- Push-to-talk on the voice key; dialog follow-up (keeps listening after a question).
-- Several speakers in earshot agree which one answers: the nearest (the loudest «Алиса»); the
-  others glance aside and stay silent ([docs/wake-arbitration.md](docs/wake-arbitration.md)).
-- «Стоп» ends a voice session at once, whether it listens, thinks or speaks.
-- Announcements and TTS from HA (`assist_satellite.announce`, any media URL).
-- HA voice timers: countdown on the clock, an alarm on finish, any touch key stops it. A paused timer
-  blinks its remainder briefly, then the clock comes back.
-- Local reflexes while audio plays: «стоп», «громче», «тише» are handled on the device.
+## Главное
 
-**Expressions on the display and the ring**
-- The speaker's own clock animations play on the front display: the voice-state bars while the
-  assistant listens, thinks and speaks, then a wink as the dialog ends; a greeting (eyes, wink)
-  once per boot; `ringing` for a timer or alarm. Our own faces add happy, sad, angry, wink and sleep.
-- Smooth per-segment transitions everywhere: back-to-back animations join without a blank, the
-  volume digits morph, the clock fades back in after a face.
-- From HA: an `Expression` select, `express` and `scenario` topics (built-in or your own timed
-  scenarios over the ring and the display), raw frames, and a `Display faces` switch. The speaker
-  publishes what it can show, so scripts and an LLM agent can adapt to each model.
-  Details: [docs/display-expressions.md](docs/display-expressions.md).
+**Для тех, кто живёт в Home Assistant.** Всё на колонке — сущности HA, их можно автоматизировать:
+кольцо, дисплей, громкость, кнопки как события, датчик освещённости, питание. Голос уходит в ваш
+собственный пайплайн Assist: STT, TTS и агента вы выбираете сами, в том числе локальную LLM.
+Колонка работает плеером Music Assistant для мультирум-звука. Настройки лежат в текстовых
+конфигах на устройстве, у каждой колонки могут быть свои. В документации описана и сторона HA:
+пайплайн, экспонирование сущностей, промпты.
 
-**Controls and sensors (HA MQTT Discovery, one device per speaker)**
-- LED ring as an HA `light` with effects (pulse, comet, blink, rainbow, voice-state presets), plus
-  timed ring animations that Assist can trigger.
-- Station 3's rear strip as an RGBW `light`, and a DDP receiver for it: point
-  [LedFx](https://www.ledfx.app/) (or WLED tools) at the speaker as a 12-pixel DDP device and its
-  effects play on the strip; without it, our own music effects (rain, VU, spectrum, energy,
-  scroll, pulse) follow the music playing on the speaker, chosen and dimmed from HA
+**Родной споттер, настроенный под это железо.** «Алиса», «стоп», «громче» и другие локальные
+команды распознаёт штатный споттер колонки со своими моделями, эхоподавлением, шумоподавлением и
+обработкой микрофонного массива, которые производитель настраивал под это устройство. Работает
+отлично, слышит «Алису» даже поверх собственной музыки. Открытые движки wake word до такого
+уровня не дотягивают.
+
+**Живой дисплей.** Циферблат проигрывает анимации из прошивки колонки: глаза, полоски состояния
+голоса (слушает, думает, говорит), звонящий таймер, пауза и переключение трека. Несколько своих
+лиц закрывают пробелы: радость, грусть, злость, подмигивание, сон. Все переходы плавные: сегменты
+перетекают поэлементно, цифры морфятся, часы возвращаются после анимации без пустого кадра. Всё
+это управляется из HA, от отдельной эмоции до сценария по кольцу и дисплею.
+
+## Возможности
+
+**Голос (Wyoming-сателлит в пайплайне Assist)**
+- «Алиса» на штатных моделях и фронтенде: звук с трёх микрофонов с эхо- и шумоподавлением идёт в
+  STT Home Assistant, ответ проигрывается на колонке.
+- Push-to-talk на кнопке голоса; продолжение диалога, если ассистент задал вопрос.
+- Если «Алису» услышали несколько колонок, отвечает ближайшая (та, что услышала громче), остальные
+  отводят взгляд и молчат ([docs/wake-arbitration.md](docs/wake-arbitration.md)).
+- «Стоп» сразу заканчивает голосовую сессию на любой стадии.
+- Оповещения и TTS из HA (`assist_satellite.announce`, любой медиа-URL).
+- Голосовые таймеры HA: обратный отсчёт на часах, сигнал по окончании, остановка любой сенсорной
+  кнопкой. Поставленный на паузу таймер коротко мигает остатком, потом возвращаются часы.
+- Локальные команды во время воспроизведения: «стоп», «громче», «тише» обрабатываются на колонке.
+
+**Анимации на дисплее и кольце**
+- Анимации из прошивки: полоски состояния во время диалога и подмигивание в конце, приветствие при
+  загрузке, `ringing` для таймера и будильника. Плюс свои лица.
+- Плавные переходы везде: анимации стыкуются без пустых кадров, цифры громкости морфятся, часы
+  проявляются обратно.
+- Из HA: селект `Expression`, топики `express` и `scenario` (готовые или свои сценарии по кольцу и
+  дисплею), сырые кадры, переключатель `Display faces`. Колонка сообщает, что умеет показывать, и
+  скрипты или LLM-агент подстраиваются под модель.
+  Подробнее: [docs/display-expressions.md](docs/display-expressions.md).
+
+**Управление и датчики (MQTT Discovery, одно устройство на колонку)**
+- Светодиодное кольцо как `light` с эффектами (пульс, комета, мигание, радуга, пресеты состояний
+  голоса) и анимации кольца, которые может запускать Assist.
+- Задняя RGBW-подсветка Станции 3 как `light` и DDP-приёмник для неё: укажите колонку в
+  [LedFx](https://www.ledfx.app/) (или в инструментах WLED) как DDP-устройство на 12 пикселей, и
+  его эффекты пойдут на подсветку. Без LedFx подсветка играет свои эффекты под музыку с колонки
+  (rain, VU, спектр, energy, scroll, pulse), эффект и яркость выбираются из HA
   ([docs/ambilight-stream.md](docs/ambilight-stream.md)).
-- Front display: clock, a text message (long text scrolls), timed text overlays, countdowns.
-- Clock auto-brightness from the ambient-light sensor (dims to barely visible in a dark room).
-  Switch and manual level in HA.
-- Volume (number + hardware keys with an on-display level), mic-mute switch state, buttons as HA
-  events, illuminance in lux (calibrated per speaker), room sound level and activity, uptime,
-  health.
-- Power self-check: USB-C PD contract voltage and a problem flag. On an unsuitable power supply the
-  speaker says so once per boot.
+- Дисплей: часы, текст (длинный прокручивается), временные надписи поверх часов, обратный отсчёт.
+- Автояркость часов по датчику освещённости, в тёмной комнате почти гаснут. Переключатель и ручной
+  уровень в HA.
+- Громкость (число в HA и аппаратные кнопки с уровнем на дисплее), состояние mute, кнопки как
+  события HA, освещённость в люксах (с калибровкой под каждую колонку), уровень шума и активность в
+  комнате, аптайм, здоровье.
+- Проверка питания: напряжение USB-C PD и флаг проблемы. С неподходящим блоком питания колонка
+  один раз за загрузку говорит об этом вслух.
 
-**Music (Music Assistant player)**
-- A Sendspin player for Music Assistant (`sendspin-host`): lossless music over the LAN, mixed with
-  the assistant on the same speaker. Music ducks while the assistant listens, talks or rings a
-  timer; the wake word works over the music; the player volume in MA is the speaker's volume.
-- On the display: a new track's title runs once, pause / resume animations, and on Station 3 the
-  spectrum under the clock while music plays (each can be switched off: `music_title`,
-  `music_clips`, `music_levels`). Details: [docs/music-sendspin.md](docs/music-sendspin.md).
+**Музыка (плеер Music Assistant)**
+- Плеер Sendspin для Music Assistant (`sendspin-host`): музыка без потерь по локальной сети,
+  смешивается с голосом ассистента. Пока ассистент слушает, говорит или звонит таймер, музыка
+  приглушается; «Алиса» слышна поверх музыки; громкость плеера в MA и есть громкость колонки.
+- На дисплее: бегущая строка с названием нового трека, анимации паузы и продолжения, на Станции 3
+  спектр под часами. Каждое отключается: `music_title`, `music_clips`, `music_levels`.
+  Подробнее: [docs/music-sendspin.md](docs/music-sendspin.md).
 
-**Operations**
-- Logs can go to a syslog server on the LAN, kept on flash while it is unreachable; a network
-  watchdog brings back a speaker whose Wi-Fi stopped passing data: it resets the Wi-Fi
-  controller the way the stock firmware does, then reboots ([docs/storage.md](docs/storage.md)).
-- Prometheus metrics at `/metrics`: memory, load, temperature, sensors.
+**Эксплуатация**
+- Логи можно слать на syslog-сервер в локальной сети; пока он недоступен, они копятся на флеше.
+  Сетевой сторож поднимает колонку, у которой Wi-Fi перестал пропускать данные: сбрасывает
+  Wi-Fi-контроллер так же, как штатная прошивка, и в крайнем случае перезагружает
+  ([docs/storage.md](docs/storage.md)).
+- Метрики Prometheus на `/metrics`: память, нагрузка, температура, датчики.
 
-**Keeps working without HA**
-- Clock, volume keys, mute and the display run locally. If the broker or HA goes away, the ring
-  shows a dim "degraded" dot, and everything reconnects and re-publishes by itself.
-- Time is kept from the LAN NTP server. The clock blinks its colon until the time is confirmed, and a
-  stale clock after power-on is corrected right away.
+**Без Home Assistant**
+- Часы, кнопки громкости, mute и дисплей работают локально. Если брокер или HA пропали, на кольце
+  горит тусклая точка «degraded», после восстановления колонка сама переподключается и заново
+  публикует состояние.
+- Время синхронизируется с NTP-сервером в локальной сети. Пока время не подтверждено, двоеточие
+  мигает; устаревшие после включения часы сразу исправляются.
 
-**A web app on every speaker**
-- Open `http://<speaker-ip>/` (login **admin / yastation** until you change it from the app):
-  every speaker on the LAN in one list, found by itself; per speaker its sensors, the runtime
-  controls HA has (display, expressions, brightness, volume…), a live LED preview, the moments it
-  shows and a button to try them, the saved Wi-Fi networks (add one), its logs, a light-sensor
-  calibration against a lux meter, the config file with a
-  validated save that rolls itself back if the speaker gets worse, the login, and an update check.
-  Prometheus metrics at `/metrics`. Details: [docs/web-ui.md](docs/web-ui.md).
+**Веб-приложение на каждой колонке**
+- `http://<speaker-ip>/`, логин **admin / yastation**, пока вы его не смените. Все колонки сети в
+  одном списке, находятся сами. У каждой: датчики, рантайм-настройки из HA (дисплей, анимации,
+  яркость, громкость…), живое превью светодиодов, «моменты» с кнопкой проверки, сохранённые сети
+  Wi-Fi (можно добавить), логи, калибровка датчика освещённости по люксметру или по экспозиции,
+  редактор конфига с проверкой и автооткатом, если колонке стало хуже, смена логина, проверка
+  обновлений. Подробнее: [docs/web-ui.md](docs/web-ui.md).
 
-**Recovery when the Wi-Fi changes**
-- Mute the mic, then hold the voice key for 5 s (the ring fills with yellow): the speaker becomes
-  its own access point with
-  a setup page that phones open by themselves. On it you list, add, edit and remove the saved Wi-Fi
-  networks and set the home settings (broker, health probes, time servers and zone, Music
-  Assistant). Nothing about the mode is persistent: leaving it, or a reboot, brings the normal
-  Wi-Fi client back. Details: [docs/wifi-setup.md](docs/wifi-setup.md).
+**Если сменился Wi-Fi**
+- Выключите микрофон и удерживайте кнопку голоса 5 секунд (кольцо заполнится жёлтым). Колонка
+  поднимет свою точку доступа со страницей настройки, которую телефон откроет сам. Там можно
+  посмотреть, добавить, изменить и удалить сохранённые сети и задать домашние настройки: брокер,
+  проверки здоровья, серверы времени и часовой пояс, Music Assistant. Режим не сохраняется: выход
+  из него или перезагрузка возвращают обычное подключение.
+  Подробнее: [docs/wifi-setup.md](docs/wifi-setup.md).
 
-**Intercom between rooms** (off by default)
-- «Алиса, позвони в спальню»: a live two-way call to the speaker in another room, over the LAN
-  only. The speakers use the vendor's own call processing (echo cancellation, neural noise
-  reduction, gain control), so double talk works and nothing but the room's voice gets through.
-- Answer with «продолжи» or the voice key, decline with «стоп» or mute; in a call «Алиса,
-  громче / тише / хватит». All of that is on the speaker's own spotters; HA only starts the call
-  (an LLM tool script, or the target select and call button). Calls are signed and encrypted.
-  Details: [docs/intercom.md](docs/intercom.md), HA setup: [docs/ha-intercom-setup.md](docs/ha-intercom-setup.md).
+**Интерком между комнатами** (по умолчанию выключен)
+- «Алиса, позвони в спальню»: двусторонний звонок на колонку в другой комнате, только по локальной
+  сети. Звонок идёт через штатную обработку вендора (эхоподавление, нейросетевое шумоподавление,
+  АРУ), так что можно говорить одновременно, а посторонний шум отсекается.
+- Ответить — «продолжи» или кнопка голоса, отклонить — «стоп» или mute; во время звонка «Алиса,
+  громче / тише / хватит». Всё это распознаётся на колонке, HA только начинает звонок (скрипт для
+  LLM или селект цели с кнопкой). Звонки подписаны и зашифрованы.
+  Подробнее: [docs/intercom.md](docs/intercom.md), настройка HA:
+  [docs/ha-intercom-setup.md](docs/ha-intercom-setup.md).
 
-## How it is built
+## Как устроено
 
 ```
              Home Assistant (LAN)
-        MQTT ▲            ▲ Wyoming (voice in/out)
+        MQTT ▲            ▲ Wyoming (голос туда и обратно)
              │            │
   ┌──────────┴────────────┴─────────────────────────────┐
-  │ yastationd  (static Go binary, one per speaker)     │
-  │  board profile ─ LEDs/display (sysfs) ─ keys (evdev)│
-  │  ALSA: aplay (dmix) out, one arecord in, fanned out │
-  │  timers · health · time sync · power · lux          │
+  │ yastationd  (статический Go-бинарник)               │
+  │  профиль платы ─ LED, дисплей (sysfs) ─ кнопки      │
+  │  ALSA: aplay (dmix) на выход, один arecord на вход  │
+  │  таймеры · здоровье · время · питание · освещённость│
   └───────┬──────────────────────────────▲──────────────┘
-   raw mic│frames (stdin)   events (stdout)│ + clean 16 kHz voice (fd 3)
+сырой звук│(stdin)       события (stdout)│ + чистый голос 16 кГц (fd 3)
   ┌───────▼──────────────────────────────┴──────────────┐
-  │ spotter-host  (C, native arch, dlopens the vendor   │
-  │ front-end lib: AEC/NR + wake word + commands)       │
+  │ spotter-host  (C, нативная архитектура, загружает   │
+  │ библиотеку фронтенда: AEC/NR, споттер, команды)     │
   └─────────────────────────────────────────────────────┘
 ```
 
-- **One binary, many models.** Everything model-specific (LED names and count, display, keys,
-  mixer controls, mic layout, front-end preset and models, sensors, power) lives in a **board
-  profile** embedded in the binary and picked from the device tree. A new speaker is a new profile,
-  plus a backend only if it has genuinely new hardware (for example a framebuffer display).
-- **Persistent state** (ring, display mode, volume, brightness and so on) lives on the device's
-  writable partition under `<cfw>`: `/bkupgrade/cfw` on some models, `/data/cfw` on others.
-- The agent is a static armv7 binary, which also runs on models with a 64-bit userland.
-  `spotter-host` must match the userland's architecture, because it links the vendor library.
+- **Один бинарник на все модели.** Всё, что зависит от модели (имена и число светодиодов, дисплей,
+  кнопки, микшер, раскладка микрофонов, пресет и модели фронтенда, датчики, питание), описано в
+  **профиле платы**. Профили встроены в бинарник, нужный выбирается по device tree. Новая колонка —
+  это новый профиль, бэкенд пишется только под действительно новое железо (например,
+  дисплей-фреймбуфер).
+- **Состояние** (кольцо, режим дисплея, громкость, яркость и прочее) хранится на записываемом
+  разделе в `<cfw>`: `/bkupgrade/cfw` или `/data/cfw` в зависимости от модели.
+- Агент собран статически под armv7 и запускается и на моделях с 64-битным userland.
+  `spotter-host` линкуется с библиотекой вендора, поэтому собирается под архитектуру userland.
 
-## Supported speakers
+## Поддерживаемые колонки
 
-| Board | Model | Status |
+| Плата | Модель | Состояние |
 |---|---|---|
-| `bergamot` | Station Mini 3 | full support, two units in daily use |
-| `pickle` | Station Mini 3 Pro | full support (16-pixel ring, aarch64 userland) |
-| `yandexmidi` | Station 2 | profiled from firmware only, no unit yet |
-| `orion` | Station 3 | initial support: installed and running on a unit — voice with the stock wake word (NPU verifier), playback, volume, circular controls, ring, rear ambilight (with DDP effects), the 21×12 screen with the firmware's own animations, our pixel clock and fonts, music on the screen |
+| `bergamot` | Станция Мини 3 | полная поддержка, две колонки в ежедневной работе |
+| `pickle` | Станция Мини 3 Про | полная поддержка (кольцо на 16 пикселей, aarch64 userland) |
+| `orion` | Станция 3 | полная поддержка: голос со штатным споттером (верификатор на NPU), воспроизведение, громкость, круговые кнопки, кольцо, задняя подсветка с DDP-эффектами, экран 21×12 с анимациями прошивки, наши пиксельные часы и шрифты, музыка на экране |
+| `yandexmidi` | Станция 2 | профиль снят только с прошивки, колонки пока нет |
 
-Per-board notes: [docs/boards/](docs/boards/README.md).
+Заметки по платам: [docs/boards/](docs/boards/README.md).
 
-## Repository
+## Установка
 
-| Path | What |
+Установка ручная, через SSH на колонку. Как получить доступ к своей колонке, проект не описывает:
+считается, что он у вас уже есть.
+
+- **Сами:** сборка в [docs/building.md](docs/building.md), установка, обновление и удаление в
+  [docs/deploying.md](docs/deploying.md).
+- **Через агента:** дайте этот репозиторий и доступ к колонке своему агенту (Claude Code и
+  подобным). [docs/deploying.md](docs/deploying.md) написан в том числе для него, правила
+  безопасной работы с колонкой лежат в [CLAUDE.md](CLAUDE.md). Агент соберёт, установит и
+  проверит всё сам.
+
+## Репозиторий
+
+| Путь | Что там |
 |---|---|
-| [`yastationd/`](yastationd/README.md) | The on-device agent: entities, config, build. Board profiles: `internal/board/profiles/` |
-| [`spotter-host/`](spotter-host/README.md) | Voice front-end host (wake word, echo cancellation), per-arch build |
-| [`sendspin-host/`](sendspin-host/README.md) | Music Assistant (Sendspin) player, a native helper on sendspin-cpp, per-arch build (zig) |
-| [`hass/`](hass/) | HA-side scripts the Assist agent can call (ring animation, show text) |
-| [`tools/`](tools/) | Read-only board survey, multi-speaker `deploy.sh`, firmware-dump helpers |
-| [`docs/`](docs/index.md) | Design docs, hardware notes, reverse-engineering findings — start at the index |
-| [`docs/ha-assistant-setup.md`](docs/ha-assistant-setup.md) | Setting up the voice assistant in Home Assistant (STT, TTS, agent, pipeline) |
-| [`docs/deploying.md`](docs/deploying.md) | **For agents:** installing, updating and removing the CFW on a speaker |
-| [`docs/porting-a-speaker.md`](docs/porting-a-speaker.md) | **For agents:** how to research a new speaker and add support for it |
+| [`yastationd/`](yastationd/README.md) | Агент на колонке: сущности, конфиг, сборка. Профили плат: `internal/board/profiles/` |
+| [`spotter-host/`](spotter-host/README.md) | Хост голосового фронтенда (споттер, эхоподавление), сборка под архитектуру |
+| [`sendspin-host/`](sendspin-host/README.md) | Плеер Music Assistant (Sendspin) на sendspin-cpp, сборка под архитектуру (zig) |
+| [`web/`](web/) | Веб-приложение (Preact), встраивается в `yastationd` |
+| [`hass/`](hass/) | Скрипты для HA, которые может вызывать агент Assist (анимация кольца, текст на дисплее) |
+| [`tools/`](tools/) | Сборка в docker (`build.sh`), деплой на несколько колонок (`deploy.sh`), обследование платы, работа с дампами прошивки |
+| [`docs/`](docs/index.md) | Дизайн-доки, заметки по железу, результаты реверса. Начинать с индекса |
+| [`docs/ha-assistant-setup.md`](docs/ha-assistant-setup.md) | Настройка голосового ассистента в HA: STT, TTS, агент, пайплайн |
+| [`docs/building.md`](docs/building.md) | Сборка |
+| [`docs/deploying.md`](docs/deploying.md) | **Для агентов:** установка, обновление и удаление CFW |
+| [`docs/porting-a-speaker.md`](docs/porting-a-speaker.md) | **Для агентов:** как исследовать новую колонку и добавить её поддержку |
 
-## Repo hygiene
+Документация и код на английском.
 
-`dumps/` (raw firmware and device dumps) and `*.local.md` hold per-device secrets and personal
-details. They are gitignored and must never be committed or shared. Committed files use placeholders
-(`<speaker-ip>`, `<ha-host>`, …) instead of deployment values.
+## Гигиена репозитория
 
-## Versions
+`dumps/` (дампы прошивок и устройств) и `*.local.md` содержат секреты и личные данные конкретных
+колонок. Они в `.gitignore` и не коммитятся. В коммитах вместо реальных значений плейсхолдеры
+(`<speaker-ip>`, `<ha-host>`, …).
 
-Releases are `vX.Y.Z` tags; see [CHANGELOG.md](CHANGELOG.md). The running version shows in HA
-(device card and the Version sensor). How to cut one: [docs/releasing.md](docs/releasing.md).
+## Версии
 
-## License
+Релизы — теги `vX.Y.Z`, список изменений в [CHANGELOG.md](CHANGELOG.md). Текущая версия видна в
+HA (карточка устройства и сенсор Version) и в веб-приложении. Как выпускать: [docs/releasing.md](docs/releasing.md).
 
-MIT — see [LICENSE](LICENSE). Vendor software, firmware and models are not part of this repository
-and are not covered by it; the CFW uses the copies already on your own device.
+## Лицензия
+
+MIT, см. [LICENSE](LICENSE). Софт, прошивки и модели вендора в репозиторий не входят и лицензией
+не покрываются: CFW использует копии, которые уже есть на вашей колонке.
