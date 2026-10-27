@@ -70,7 +70,8 @@ A photographic meter that shows EV or an exposure instead of lux works too, in *
 EV (or aperture, shutter and ISO) into lux as you type, `E = C/100 · 2^EV₁₀₀` with
 `EV₁₀₀ = log₂(N²/t) − log₂(ISO/100)` and the incident constant C = 250 (a flat diffuser; ISO 2720
 allows 240–400, domes are often 320–340 — then the true light is ~30 % less). EV 0 at ISO 100 is
-2.5 lx, EV 7 is 320 lx.
+2.5 lx, EV 7 is 320 lx. Checked against the Sekonic in incident mode (2026-10-27): it showed 75 lx and,
+for the same light, f/2.2 1/200 at ISO 3200 — EV₁₀₀ 4.92, which the page turns into 75.6 lx.
 
 ### Procedure
 
