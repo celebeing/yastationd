@@ -3,7 +3,7 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.17.0 — 2026-10-27
 
 **New**
 - Moments are the owner's to choose: the web app's Moments tab edits what each moment shows — an

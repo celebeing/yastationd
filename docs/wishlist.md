@@ -352,3 +352,21 @@ other may hear the same word in different contexts (one ringing, the other playi
 the call's two rooms). Check where a claim from one could suppress or delay the other's
 context-dependent action, and whether such words need their own rule (never arbitrated, or
 arbitrated only among speakers in the same context).
+
+## Automated tests: CI and the gaps
+
+State on 2026-10-27: the Go tests (17 packages) pass with `-race`, but nothing runs them on a
+push: only `build.sh` and manual runs do (GitHub has the release action only). Coverage is uneven:
+`web` 96 %, `ddp` 94 %, `intercom` 86 %, `board` 85 %, `display` 81 %; thin in `app` 42 % (the MQTT
+command handlers, the voice pipeline), `mqtt` 29 %, `wyoming` 43 %, `wifisetup` 47 %, `config`
+50 %. The web app, the C helpers (`spotter-host`, `sendspin-host`) and the shell tools have none.
+In order of value:
+
+1. **CI on every push:** `go vet`, `go test -race`, a gofmt check, the web app's `tsc` build,
+   `shellcheck tools/*.sh`.
+2. **The voice pipeline:** tests of `satellite` / `voice` against a fake Wyoming server (the most
+   logic with the fewest tests), and the MQTT command parsing.
+3. **A smoke test on the simulator:** `ledsim -http`, moments set and played through the API with
+   the frame tap recorded (the check done by hand for v0.17.0), as a Go test.
+4. **Small web tests** (vitest) of the pure helpers: the exposure-to-lux conversion, the moment
+   descriptions.
