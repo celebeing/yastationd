@@ -19,10 +19,10 @@
 # dropbear (the speaker's SSH server, dropbear/) is replaced only on a first deploy (no yastationd
 # on the speaker yet) or with DROPBEAR=1, and only where it runs from <cfw>/bin/dropbearmulti. The
 # new one is tried on port 2222 first and swaps itself in from there; the old one stays as
-# dropbearmulti.prev.
+# dropbearmulti.prev. DROPBEAR=only does just that: no build or update of anything else.
 #
 # Env: SSHKEY (optional: the key to use; unset, ssh picks one from the agent and ~/.ssh/config),
-# VENDOR (optional, the vendor-tree checkout), DROPBEAR=1 (replace dropbear, above), NATIVE=1 (build yastationd with the host's
+# VENDOR (optional, the vendor-tree checkout), DROPBEAR=1 | only (replace dropbear, above), NATIVE=1 (build yastationd with the host's
 # toolchain, ship the helpers as they are). Speakers are updated one at a time; the script stops
 # at the first failure so a broken build never reaches the rest.
 #
@@ -83,7 +83,9 @@ arches=$(grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r _ platform _ a
 	echo "$arch"
 done | sort -u)
 echo "== build"
-if [ "${NATIVE:-0}" = 1 ]; then
+if [ "${DROPBEAR:-0}" = only ]; then
+	"$here/tools/build.sh" dropbear
+elif [ "${NATIVE:-0}" = 1 ]; then
 	(cd "$here/yastationd" && make -s test build)
 else
 	targets="yastationd hostapd dropbear"
@@ -206,6 +208,10 @@ grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target platform cfw arc
 	*) fail "$cfw/bin missing on $target — not installed here?" ;;
 	esac
 
+	if [ "${DROPBEAR:-0}" = only ]; then
+		update_dropbear
+		continue
+	fi
 	first=0
 	ssh_ "$target" "test -e $cfw/bin/yastationd" </dev/null || first=1
 

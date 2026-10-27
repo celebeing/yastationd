@@ -260,7 +260,8 @@ test server on port 2222 with the live listener's arguments (same host key); onl
 it does the swap, keeping the old binary as `dropbearmulti.prev`, and restarts the port-22
 listener (sessions in progress stay up). A login on port 22 then confirms it and stops the test
 server; if port 22 does not answer, the old binary is put back through port 2222 and the run
-stops. The boot hook starts the same path, so a reboot keeps the new one. To go back by hand:
+stops. `DROPBEAR=only` does only this, without building or updating anything else (for
+speakers that should keep their running build). The boot hook starts the same path, so a reboot keeps the new one. To go back by hand:
 `mv <cfw>/bin/dropbearmulti.prev <cfw>/bin/dropbearmulti` and restart the listener (or reboot).
 
 **Don't** improvise the swap as one ssh command line that contains the binary's path. The init
