@@ -418,3 +418,108 @@ export function LogTab({ peer, base }: { peer: Peer; base: string }) {
     </section>
   )
 }
+
+/** CalibrationTab: the light sensor against a lux meter (docs/sensor-calibration.md). The speaker
+ * measures for ~15 s with its own lights off and stores the point in its config. */
+export function CalibrationTab({ peer, base }: { peer: Peer; base: string }) {
+  const [cal, setCal] = useState<api.LightCal | null>(null)
+  const [lux, setLux] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+  const [confirm, setConfirm] = useState(false)
+  const load = () =>
+    api.lightCal(peer.id, base).then(
+      (c) => setCal(c),
+      (e) => setErr(e.status === 404 ? 'This speaker has no light sensor.' : e.message || String(e)),
+    )
+  useEffect(() => {
+    load()
+  }, [peer.id])
+
+  async function measure() {
+    const v = parseFloat(lux.replace(',', '.'))
+    if (!(v > 0)) return setErr('Enter the lux your meter shows.')
+    setErr('')
+    setMsg('')
+    setBusy(true)
+    try {
+      const c = await api.calibrateLight(peer.id, base, v)
+      setCal(c)
+      setMsg(
+        `Done: the sensor read ${c.measured?.toPrecision(4)} for ${v} lx` +
+          (c.before ? ` (it would have said ${Math.round(c.before)} lx before).` : '.'),
+      )
+    } catch (e: any) {
+      setErr(e.message || String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove() {
+    setConfirm(false)
+    try {
+      setCal(await api.removeLightCal(peer.id, base))
+      setMsg('The unit calibration is removed: the board\'s base calibration applies.')
+    } catch (e: any) {
+      setErr(e.message || String(e))
+    }
+  }
+
+  return (
+    <section class="card">
+      <h3>Light sensor</h3>
+      {cal && (
+        <p class="small">
+          Now: <b>{Math.round(cal.lux * 10) / 10} lx</b> <span class="muted">(reading {cal.reading})</span> ·{' '}
+          {cal.source === 'unit' ? (
+            <>
+              this speaker's calibration <code>{cal.calibration}</code>
+            </>
+          ) : cal.source === 'board' ? (
+            "the model's base calibration (not this unit's)"
+          ) : (
+            'not calibrated'
+          )}
+        </p>
+      )}
+      <ol class="small steps">
+        <li>Take a lux meter to the speaker in a well-lit room (30 lx or more; white light, not coloured).</li>
+        <li>
+          Hold the meter next to the speaker's top, facing up, at the same height — beside it, not on it, and without
+          casting your own shadow on the speaker.
+        </li>
+        <li>Enter what it shows and press Measure. Step back: the speaker measures for about 15 s with its lights off.</li>
+        <li>
+          Optional: do it again in clearly different light (3× brighter or dimmer) — the two points also give the curve its
+          slope.
+        </li>
+      </ol>
+      <p class="small muted">
+        A phone app is a poor meter: Android's light sensor is rough, an iPhone app measures with the camera and can be off
+        several times.
+      </p>
+      <div class="row">
+        <input type="number" min="1" step="any" placeholder="lux" value={lux} onInput={(e) => setLux(e.currentTarget.value)} />
+        <button disabled={busy} onClick={measure}>
+          {busy ? 'Measuring…' : 'Measure'}
+        </button>
+        {cal?.source === 'unit' &&
+          (confirm ? (
+            <>
+              <span class="small">Remove this speaker's calibration?</span>
+              <button onClick={remove}>Remove</button>
+              <button onClick={() => setConfirm(false)}>Keep</button>
+            </>
+          ) : (
+            <button class="ghost" onClick={() => setConfirm(true)}>
+              Remove calibration
+            </button>
+          ))}
+      </div>
+      {msg && <p class="small ok">{msg}</p>}
+      {err && <p class="err">{err}</p>}
+    </section>
+  )
+}

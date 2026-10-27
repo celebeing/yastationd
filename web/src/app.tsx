@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import * as api from './api'
 import type { Entity, Features, Peer } from './api'
-import { LedTab, LogTab, MomentsTab, WifiTab } from './extra'
+import { CalibrationTab, LedTab, LogTab, MomentsTab, WifiTab } from './extra'
 
 // The app (docs/web-ui.md): the speakers on the LAN, and per speaker its sensors, runtime
 // controls, config and login. It is served by every speaker; the one it came from is "home" and
@@ -211,22 +211,35 @@ function About({ list, latest }: { list: Peer[]; latest: { tag: string; url: str
   )
 }
 
-type Tab = 'overview' | 'controls' | 'moments' | 'led' | 'wifi' | 'log' | 'config' | 'account'
+// Two levels: a group, then its tabs (docs/web-ui.md).
+type Tab = 'overview' | 'log' | 'controls' | 'moments' | 'led' | 'options' | 'calibration' | 'wifi' | 'config' | 'account'
+type Group = 'status' | 'controls' | 'settings'
+
+const GROUPS: { id: Group; name: string; tabs: Tab[] }[] = [
+  { id: 'status', name: 'Status', tabs: ['overview', 'log'] },
+  { id: 'controls', name: 'Controls', tabs: ['controls', 'moments', 'led'] },
+  { id: 'settings', name: 'Settings', tabs: ['options', 'calibration', 'wifi', 'config', 'account'] },
+]
 
 const TAB_NAMES: Record<Tab, string> = {
-  overview: 'Overview',
-  controls: 'Controls',
+  overview: 'Sensors',
+  log: 'Log',
+  controls: 'Display and voice',
   moments: 'Moments',
   led: 'LED',
+  options: 'Options',
+  calibration: 'Calibration',
   wifi: 'Wi-Fi',
-  log: 'Log',
-  config: 'Config',
-  account: 'Account',
+  config: 'Config file',
+  account: 'Login',
 }
 
 function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () => void }) {
   const { peer, base } = props
-  const [tab, setTab] = useState<Tab>('overview')
+  const [group, setGroup] = useState<Group>('status')
+  const [last, setLast] = useState<Record<Group, Tab>>({ status: 'overview', controls: 'controls', settings: 'options' })
+  const tab = last[group]
+  const setTab = (t: Tab) => setLast({ ...last, [group]: t })
   const [ents, setEnts] = useState<Entity[] | null>(null)
   const [err, setErr] = useState('')
   const [needLogin, setNeedLogin] = useState(false)
@@ -278,9 +291,16 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
             </a>
           </div>
         </div>
-        <nav class="tabs">
-          {(Object.keys(TAB_NAMES) as Tab[])
-            .filter((t) => (t === 'led' ? features.led_preview : t === 'wifi' ? features.wifi : t === 'moments' ? features.moments : true))
+        <nav class="tabs groups">
+          {GROUPS.map((g) => (
+            <button class={group === g.id ? 'on' : ''} onClick={() => setGroup(g.id)}>
+              {g.name}
+            </button>
+          ))}
+        </nav>
+        <nav class="tabs sub">
+          {GROUPS.find((g) => g.id === group)!
+            .tabs.filter((t) => (t === 'led' ? features.led_preview : t === 'wifi' ? features.wifi : t === 'moments' ? features.moments : true))
             .map((t) => (
               <button class={tab === t ? 'on' : ''} onClick={() => setTab(t)}>
                 {TAB_NAMES[t]}
@@ -291,7 +311,9 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
       {err && <p class="err">{err}</p>}
       {!ents && <p class="muted">…</p>}
       {ents && tab === 'overview' && <Overview ents={ents} />}
-      {ents && tab === 'controls' && <Controls ents={ents} peer={peer} base={base} reload={load} />}
+      {ents && tab === 'controls' && <Controls which="runtime" ents={ents} peer={peer} base={base} reload={load} />}
+      {ents && tab === 'options' && <Controls which="options" ents={ents} peer={peer} base={base} reload={load} />}
+      {tab === 'calibration' && <CalibrationTab peer={peer} base={base} />}
       {tab === 'moments' && <MomentsTab peer={peer} base={base} />}
       {tab === 'led' && <LedTab peer={peer} base={base} />}
       {tab === 'wifi' && <WifiTab peer={peer} base={base} />}
@@ -363,8 +385,10 @@ function Overview({ ents }: { ents: Entity[] }) {
   )
 }
 
-function Controls(props: { ents: Entity[]; peer: Peer; base: string; reload: () => void }) {
-  const ctl = props.ents.filter((e) => e.writable)
+// Controls: the runtime controls ("runtime": lights, display, expressions…) or the settings HA
+// keeps as config entities ("options").
+function Controls(props: { which: 'runtime' | 'options'; ents: Entity[]; peer: Peer; base: string; reload: () => void }) {
+  const ctl = props.ents.filter((e) => e.writable && (e.config.entity_category === 'config') === (props.which === 'options'))
   const [err, setErr] = useState('')
   async function send(e: Entity, payload: string) {
     setErr('')
@@ -375,10 +399,7 @@ function Controls(props: { ents: Entity[]; peer: Peer; base: string; reload: () 
       setErr(`${name(e)}: ${x.message || x}`)
     }
   }
-  const groups = [
-    { title: 'Display and voice', list: ctl.filter((e) => e.config.entity_category !== 'config') },
-    { title: 'Settings', list: ctl.filter((e) => e.config.entity_category === 'config') },
-  ]
+  const groups = [{ title: props.which === 'options' ? 'Options' : 'Display, lights and voice', list: ctl }]
   return (
     <div class="cols">
       {err && <p class="err">{err}</p>}

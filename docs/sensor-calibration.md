@@ -42,6 +42,18 @@ and integration time). The daemon smooths it (a 5-reading median, a 10 s average
 as the `reading` attribute of the HA `Illuminance` sensor, next to the calibration in use
 (`calibration: unit: …` / `board: …` / `none`).
 
+### From the web app
+
+Settings → Calibration on the speaker's web app ([web-ui.md](web-ui.md)): in a well-lit room
+(30 lx or more, white light), hold the meter beside the speaker's top, facing up, at the same
+height, without covering the speaker or casting your shadow on it; enter the lux and press
+Measure. The speaker turns its front display and ring off, takes the median of its readings over
+15 s and stores the point in its config as `lux_calibration`, applied at once. One point is a
+plain scale, which is most of it: the speakers' response is nearly linear (lux ∝ reading^0.96–0.98)
+and the units differ by a factor. A second measurement in clearly different light (×3 or more)
+is kept next to the first and gives the slope; one in similar light replaces it. "Remove
+calibration" goes back to the model's base.
+
 ### Procedure
 
 You need a lux meter (a photographer's meter in lux mode, or a cheap handheld one) and a light you

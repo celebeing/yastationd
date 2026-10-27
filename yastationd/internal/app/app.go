@@ -21,6 +21,7 @@ import (
 	"github.com/celebeing/yastationd/yastationd/internal/frametap"
 	"github.com/celebeing/yastationd/yastationd/internal/health"
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
+	"github.com/celebeing/yastationd/yastationd/internal/luxcal"
 	"github.com/celebeing/yastationd/yastationd/internal/logship"
 	"github.com/celebeing/yastationd/yastationd/internal/mqtt"
 	"github.com/celebeing/yastationd/yastationd/internal/timesync"
@@ -97,6 +98,8 @@ type App struct {
 	blPrev      int           // the backlight of the frame written last; render goroutine only
 	luxSmooth   atomic.Uint64 // smoothed light in lux (float64 bits), published to HA
 	luxReading  atomic.Uint64 // the same reading before the calibration (float64 bits)
+	luxUnitCal  atomic.Pointer[[]luxcal.Point] // set from the web app (lightcal.go); nil = the config's
+	luxCalBusy  atomic.Bool                    // a calibration measurement is running
 
 	baseFx    display.RenderFunc[display.RingFrame] // ring effect layer; render goroutine only
 	baseFxKey string

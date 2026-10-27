@@ -3,6 +3,16 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased (proposed: v0.17.0)
+
+**New**
+- Light sensor calibration from the web app (Settings → Calibration): measure the light beside
+  the speaker's top with a lux meter, enter it, press Measure. The speaker measures for 15 s with
+  its own lights off and stores the point in its config, applied at once; a second point in
+  clearly different light gives the slope.
+- The web app's speaker view has two levels: Status (sensors, log), Controls (display and voice,
+  moments, LED), Settings (options, calibration, Wi-Fi, config file, login).
+
 ## v0.16.5 — 2026-10-27
 
 **Fixes and operations**

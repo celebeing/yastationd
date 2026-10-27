@@ -113,6 +113,25 @@ A subproject: TypeScript, Preact, Vite (versions pinned exactly), built into
   the password, the frame tap's preview.
 - Logins: one per speaker; the app tries the last credentials that worked on the others first.
 
+## Navigation
+
+Per speaker, two levels: a group, then its tabs (the last tab of each group is remembered).
+
+| Group | Tabs |
+|---|---|
+| Status | Sensors (and diagnostics), Log |
+| Controls | Display and voice (the runtime controls HA has: lights, display, expressions, volume…), Moments, LED |
+| Settings | Options (the settings HA keeps as config entities), Calibration, Wi-Fi, Config file, Login |
+
+## Calibration
+
+The light sensor against a lux meter, the web app's version of
+[sensor-calibration.md](sensor-calibration.md#from-the-web-app): the user measures the light next
+to the speaker's top in a well-lit room and enters the lux; `POST /api/calibrate/light {"lux": N}`
+(behind the login) blacks out the front display and the ring, takes the median of 30 readings
+over 15 s, and stores the pair as `lux_calibration` in the speaker's config — live, no restart
+(`GET` shows the calibration in use, `DELETE` drops the unit's own). Under 30 lx it refuses.
+
 ## The extra tabs
 
 - **LED preview** (`led_preview`, on by default): the frame tap under `/tap/` on the web server,

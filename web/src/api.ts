@@ -74,12 +74,12 @@ export function baseOf(p: Peer, home: string): string {
   return p.url.replace(/\/+$/, '')
 }
 
-async function req<T>(base: string, path: string, opts: RequestInit = {}, token?: string): Promise<T> {
+async function req<T>(base: string, path: string, opts: RequestInit = {}, token?: string, timeoutMs = 8000): Promise<T> {
   const headers: Record<string, string> = { ...(opts.headers as any) }
   if (token) headers['Authorization'] = 'Bearer ' + token
   if (opts.body && typeof opts.body === 'string' && !headers['Content-Type']) headers['Content-Type'] = 'application/json'
   const ctl = new AbortController()
-  const timer = setTimeout(() => ctl.abort(), 8000)
+  const timer = setTimeout(() => ctl.abort(), timeoutMs)
   let r: Response
   try {
     r = await fetch(base + path, { ...opts, headers, signal: ctl.signal })
@@ -116,9 +116,9 @@ export function logout(id: string) {
 }
 
 /** authed calls: a 401 forgets the token. */
-async function authed<T>(id: string, base: string, path: string, opts: RequestInit = {}): Promise<T> {
+async function authed<T>(id: string, base: string, path: string, opts: RequestInit = {}, timeoutMs?: number): Promise<T> {
   try {
-    return await req<T>(base, path, opts, tokenFor(id))
+    return await req<T>(base, path, opts, tokenFor(id), timeoutMs)
   } catch (e) {
     if (e instanceof ApiError && e.status === 401) setToken(id, null)
     throw e
@@ -161,6 +161,12 @@ export const wifi = (id: string, base: string) => authed<{ networks: Net[]; curr
 export const wifiAdd = (id: string, base: string, n: { ssid: string; psk: string; hidden: boolean; priority: number }) =>
   authed<{ ok: boolean }>(id, base, '/api/wifi/networks', { method: 'POST', body: JSON.stringify(n) })
 export const moments = (id: string, base: string) => authed<Moment[]>(id, base, '/api/moments')
+export type LightCal = { calibration: string; source: 'unit' | 'board' | 'none'; reading: number; lux: number; measured?: number; before?: number }
+export const lightCal = (id: string, base: string) => authed<LightCal>(id, base, '/api/calibrate/light')
+/** calibrateLight takes ~16 s on the speaker (it measures), hence the long timeout. */
+export const calibrateLight = (id: string, base: string, lux: number) =>
+  authed<LightCal>(id, base, '/api/calibrate/light', { method: 'POST', body: JSON.stringify({ lux }) }, 40000)
+export const removeLightCal = (id: string, base: string) => authed<LightCal>(id, base, '/api/calibrate/light', { method: 'DELETE' })
 export const log = (id: string, base: string, source: string, lines: number) =>
   authed<{ source: string; lines: string[] }>(id, base, `/api/log?source=${encodeURIComponent(source)}&lines=${lines}`)
 export const showMoment = (id: string, base: string, name: string) =>

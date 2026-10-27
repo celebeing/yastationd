@@ -124,7 +124,6 @@ func (a *App) luxLoop(stop <-chan struct{}) {
 	}
 	alpha := 1 - math.Exp(-float64(luxEvery)/float64(luxTau))
 	curve := brightnessCurve(a.cfg, a.prof)
-	cal := a.luxCalibration()
 	var ema float64
 	var recent []float64
 	have := false
@@ -155,7 +154,7 @@ func (a *App) luxLoop(stop <-chan struct{}) {
 			reading = 0
 		}
 		a.luxReading.Store(math.Float64bits(reading))
-		lux := luxcal.Lux(cal, reading)
+		lux := luxcal.Lux(a.luxCalibration(), reading) // read each time: the web app may set it
 		a.luxSmooth.Store(math.Float64bits(lux))
 		target := curveLevel(curve, math.Max(lux, 1e-6))
 		cur := math.Float64frombits(a.autoBright.Load())
@@ -165,12 +164,24 @@ func (a *App) luxLoop(stop <-chan struct{}) {
 	}
 }
 
-// luxCalibration: the unit's own (config) or the board's (profile).
+// luxCalibration: the unit's own (config, or set from the web app since) or the board's
+// (profile).
 func (a *App) luxCalibration() []luxcal.Point {
-	if a.cfg.LuxCalibration != nil {
-		return a.cfg.LuxCalibration
+	if c := a.unitLuxCalibration(); c != nil {
+		return c
 	}
 	return a.prof.Lux.Calibration
+}
+
+// unitLuxCalibration: this speaker's own calibration, nil without one.
+func (a *App) unitLuxCalibration() []luxcal.Point {
+	if p := a.luxUnitCal.Load(); p != nil {
+		if len(*p) == 0 {
+			return nil // removed from the web app
+		}
+		return *p
+	}
+	return a.cfg.LuxCalibration
 }
 
 // luxAttrs are the Illuminance sensor's attributes: the smoothed raw reading (what a
@@ -178,8 +189,8 @@ func (a *App) luxCalibration() []luxcal.Point {
 func (a *App) luxAttrs() string {
 	src := "none"
 	switch {
-	case a.cfg.LuxCalibration != nil:
-		src = "unit: " + luxcal.String(a.cfg.LuxCalibration)
+	case a.unitLuxCalibration() != nil:
+		src = "unit: " + luxcal.String(a.unitLuxCalibration())
 	case len(a.prof.Lux.Calibration) > 0:
 		src = "board: " + luxcal.String(a.prof.Lux.Calibration)
 	}
