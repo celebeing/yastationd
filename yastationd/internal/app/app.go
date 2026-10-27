@@ -21,8 +21,8 @@ import (
 	"github.com/celebeing/yastationd/yastationd/internal/frametap"
 	"github.com/celebeing/yastationd/yastationd/internal/health"
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
-	"github.com/celebeing/yastationd/yastationd/internal/luxcal"
 	"github.com/celebeing/yastationd/yastationd/internal/logship"
+	"github.com/celebeing/yastationd/yastationd/internal/luxcal"
 	"github.com/celebeing/yastationd/yastationd/internal/mqtt"
 	"github.com/celebeing/yastationd/yastationd/internal/timesync"
 	"github.com/celebeing/yastationd/yastationd/internal/version"
@@ -91,13 +91,13 @@ type App struct {
 	luxPath string
 	pdDir   string // USB-C PD sink in sysfs ("" = none)
 
-	autoBright  atomic.Uint64 // auto clock brightness target (float64 bits; 0 = no reading yet)
-	shownBright atomic.Uint64 // the level shown now (float64 bits), gliding to the target
-	brightAt    time.Time     // last stepBrightness; render goroutine only
-	backlight   *hw.Backlight // the front screen's backlight; nil = dim the frames
-	blPrev      int           // the backlight of the frame written last; render goroutine only
-	luxSmooth   atomic.Uint64 // smoothed light in lux (float64 bits), published to HA
-	luxReading  atomic.Uint64 // the same reading before the calibration (float64 bits)
+	autoBright  atomic.Uint64                  // auto clock brightness target (float64 bits; 0 = no reading yet)
+	shownBright atomic.Uint64                  // the level shown now (float64 bits), gliding to the target
+	brightAt    time.Time                      // last stepBrightness; render goroutine only
+	backlight   *hw.Backlight                  // the front screen's backlight; nil = dim the frames
+	blPrev      int                            // the backlight of the frame written last; render goroutine only
+	luxSmooth   atomic.Uint64                  // smoothed light in lux (float64 bits), published to HA
+	luxReading  atomic.Uint64                  // the same reading before the calibration (float64 bits)
 	luxUnitCal  atomic.Pointer[[]luxcal.Point] // set from the web app (lightcal.go); nil = the config's
 	luxCalBusy  atomic.Bool                    // a calibration measurement is running
 

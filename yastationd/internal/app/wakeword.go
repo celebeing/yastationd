@@ -33,10 +33,12 @@ func (a *App) newSpotter() *wake.Spotter {
 		args = append(args, "-R", strconv.Itoa(w.Ref))
 	}
 	// The VQE's models (the call mode's neural noise reducer, docs/intercom.md): ours under
-	// <cfw>/vendor/vqe_models when there (firmware 3.21 ships none), else the firmware's own.
+	// <cfw>/vendor/vqe_models when a model is there (`make vqe-models`: a bergamot whose firmware
+	// lacks it, pickle), else the firmware's own (orion 3.21 ships noise_reducer/model.nnet, the
+	// name its library loads). A directory without the model would leave the VQE without it.
 	models := c.VQEModels
 	if models == "" {
-		if d := a.prof.Platform.CFWRoot + "/vendor/vqe_models"; dirExists(c.Path(d)) {
+		if d := a.prof.Platform.CFWRoot + "/vendor/vqe_models"; fileExists(c.Path(d + "/noise_reducer/model.nnet")) {
 			models = d
 		}
 	}
@@ -177,9 +179,4 @@ func (a *App) wakeAudio(fn func([]byte)) (unsubscribe func()) {
 		return a.spot.SubscribeVQE(time.Duration(a.cfg.PrerollMs)*time.Millisecond, fn)
 	}
 	return a.mic.Subscribe(fn)
-}
-
-func dirExists(p string) bool {
-	st, err := os.Stat(p)
-	return err == nil && st.IsDir()
 }

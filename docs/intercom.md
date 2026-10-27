@@ -86,7 +86,8 @@ echo suppression), AGC to −18 dBFS, limiter, gain ×1 instead of the ASR path'
 ([vqe-decompile.md](vqe-decompile.md) §3.4). Needs a control channel in spotter-host and device
 checks: the mode values (0 ASR / 1 call / 2 baby monitor, inferred), whether the switch loads
 `model_call.nnet` (bergamot ships it; **pickle's firmware has no `vqe_models` at all**, a copy
-from the user's own bergamot could go to `<cfw>/vqe_models`; orion 3.21 has only `model.nnet`),
+from the user's own bergamot could go to `<cfw>/vqe_models`; orion 3.21 ships it as
+`noise_reducer/model.nnet`, which is the name its own library loads — nothing to copy there),
 and the input scale (maind feeds raw s16 as floats, scale 1).
 
 ## Signalling (v1): MQTT
@@ -307,8 +308,11 @@ with its guide. All done the same day; released as v0.6.0.
    not released until checked on speakers.
 2. **On two speakers** — first call done (2026-10-25, two bergamots); pickle still to check.
 3. **VQE call mode** — done on bergamot (2026-10-25); `make vqe-models` puts the NR model on a
-   unit (from its own firmware, else `VQE_MODEL=<file>` from a dump). Still to do: pickle and
-   orion.
+   unit (from its own firmware, else `VQE_MODEL=<file>` from a dump). orion needs nothing: its
+   firmware's `vqe_models/noise_reducer/model.nnet` is what its library loads. Until 2026-10-27
+   the daemon pointed orion's VQE at an empty `<cfw>/vendor/vqe_models` left by an attempt of
+   `make vqe-models` (it took any such directory); now only one with the model in it. Still to
+   do: pickle, and a call on orion.
 4. **Later:** pickle and orion; the indication's "listening" window looks like an Assist
    session; a howl guard for the fallback path; Opus if Wi-Fi needs it; the other options above.
 

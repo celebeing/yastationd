@@ -155,13 +155,17 @@ sounds:
 	done
 
 # The VQE's call-mode noise reducer (docs/intercom.md, "The VQE call mode"). spotter-host loads it
-# as <models>/noise_reducer/model.nnet; firmware 0.369 ships it as model_call.nnet, 3.21 ships
-# none. Copied from the unit's own firmware when it has one, else from VQE_MODEL (a local file,
-# e.g. from your own firmware dump). Vendor data, never stored in the repo.
+# as <models>/noise_reducer/model.nnet; firmware 0.369 ships it as model_call.nnet (copied here);
+# orion's 3.21 ships it as model.nnet, the name its own library loads (nothing to do). Copied
+# from the unit's own firmware when it has one, else from VQE_MODEL (a local file, e.g. from your
+# own firmware dump). Vendor data, never stored in the repo.
 VQE_MODEL ?=
 vqe-models:
-	$(SSH) 'mkdir -p $(DESTDIR)/vendor/vqe_models/noise_reducer'
 	set -e; d=/system/vendor/quasar/vqe_models/noise_reducer; t=$(DESTDIR)/vendor/vqe_models/noise_reducer; \
+	if $(SSH) "[ -f $$d/model.nnet ] && [ ! -f $$d/model_call.nnet ]"; then \
+	  echo "  the firmware ships noise_reducer/model.nnet, the name its VQE loads (orion): nothing to do"; exit 0; \
+	fi; \
+	$(SSH) "mkdir -p $$t"; \
 	if $(SSH) "[ -f $$d/model_call.nnet ]"; then \
 	  $(SSH) "cp $$d/model_call.nnet $$t/model.nnet.new && mv $$t/model.nnet.new $$t/model.nnet && \
 	    { [ -f $$d/model_call_meta.json ] && cp $$d/model_call_meta.json $$t/model_meta.json || true; }"; \
