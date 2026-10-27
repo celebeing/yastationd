@@ -44,8 +44,12 @@ as the `reading` attribute of the HA `Illuminance` sensor, next to the calibrati
 
 ### Procedure
 
-You need a lux meter (a photographer's meter in lux mode, a phone app is a poor substitute) and a
-light you can dim, or a few lamps.
+You need a lux meter (a photographer's meter in lux mode, or a cheap handheld one) and a light you
+can dim, or a few lamps. Phone apps are a poor substitute: on Android they read the phone's
+ambient-light sensor (incident light, typically within 10–30 % in white light, model-dependent);
+on an iPhone, which gives apps no access to that sensor, they compute lux from the camera's
+exposure — light reflected by the scene — and one such app was off by several times against a
+Sekonic (2026-10-27). Without a diffuser over the lens an iPhone app is no reference at all.
 
 1. Turn off the speaker's own light where it can reach the sensor: HA `Display` → `off`, the
    `Ring` and `Ambilight` lights off. (They are dim, but at a few lux they count.)
