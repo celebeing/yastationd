@@ -40,3 +40,6 @@ emu/work/
 
 # Local build settings for tools/build.sh (spotter-host sysroots)
 /tools/build.env
+
+# Vendor files fetched off your own speaker by tools/fetch-vendor.sh (never committed)
+/vendor-local/

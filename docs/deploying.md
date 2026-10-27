@@ -106,20 +106,16 @@ tools/build.sh            # web app, yastationd, hostapd, sendspin-host and spot
 `tools/deploy.sh` (§3a) builds what it ships by itself; this step is for a first install by hand.
 
 `spotter-host` links the vendor front-end library, so it needs a sysroot: the vendor `/lib` and
-`/system/vendor/quasar/libs`. Take it from your **`<vendor-repo>`** (a private checkout of vendor trees, never published) — `vendor/<board>/<version_full>/`
-holds exactly that tree, verbatim, for every firmware we have a unit or a dump from — and name it
-in `tools/build.env` (gitignored, see `tools/build.env.example`):
+`/system/vendor/quasar/libs` of the firmware the speaker runs. Copy it off the speaker (read-only)
+into the gitignored `vendor-local/`, which also names it in `tools/build.env`:
 
 ```sh
-SPOTTER_SYSROOT_AARCH64=/path/to/<vendor-repo>/vendor/orion/0.13.1.36.3322101745.20250823.factory-13
+tools/fetch-vendor.sh root@<speaker-ip> <board>
 ```
 
-Only when that board/firmware is not in the vendor repo, pull the two directories off the unit into
-the gitignored `dumps/` and point the variable there:
-
-```sh
-mkdir -p dumps/sysroot-<board> && ssh root@<speaker> 'tar cf - /lib /system/vendor/quasar/libs' | tar xf - -C dumps/sysroot-<board>
-```
+`tools/deploy.sh` does that by itself for an arch with no sysroot yet. A `<vendor-repo>` checkout
+(`vendor/<board>/<version_full>/`) works as well, named in `tools/build.env`
+(`tools/build.env.example`; [building.md](building.md), "The sysroot").
 
 `ARCH` = `armhf` (bergamot) or `aarch64` (pickle, orion; one build serves both) — `file /system/vendor/quasar/maind` tells you.
 

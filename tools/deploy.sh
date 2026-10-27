@@ -10,10 +10,10 @@
 # Per-unit overrides remain available; use "-" to keep the profile root while overriding arch:
 #   root@<speaker-c>  pickle  -  aarch64
 # It builds what it ships first, in the pinned builder containers (tools/build.sh; host needs
-# docker): yastationd, hostapd, and per userland arch in the list sendspin-host and (with a sysroot
-# in tools/build.env) spotter-host. Native helpers are loaded from spotter-host/build/<arch>/ and
-# sendspin-host/build/<arch>/; hostapd from hostapd/build/hostapd, else from a recorded build in
-# your vendor tree ($VENDOR/builds/hostapd/<version>/armv7/hostapd, the newest); with neither, a
+# docker): yastationd, hostapd, and per userland arch in the list sendspin-host and spotter-host
+# (its sysroot from tools/build.env, else fetched off the first speaker of that arch). Native
+# helpers are loaded from spotter-host/build/<arch>/ and sendspin-host/build/<arch>/; hostapd
+# from hostapd/build/hostapd, else from a recorded build in your vendor tree ($VENDOR/builds/hostapd/<version>/armv7/hostapd, the newest); with neither, a
 # speaker that has no hostapd yet gets a warning (its Wi-Fi setup mode cannot start).
 #
 # dropbear (the speaker's SSH server, dropbear/) is replaced only on a first deploy (no yastationd
@@ -82,6 +82,24 @@ arches=$(grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r _ platform _ a
 	fi
 	echo "$arch"
 done | sort -u)
+# A userland arch without a spotter-host sysroot gets one from the first speaker of that arch in
+# the list (tools/fetch-vendor.sh: read-only, into vendor-local/), so a fresh checkout deploys
+# without setting anything up. NATIVE=1 and DROPBEAR=only build no spotter-host.
+if [ "${NATIVE:-0}" != 1 ] && [ "${DROPBEAR:-0}" != only ]; then
+	for a in $arches; do
+		"$here/tools/build.sh" "has-sysroot:$a" && continue
+		grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r t platform _ arch; do
+			if [ -z "${arch:-}" ] || [ "$arch" = "-" ]; then
+				arch=$(profile_value "$here/yastationd/internal/board/profiles/$platform.conf" platform.userland_arch 2>/dev/null || true)
+			fi
+			[ "$arch" = "$a" ] || continue
+			echo "== no $a sysroot: fetching one from $t ($platform)"
+			"$here/tools/fetch-vendor.sh" "$t" "$platform" || fail "fetching the $a sysroot from $t"
+			break
+		done
+	done
+fi
+
 echo "== build"
 if [ "${DROPBEAR:-0}" = only ]; then
 	"$here/tools/build.sh" dropbear

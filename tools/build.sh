@@ -15,8 +15,10 @@
 #
 # spotter-host links the vendor's libraries: it needs SPOTTER_SYSROOT_ARMHF / SPOTTER_SYSROOT_AARCH64
 # (a directory with lib/ and system/vendor/quasar/libs/ of the firmware the units run). Set them in
-# the environment or in tools/build.env (gitignored, KEY=VALUE lines). Without one, spotter:<arch>
-# is skipped with a note ("all") or fails (asked for by name).
+# the environment or in tools/build.env (gitignored, KEY=VALUE lines; the environment wins), or
+# fetch one off a speaker with tools/fetch-vendor.sh: a lone vendor-local/<board>/<version_full>
+# tree of the arch is used by itself. Without one, spotter:<arch> is skipped with a note ("all")
+# or fails (asked for by name).
 #
 # The repo is mounted at its own path, so CMake caches stay valid inside and out. Caches (Go,
 # zig) live in ${XDG_CACHE_HOME:-~/.cache}/yastation-build; containers run as the calling user.
@@ -24,7 +26,10 @@ set -eu
 # Note: no target may run in an && list or a pipeline whose status is lost — set -e ignores those.
 
 here=$(cd "$(dirname "$0")/.." && pwd)
-[ -f "$here/tools/build.env" ] && . "$here/tools/build.env"
+# tools/build.env holds the local settings; a variable set in the environment wins over it.
+for v in SPOTTER_SYSROOT_ARMHF SPOTTER_SYSROOT_AARCH64; do eval "env_$v=\${$v:-}"; done
+if [ -f "$here/tools/build.env" ]; then . "$here/tools/build.env"; fi
+for v in SPOTTER_SYSROOT_ARMHF SPOTTER_SYSROOT_AARCH64; do eval "[ -z \"\$env_$v\" ] || $v=\$env_$v"; done
 command -v docker >/dev/null 2>&1 || { echo "build.sh: docker not found (docs/building.md)" >&2; exit 2; }
 cache=${XDG_CACHE_HOME:-$HOME/.cache}/yastation-build
 mkdir -p "$cache/go" "$cache/gomod" "$cache/zig"
@@ -85,12 +90,35 @@ build_sendspin() {
 }
 
 # spotter ARCH REQUIRED: REQUIRED=1 fails without a sysroot, 0 skips.
+# local_sysroot ARCH: the one vendor-local/<board>/<version_full>/ tree (tools/fetch-vendor.sh) of a
+# board with that userland arch; nothing when there is none, or several to choose from (then name
+# one in tools/build.env).
+local_sysroot() {
+	found=
+	n=0
+	for d in "$here"/vendor-local/*/*/; do
+		[ -d "${d}system/vendor/quasar/libs" ] || continue
+		b=$(basename "$(dirname "$d")")
+		a=$(awk -F= '{k=$1; gsub(/[ \t]/,"",k)} k=="platform.userland_arch" {v=$2; gsub(/[ \t]/,"",v); print v; exit}' \
+			"$here/yastationd/internal/board/profiles/$b.conf" 2>/dev/null)
+		[ "$a" = "$1" ] || continue
+		found=${d%/}
+		n=$((n + 1))
+	done
+	if [ "$n" -gt 1 ]; then
+		echo "build.sh: several $1 trees in vendor-local/: name one as SPOTTER_SYSROOT_$(echo "$1" | tr a-z A-Z) in tools/build.env" >&2
+		return 0
+	fi
+	echo "$found"
+}
+
 build_spotter() {
 	case $1 in
 	armhf) sr=${SPOTTER_SYSROOT_ARMHF:-} ;;
 	aarch64) sr=${SPOTTER_SYSROOT_AARCH64:-} ;;
 	*) echo "spotter: arch must be armhf or aarch64" >&2; exit 2 ;;
 	esac
+	[ -n "$sr" ] || sr=$(local_sysroot "$1")
 	if [ -z "$sr" ]; then
 		[ "$2" = 1 ] && {
 			echo "spotter:$1: spotter-host links the vendor's libraries and needs a sysroot (the firmware's" >&2
@@ -99,7 +127,7 @@ build_spotter() {
 			exit 2
 		}
 		echo "== spotter-host ($1): skipped, no SPOTTER_SYSROOT_$(echo "$1" | tr a-z A-Z) — set it in tools/build.env"
-		echo "   (copy tools/build.env.example: <vendor-repo>/vendor/<board>/<version_full>; docs/building.md, \"The sysroot\")"
+		echo "   (or fetch one off a speaker: tools/fetch-vendor.sh <ssh-target> <board>; docs/building.md, \"The sysroot\")"
 		return 0
 	fi
 	sr=$(cd "$sr" && pwd)
@@ -127,6 +155,12 @@ for t in "$@"; do
 		;;
 	spotter:*) build_spotter "${t#spotter:}" 1 ;;
 	spotter-if:*) build_spotter "${t#spotter-if:}" 0 ;; # skipped without a sysroot (deploy.sh)
+	has-sysroot:*) # deploy.sh: is there a sysroot for this arch? (exit status only)
+		a=${t#has-sysroot:}
+		eval "sr=\${SPOTTER_SYSROOT_$(echo "$a" | tr a-z A-Z):-}"
+		[ -n "$sr" ] || sr=$(local_sysroot "$a" 2>/dev/null)
+		[ -n "$sr" ]
+		;;
 	all)
 		build_web
 		build_yastationd

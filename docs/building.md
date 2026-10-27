@@ -53,18 +53,38 @@ tools/build.sh web hostapd
 
 `spotter-host` is the one artifact that cannot be built from this repo alone: it links the vendor
 front-end library. It needs a sysroot per userland arch — a directory with the firmware's `lib/`
-and `system/vendor/quasar/libs/` — from your **`<vendor-repo>`** (`vendor/<board>/<version_full>/`,
-verbatim from that firmware; a private checkout, never published) or pulled off a unit
-([deploying.md](deploying.md) §1). It must match what the units run: the soname set and glibc
-version bind the binary. Name them in `tools/build.env` (gitignored; `tools/build.env.example`):
+and `system/vendor/quasar/libs/` — and it must match what the units run: the soname set and glibc
+version bind the binary. Three ways to get one:
 
-```sh
-SPOTTER_SYSROOT_ARMHF=/path/to/<vendor-repo>/vendor/bergamot/<version_full>
-SPOTTER_SYSROOT_AARCH64=/path/to/<vendor-repo>/vendor/pickle/<version_full>
-```
+- **Off your own speaker** (the simple one):
 
-Without one, `all` and `deploy.sh` skip that arch's spotter-host (the last build is shipped);
-`spotter:<arch>` asked for by name fails.
+  ```sh
+  tools/fetch-vendor.sh root@<speaker-ip> <board>     # bergamot | pickle | orion
+  ```
+
+  It copies `lib/`, `etc/os-release`, `system/vendor/quasar/libs/`, `ledpatterns/` (the stock
+  animations, for `cmd/ledsim -patterns`) and the version files into
+  `vendor-local/<board>/<version_full>/` (gitignored, the layout of a vendor-repo tree), makes the
+  tree's absolute symlinks relative so they never point into the host, and names it in
+  `tools/build.env` as `SPOTTER_SYSROOT_<ARCH>` unless that is set already. On the speaker it runs
+  only `cat` and `tar c` of firmware paths. **`tools/deploy.sh` does this by itself** for an arch
+  that has no sysroot yet, from the first speaker of that arch in its list.
+- **From your `<vendor-repo>`** (`vendor/<board>/<version_full>/`, verbatim from that firmware; a
+  private checkout, never published), named in `tools/build.env`:
+
+  ```sh
+  SPOTTER_SYSROOT_ARMHF=/path/to/<vendor-repo>/vendor/bergamot/<version_full>
+  SPOTTER_SYSROOT_AARCH64=/path/to/<vendor-repo>/vendor/pickle/<version_full>
+  ```
+- **Set in the environment** for one run; it wins over `tools/build.env`.
+
+Without a setting, `build.sh` takes the one `vendor-local/` tree of a board with that arch (with
+several it asks you to name one). Without any, `all` and `deploy.sh` skip that arch's spotter-host
+(the last build is shipped) and say how to get a sysroot; `spotter:<arch>` asked for by name fails.
+
+A speaker that runs vendor libraries moved from another firmware (`<cfw>/vendor/libs`, the black
+Mini 3 of the author) still gives its own firmware's: the binary links against the front-end
+library's interface, which has been the same across the firmwares we have.
 
 ## A dist for one board
 

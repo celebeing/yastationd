@@ -3,6 +3,16 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Fixes and operations**
+- `tools/fetch-vendor.sh <ssh-target> <board>` copies what the build needs off your own speaker
+  (read-only): the sysroot spotter-host links against and the stock animations for the
+  simulator, into the gitignored `vendor-local/`, and names it in `tools/build.env`.
+  `tools/build.sh` uses a lone tree there by itself, and `tools/deploy.sh` fetches one from the
+  first speaker of an arch that has none — a fresh checkout deploys with nothing set up. A
+  variable set in the environment now wins over `tools/build.env`.
+
 ## v0.17.0 — 2026-10-27
 
 **New**

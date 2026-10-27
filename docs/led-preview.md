@@ -26,7 +26,9 @@ go run ./cmd/ledsim -patterns ../dumps/orion/quasar/ledpatterns/screen   # any c
 # open http://localhost:8930/
 ```
 
-`-board bergamot` (or `pickle`) simulates a mini: its 7-segment clock and its ring.
+`-board bergamot` (or `pickle`) simulates a mini: its 7-segment clock and its ring, with its
+stock clips from `-patterns <…>/ledpatterns/clock`. `tools/fetch-vendor.sh <ssh-target> <board>`
+copies a speaker's `ledpatterns/` into `vendor-local/` and prints the command line.
 
 Flags: `-board` (default `orion`), `-screen WxH` (the virtual screen, default `21x12`), `-addr`
 (default `localhost:8930`), `-dir` (keep the sysroot, including `yastationd.state`, between runs),
