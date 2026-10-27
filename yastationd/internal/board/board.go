@@ -63,11 +63,15 @@ type ClipsSpec struct {
 // RTCBacked: a real-time clock that keeps time without power sets the system clock at boot
 // (orion's pcf8563), so the clock may show the time before an SNTP check confirms it; boards
 // without one boot with a stale clock and wait for the check.
+// WifiReset: the firmware's command that resets the Wi-Fi controller (driver unloaded, SDIO power
+// cycled, reloaded; the vendor's own recovery for a hung chip), run by the network watchdog
+// before it reboots. "" = none.
 type PlatformSpec struct {
 	CFWRoot      string   // e.g. "/bkupgrade/cfw" or "/data/cfw"
 	UserlandArch string   // "armhf" | "aarch64"
 	StopInitd    []string // e.g. S31animation
 	RTCBacked    bool
+	WifiReset    string // e.g. /usr/bin/yandex-wifireset
 }
 
 // RingSpec: an RGB ring of Pixels, each pixel = one sysfs LED per colour. LED names come from
@@ -313,6 +317,8 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Platform.UserlandArch = v
 	case k == "platform.stop_initd":
 		list(&p.Platform.StopInitd)
+	case k == "platform.wifi_reset":
+		p.Platform.WifiReset = v
 	case k == "platform.rtc_backed":
 		p.Platform.RTCBacked, err = strconv.ParseBool(v)
 	case k == "ring.kind":

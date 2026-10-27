@@ -242,9 +242,10 @@ findings: [`../docs/music-sendspin.md`](../docs/music-sendspin.md).
    Wi-Fi interface, never touching wpa_supplicant.conf), and a log kept across reboots.
    It hung again the same afternoon (the rates fell to 1 Mbps over a few minutes, still
    associated, signal fine). **Since then:** logs go to a LAN syslog server with a flash spool
-   while it is unreachable (`log_remote`), and a network watchdog reboots a speaker whose gateway
-   has been unreachable for 10 min, backing off after each such reboot (`net_watchdog_min`;
-   [storage.md](../docs/storage.md)).
+   while it is unreachable (`log_remote`), and a network watchdog resets the Wi-Fi controller
+   (the firmware's own `yandex-wifireset`) after 4 min without the gateway and reboots after 10,
+   backing off after each such reboot (`net_watchdog_min`; [storage.md](../docs/storage.md)).
+   The black Mini's chip hung the same way on 2026-10-27 ("fw recovery not finish").
 8. **Multi-speaker timers:** HA's timers are bound to the device the request came from
    (`HassStartTimer` has no target slot), so a timer rings only on that speaker. Ringing on several
    rooms needs our own Assist tool (script → per-speaker MQTT countdown + local alarm).

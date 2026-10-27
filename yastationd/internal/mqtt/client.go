@@ -109,4 +109,7 @@ func (c *Client) SubscribeTopic(topic string, fn func(topic string, payload []by
 	c.c.Subscribe(topic, 1, func(_ paho.Client, m paho.Message) { fn(m.Topic(), m.Payload()) })
 }
 
-func (c *Client) Connected() bool { return c.c.IsConnected() }
+// Connected: the connection to the broker is open now. (paho's IsConnected is also true while it
+// reconnects — with auto-reconnect on, that is "forever": the network watchdog never saw the
+// network go down.)
+func (c *Client) Connected() bool { return c.c.IsConnectionOpen() }

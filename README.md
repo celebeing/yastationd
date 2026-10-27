@@ -84,7 +84,8 @@ HA, from single expressions to timed scenarios across the ring and the display.
 
 **Operations**
 - Logs can go to a syslog server on the LAN, kept on flash while it is unreachable; a network
-  watchdog reboots a speaker whose Wi-Fi stopped passing data ([docs/storage.md](docs/storage.md)).
+  watchdog brings back a speaker whose Wi-Fi stopped passing data: it resets the Wi-Fi
+  controller the way the stock firmware does, then reboots ([docs/storage.md](docs/storage.md)).
 - Prometheus metrics at `/metrics`: memory, load, temperature, sensors.
 
 **Keeps working without HA**

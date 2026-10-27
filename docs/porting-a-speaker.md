@@ -53,6 +53,7 @@ then fold them into the profile.
 |---|---|---|
 | `name`, `model`, `match` | `/proc/device-tree/compatible` | `match` is one compatible string (`yandex,<codename>`), used for auto-detection |
 | `platform.cfw_root`, `platform.userland_arch` | writable persistent mounts; `file` on a vendor executable | CFW root is `/bkupgrade/cfw` or `/data/cfw`; never create a missing `/bkupgrade`. Helper arch is the userland ABI (`armhf` or `aarch64`), not necessarily the kernel architecture |
+| `platform.wifi_reset` | the firmware's `/usr/bin/yandex-wifireset` (what its `WifiWatcher` runs; `strings maind`) | the Wi-Fi controller reset the network watchdog runs before rebooting ([storage.md](storage.md)); empty = none |
 | `platform.rtc_backed` | after a power cut of some minutes, `dmesg \| grep rtc` at boot ("setting system clock to …" right to the second, no low-voltage warning) | `true`: the clock shows the time before the SNTP check (orion) |
 | `platform.stop_initd` | `ps w` with the vendor stack gated: vendor processes that still draw on a surface (boot-animation players) | init.d scripts whose own `stop` the daemon runs at startup (orion: `S31animation`) |
 | `moment.<name>` | what the board's displays can show (its expressions and stock patterns) | per-board choice of picture for a CFW moment, overriding the display kind's defaults ([display-expressions.md](display-expressions.md), "Moments") |

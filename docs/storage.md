@@ -77,13 +77,28 @@ logs to a syslog server on the LAN (`internal/logship`):
   Some may arrive twice; none is lost. Tested on orion by blocking the port for 90 s: the lines
   written meanwhile were spooled on flash and arrived after.
 
-The **network watchdog** (`net_watchdog_min`, default 10; 0 = off) goes with it: with the default
-gateway unreachable that long (and the broker disconnected; not in Wi-Fi setup mode) it logs the
-kernel's last 40 lines, flushes the spool and reboots. Each watchdog reboot doubles the next wait
-(10 → 20 → 40 min … up to 4 h, counted in `<cfw>/netwatch.count`, measured in uptime because a
-mini's clock is stale after a reboot); an hour of good network resets it. So a speaker whose
-Wi-Fi stops passing data comes back by itself, and its last lines, kernel included, reach the log
-server after the reboot.
+The **network watchdog** (`net_watchdog_min`, default 10; 0 = off) goes with it. "Down" is the
+broker connection closed and the default gateway not answering a ping (checked every 30 s; not
+in Wi-Fi setup mode). It climbs the ladder the firmware's own `WifiWatcher` climbs (in `maind`:
+`wpa_cli reconfigure`, `ip link set wlan0 down/up`, `yandex-wifireset`, then a reboot; its
+`wifiReseter` acts after 120 s without internet, `quasar.cfg`):
+
+1. down 2 min: `wpa_cli -i wlan0 reconfigure`;
+2. down 4 min, then every 10 min: the board's `platform.wifi_reset` — the firmware's
+   `/usr/bin/yandex-wifireset`, which stops wpa_supplicant and Bluetooth, unloads the Wi-Fi
+   driver, cycles the SDIO power (`wifi_power 0/1`), loads the driver and starts them again. This
+   is what a hung Wi-Fi chip needs ("fw recovery not finish" in the kernel log: the black Mini
+   2026-10-27, the chip's firmware died and the driver could not bring it back);
+3. down `net_watchdog_min`: it logs the kernel's last 40 lines, flushes the spool and reboots.
+   Each watchdog reboot doubles the next wait (10 → 20 → 40 min … up to 4 h, counted in
+   `<cfw>/netwatch.count`, measured in uptime because a mini's clock is stale after a reboot); an
+   hour of good network resets it.
+
+Each step and the commands' results are logged; the lines reach the log server once the network
+is back (the spool). **Until v0.16.4 the watchdog never fired on a speaker with a broker
+configured:** it took paho's `IsConnected()` for "connected", and that is also true while the
+client keeps reconnecting — so the network always looked up (the lilac Mini 2026-10-27 stayed off
+the LAN for half an hour; the black one until it was power-cycled).
 
 ## Options for persistent logs on the speaker itself (not built)
 

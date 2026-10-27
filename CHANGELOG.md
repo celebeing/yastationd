@@ -3,6 +3,18 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Fixes and operations**
+- The network watchdog never fired on a speaker with a broker configured: it took the MQTT
+  client's "connected or reconnecting" for connected. It now checks the open connection (the wake
+  arbitration had the same mistake: with the broker gone it still waited for claims).
+- The network watchdog first tries what the stock firmware's Wi-Fi watcher does: after 2 min
+  without the gateway it reloads the Wi-Fi configuration, after 4 min (then every 10) it resets
+  the Wi-Fi controller with the firmware's `yandex-wifireset` (driver out, SDIO power cycled,
+  back in), and reboots only at `net_watchdog_min`. A hung Wi-Fi chip ("fw recovery not finish")
+  took the black Mini off the LAN this way. Profile key `platform.wifi_reset`.
+
 ## v0.16.3 — 2026-10-27
 
 **Fixes and operations**
