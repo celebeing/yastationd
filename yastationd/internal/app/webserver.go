@@ -108,6 +108,7 @@ func (a *App) webHandler() http.Handler {
 	api.HandleFunc("/api/wifi/networks", a.authed(a.apiWifiAdd))
 	api.HandleFunc("/api/moments", a.authed(a.apiMoments))
 	api.HandleFunc("/api/moment/", a.authed(a.apiMoment))
+	api.HandleFunc("/api/log", a.authed(a.apiLog))
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", cors(api))

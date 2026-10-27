@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import * as api from './api'
 import type { Entity, Features, Peer } from './api'
-import { LedTab, MomentsTab, WifiTab } from './extra'
+import { LedTab, LogTab, MomentsTab, WifiTab } from './extra'
 
 // The app (docs/web-ui.md): the speakers on the LAN, and per speaker its sensors, runtime
 // controls, config and login. It is served by every speaker; the one it came from is "home" and
@@ -211,7 +211,7 @@ function About({ list, latest }: { list: Peer[]; latest: { tag: string; url: str
   )
 }
 
-type Tab = 'overview' | 'controls' | 'moments' | 'led' | 'wifi' | 'config' | 'account'
+type Tab = 'overview' | 'controls' | 'moments' | 'led' | 'wifi' | 'log' | 'config' | 'account'
 
 const TAB_NAMES: Record<Tab, string> = {
   overview: 'Overview',
@@ -219,6 +219,7 @@ const TAB_NAMES: Record<Tab, string> = {
   moments: 'Moments',
   led: 'LED',
   wifi: 'Wi-Fi',
+  log: 'Log',
   config: 'Config',
   account: 'Account',
 }
@@ -294,6 +295,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
       {tab === 'moments' && <MomentsTab peer={peer} base={base} />}
       {tab === 'led' && <LedTab peer={peer} base={base} />}
       {tab === 'wifi' && <WifiTab peer={peer} base={base} />}
+      {tab === 'log' && <LogTab peer={peer} base={base} />}
       {tab === 'config' && <ConfigEditor peer={peer} base={base} />}
       {tab === 'account' && <Account peer={peer} base={base} />}
     </div>

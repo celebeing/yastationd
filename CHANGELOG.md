@@ -3,6 +3,12 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.16.5 — 2026-10-27
+
+**Fixes and operations**
+- The web app has a Log tab: the tail of the daemon's log or of the system log (kernel, Wi-Fi
+  driver), filtered, following as it grows.
+
 ## v0.16.4 — 2026-10-27
 
 **Fixes and operations**

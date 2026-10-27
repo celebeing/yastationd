@@ -88,3 +88,9 @@ table.nets th { color: var(--muted); font-weight: 500; border-top: 0; }
 canvas.led { max-width: 100%; border-radius: 8px; display: block; margin-bottom: 0.6rem; }
 .speaker.about { margin-top: 0.75rem; }
 .about-card p { margin: 0.4rem 0 0.8rem; }
+
+.log { max-height: 65vh; overflow: auto; font-size: 0.78rem; line-height: 1.35; background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem 0.6rem; margin-top: 0.75rem;
+  white-space: pre-wrap; word-break: break-all; }
+.log .lwarn { color: #b7791f; }
+.log .lerr { color: var(--err); }

@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -217,5 +218,40 @@ func TestWebMomentsAndTapLogin(t *testing.T) {
 	}
 	if code, _ := call(t, "GET", srv.URL+"/tap/info", "", ""); code != 404 {
 		t.Fatalf("no tap without led_preview: %d", code)
+	}
+}
+
+func TestWebLog(t *testing.T) {
+	a, srv := newWebApp(t)
+	root := t.TempDir()
+	a.cfg.SysRoot = root
+	os.MkdirAll(filepath.Join(root, "tmp"), 0o755)
+	os.MkdirAll(filepath.Join(root, "var/log"), 0o755)
+	var b strings.Builder
+	for i := 1; i <= 500; i++ {
+		fmt.Fprintf(&b, "line %d\n", i)
+	}
+	os.WriteFile(filepath.Join(root, "tmp/yastationd.log"), []byte(b.String()), 0o644)
+	os.WriteFile(filepath.Join(root, "var/log/messages.0"), []byte("old\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "var/log/messages"), []byte("new 1\nnew 2\n"), 0o644)
+
+	if code, _ := call(t, "GET", srv.URL+"/api/log", "", ""); code != 401 {
+		t.Fatalf("log without a login: %d", code)
+	}
+	_, out := call(t, "POST", srv.URL+"/api/login", "", `{"user":"admin","password":"yastation"}`)
+	tok := out["token"].(string)
+	_, out = call(t, "GET", srv.URL+"/api/log?lines=3", tok, "")
+	if l := out["lines"].([]any); len(l) != 3 || l[0] != "line 498" || l[2] != "line 500" {
+		t.Fatalf("daemon tail: %v", l)
+	}
+	_, out = call(t, "GET", srv.URL+"/api/log?source=system", tok, "")
+	if l := out["lines"].([]any); len(l) != 3 || l[0] != "old" || l[2] != "new 2" {
+		t.Fatalf("system log: %v", l)
+	}
+	if code, _ := call(t, "GET", srv.URL+"/api/log?source=nope", tok, ""); code != 400 {
+		t.Fatalf("unknown source: %d", code)
+	}
+	if l := tailLines(filepath.Join(root, "tmp/yastationd.log"), 20); !strings.HasPrefix(l[0], "line ") {
+		t.Fatalf("a cut first line kept: %q", l[0])
 	}
 }

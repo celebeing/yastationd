@@ -161,6 +161,8 @@ export const wifi = (id: string, base: string) => authed<{ networks: Net[]; curr
 export const wifiAdd = (id: string, base: string, n: { ssid: string; psk: string; hidden: boolean; priority: number }) =>
   authed<{ ok: boolean }>(id, base, '/api/wifi/networks', { method: 'POST', body: JSON.stringify(n) })
 export const moments = (id: string, base: string) => authed<Moment[]>(id, base, '/api/moments')
+export const log = (id: string, base: string, source: string, lines: number) =>
+  authed<{ source: string; lines: string[] }>(id, base, `/api/log?source=${encodeURIComponent(source)}&lines=${lines}`)
 export const showMoment = (id: string, base: string, name: string) =>
   authed<{ shown: boolean }>(id, base, '/api/moment/' + encodeURIComponent(name), { method: 'POST' })
 

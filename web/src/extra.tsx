@@ -349,3 +349,72 @@ function draw(c: HTMLCanvasElement | null, i: TapInfo, f: Frame, perceived: bool
     }
   }
 }
+
+/** LogTab: the tail of the daemon's log or the system log (kernel, Wi-Fi driver…), refreshed while
+ * following; a filter keeps the matching lines (docs/web-ui.md). */
+export function LogTab({ peer, base }: { peer: Peer; base: string }) {
+  const [source, setSource] = useState('daemon')
+  const [lines, setLines] = useState(300)
+  const [follow, setFollow] = useState(true)
+  const [filter, setFilter] = useState('')
+  const [text, setText] = useState<string[]>([])
+  const [err, setErr] = useState('')
+  const box = useRef<HTMLPreElement>(null)
+
+  useEffect(() => {
+    let stop = false
+    const load = () =>
+      api.log(peer.id, base, source, lines).then(
+        (r) => {
+          if (stop) return
+          setErr('')
+          setText(r.lines)
+        },
+        (e) => !stop && setErr(e.message || String(e)),
+      )
+    load()
+    const t = follow ? setInterval(load, 3000) : undefined
+    return () => {
+      stop = true
+      if (t) clearInterval(t)
+    }
+  }, [peer.id, base, source, lines, follow])
+
+  const f = filter.trim().toLowerCase()
+  const shown = f ? text.filter((l) => l.toLowerCase().includes(f)) : text
+  useEffect(() => {
+    const b = box.current
+    if (b && follow) b.scrollTop = b.scrollHeight
+  }, [shown.length, follow, text])
+
+  const cls = (l: string) => (/level=ERROR|\berror\b|panic|fail/i.test(l) ? 'lerr' : /level=WARN|warn/i.test(l) ? 'lwarn' : '')
+  return (
+    <section class="card">
+      <div class="row">
+        <select value={source} onChange={(e) => setSource(e.currentTarget.value)}>
+          <option value="daemon">yastationd</option>
+          <option value="system">system (kernel, drivers)</option>
+        </select>
+        <select value={String(lines)} onChange={(e) => setLines(+e.currentTarget.value)}>
+          {[100, 300, 1000, 2000].map((n) => (
+            <option value={String(n)}>{n} lines</option>
+          ))}
+        </select>
+        <input type="text" placeholder="filter" value={filter} onInput={(e) => setFilter(e.currentTarget.value)} />
+        <label class="inline small">
+          <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.currentTarget.checked)} /> follow
+        </label>
+        <span class="muted small">
+          {shown.length}
+          {f ? ` of ${text.length}` : ''} lines
+        </span>
+      </div>
+      {err && <p class="err">{err}</p>}
+      <pre class="log" ref={box}>
+        {shown.map((l) => (
+          <div class={cls(l)}>{l}</div>
+        ))}
+      </pre>
+    </section>
+  )
+}

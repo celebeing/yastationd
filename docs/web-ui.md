@@ -127,6 +127,12 @@ A subproject: TypeScript, Preact, Vite (versions pinned exactly), built into
   mode's.
 - **Moments:** every moment this speaker maps (its display kind's defaults, the board's, the
   expressions), what each resolves to here, and a button that shows it (6 s at most).
+- **Log:** the tail of the daemon's log (`/tmp/yastationd.log`) or of the system log
+  (`/var/log/messages` with `messages.0`: the kernel, the Wi-Fi driver, dropbear), 100–2000 lines,
+  a filter, warnings and errors coloured; while "follow" is on it refreshes every 3 s and stays at
+  the bottom. `GET /api/log?source=daemon|system&lines=N`, behind the login. What the speaker has
+  now: both live in RAM, so a reboot empties them (the log server keeps the history:
+  [storage.md](storage.md)).
 - **About:** the repository, the changelog, and an update check: the browser asks GitHub's API
   for the newest `vX.Y.Z` tag (it allows any origin; the speakers never go online), links its
   GitHub Release, and marks speakers whose version is older. The answer is kept for the tab for
