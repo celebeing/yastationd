@@ -98,7 +98,8 @@ build_spotter() {
 			echo "  (copy tools/build.env.example; docs/building.md, \"The sysroot\")" >&2
 			exit 2
 		}
-		echo "== spotter-host ($1): skipped, no SPOTTER_SYSROOT_$(echo "$1" | tr a-z A-Z)"
+		echo "== spotter-host ($1): skipped, no SPOTTER_SYSROOT_$(echo "$1" | tr a-z A-Z) — set it in tools/build.env"
+		echo "   (copy tools/build.env.example: <vendor-repo>/vendor/<board>/<version_full>; docs/building.md, \"The sysroot\")"
 		return 0
 	fi
 	sr=$(cd "$sr" && pwd)
