@@ -213,9 +213,8 @@ function About({ list, latest }: { list: Peer[]; latest: { tag: string; url: str
 
 // Two levels: a group, then its tabs (docs/web-ui.md).
 type Tab = 'overview' | 'log' | 'controls' | 'moments' | 'led' | 'options' | 'calibration' | 'wifi' | 'config' | 'account'
-type Group = 'status' | 'controls' | 'settings'
 
-const GROUPS: { id: Group; name: string; tabs: Tab[] }[] = [
+const GROUPS: { id: string; name: string; tabs: Tab[] }[] = [
   { id: 'status', name: 'Status', tabs: ['overview', 'log'] },
   { id: 'controls', name: 'Controls', tabs: ['controls', 'moments', 'led'] },
   { id: 'settings', name: 'Settings', tabs: ['options', 'calibration', 'wifi', 'config', 'account'] },
@@ -236,10 +235,7 @@ const TAB_NAMES: Record<Tab, string> = {
 
 function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () => void }) {
   const { peer, base } = props
-  const [group, setGroup] = useState<Group>('status')
-  const [last, setLast] = useState<Record<Group, Tab>>({ status: 'overview', controls: 'controls', settings: 'options' })
-  const tab = last[group]
-  const setTab = (t: Tab) => setLast({ ...last, [group]: t })
+  const [tab, setTab] = useState<Tab>('overview')
   const [ents, setEnts] = useState<Entity[] | null>(null)
   const [err, setErr] = useState('')
   const [needLogin, setNeedLogin] = useState(false)
@@ -263,6 +259,9 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
     const t = setInterval(load, 5000)
     return () => clearInterval(t)
   }, [peer.id])
+
+  const available = (t: Tab) =>
+    t === 'led' ? !!features.led_preview : t === 'wifi' ? !!features.wifi : t === 'moments' ? !!features.moments : true
 
   if (props.status === 'offline') return <div class="card">{peer.name} does not answer at {peer.url}.</div>
   if (needLogin || props.status === 'login')
@@ -291,23 +290,21 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
             </a>
           </div>
         </div>
-        <nav class="tabs groups">
+      </header>
+      <div class="sp-body">
+        <nav class="pnav" aria-label="Speaker sections">
           {GROUPS.map((g) => (
-            <button class={group === g.id ? 'on' : ''} onClick={() => setGroup(g.id)}>
-              {g.name}
-            </button>
+            <div class="pgroup">
+              <div class="pcap">{g.name}</div>
+              {g.tabs.filter(available).map((t) => (
+                <button class={'pitem' + (tab === t ? ' on' : '')} aria-current={tab === t ? 'page' : undefined} onClick={() => setTab(t)}>
+                  {TAB_NAMES[t]}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
-        <nav class="tabs sub">
-          {GROUPS.find((g) => g.id === group)!
-            .tabs.filter((t) => (t === 'led' ? features.led_preview : t === 'wifi' ? features.wifi : t === 'moments' ? features.moments : true))
-            .map((t) => (
-              <button class={tab === t ? 'on' : ''} onClick={() => setTab(t)}>
-                {TAB_NAMES[t]}
-              </button>
-            ))}
-        </nav>
-      </header>
+        <div class="sp-main">
       {err && <p class="err">{err}</p>}
       {!ents && <p class="muted">…</p>}
       {ents && tab === 'overview' && <Overview ents={ents} />}
@@ -320,6 +317,8 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
       {tab === 'log' && <LogTab peer={peer} base={base} />}
       {tab === 'config' && <ConfigEditor peer={peer} base={base} />}
       {tab === 'account' && <Account peer={peer} base={base} />}
+        </div>
+      </div>
     </div>
   )
 }
