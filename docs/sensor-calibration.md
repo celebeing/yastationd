@@ -54,6 +54,13 @@ and the units differ by a factor. A second measurement in clearly different ligh
 is kept next to the first and gives the slope; one in similar light replaces it. "Remove
 calibration" goes back to the model's base.
 
+A photographic meter that shows EV or an exposure instead of lux works too, in **incident** mode
+(the dome or flat diffuser on, facing up beside the top), never reflected or spot: the page turns
+EV (or aperture, shutter and ISO) into lux as you type, `E = C/100 · 2^EV₁₀₀` with
+`EV₁₀₀ = log₂(N²/t) − log₂(ISO/100)` and the incident constant C = 250 (a flat diffuser; ISO 2720
+allows 240–400, domes are often 320–340 — then the true light is ~30 % less). EV 0 at ISO 100 is
+2.5 lx, EV 7 is 320 lx.
+
 ### Procedure
 
 You need a lux meter (a photographer's meter in lux mode, or a cheap handheld one) and a light you

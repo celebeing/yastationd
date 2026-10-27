@@ -500,6 +500,7 @@ export function CalibrationTab({ peer, base }: { peer: Peer; base: string }) {
         A phone app is a poor meter: Android's light sensor is rough, an iPhone app measures with the camera and can be off
         several times.
       </p>
+      <ExposureToLux onLux={setLux} />
       <div class="row">
         <input type="number" min="1" step="any" placeholder="lux" value={lux} onInput={(e) => setLux(e.currentTarget.value)} />
         <button class="primary" disabled={busy} onClick={measure}>
@@ -521,5 +522,92 @@ export function CalibrationTab({ peer, base }: { peer: Peer; base: string }) {
       {msg && <p class="small ok">{msg}</p>}
       {err && <p class="err">{err}</p>}
     </section>
+  )
+}
+
+// Incident-light meters that show EV or an exposure instead of lux: E = C/100 · 2^EV100, with the
+// meter calibration constant C = 250 (a flat diffuser; ISO 2720 allows 240–400, domes are often
+// 320–340), EV100 = log2(N²/t) − log2(ISO/100).
+const INCIDENT_C = 250
+
+/** parseShutter reads "1/60", "1/2", "0.5", "2", "2s" as seconds. */
+function parseShutter(s: string): number {
+  const v = s.trim().replace(/s$/i, '').replace(',', '.')
+  const m = v.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/)
+  if (m) return +m[1] / +m[2]
+  return v === '' ? NaN : +v
+}
+
+const num = (s: string) => (s.trim() === '' ? NaN : +s.trim().replace(',', '.'))
+
+/** ExposureToLux: the meter's EV (or aperture, shutter and ISO) to lux, filled into the lux field
+ * as it is typed. */
+function ExposureToLux({ onLux }: { onLux: (s: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [mode, setMode] = useState<'ev' | 'exp'>('ev')
+  const [ev, setEv] = useState('')
+  const [iso, setIso] = useState('100')
+  const [f, setF] = useState('')
+  const [t, setT] = useState('')
+
+  let ev100 = NaN
+  const s = num(iso)
+  if (mode === 'ev') ev100 = num(ev) - Math.log2(s / 100)
+  else {
+    const n = num(f),
+      sec = parseShutter(t)
+    if (n > 0 && sec > 0) ev100 = Math.log2((n * n) / sec) - Math.log2(s / 100)
+  }
+  const lux = Number.isFinite(ev100) && s > 0 ? (INCIDENT_C / 100) * Math.pow(2, ev100) : NaN
+  useEffect(() => {
+    if (open && Number.isFinite(lux)) onLux(String(lux < 100 ? Math.round(lux * 10) / 10 : Math.round(lux)))
+  }, [open, lux])
+
+  if (!open)
+    return (
+      <p class="small">
+        <button class="linklike" onClick={() => setOpen(true)}>
+          My meter shows EV or an exposure (aperture, shutter, ISO)
+        </button>
+      </p>
+    )
+  return (
+    <div class="exposure">
+      <p class="small">
+        Put the meter in <b>incident</b> mode (the dome or flat diffuser on, facing up beside the speaker's top), not
+        reflected or spot. The lux below is computed with the incident constant C = 250; a meter with a dome may be
+        calibrated to about 330, then the true light is ~30 % less.
+      </p>
+      <div class="row">
+        <label class="inline small">
+          <input type="radio" name="expmode" checked={mode === 'ev'} onChange={() => setMode('ev')} /> EV
+        </label>
+        <label class="inline small">
+          <input type="radio" name="expmode" checked={mode === 'exp'} onChange={() => setMode('exp')} /> aperture and shutter
+        </label>
+      </div>
+      <div class="row">
+        {mode === 'ev' ? (
+          <label class="field">
+            EV <input type="text" inputMode="decimal" value={ev} placeholder="e.g. 7.3" onInput={(e) => setEv(e.currentTarget.value)} />
+          </label>
+        ) : (
+          <>
+            <label class="field">
+              f/ <input type="text" inputMode="decimal" value={f} placeholder="2.8" onInput={(e) => setF(e.currentTarget.value)} />
+            </label>
+            <label class="field">
+              shutter <input type="text" value={t} placeholder="1/60" onInput={(e) => setT(e.currentTarget.value)} />
+            </label>
+          </>
+        )}
+        <label class="field">
+          ISO <input type="text" inputMode="numeric" value={iso} onInput={(e) => setIso(e.currentTarget.value)} />
+        </label>
+        <span class="small muted">
+          {Number.isFinite(lux) ? `EV₁₀₀ ${ev100.toFixed(1)} → ${lux < 100 ? lux.toFixed(1) : Math.round(lux)} lx` : 'fill in the fields'}
+        </span>
+      </div>
+    </div>
   )
 }
