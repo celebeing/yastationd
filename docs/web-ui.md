@@ -133,8 +133,10 @@ The light sensor against a lux meter, the web app's version of
 [sensor-calibration.md](sensor-calibration.md#from-the-web-app): the user measures the light next
 to the speaker's top in a well-lit room and enters the lux; `POST /api/calibrate/light {"lux": N}`
 (behind the login) blacks out the front display and the ring, takes the median of 30 readings
-over 15 s, and stores the pair as `lux_calibration` in the speaker's config (a meter showing EV or
-an exposure: the page converts it to lux as it is typed, incident constant C = 250) — live, no restart
+over 15 s, and stores the pair as `lux_calibration` in the speaker's config (two ways: an incident
+light meter — lux, or EV / an exposure converted with C = 250 — or a phone or camera metering a
+sheet of white paper on the speaker's top in reflected light, converted with K = 12.5 and the
+paper's 85 % reflectance; the page converts as it is typed) — live, no restart
 (`GET` shows the calibration in use, `DELETE` drops the unit's own). Under 30 lx it refuses.
 
 ## The extra tabs

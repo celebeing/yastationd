@@ -424,6 +424,7 @@ export function LogTab({ peer, base }: { peer: Peer; base: string }) {
 export function CalibrationTab({ peer, base }: { peer: Peer; base: string }) {
   const [cal, setCal] = useState<api.LightCal | null>(null)
   const [lux, setLux] = useState('')
+  const [method, setMethod] = useState<'incident' | 'paper'>('incident')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
@@ -484,23 +485,43 @@ export function CalibrationTab({ peer, base }: { peer: Peer; base: string }) {
           )}
         </p>
       )}
-      <ol class="small steps">
-        <li>Take a lux meter to the speaker in a well-lit room (30 lx or more; white light, not coloured).</li>
-        <li>
-          Hold the meter next to the speaker's top, facing up, at the same height — beside it, not on it, and without
-          casting your own shadow on the speaker.
-        </li>
-        <li>Enter what it shows and press Measure. Step back: the speaker measures for about 15 s with its lights off.</li>
-        <li>
-          Optional: do it again in clearly different light (3× brighter or dimmer) — the two points also give the curve its
-          slope.
-        </li>
-      </ol>
+      <div class="row methods">
+        <label class="inline small">
+          <input type="radio" name="calmethod" checked={method === 'incident'} onChange={() => setMethod('incident')} /> I have an
+          incident light meter
+        </label>
+        <label class="inline small">
+          <input type="radio" name="calmethod" checked={method === 'paper'} onChange={() => setMethod('paper')} /> A phone or camera
+          and a sheet of white paper
+        </label>
+      </div>
+      {method === 'incident' ? (
+        <ol class="small steps">
+          <li>In a well-lit room (30 lx or more; white light, not coloured), put the meter in incident mode.</li>
+          <li>
+            Hold it next to the speaker's top, the dome or diffuser facing up, at the same height — beside the speaker, not on
+            it, and without casting your shadow on the speaker.
+          </li>
+          <li>Enter the lux it shows (or its EV / exposure below) and press Measure. Step back: the speaker measures for about 15 s with its lights off.</li>
+          <li>Optional: again in clearly different light (3× brighter or dimmer) — two points also give the curve its slope.</li>
+        </ol>
+      ) : (
+        <ol class="small steps">
+          <li>In a well-lit room (white light, not coloured), lay a sheet of plain white matte paper (printer paper, not glossy) flat on the speaker's top.</li>
+          <li>
+            Meter the sheet with a phone or camera in reflected mode: spot metering on the sheet, the sheet filling the whole
+            metered area, no shadow of yours or the phone on it, no glare. A light-meter app shows EV; a camera app in manual
+            or pro mode shows the exposure (aperture, shutter, ISO).
+          </li>
+          <li>Enter it below. Then take the paper off, step back and press Measure: the speaker measures without the sheet, for about 15 s with its lights off.</li>
+          <li>Optional: again in clearly different light (3× brighter or dimmer) for the slope.</li>
+        </ol>
+      )}
       <p class="small muted">
-        A phone app is a poor meter: Android's light sensor is rough, an iPhone app measures with the camera and can be off
-        several times.
+        A phone is no incident meter (its light sensor or its camera aimed at the room are off by several times), but metering
+        reflected light off white paper works.
       </p>
-      <ExposureToLux onLux={setLux} />
+      <ExposureToLux key={method} method={method} onLux={setLux} />
       <div class="row">
         <input type="number" min="1" step="any" placeholder="lux" value={lux} onInput={(e) => setLux(e.currentTarget.value)} />
         <button class="primary" disabled={busy} onClick={measure}>
@@ -525,10 +546,19 @@ export function CalibrationTab({ peer, base }: { peer: Peer; base: string }) {
   )
 }
 
-// Incident-light meters that show EV or an exposure instead of lux: E = C/100 · 2^EV100, with the
-// meter calibration constant C = 250 (a flat diffuser; ISO 2720 allows 240–400, domes are often
-// 320–340), EV100 = log2(N²/t) − log2(ISO/100).
+// EV (or an exposure) to lux, EV100 = log2(N²/t) − log2(ISO/100) (docs/sensor-calibration.md):
+// - incident meter: E = C/100 · 2^EV100, the calibration constant C = 250 (a flat diffuser;
+//   ISO 2720 allows 240–400, domes are often 320–340);
+// - reflected meter on white paper: the meter reads luminance L = K/100 · 2^EV100 (K = 12.5), and
+//   a matte white sheet of reflectance PAPER_R under E lux has L = PAPER_R·E/π, so
+//   E = π·L/PAPER_R (≈ 0.46 · 2^EV100: white paper meters ~2.4 stops above the incident EV).
 const INCIDENT_C = 250
+const REFLECTED_K = 12.5
+const PAPER_R = 0.85
+
+function evToLux(ev100: number, method: 'incident' | 'paper'): number {
+  return method === 'incident' ? (INCIDENT_C / 100) * Math.pow(2, ev100) : (Math.PI * (REFLECTED_K / 100) * Math.pow(2, ev100)) / PAPER_R
+}
 
 /** parseShutter reads "1/60", "1/2", "0.5", "2", "2s" as seconds. */
 function parseShutter(s: string): number {
@@ -542,8 +572,8 @@ const num = (s: string) => (s.trim() === '' ? NaN : +s.trim().replace(',', '.'))
 
 /** ExposureToLux: the meter's EV (or aperture, shutter and ISO) to lux, filled into the lux field
  * as it is typed. */
-function ExposureToLux({ onLux }: { onLux: (s: string) => void }) {
-  const [open, setOpen] = useState(false)
+function ExposureToLux({ method, onLux }: { method: 'incident' | 'paper'; onLux: (s: string) => void }) {
+  const [open, setOpen] = useState(method === 'paper') // white paper is always metered as EV or an exposure
   const [mode, setMode] = useState<'ev' | 'exp'>('ev')
   const [ev, setEv] = useState('')
   const [iso, setIso] = useState('100')
@@ -558,7 +588,7 @@ function ExposureToLux({ onLux }: { onLux: (s: string) => void }) {
       sec = parseShutter(t)
     if (n > 0 && sec > 0) ev100 = Math.log2((n * n) / sec) - Math.log2(s / 100)
   }
-  const lux = Number.isFinite(ev100) && s > 0 ? (INCIDENT_C / 100) * Math.pow(2, ev100) : NaN
+  const lux = Number.isFinite(ev100) && s > 0 ? evToLux(ev100, method) : NaN
   useEffect(() => {
     if (open && Number.isFinite(lux)) onLux(String(lux < 100 ? Math.round(lux * 10) / 10 : Math.round(lux)))
   }, [open, lux])
@@ -573,11 +603,18 @@ function ExposureToLux({ onLux }: { onLux: (s: string) => void }) {
     )
   return (
     <div class="exposure">
-      <p class="small">
-        Put the meter in <b>incident</b> mode (the dome or flat diffuser on, facing up beside the speaker's top), not
-        reflected or spot. The lux below is computed with the incident constant C = 250; a meter with a dome may be
-        calibrated to about 330, then the true light is ~30 % less.
-      </p>
+      {method === 'incident' ? (
+        <p class="small">
+          In <b>incident</b> mode (the dome or flat diffuser on, facing up beside the speaker's top), not reflected or spot.
+          Computed with the incident constant C = 250; a meter with a dome may be calibrated to about 330, then the true light
+          is ~30 % less.
+        </p>
+      ) : (
+        <p class="small">
+          The <b>reflected</b> reading off the white sheet (spot, the sheet filling it). Computed for plain white paper
+          (reflectance 85 %) and the reflected constant K = 12.5.
+        </p>
+      )}
       <div class="row">
         <label class="inline small">
           <input type="radio" name="expmode" checked={mode === 'ev'} onChange={() => setMode('ev')} /> EV

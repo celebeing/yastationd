@@ -54,6 +54,17 @@ and the units differ by a factor. A second measurement in clearly different ligh
 is kept next to the first and gives the slope; one in similar light replaces it. "Remove
 calibration" goes back to the model's base.
 
+**Without an incident meter: white paper and a phone or camera.** Lay a sheet of plain white
+matte paper (printer paper) on the speaker's top and meter it in **reflected** light — spot
+metering, the sheet filling the metered area, no shadow or glare on it — with a light-meter app
+(EV) or a camera app in manual mode (aperture, shutter, ISO); enter that, take the sheet off, and
+press Measure (the speaker must measure without it). A reflected meter reads luminance
+`L = K/100 · 2^EV₁₀₀` (K = 12.5); matte white paper of reflectance ρ ≈ 0.85 under `E` lux has
+`L = ρE/π`, so `E = π·L/ρ ≈ 0.46 · 2^EV₁₀₀` — the sheet meters ~2.4 stops above the incident EV
+(EV 10 off the paper ≈ 470 lx). A phone is no incident meter (its light sensor, or its camera
+aimed at the room, was off by several times against the Sekonic), but reflected light off a
+known white surface is what a camera meters well. Paper varies (ρ 0.8–0.9: ±6 %).
+
 A photographic meter that shows EV or an exposure instead of lux works too, in **incident** mode
 (the dome or flat diffuser on, facing up beside the top), never reflected or spot: the page turns
 EV (or aperture, shutter and ISO) into lux as you type, `E = C/100 · 2^EV₁₀₀` with
