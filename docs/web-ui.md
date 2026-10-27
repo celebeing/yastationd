@@ -115,7 +115,11 @@ A subproject: TypeScript, Preact, Vite (versions pinned exactly), built into
 
 ## Navigation
 
-Per speaker, two levels: a group, then its tabs (the last tab of each group is remembered).
+Per speaker, a section menu beside the content: the groups as captions, their sections under
+them (a scrolling row on narrow screens). The open section is in the address (`#options`), so it
+can be linked. Lists of settings and controls are settings pages — one narrow column, a name and
+its control on one line — while sensors, the log, the LED preview and the config file use the
+window's width.
 
 | Group | Tabs |
 |---|---|

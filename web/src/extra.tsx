@@ -468,7 +468,7 @@ export function CalibrationTab({ peer, base }: { peer: Peer; base: string }) {
   }
 
   return (
-    <section class="card">
+    <section class="card narrow">
       <h3>Light sensor</h3>
       {cal && (
         <p class="small">
@@ -502,7 +502,7 @@ export function CalibrationTab({ peer, base }: { peer: Peer; base: string }) {
       </p>
       <div class="row">
         <input type="number" min="1" step="any" placeholder="lux" value={lux} onInput={(e) => setLux(e.currentTarget.value)} />
-        <button disabled={busy} onClick={measure}>
+        <button class="primary" disabled={busy} onClick={measure}>
           {busy ? 'Measuring…' : 'Measure'}
         </button>
         {cal?.source === 'unit' &&

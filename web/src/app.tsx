@@ -235,7 +235,16 @@ const TAB_NAMES: Record<Tab, string> = {
 
 function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () => void }) {
   const { peer, base } = props
-  const [tab, setTab] = useState<Tab>('overview')
+  // The open section is in the address (#options), so it can be linked and survives a reload.
+  const fromHash = () => {
+    const h = location.hash.slice(1) as Tab
+    return h in TAB_NAMES ? h : 'overview'
+  }
+  const [tab, setTabState] = useState<Tab>(fromHash)
+  const setTab = (t: Tab) => {
+    setTabState(t)
+    history.replaceState(null, '', '#' + t)
+  }
   const [ents, setEnts] = useState<Entity[] | null>(null)
   const [err, setErr] = useState('')
   const [needLogin, setNeedLogin] = useState(false)
@@ -398,20 +407,17 @@ function Controls(props: { which: 'runtime' | 'options'; ents: Entity[]; peer: P
       setErr(`${name(e)}: ${x.message || x}`)
     }
   }
-  const groups = [{ title: props.which === 'options' ? 'Options' : 'Display, lights and voice', list: ctl }]
+  // A settings page (the Slack/Discord kind): one narrow column, the name and its control on one
+  // line, so a switch is never a screen's width away from what it switches.
   return (
-    <div class="cols">
+    <div class="settings">
+      <h3>{props.which === 'options' ? 'Options' : 'Display, lights and voice'}</h3>
       {err && <p class="err">{err}</p>}
-      {groups.map((g) => (
-        <section class="card">
-          <h3>{g.title}</h3>
-          {g.list.map((e) => (
-            <div class="ctl">
-              <span class="ctl-name">{name(e)}</span>
-              <Control e={e} send={(p) => send(e, p)} />
-            </div>
-          ))}
-        </section>
+      {ctl.map((e) => (
+        <div class="ctl">
+          <span class="ctl-name">{name(e)}</span>
+          <Control e={e} send={(p) => send(e, p)} />
+        </div>
       ))}
     </div>
   )
