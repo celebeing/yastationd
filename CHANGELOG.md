@@ -3,6 +3,14 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.20.4 — 2026-10-28
+
+**Deploying**
+- One way to update speakers: `tools/deploy.sh`. `make deploy` is now a shortcut to it for the
+  speaker in `local.mk` (it used to build on the host and ship the daemon alone, with no check
+  that it came up); `make deploy-spotter` and `make deploy-sendspin` are gone (the script ships
+  both). The first install ends with `DROPBEAR=1 tools/deploy.sh` after `make install-initd`.
+
 ## v0.20.3 — 2026-10-28
 
 A review pass over the whole repository (the larger findings are in `docs/backlog.md`).
