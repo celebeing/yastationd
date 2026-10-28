@@ -11,7 +11,7 @@ DROPBEAR=dropbear-2026.94
 DROPBEAR_SHA256=e098034a843699200c8c977a991fff73159735bf795d5f72ef672c41a6b1ae81
 
 if [ ! -e src/$DROPBEAR/.fetched ]; then
-	curl -fsSL -o src/$DROPBEAR.tar.bz2 https://matt.ucc.asn.au/dropbear/releases/$DROPBEAR.tar.bz2
+	curl -fsSL --retry 3 --retry-delay 5 -o src/$DROPBEAR.tar.bz2 https://matt.ucc.asn.au/dropbear/releases/$DROPBEAR.tar.bz2
 	echo "$DROPBEAR_SHA256  src/$DROPBEAR.tar.bz2" | sha256sum -c -
 	rm -rf src/$DROPBEAR
 	tar -xjf src/$DROPBEAR.tar.bz2 -C src

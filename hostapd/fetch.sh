@@ -11,7 +11,7 @@ HOSTAPD_SHA256=2b3facb632fd4f65e32f4bf82a76b4b72c501f995a4f62e330219fe7aed1747a
 LIBNL_TINY=40493a655d8caa2ccf5206dde1e733abe2920432
 
 if [ ! -e src/$HOSTAPD/.fetched ]; then
-	curl -fsSL -o src/$HOSTAPD.tar.gz https://w1.fi/releases/$HOSTAPD.tar.gz
+	curl -fsSL --retry 3 --retry-delay 5 -o src/$HOSTAPD.tar.gz https://w1.fi/releases/$HOSTAPD.tar.gz
 	echo "$HOSTAPD_SHA256  src/$HOSTAPD.tar.gz" | sha256sum -c -
 	rm -rf src/$HOSTAPD
 	tar -xzf src/$HOSTAPD.tar.gz -C src

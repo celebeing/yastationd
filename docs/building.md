@@ -13,7 +13,7 @@ One image per toolchain, in `docker/` (built on first use, then cached by docker
 |---|---|---|---|
 | `yastation-go` | `docker/go.Dockerfile` | `yastationd` (tests too) | Go 1.22.5 (`golang:1.22.5-bookworm`), `GOTOOLCHAIN=local`; one static armv7 binary for every board |
 | `yastation-node` | `docker/node.Dockerfile` | the web app (`web/`), embedded in yastationd | Node 18.20.8, pnpm 8.14.1 |
-| `yastation-zig` | `docker/zig.Dockerfile` | `sendspin-host` (per arch), `hostapd`, `dropbear` | **zig 0.14.1** (0.11–0.13 emit armhf C++ binaries that crash before `main`), cmake, ninja, git, curl |
+| `yastation-zig` | `docker/zig.Dockerfile` | `sendspin-host` (per arch), `hostapd`, `dropbear` | **zig 0.14.1** (0.11–0.13 emit armhf C++ binaries that crash before `main`; the tarball for the builder's own arch, x86_64 or aarch64, checked by sha256), cmake, ninja, git, curl |
 | `yastation-cross` | `docker/cross.Dockerfile` | `spotter-host` (per arch) | Ubuntu 22.04's gcc 11 cross toolchains (glibc 2.35): the toolchain the deployed builds were made with — its output is byte-identical to them (checked 2026-10-27) |
 
 ## tools/build.sh
