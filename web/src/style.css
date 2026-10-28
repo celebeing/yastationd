@@ -158,7 +158,7 @@ input.anim { min-width: 8rem; flex: 1; max-width: 22rem; }
 @media (max-width: 760px) { .mhead { grid-template-columns: 1fr; } .steps { margin-left: 0; } .steps .row { flex-wrap: wrap; } }
 
 /* The speaker card (app.tsx SpeakerCard): identity and status left, the everyday controls right. */
-.spcard { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 22rem); gap: 1rem 2rem; align-items: start;
+.spcard { display: grid; grid-template-columns: minmax(15rem, max-content) minmax(0, 1fr); gap: 1rem 2rem; align-items: start;
   background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1.1rem 1.25rem; margin-bottom: 1.25rem; }
 .spcard h2 { font-size: 1.7rem; line-height: 1.15; letter-spacing: -0.01em; }
 .spaddr { font: 600 1rem/1.4 ui-monospace, 'SF Mono', Menlo, Consolas, monospace; margin: 0.15rem 0 0.2rem; }
@@ -169,20 +169,28 @@ input.anim { min-width: 8rem; flex: 1; max-width: 22rem; }
 .chip.good { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
 .chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
 .chip.bad { color: var(--err); border-color: color-mix(in srgb, var(--err) 45%, var(--line)); }
-.spctl .ctl { padding: 0.35rem 0; }
-.spctl .ctl:first-child { border-top: 0; }
-.spctl .ctl-name { min-width: 4.5rem; color: var(--muted); }
-.spctl input[type='range'] { width: 110px; }
-button.mute.on { background: var(--warn); border-color: var(--warn); color: #fff; }
-/* The vitals strip: the card's full width, cells divided by hairlines, values in tabular figures. */
-.vitals { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); margin: 0;
-  border-top: 1px solid var(--line); padding-top: 0.75rem; row-gap: 0.6rem; }
-.vitals > div { padding: 0 0.9rem; border-left: 1px solid var(--line); min-width: 0; }
-.vitals > div:first-child { border-left: 0; padding-left: 0; }
+/* The vitals: a quiet panel beside the name, as many columns as fit. */
+.vitals { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 0.7rem 1.25rem; margin: 0;
+  padding: 0.75rem 1rem; border-radius: 10px; background: color-mix(in srgb, var(--fg) 4%, transparent); align-self: stretch; align-content: center; }
+.vitals > div { min-width: 0; }
 .vitals dt { font-size: 0.75rem; color: var(--muted); }
 .vitals dd { margin: 0.1rem 0 0; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vitals dd.warn { color: var(--warn); }
 .vitals dd.bad { color: var(--err); }
+.vitals .gauge { display: block; height: 4px; margin-top: 0.35rem; border-radius: 2px; background: color-mix(in srgb, var(--fg) 9%, transparent); overflow: hidden; }
+.vitals .gauge:empty { background: transparent; }
+.vitals .gauge i { display: block; height: 100%; border-radius: 2px; background: var(--accent); transition: width 0.6s ease; }
+.vitals .gauge.warn i { background: var(--warn); }
+.vitals .gauge.bad i { background: var(--err); }
+@media (prefers-reduced-motion: reduce) { .vitals .gauge i { transition: none; } }
+/* The everyday controls: one toolbar row under both, wrapping on narrow screens. */
+.spctl { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 2rem; border-top: 1px solid var(--line); padding-top: 0.8rem; }
+.spctl .ctl { display: inline-flex; justify-content: flex-start; gap: 0.6rem; padding: 0; border-top: 0; }
+.spctl .ctl-name { min-width: 0; color: var(--muted); }
+.spctl input[type='range'] { width: 140px; }
+.spctl .vol { min-width: 2.2rem; text-align: right; font-variant-numeric: tabular-nums; }
+.spctl .err { flex-basis: 100%; margin: 0; }
+button.mute.on { background: var(--warn); border-color: var(--warn); color: #fff; }
 @media (max-width: 760px) { .spcard { grid-template-columns: 1fr; } }
 
 /* Settings rows (settings.tsx): name, control, share switch; the explanation under them. */
@@ -203,8 +211,6 @@ button.share.on { color: var(--accent); border-color: var(--accent); background:
 details.advanced { margin-top: 1rem; }
 details.advanced summary { cursor: pointer; color: var(--muted); margin-bottom: 0.75rem; }
 @media (max-width: 760px) { .srow { grid-template-columns: 1fr auto; } .srow button.share { grid-column: 1 / -1; justify-self: start; } }
-.spctl .vol { min-width: 2.2rem; text-align: right; font-variant-numeric: tabular-nums; }
-.spctl .ctl { flex-wrap: wrap; }
 .setting.changed { border-left: 3px solid var(--accent); padding-left: 0.6rem; background: color-mix(in srgb, var(--accent) 5%, transparent); }
 .tag { margin-left: 0.5rem; font-size: 0.7rem; font-weight: 500; padding: 0.05rem 0.4rem; border-radius: 6px; color: var(--accent);
   border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); vertical-align: middle; }

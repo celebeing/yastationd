@@ -13,6 +13,17 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
 - `wake_capture` (a test option): saves the audio around every wake word under `<cfw>/wakes`, to
   measure where the wake word ends in real speech ([docs/wake-word-boundary.md](docs/wake-word-boundary.md)).
 
+**Sync**
+- A shared setting left at the default is shared as the default, not as its value: every speaker
+  keeps its own build's default, so a default changed in a new version is no longer pinned by an
+  earlier share (the fleet kept `arbitration_wait_ms = 700` after v0.18.1 made it 300).
+
+**Web app**
+- The speaker card: a vitals panel beside the name (the speaker's and the daemon's uptime apart,
+  load, temperature, free memory, the daemon's memory, free flash; `GET /api/vitals`, and
+  `/metrics` gains `yastation_system_uptime_seconds`), the controls in one toolbar row under it.
+- "Auto brightness: dimmest" sits right after "Clock brightness" and can be shared between speakers.
+
 ## v0.18.1 — 2026-10-28
 
 **Fixes and operations**

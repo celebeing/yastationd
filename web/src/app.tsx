@@ -414,6 +414,7 @@ function SpeakerCard(p: { peer: Peer; base: string; ents: Entity[] | null; reloa
           </div>
         )}
       </div>
+      <VitalsStrip peer={peer} base={base} />
       <div class="spctl">
         {vol && (
           <div class="ctl">
@@ -438,7 +439,6 @@ function SpeakerCard(p: { peer: Peer; base: string; ents: Entity[] | null; reloa
         )}
         {err && <p class="err small">{err}</p>}
       </div>
-      <VitalsStrip peer={peer} base={base} />
     </header>
   )
 }
@@ -462,29 +462,37 @@ function VitalsStrip({ peer, base }: { peer: Peer; base: string }) {
     }
   }, [peer.id, base])
   if (!v) return null
-  const cells: [string, string, string, string?][] = [] // label, value, title, tone
-  if (v.system_uptime_s) cells.push(['Speaker up', fmtSpan(v.system_uptime_s), 'Since the speaker booted'])
-  cells.push(['Daemon up', fmtSpan(v.daemon_uptime_s), 'Since yastationd started'])
+  // label, value, title, tone, and how full its gauge is (0..1; none for the uptimes)
+  const cells: { l: string; v: string; title: string; tone?: string; frac?: number }[] = []
+  const tone = (f: number, warn: number, bad: number) => (f >= bad ? 'bad' : f >= warn ? 'warn' : '')
+  if (v.system_uptime_s) cells.push({ l: 'Speaker up', v: fmtSpan(v.system_uptime_s), title: 'Since the speaker booted' })
+  cells.push({ l: 'Daemon up', v: fmtSpan(v.daemon_uptime_s), title: 'Since yastationd started' })
   if (v.load) {
-    const busy = v.load[0] / Math.max(1, v.cpus)
-    cells.push(['Load', v.load.map((l) => l.toFixed(2)).join(' '), `Load average over 1, 5 and 15 min, ${v.cpus} cores`, busy > 1 ? 'bad' : busy > 0.7 ? 'warn' : ''])
+    const f = v.load[0] / Math.max(1, v.cpus)
+    cells.push({ l: 'Load', v: v.load.map((l) => l.toFixed(2)).join(' '), title: `Load average over 1, 5 and 15 min; the gauge: the last minute over ${v.cpus} cores`, tone: tone(f, 0.7, 1), frac: f })
   }
   if (v.temps && v.temps.length) {
     const hot = v.temps.reduce((a, b) => (b.c > a.c ? b : a))
-    cells.push(['Temperature', Math.round(hot.c) + ' °C', v.temps.map((t) => `${t.zone}: ${t.c.toFixed(1)} °C`).join('\n'), hot.c >= 80 ? 'bad' : hot.c >= 70 ? 'warn' : ''])
+    cells.push({ l: 'Temperature', v: Math.round(hot.c) + ' °C', title: v.temps.map((t) => `${t.zone}: ${t.c.toFixed(1)} °C`).join('\n') + '\nthe gauge: 30 to 90 °C', tone: hot.c >= 80 ? 'bad' : hot.c >= 70 ? 'warn' : '', frac: (hot.c - 30) / 60 })
   }
   if (v.mem_total && v.mem_available !== undefined) {
-    const share = v.mem_available / v.mem_total
-    cells.push(['Memory free', `${fmtBytes(v.mem_available)} of ${fmtBytes(v.mem_total)}`, 'Available to programs (MemAvailable)', share < 0.1 ? 'bad' : share < 0.2 ? 'warn' : ''])
+    const used = v.mem_total - v.mem_available
+    cells.push({ l: 'Memory used', v: fmtPair(used, v.mem_total), title: 'In use of the total (what is not MemAvailable)', tone: tone(used / v.mem_total, 0.8, 0.9), frac: used / v.mem_total })
   }
-  if (v.daemon_rss) cells.push(['Daemon memory', fmtBytes(v.daemon_rss), "yastationd's resident memory"])
-  if (v.flash_total && v.flash_free !== undefined) cells.push(['Flash free', `${fmtBytes(v.flash_free)} of ${fmtBytes(v.flash_total)}`, 'The file system the CFW lives on', v.flash_free / v.flash_total < 0.1 ? 'warn' : ''])
+  if (v.daemon_rss) cells.push({ l: 'Daemon memory', v: fmtBytes(v.daemon_rss), title: "yastationd's resident memory; the gauge: its share of the total", frac: v.mem_total ? v.daemon_rss / v.mem_total : undefined })
+  if (v.flash_total && v.flash_free !== undefined) {
+    const used = v.flash_total - v.flash_free
+    cells.push({ l: 'Flash used', v: fmtPair(used, v.flash_total), title: 'In use of the total, on the file system the CFW lives on', tone: tone(used / v.flash_total, 0.9, 0.97), frac: used / v.flash_total })
+  }
   return (
     <dl class="vitals">
-      {cells.map(([l, val, title, tone]) => (
-        <div title={title}>
-          <dt>{l}</dt>
-          <dd class={tone || ''}>{val}</dd>
+      {cells.map((c) => (
+        <div title={c.title}>
+          <dt>{c.l}</dt>
+          <dd class={c.tone || ''}>{c.v}</dd>
+          <span class={'gauge ' + (c.tone || '')} aria-hidden="true">
+            {c.frac !== undefined && <i style={{ width: Math.round(Math.max(0.02, Math.min(1, c.frac)) * 100) + '%' }} />}
+          </span>
         </div>
       ))}
     </dl>
@@ -498,6 +506,13 @@ function fmtSpan(s: number) {
   if (d) return `${d} d ${h} h`
   if (h) return `${h} h ${m} min`
   return m ? `${m} min` : `${Math.floor(s)} s`
+}
+
+// "399 / 490 MB": a part of a whole, the unit once when both share it.
+function fmtPair(part: number, whole: number) {
+  const a = fmtBytes(part), b = fmtBytes(whole)
+  const [an, au] = a.split(' '), [bn, bu] = b.split(' ')
+  return au === bu ? `${an} / ${bn} ${bu}` : `${a} / ${b}`
 }
 
 function fmtBytes(b: number) {

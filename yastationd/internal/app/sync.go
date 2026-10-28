@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -100,8 +101,7 @@ func (a *App) localShared(kind, item string) (json.RawMessage, bool) {
 		if k == nil || !k.Sync {
 			return nil, false
 		}
-		b, _ := json.Marshal(k.Get(a.cfg()))
-		return b, true
+		return settingShared(k, a.cfg()), true
 	case kind == "option":
 		v, ok := a.states.snapshot()[item]
 		if !ok {
@@ -118,6 +118,33 @@ func (a *App) localShared(kind, item string) (json.RawMessage, bool) {
 		return b, true
 	}
 	return nil, false
+}
+
+// settingShared is a key's value as shared: null while c leaves it at the default (the file does
+// not set it, or sets the default), so every speaker keeps its own build's default and a newer
+// default reaches them all; its lines otherwise.
+func settingShared(k *config.Key, c *config.Config) json.RawMessage {
+	v := k.Get(c)
+	d := config.Default()
+	if !c.Has(k.Name) || slices.Equal(v, k.Get(&d)) {
+		return json.RawMessage("null")
+	}
+	b, _ := json.Marshal(v)
+	return b
+}
+
+// normShared: a shared setting equal to this build's default counts as the default (null), so a
+// value shared before the default changed doesn't pin it here.
+func normShared(kind, item string, v json.RawMessage) json.RawMessage {
+	k := config.Lookup(item)
+	var vals []string
+	if kind != "setting" || k == nil || json.Unmarshal(v, &vals) != nil || vals == nil {
+		return v
+	}
+	if d := config.Default(); slices.Equal(vals, k.Get(&d)) {
+		return json.RawMessage("null")
+	}
+	return v
 }
 
 func sameJSON(a, b json.RawMessage) bool {
@@ -158,7 +185,7 @@ func (a *App) shareChanged(kind, item string) {
 	if !ok {
 		return
 	}
-	if v, ok := a.localShared(kind, item); ok && !sameJSON(v, m.V) {
+	if v, ok := a.localShared(kind, item); ok && !sameJSON(v, normShared(kind, item, m.V)) {
 		a.publishShared(kind, item, true)
 	}
 }
@@ -194,7 +221,7 @@ func (a *App) onShared(kind, item string, payload []byte) {
 		return
 	}
 	a.sharedSet(kind, item, &m)
-	if v, ok := a.localShared(kind, item); !ok || sameJSON(v, m.V) {
+	if v, ok := a.localShared(kind, item); !ok || sameJSON(v, normShared(kind, item, m.V)) {
 		return
 	}
 	if a.syncRejected(kind+"/"+item) == m.At {
@@ -210,8 +237,8 @@ func (a *App) onShared(kind, item string, payload []byte) {
 func (a *App) applyShared(kind, item string, v json.RawMessage) error {
 	switch {
 	case kind == "setting":
-		var vals []string
-		if err := json.Unmarshal(v, &vals); err != nil {
+		var vals []string // nil (null, or this build's default): the key leaves the file
+		if err := json.Unmarshal(normShared(kind, item, v), &vals); err != nil {
 			return err
 		}
 		old, err := os.ReadFile(a.cfg().File)
@@ -367,8 +394,8 @@ func (a *App) shareSettings(c *config.Config, changed []string) {
 		if !ok || k == nil || !k.Sync {
 			continue
 		}
-		v, _ := json.Marshal(k.Get(c))
-		if sameJSON(v, m.V) {
+		v := settingShared(k, c)
+		if sameJSON(v, normShared("setting", name, m.V)) {
 			continue
 		}
 		next := sharedMsg{V: v, At: a.sharedNow(), By: a.cfg().DeviceID}

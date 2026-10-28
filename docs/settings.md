@@ -84,10 +84,16 @@ light calibration) are `Hidden`.
   a set one, and the mask sent back leaves it unchanged.
 - Every key is on a page, so the app has no raw-file editor any more; `GET`/`PUT /api/config`
   stays for scripts and takes the same path on save (runtime changes live, others restart).
-- **The speaker card** above every tab: the name, the address, the model and version, status chips
-  (health, HA's voice pipeline, mic muted, power, light, uptime), and the everyday controls (volume
-  with mute, display mode, faces). Mute sets the volume to 0; the level before is kept in the
-  browser to come back to.
+- **The speaker card** above every tab: the name, the address, the model and version and status
+  chips (health, HA's voice pipeline, mic muted, power, light); beside them a panel of vitals
+  (`GET /api/vitals`, every 5 s): the speaker's and the daemon's uptime apart, load, the hottest
+  thermal zone (all of them on hover), memory used, the daemon's memory, flash used, each with a
+  thin gauge (load over the cores, 30–90 °C, shares of the total), amber or red when it runs short
+  or hot; under both a toolbar of the everyday controls (volume with
+  mute, display mode, faces). Mute sets the volume to 0; the level before is kept in the browser
+  to come back to.
+- **Options and keys side by side:** a config key may sit right after the HA option it belongs to
+  (`AFTER` in settings.tsx): "Auto brightness: dimmest" follows "Clock brightness", its brightest.
 
 API: `GET /api/settings` (groups and keys with values, defaults, flags), `PUT /api/settings`
 `{"changes": {key: [lines]}}` (`[]` removes a key) → `{restarting, changed}`.
@@ -99,7 +105,7 @@ An item the owner shares lives in one retained topic, `<prefix>/shared/<kind>/<i
 
 | Kind | Item | Value |
 |---|---|---|
-| `setting` | a config key with `Sync` | its lines, e.g. `["2"]` |
+| `setting` | a config key with `Sync` | its lines, e.g. `["2"]`; `null` while it is at the default |
 | `option` | an HA option entity (clock brightness, auto brightness, durations, follow-up, faces, ambilight fx brightness) | its state, e.g. `"40"` |
 | `moment/<display kind>` | a moment, shared only by speakers whose front display is of that kind (`seg7`, `pixels`) | its candidates, `null` for the defaults |
 
@@ -107,6 +113,12 @@ An item the owner shares lives in one retained topic, `<prefix>/shared/<kind>/<i
   `applyConfigText`, so a restart key restarts each speaker on trial; an option through its command
   handler; a moment through `setMoment`). **Unsharing** clears the topic; every speaker keeps the
   value it has.
+- **Defaults stay defaults.** A setting the owner left at the default (the file doesn't set it, or
+  sets the default value) is shared as `null`, and a speaker taking `null` removes the key from
+  its file: each runs its own build's default, so a default changed in a new version reaches every
+  speaker. A shared value equal to this build's default counts as `null` too (a value shared before
+  the default changed, e.g. `arbitration_wait_ms = 700`, no longer pins it). Only a real override
+  travels as a value.
 - **A local change** of a shared item (any writer: the pages, HA, the config editor, a restart key
   on its way down) goes out with the new value. A speaker that already holds the shared value
   publishes nothing, which is what stops loops.

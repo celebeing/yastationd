@@ -358,7 +358,7 @@ func TestWebSync(t *testing.T) {
 	b.flush()
 	var m sharedMsg
 	json.Unmarshal([]byte(b.retained["yastation/shared/setting/volume_step"]), &m)
-	if string(m.V) != `["1"]` || m.By != "t1" {
+	if string(m.V) != `null` || m.By != "t1" { // at the default: shared as the default
 		t.Fatalf("retained: %+v", m)
 	}
 	code, _ = call(t, "POST", srv.URL+"/api/sync", tok, `{"kind":"setting","item":"volume_step","on":false}`)
@@ -410,5 +410,58 @@ func TestSyncFailedTrialNotRetaken(t *testing.T) {
 	s2.syncAccepted()
 	if _, err := os.Stat(s2.cfwFile(syncPendingFile)); err == nil {
 		t.Fatal("pending kept after acceptance")
+	}
+}
+
+// A setting left at the default is shared as null: every speaker keeps (or goes back to) its own
+// build's default, so a newer default reaches them all; a value shared before the default changed
+// that equals this build's default counts as the default too.
+func TestSyncDefaultsStayDefaults(t *testing.T) {
+	b := newBroker()
+	s1, s2 := speaker(t, "s1"), speaker(t, "s2")
+	b.attach(s1)
+	b.attach(s2)
+	setKey(t, s2, "volume_step", "4")
+	s1.publishShared("setting", "volume_step", true) // s1 is at the default
+	b.flush()
+	if got := b.retained["yastation/shared/setting/volume_step"]; !strings.Contains(got, `"v":null`) {
+		t.Fatalf("retained %q", got)
+	}
+	f, _ := os.ReadFile(s2.cfg().File)
+	if s2.cfg().VolumeStep != 1 || s2.cfg().Has("volume_step") || strings.Contains(string(f), "volume_step") {
+		t.Fatalf("s2 kept its override: %d %q", s2.cfg().VolumeStep, f)
+	}
+
+	// An override goes out as a value; Reset (the key leaves the file) as null again.
+	setKey(t, s1, "volume_step", "3")
+	b.flush()
+	if s2.cfg().VolumeStep != 3 {
+		t.Fatalf("override not taken: %d", s2.cfg().VolumeStep)
+	}
+	old, _ := os.ReadFile(s1.cfg().File)
+	if _, _, err := s1.applyConfigText([]byte(strings.ReplaceAll(string(old), "volume_step = 3\n", "")), "test"); err != nil {
+		t.Fatal(err)
+	}
+	b.flush()
+	if s2.cfg().Has("volume_step") || s2.cfg().VolumeStep != 1 {
+		t.Fatalf("reset not taken: %d", s2.cfg().VolumeStep)
+	}
+
+	// Set explicitly to the default value: still the default, nothing pinned.
+	setKey(t, s1, "volume_step", "1")
+	b.flush()
+	if s2.cfg().Has("volume_step") {
+		t.Fatal("an explicit default pinned the key")
+	}
+
+	// An old retained value equal to this build's default (shared before it changed): not written.
+	s3 := speaker(t, "s3")
+	s3.onShared("setting", "volume_step", []byte(`{"v":["1"],"at":1,"by":"old"}`))
+	if s3.cfg().Has("volume_step") {
+		t.Fatal("an old default-valued share was written into the file")
+	}
+	s3.onShared("setting", "volume_step", []byte(`{"v":["2"],"at":2,"by":"old"}`))
+	if s3.cfg().VolumeStep != 2 {
+		t.Fatalf("a real override not taken: %d", s3.cfg().VolumeStep)
 	}
 }

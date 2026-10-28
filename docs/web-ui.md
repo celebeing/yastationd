@@ -56,6 +56,7 @@ to the binary. Flash is written only when the config is saved.
 | `GET /api/state` | every web-exposed control and sensor: its metadata and current value |
 | `POST /api/control/<object>` | set a control: the body is the same payload as its MQTT command |
 | `GET /api/config`, `PUT /api/config` | the config file's text; a save is validated, then applied live or by a trial restart (below, and [settings.md](settings.md)) |
+| `GET /api/vitals` | the speaker card's vitals: the speaker's and the daemon's uptime, load and cores, memory (total, available, the daemon's), the flash under the CFW, every thermal zone |
 | `GET /api/settings`, `PUT /api/settings` | the config keys with their descriptions; set some ([settings.md](settings.md)) |
 | `GET /api/sync`, `POST /api/sync` | what is shared with the other speakers; share or stop sharing an item |
 | `POST /api/password` | change the login |
@@ -98,7 +99,7 @@ publishes. The web uses the same three, nothing is described twice:
 `yastation_info{board,version}`, `yastation_uptime_seconds`, the process (`yastation_rss_bytes`,
 `yastation_go_heap_bytes`, `yastation_goroutines`), the system (`yastation_memory_bytes{kind=total|
 available|free}`, `yastation_load{span=1m|5m|15m}`, `yastation_temperature_celsius{zone}` per
-thermal zone — `soc_thermal` on every board so far), and every numeric or on/off state the app
+thermal zone — `soc_thermal` on every board so far, `yastation_system_uptime_seconds`), and every numeric or on/off state the app
 publishes (`yastation_lux`, `yastation_sound_floor`, `yastation_volume`, `yastation_mic_mute`…;
 `yastation_health{state}`).
 
