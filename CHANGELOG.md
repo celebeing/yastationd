@@ -3,7 +3,7 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.19.0 — 2026-10-28
 
 **Voice**
 - The audio for Home Assistant starts from the point where the spotter heard «Алиса»: spotter-host
@@ -29,7 +29,8 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
   "Speakers"; the app's accent moves from violet to the logo's blue on cool neutrals, the status
   colours get dark-theme versions, and [docs/design.md](docs/design.md) sets the rules.
 - The speaker card: a vitals panel beside the name (the speaker's and the daemon's uptime apart,
-  load, temperature, free memory, the daemon's memory, free flash; `GET /api/vitals`, and
+  load, temperature, memory used, the daemon's memory, flash used, each with a thin gauge;
+  `GET /api/vitals`, and
   `/metrics` gains `yastation_system_uptime_seconds`), the controls in one toolbar row under it.
 - "Auto brightness: dimmest" sits right after "Clock brightness" and can be shared between speakers.
 

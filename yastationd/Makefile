@@ -71,6 +71,7 @@ stage: build
 	$(SSH) 'mv $(DESTDIR)/bin/$(BIN).new $(DESTDIR)/bin/$(BIN) && chmod +x $(DESTDIR)/bin/$(BIN)'
 	$(SSH) 'cat > $(DESTDIR)/init.d/S52zyastationd && chmod +x $(DESTDIR)/init.d/S52zyastationd' < init.d/S52zyastationd
 	$(SSH) 'cat > $(DESTDIR)/init.d/supervise.sh.new && mv $(DESTDIR)/init.d/supervise.sh.new $(DESTDIR)/init.d/supervise.sh' < init.d/supervise.sh
+	$(SSH) 'cat > $(DESTDIR)/bin/diag.sh.new && chmod 755 $(DESTDIR)/bin/diag.sh.new && mv $(DESTDIR)/bin/diag.sh.new $(DESTDIR)/bin/diag.sh' < scripts/diag.sh
 	@echo "staged to $(DEVICE):$(DESTDIR) — not yet autostarted (see install-initd)"
 
 # LED dev tools are not part of deploy/stage. Build and ship them to /tmp on demand for
@@ -222,6 +223,7 @@ clips:
 deploy: build
 	$(SSH) 'cat > $(DESTDIR)/bin/$(BIN).upload' < $(OUT)
 	$(SSH) 'mkdir -p $(DESTDIR)/init.d && cat > $(DESTDIR)/init.d/supervise.sh.new && mv $(DESTDIR)/init.d/supervise.sh.new $(DESTDIR)/init.d/supervise.sh' < init.d/supervise.sh
+	$(SSH) 'cat > $(DESTDIR)/bin/diag.sh.new && chmod 755 $(DESTDIR)/bin/diag.sh.new && mv $(DESTDIR)/bin/diag.sh.new $(DESTDIR)/bin/diag.sh' < scripts/diag.sh
 	printf '%s\n' 'set -e' 'D=$(DESTDIR)' 'chmod +x $$D/bin/$(BIN).upload' \
 	  '/etc/init.d/S52zyastationd stop >/dev/null 2>&1 || true' 'sleep 1' \
 	  '[ -f $$D/bin/$(BIN) ] && cp -p $$D/bin/$(BIN) $$D/bin/$(BIN).prev' \
