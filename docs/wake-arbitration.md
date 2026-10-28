@@ -19,8 +19,8 @@ answers" entry).
 3. **The decision,** by each speaker on the claims it has, the same rule everywhere:
    - a louder claim (from a speaker that heard it earlier or later) → it lost, at once;
    - else it waits: 200 ms when its own claim is loud (≥ 25 dB over the room's floor), up to
-     `arbitration_wait_ms` (default 700) when it is quiet — a far speaker that claims first must
-     not take a request meant for the near one;
+     `arbitration_wait_ms` (default 300; 700 until 2026-10-28) when it is quiet — a far speaker
+     that claims first must not take a request meant for the near one;
    - claims arriving within 1.5 s of each other are one round; within 0.5 dB the lower device id
      wins.
 4. **The winner** starts the session with the buffered speech (the `wake_word` button event goes
@@ -43,6 +43,16 @@ voice from a couple of metres, first from the Station 3's side, then from the Mi
 two heard the wake word; in each of six rounds the level gap was 1–2 dB, and every time the
 speaker on the caller's side answered, the other blinked. Loud claims decided in 100–200 ms,
 quiet ones waited out the 700 ms.
+
+## How far apart the claims come (2026-10-28)
+
+From the logs of every round two or more speakers claimed between 2026-10-26 and 10-28 (25
+rounds, Mini 3s and Station 3s, through the one broker), measured on one speaker's clock: the
+last claim came 3–141 ms after the first, median 68 ms. A quiet claim waited 700 ms for that —
+and so did every request only one speaker heard, the common case. The default wait is 300 ms:
+twice the worst spread seen, 400 ms off every quiet request. Reverb makes a far speaker's
+spotter fire later (by about 100 ms on synthetic speech): if a far speaker ever answers
+instead of a near one, look at the round's spread in the logs before raising it.
 
 ## «Стоп»
 

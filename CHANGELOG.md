@@ -9,6 +9,9 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
 - `tools/build.sh` builds a builder image only when it is missing or its Dockerfile changed
   (a label on the image), with the progress shown; it no longer leans on docker's build cache,
   which, once broken, rebuilt the zig image on every target.
+- The nearest-speaker wait for a quiet claim is 300 ms (was 700): in two days of logs the
+  speakers' claims came at most 141 ms apart, and every request one speaker alone heard waited
+  the full time.
 
 ## v0.18.0 — 2026-10-28
 

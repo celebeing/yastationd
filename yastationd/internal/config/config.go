@@ -321,7 +321,7 @@ func Default() Config {
 		HTTPAddr:            ":80",
 		LEDPreview:          true,
 		WebUser:             web.DefaultUser,
-		ArbitrationWait:     700 * time.Millisecond,
+		ArbitrationWait:     300 * time.Millisecond,
 		NetWatchdog:         10 * time.Minute,
 		NetWifiRecovery:     true,
 		NetWifiReconfigure:  2 * time.Minute,
