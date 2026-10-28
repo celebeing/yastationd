@@ -464,7 +464,7 @@ func EditNote(data []byte, changes map[string][]string, note string) []byte {
 		out = append(out[:end], added...)
 		return []byte(strings.Join(out, ""))
 	}
-	if end > 0 && out[end-1] == "# "+note+"\n" {
+	if end > 0 && ownNote(out[end-1]) {
 		end--
 		for end > 0 && strings.TrimSpace(out[end-1]) == "" {
 			end--
@@ -476,6 +476,16 @@ func EditNote(data []byte, changes map[string][]string, note string) []byte {
 		out = append(out, added...)
 	}
 	return []byte(strings.Join(out, ""))
+}
+
+// ownNote: a comment line EditNote writes above the keys it appends (any writer's).
+func ownNote(line string) bool {
+	for _, p := range []string{"# set from the ", "# shared by the other speakers", "# the light sensor, calibrated from the web app"} {
+		if strings.HasPrefix(line, p) {
+			return true
+		}
+	}
+	return false
 }
 
 func sortedKeys(m map[string][]string) []string {

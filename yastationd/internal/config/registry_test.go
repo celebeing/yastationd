@@ -101,6 +101,11 @@ func TestEditNoteDoesNotPileUp(t *testing.T) {
 	if s != base {
 		t.Fatalf("remove leaves the note: %q", s)
 	}
+	// A note of another writer goes too when its keys are gone.
+	s = string(EditNote([]byte(base+"\n# shared by the other speakers\nvolume_step = 2\n"), map[string][]string{"volume_step": nil}, "set from the web app"))
+	if s != base {
+		t.Fatalf("another writer's note: %q", s)
+	}
 	s = string(EditNote([]byte(base+"\n# set from the web app\nvolume_step = 2\n"), map[string][]string{"volume_max": {"80"}}, "set from the web app"))
 	if s != base+"\n# set from the web app\nvolume_step = 2\nvolume_max = 80\n" {
 		t.Fatalf("second key under the same note: %q", s)
