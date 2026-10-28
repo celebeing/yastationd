@@ -19,6 +19,10 @@ const OPTIONS: Record<string, { group: string; doc: string }> = {
   follow_up: { group: 'voice', doc: 'Whether the speaker listens again after it answers, for a reply without the wake word.' },
 }
 
+// Config keys shown right after an option of the same section, not among the section's keys.
+const AFTER: Record<string, string> = { auto_brightness_min: 'clock_brightness' }
+const optOrder = Object.keys(OPTIONS)
+
 type Ctx = { peer: Peer; base: string }
 
 function useSettings({ peer, base }: Ctx) {
@@ -284,7 +288,11 @@ export function ConfigPage(p: Ctx & { page: ConfigPageID; ents?: Entity[]; reloa
   // A page: its sections, then its rarely touched keys folded under "Advanced".
   const groups = groupsOf(s, (k) => onPage(k.group) && !k.advanced)
   const folded = groupsOf(s, (k) => onPage(k.group) && !!k.advanced)
-  const opts = (p.ents || []).filter((e) => e.writable && e.config.entity_category === 'config' && onPage(OPTIONS[e.object]?.group || 'display'))
+  const opts = (p.ents || [])
+    .filter((e) => e.writable && e.config.entity_category === 'config' && onPage(OPTIONS[e.object]?.group || 'display'))
+    .sort((a, b) => (optOrder.indexOf(a.object) + 1 || 99) - (optOrder.indexOf(b.object) + 1 || 99))
+  const shown = new Set(opts.map((e) => e.object))
+  const placed = (k: SettingKey) => !!AFTER[k.name] && shown.has(AFTER[k.name])
   for (const e of opts) {
     const id = OPTIONS[e.object]?.group || 'display'
     if (!groups.some((g) => g.id === id)) groups.push({ id, title: s.groups.find((g) => g.ID === id)?.Title || id, keys: [] })
@@ -314,14 +322,17 @@ export function ConfigPage(p: Ctx & { page: ConfigPageID; ents?: Entity[]; reloa
           {opts
             .filter((e) => (OPTIONS[e.object]?.group || 'display') === g.id)
             .map((e) => (
-              <Row
-                label={name(e)}
-                doc={OPTIONS[e.object]?.doc || ''}
-                control={<Control e={e} send={(v) => send(e, v)} />}
-                share={sync?.option_ids.includes(e.object) && <ShareSwitch sync={sync} kind="option" item={e.object} onShare={share} />}
-              />
+              <>
+                <Row
+                  label={name(e)}
+                  doc={OPTIONS[e.object]?.doc || ''}
+                  control={<Control e={e} send={(v) => send(e, v)} />}
+                  share={sync?.option_ids.includes(e.object) && <ShareSwitch sync={sync} kind="option" item={e.object} onShare={share} />}
+                />
+                {g.keys.filter((k) => AFTER[k.name] === e.object).map(row)}
+              </>
             ))}
-          {g.keys.map(row)}
+          {g.keys.filter((k) => !placed(k)).map(row)}
         </section>
       ))}
       {folded.length > 0 && (

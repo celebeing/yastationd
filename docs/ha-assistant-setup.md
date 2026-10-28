@@ -113,8 +113,10 @@ failure.
 - Keep **Prefer handling commands locally** on, with any agent. The rule-based matcher answers
   simple commands (lights, timers, time) instantly and never hallucinates. The LLM only sees what it
   misses.
-- **The wake word can end up in the transcript.** The speaker streams a short pre-roll (default
-  300 ms, `preroll_ms`) so the first syllable isn't cut. When the wake word is still in it, STT
+- **The wake word can end up in the transcript.** The speaker starts the stream a little before the
+  point where the spotter heard the wake word (default 300 ms, `preroll_ms`; the spotter fires near
+  the word's end, see [wake-word-boundary.md](wake-word-boundary.md)) so the first syllable isn't
+  cut. `wake_word_in_stream = true` sends the whole wake word on purpose. When it is still in it, STT
   returns "<wake word>, turn on the light", the built-in matcher misses, and simple commands go to
   the slower LLM. Workarounds:
   - **custom sentences** with an optional wake-word prefix for the commands that matter (timers,

@@ -136,7 +136,12 @@ wyoming_port = 10700
 # boot_connect_timeout = 40
 # wake_while_waiting = interrupt
 # spotter_bin defaults to <cfw>/bin/spotter-host
+# audio for HA starts preroll_ms before the point the wake word was heard (near its end);
+# wake_word_in_stream = true starts it 1.3 s earlier, with the wake word in it
 # preroll_ms = 300
+# wake_word_in_stream = false
+# wake_capture: a test option, saves the audio around every wake word under <cfw>/wakes
+# wake_capture = false
 
 # --- clock: SNTP sync when no chronyd/ntpd runs (e.g. fw 0.6.x). Tried in order: ntp_server
 # entries, the servers in chrony_conf, then the default gateway. Unsynced clock blinks its colon.

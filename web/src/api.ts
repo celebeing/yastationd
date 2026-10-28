@@ -265,6 +265,20 @@ export type SyncState = {
   option_ids: string[]
 }
 export type SyncKind = 'setting' | 'option' | 'moment'
+export type Vitals = {
+  daemon_uptime_s: number
+  system_uptime_s?: number
+  load?: number[]
+  cpus: number
+  mem_total?: number
+  mem_free?: number
+  mem_available?: number
+  daemon_rss?: number
+  flash_total?: number
+  flash_free?: number
+  temps?: { zone: string; c: number }[]
+}
+export const vitals = (id: string, base: string) => authed<Vitals>(id, base, '/api/vitals')
 export const syncState = (id: string, base: string) => authed<SyncState>(id, base, '/api/sync')
 export const setSync = (id: string, base: string, kind: SyncKind, item: string, on: boolean) =>
   authed<SyncState>(id, base, '/api/sync', { method: 'POST', body: JSON.stringify({ kind, item, on }) })

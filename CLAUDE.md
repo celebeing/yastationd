@@ -80,7 +80,21 @@ A feature is not done when the code works. In the **same change**, whenever it:
   → `docs/deploying.md` ("What ends up on the device", install/update steps), and
   `tools/deploy.sh` if it must be uploaded;
 - **adds a config key or a board-profile key** → both `yastationd/configs/*.example`, and
-  `docs/porting-a-speaker.md` for profile keys;
+  `docs/porting-a-speaker.md` for profile keys. A config key is declared **only** in the registry
+  (`yastationd/internal/config/registry.go`, rules in `docs/settings.md`), which feeds the parser,
+  the settings pages, the API and the sync, so give it everything there:
+  - a `Group` whose section sits on the right page (`config.Groups`: by topic, never a page per
+    mechanism; a new big feature may get its own section and page);
+  - a `Label` and a `Doc` paragraph a user understands: what it does, the trade-off, units, what
+    empty/0 means;
+  - the flags, each decided, not defaulted: `Runtime` only when every consumer reads it through
+    `a.cfg()` at the point of use (never copied at start; otherwise it is a restart key), `Sync`
+    unless it is this speaker's own (identity, addresses, calibration, files, ports), `Advanced`
+    when rarely touched, `Needs` when it is for certain hardware, `Hidden` only for keys set elsewhere;
+  - a key that belongs next to an HA option goes into `AFTER` in `web/src/settings.tsx`, a new HA
+    option into `OPTIONS` there (with its group and doc);
+  - tests: `registry_test.go` round-trips every key by itself; add one for a special parser or
+    behaviour;
 - **needs a new build step or toolchain** (a helper, a front-end, a pinned tool) → its Makefile
   target, a target in `tools/build.sh` (and a `docker/<toolchain>.Dockerfile` when it needs a
   new toolchain), `docs/building.md`;

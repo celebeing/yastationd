@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
@@ -119,6 +118,7 @@ func (a *App) webHandler() http.Handler {
 	api.HandleFunc("/api/moments/", a.authed(a.apiMoments))
 	api.HandleFunc("/api/moment/", a.authed(a.apiMoment))
 	api.HandleFunc("/api/log", a.authed(a.apiLog))
+	api.HandleFunc("/api/vitals", a.authed(a.apiVitals))
 	api.HandleFunc("/api/calibrate/light", a.authed(a.apiLightCal))
 
 	mux := http.NewServeMux()
@@ -607,51 +607,29 @@ func (a *App) trialFailed(why string) {
 	}
 }
 
-// systemMetrics: the speaker's memory, load and temperatures (every thermal zone, by its type).
+// systemMetrics: the speaker's memory, load, temperatures (every thermal zone, by its type) and
+// uptime.
 func (a *App) systemMetrics(w io.Writer, dev string) {
-	if b, err := os.ReadFile(a.cfg().Path("/proc/meminfo")); err == nil {
+	v := a.readVitals()
+	if v.MemTotal > 0 {
 		fmt.Fprintf(w, "# TYPE yastation_memory_bytes gauge\n")
-		for _, l := range strings.Split(string(b), "\n") {
-			f := strings.Fields(l)
-			if len(f) < 2 {
-				continue
-			}
-			kind := ""
-			switch f[0] {
-			case "MemTotal:":
-				kind = "total"
-			case "MemAvailable:":
-				kind = "available"
-			case "MemFree:":
-				kind = "free"
-			}
-			if kb, err := strconv.ParseInt(f[1], 10, 64); kind != "" && err == nil {
-				fmt.Fprintf(w, "yastation_memory_bytes{device=%q,kind=%q} %d\n", dev, kind, kb*1024)
-			}
+		fmt.Fprintf(w, "yastation_memory_bytes{device=%q,kind=\"total\"} %d\n", dev, v.MemTotal)
+		fmt.Fprintf(w, "yastation_memory_bytes{device=%q,kind=\"free\"} %d\n", dev, v.MemFree)
+		fmt.Fprintf(w, "yastation_memory_bytes{device=%q,kind=\"available\"} %d\n", dev, v.MemAvailable)
+	}
+	if len(v.Load) == 3 {
+		fmt.Fprintf(w, "# TYPE yastation_load gauge\n")
+		for i, span := range []string{"1m", "5m", "15m"} {
+			fmt.Fprintf(w, "yastation_load{device=%q,span=%q} %s\n", dev, span, strconv.FormatFloat(v.Load[i], 'f', 2, 64))
 		}
 	}
-	if b, err := os.ReadFile(a.cfg().Path("/proc/loadavg")); err == nil {
-		if f := strings.Fields(string(b)); len(f) >= 3 {
-			fmt.Fprintf(w, "# TYPE yastation_load gauge\n")
-			for i, span := range []string{"1m", "5m", "15m"} {
-				fmt.Fprintf(w, "yastation_load{device=%q,span=%q} %s\n", dev, span, f[i])
-			}
+	if len(v.Temps) > 0 {
+		fmt.Fprintf(w, "# TYPE yastation_temperature_celsius gauge\n")
+		for _, t := range v.Temps {
+			fmt.Fprintf(w, "yastation_temperature_celsius{device=%q,zone=%q} %s\n", dev, t.Zone, strconv.FormatFloat(t.C, 'f', 1, 64))
 		}
 	}
-	zones, _ := filepath.Glob(a.cfg().Path("/sys/class/thermal/thermal_zone*"))
-	first := true
-	for _, z := range zones {
-		typ, err1 := os.ReadFile(filepath.Join(z, "type"))
-		t, err2 := os.ReadFile(filepath.Join(z, "temp"))
-		mc, err3 := strconv.Atoi(strings.TrimSpace(string(t)))
-		if err1 != nil || err2 != nil || err3 != nil {
-			continue
-		}
-		if first {
-			fmt.Fprintf(w, "# TYPE yastation_temperature_celsius gauge\n")
-			first = false
-		}
-		fmt.Fprintf(w, "yastation_temperature_celsius{device=%q,zone=%q} %s\n", dev, strings.TrimSpace(string(typ)),
-			strconv.FormatFloat(float64(mc)/1000, 'f', 1, 64))
+	if v.SystemUptime > 0 {
+		fmt.Fprintf(w, "# TYPE yastation_system_uptime_seconds gauge\nyastation_system_uptime_seconds{device=%q} %d\n", dev, v.SystemUptime)
 	}
 }

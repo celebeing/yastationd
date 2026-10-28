@@ -365,14 +365,12 @@ function SpeakerCard(p: { peer: Peer; base: string; ents: Entity[] | null; reloa
   const micOff = ent('mic_mute')?.value === 'ON'
   const power = ent('power_problem')?.value === 'ON'
   const lux = ent('lux')
-  const up = ent('uptime')
   const chips: [string, string, string][] = [] // text, tone, title
   if (health) chips.push([health, health === 'online' ? 'good' : health === 'degraded' ? 'warn' : 'bad', 'Broker, Home Assistant and the LAN as the speaker sees them'])
   if (ha) chips.push([ha === 'ON' ? 'Voice pipeline up' : 'Voice pipeline down', ha === 'ON' ? 'good' : 'bad', "Home Assistant's link to this speaker"])
   if (micOff) chips.push(['Mic off', 'warn', 'The mic mute key is on'])
   if (power) chips.push(['Power problem', 'bad', 'The supply is too weak'])
   if (lux?.value) chips.push([fmtValue(lux), '', 'Light at the speaker'])
-  if (up?.value) chips.push(['up ' + fmtValue(up), '', 'Since the daemon started'])
   // Mute: volume 0, the level before kept in this browser to come back to.
   const muteKey = 'yst.unmute.' + peer.id
   const muted = vol?.value === '0'
@@ -440,8 +438,71 @@ function SpeakerCard(p: { peer: Peer; base: string; ents: Entity[] | null; reloa
         )}
         {err && <p class="err small">{err}</p>}
       </div>
+      <VitalsStrip peer={peer} base={base} />
     </header>
   )
+}
+
+// The speaker's and the daemon's vitals (GET /api/vitals), refreshed every 5 s; hidden on a
+// speaker too old to have them.
+function VitalsStrip({ peer, base }: { peer: Peer; base: string }) {
+  const [v, setV] = useState<api.Vitals | null>(null)
+  useEffect(() => {
+    let live = true
+    const load = () =>
+      api.vitals(peer.id, base).then(
+        (x) => live && setV(x),
+        () => live && setV(null),
+      )
+    load()
+    const t = setInterval(load, 5000)
+    return () => {
+      live = false
+      clearInterval(t)
+    }
+  }, [peer.id, base])
+  if (!v) return null
+  const cells: [string, string, string, string?][] = [] // label, value, title, tone
+  if (v.system_uptime_s) cells.push(['Speaker up', fmtSpan(v.system_uptime_s), 'Since the speaker booted'])
+  cells.push(['Daemon up', fmtSpan(v.daemon_uptime_s), 'Since yastationd started'])
+  if (v.load) {
+    const busy = v.load[0] / Math.max(1, v.cpus)
+    cells.push(['Load', v.load.map((l) => l.toFixed(2)).join(' '), `Load average over 1, 5 and 15 min, ${v.cpus} cores`, busy > 1 ? 'bad' : busy > 0.7 ? 'warn' : ''])
+  }
+  if (v.temps && v.temps.length) {
+    const hot = v.temps.reduce((a, b) => (b.c > a.c ? b : a))
+    cells.push(['Temperature', Math.round(hot.c) + ' °C', v.temps.map((t) => `${t.zone}: ${t.c.toFixed(1)} °C`).join('\n'), hot.c >= 80 ? 'bad' : hot.c >= 70 ? 'warn' : ''])
+  }
+  if (v.mem_total && v.mem_available !== undefined) {
+    const share = v.mem_available / v.mem_total
+    cells.push(['Memory free', `${fmtBytes(v.mem_available)} of ${fmtBytes(v.mem_total)}`, 'Available to programs (MemAvailable)', share < 0.1 ? 'bad' : share < 0.2 ? 'warn' : ''])
+  }
+  if (v.daemon_rss) cells.push(['Daemon memory', fmtBytes(v.daemon_rss), "yastationd's resident memory"])
+  if (v.flash_total && v.flash_free !== undefined) cells.push(['Flash free', `${fmtBytes(v.flash_free)} of ${fmtBytes(v.flash_total)}`, 'The file system the CFW lives on', v.flash_free / v.flash_total < 0.1 ? 'warn' : ''])
+  return (
+    <dl class="vitals">
+      {cells.map(([l, val, title, tone]) => (
+        <div title={title}>
+          <dt>{l}</dt>
+          <dd class={tone || ''}>{val}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+function fmtSpan(s: number) {
+  const d = Math.floor(s / 86400),
+    h = Math.floor((s % 86400) / 3600),
+    m = Math.floor((s % 3600) / 60)
+  if (d) return `${d} d ${h} h`
+  if (h) return `${h} h ${m} min`
+  return m ? `${m} min` : `${Math.floor(s)} s`
+}
+
+function fmtBytes(b: number) {
+  const mb = b / 1048576
+  return mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : mb >= 10 ? Math.round(mb) + ' MB' : mb.toFixed(1) + ' MB'
 }
 
 function VolumeSlider({ e, send }: { e: Entity; send: (v: string) => void }) {

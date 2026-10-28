@@ -27,6 +27,9 @@
  *       the yastationd child: stdin = raw hw:0,1 frames (8ch S16 48 kHz, as arecord gives them);
  *       stdout = machine lines, one per event (the daemon ignores lines it doesn't know):
  *         READY call-mode                (capabilities; signals are safe from now on)
+ *         AT <stream_ms> <sample>        right before a WAKE/CMD line with the same stream_ms, when fd 3
+ *                                        is open: the event's position in fd 3's stream (samples
+ *                                        since the start, blocks dropped on fd 3 not counted)
  *         WAKE <stream_ms> <phrase>      activation CONFIRMATION_1ST_STAGE, or CONFIRMATION_2ND_STAGE
  *                                        for a model with a verifier (orion's alisa: 1ST_STAGE_HIT,
  *                                        then the verifier's accept; a reject never becomes WAKE)
@@ -465,6 +468,44 @@ static void outf(const char *fmt, ...)
     va_end(ap);
 }
 
+/* fd 3's accounting (serve): blocks of vqe_0 the reader could not take are dropped, so a stream
+ * position is not an offset into fd 3. vqe_lost[] keeps, per dropped block, the stream position
+ * after it and the samples dropped up to then; vqe_pos() maps an event's stream position to fd 3's
+ * (the spotter threads report an event up to DQ_LEN blocks after the VQE loop wrote its audio). */
+#define VQE_LOST_LEN 256
+static struct {
+    unsigned long frames, lost;
+} vqe_lost[VQE_LOST_LEN];
+static unsigned long vqe_nlost, vqe_lost_total; /* entries ever recorded (newest at nlost-1) */
+static int vqe_on;                               /* fd 3 is written */
+static pthread_mutex_t vqe_mu = PTHREAD_MUTEX_INITIALIZER;
+
+static void vqe_dropped(unsigned long frames, unsigned long n)
+{
+    pthread_mutex_lock(&vqe_mu);
+    vqe_lost_total += n;
+    vqe_lost[vqe_nlost % VQE_LOST_LEN].frames = frames;
+    vqe_lost[vqe_nlost % VQE_LOST_LEN].lost = vqe_lost_total;
+    vqe_nlost++;
+    pthread_mutex_unlock(&vqe_mu);
+}
+
+/* fd 3's sample position of stream position frames; -1 when it is no longer known. */
+static long long vqe_pos(unsigned long frames)
+{
+    long long pos = -1;
+    pthread_mutex_lock(&vqe_mu);
+    unsigned long i = vqe_nlost, stop = vqe_nlost > VQE_LOST_LEN ? vqe_nlost - VQE_LOST_LEN : 0;
+    while (i > stop && vqe_lost[(i - 1) % VQE_LOST_LEN].frames > frames)
+        i--;
+    if (i > stop)
+        pos = (long long)frames - (long long)vqe_lost[(i - 1) % VQE_LOST_LEN].lost;
+    else if (stop == 0)
+        pos = (long long)frames; /* nothing dropped before it */
+    pthread_mutex_unlock(&vqe_mu);
+    return pos;
+}
+
 struct det {
     const char *tag;
     spotter_conf *conf;
@@ -520,7 +561,11 @@ static void det_feed(struct det *d, size_t nframes, double t)
         }
         if (serve_mode) {
             long ms = (long)(t * 1000);
-            if (ev == SPOTTER_CONFIRMATION_1ST_STAGE || ev == SPOTTER_CONFIRMATION_2ND_STAGE)
+            /* serve runs the VQE path: the stream is vqe_0's 16 kHz, the rate of fd 3 */
+            long long pos = vqe_on ? vqe_pos((unsigned long)(t * 16000 + 0.5)) : -1;
+            if ((ev == SPOTTER_CONFIRMATION_1ST_STAGE || ev == SPOTTER_CONFIRMATION_2ND_STAGE) && pos >= 0)
+                outf("AT %ld %lld\n%s %ld %s\n", ms, pos, d->tag, ms, phrase ? phrase : "");
+            else if (ev == SPOTTER_CONFIRMATION_1ST_STAGE || ev == SPOTTER_CONFIRMATION_2ND_STAGE)
                 outf("%s %ld %s\n", d->tag, ms, phrase ? phrase : "");
             else if (ev == SPOTTER_SUBHIT)
                 outf("SUBHIT %s %ld %s\n", d->tag, ms, phrase ? phrase : "");
@@ -702,6 +747,7 @@ static int cmd_listen(const char *amodel, const char *kmodel, float scale, int a
     if (serve_mode) {
         if (fcntl(3, F_GETFD) != -1) { /* the daemon passed a pipe for vqe_0 */
             vfd = 3;
+            vqe_on = 1;
             fcntl(vfd, F_SETFL, fcntl(vfd, F_GETFL) | O_NONBLOCK);
             signal(SIGPIPE, SIG_IGN);
         }
@@ -726,8 +772,12 @@ static int cmd_listen(const char *amodel, const char *kmodel, float scale, int a
         if (vfd >= 0) {
             for (size_t i = 0; i < n; i++)
                 mono[i] = out[i * 4 + 0];
-            if (write(vfd, mono, n * sizeof(short)) < 0 && errno != EAGAIN)
+            /* a pipe write of <= PIPE_BUF bytes is all or nothing, so a short one is whole blocks */
+            ssize_t w = write(vfd, mono, n * sizeof(short));
+            if (w < 0 && errno != EAGAIN)
                 vfd = -1; /* reader gone: stop writing, keep spotting */
+            else if (w < (ssize_t)(n * sizeof(short)))
+                vqe_dropped(frames, n - (w > 0 ? (size_t)w / sizeof(short) : 0));
         }
         if (gfd >= 0) {
             for (size_t i = 0; i < n; i++)

@@ -130,6 +130,7 @@ func TestWebMetricsAndInfo(t *testing.T) {
 	os.MkdirAll(tz, 0o755)
 	os.WriteFile(filepath.Join(tz, "type"), []byte("soc_thermal\n"), 0o644)
 	os.WriteFile(filepath.Join(tz, "temp"), []byte("48000\n"), 0o644)
+	os.WriteFile(filepath.Join(a.cfg().SysRoot, "proc/uptime"), []byte("93784.21 180000.00\n"), 0o644)
 
 	resp, err := http.Get(srv.URL + "/metrics")
 	if err != nil {
@@ -139,7 +140,7 @@ func TestWebMetricsAndInfo(t *testing.T) {
 	resp.Body.Close()
 	for _, want := range []string{`yastation_info{device="t1"`, `yastation_lux{device="t1"} 12.5`, `yastation_auto_brightness{device="t1"} 0`, "yastation_rss_bytes",
 		`yastation_memory_bytes{device="t1",kind="available"} 160968704`, `yastation_load{device="t1",span="1m"} 1.27`,
-		`yastation_temperature_celsius{device="t1",zone="soc_thermal"} 48.0`} {
+		`yastation_temperature_celsius{device="t1",zone="soc_thermal"} 48.0`, `yastation_system_uptime_seconds{device="t1"} 93784`} {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("metrics lack %q:\n%s", want, b)
 		}
@@ -147,6 +148,15 @@ func TestWebMetricsAndInfo(t *testing.T) {
 	code, out := call(t, "GET", srv.URL+"/api/info", "", "")
 	if code != 200 || out["id"] != "t1" {
 		t.Fatalf("info: %d %v", code, out)
+	}
+	if code, _ := call(t, "GET", srv.URL+"/api/vitals", "", ""); code != 401 {
+		t.Fatalf("vitals without a login: %d", code)
+	}
+	_, out = call(t, "POST", srv.URL+"/api/login", "", `{"user":"admin","password":"yastation"}`)
+	code, out = call(t, "GET", srv.URL+"/api/vitals", out["token"].(string), "")
+	if code != 200 || out["system_uptime_s"] != 93784.0 || out["mem_available"] != 160968704.0 ||
+		len(out["load"].([]any)) != 3 || out["temps"].([]any)[0].(map[string]any)["c"] != 48.0 {
+		t.Fatalf("vitals: %d %v", code, out)
 	}
 }
 

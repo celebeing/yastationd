@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
+	"github.com/celebeing/yastationd/yastationd/internal/wake"
 	"github.com/celebeing/yastationd/yastationd/internal/wyoming"
 )
 
@@ -154,7 +155,7 @@ func (s *satellite) startListeningWith(src string, held *heldWake) {
 		held.attach(send)
 		v.unsub = held.unsub
 	} else {
-		v.unsub = a.wakeAudio(send)
+		v.unsub = a.wakeAudio(nil, send)
 	}
 	go func() {
 		select {
@@ -245,10 +246,10 @@ func (s *satellite) cancelReply(why string) {
 // interruptForWake: a wake word while a reply is pending. Buffer the speech, drop the
 // connection (a new run on it would wedge HA's satellite), and start the session as soon as HA
 // is back (OnEvent run-satellite calls resumeHeldWake).
-func (s *satellite) interruptForWake() {
+func (s *satellite) interruptForWake(ev wake.Event) {
 	a := s.a
 	h := &heldWake{}
-	h.unsub = a.wakeAudio(h.add)
+	h.unsub = a.wakeAudio(&ev, h.add)
 	s.mu.Lock()
 	if s.held != nil {
 		s.mu.Unlock()

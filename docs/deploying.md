@@ -32,6 +32,7 @@ scripts branch on its existence.
 | `<cfw>/moments.json` (+ `.bak`) | the owner's moments, written by the web app's Moments tab ([display-expressions.md](display-expressions.md)) |
 | `<cfw>/web.secret` | the web app's token secret: 32 random bytes, written once, 0600 (a login then survives restarts; deleting it logs everyone out) |
 | `<cfw>/sync.pending`, `<cfw>/sync.rejected` | shared settings a running trial came from, and those whose trial failed here and are not taken again until they change ([settings.md](settings.md), "Sync") |
+| `<cfw>/wakes/` | only with the test option `wake_capture`: the audio around each wake word (WAV + JSON, the newest 200, ~22 MB) ([wake-word-boundary.md](wake-word-boundary.md)) |
 | `<cfw>/log-spool` | log lines waiting for the log server while it is unreachable (`log_remote`, [storage.md](storage.md)) |
 | `<cfw>/yastationd.conf` `frametap_addr` | optional, development only: the LED preview stream on its own port without a login (the host simulator); the web app has the same preview behind its login ([led-preview.md](led-preview.md)) |
 | runtime device-tree overlay `yastationd-ambilight` | orion: applied at start to give the ambilight framebuffer a white channel (configfs, until the next boot; nothing on flash; [ambilight-stream.md](ambilight-stream.md)) |

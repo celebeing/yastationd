@@ -5,6 +5,8 @@ import (
 	"math"
 	"sync"
 	"time"
+
+	"github.com/celebeing/yastationd/yastationd/internal/wake"
 )
 
 // Wake-word arbitration (docs/wake-arbitration.md): when several speakers hear one «Алиса», the
@@ -79,15 +81,15 @@ func (a *App) onArbitrationClaim(payload []byte) {
 }
 
 // arbitrateWake is the wake word's path when arbitration is on: claim, buffer the speech, decide.
-func (a *App) arbitrateWake() {
+func (a *App) arbitrateWake(ev wake.Event) {
 	level, over, ok := a.room.peak(arbWakeSpan, arbLoudest)
 	if !ok {
-		a.startWake() // no levels yet: answer as before
+		a.startWake(ev) // no levels yet: answer as before
 		return
 	}
 	mine := arbClaim{ID: a.cfg().DeviceID, Level: round1(level + a.splOffset()), At: time.Now().UnixMilli()}
 	r := &arbRound{mine: mine, at: time.Now(), held: &heldWake{}}
-	r.held.unsub = a.wakeAudio(r.held.add)
+	r.held.unsub = a.wakeAudio(&ev, r.held.add)
 	if b, err := json.Marshal(mine); err == nil {
 		a.publishEvent(a.topics.Arbitration(), string(b))
 	}

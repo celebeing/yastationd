@@ -188,8 +188,8 @@ func listV(f func(*Config) *[]string) value {
 
 func init() {
 	// --- display ---
-	reg(Key{Name: "auto_brightness_min", Group: "display", Label: "Auto brightness: dimmest", Runtime: true,
-		Doc: "The dimmest the clock goes under auto brightness, in the dark. Empty or 0 uses the board's dimmest readable level. The brightest is the clock brightness above."},
+	reg(Key{Name: "auto_brightness_min", Group: "display", Label: "Auto brightness: dimmest", Runtime: true, Sync: true,
+		Doc: "The dimmest the clock goes under auto brightness, in the dark. Empty or 0 uses the board's dimmest readable level (so shared as 0, each speaker keeps its own). The brightest is the clock brightness above."},
 		intV(0, 255, func(c *Config) *int { return &c.AutoBrightnessMin }))
 	reg(Key{Name: "text_lines", Group: "display", Label: "Lines of text", Sync: true, Needs: "pixels",
 		Doc: "Pixel screens: text in one line, two lines, or chosen by its length (auto)."},
@@ -295,8 +295,11 @@ func init() {
 	reg(Key{Name: "wake_enabled", Group: "voice", Label: "Wake word", Sync: true,
 		Doc: "Listen for «Алиса». Off, only the voice key starts a request."},
 		boolV(func(c *Config) *bool { return &c.WakeEnabled }))
+	reg(Key{Name: "wake_word_in_stream", Group: "voice", Label: "Send the wake word too", Runtime: true, Sync: true,
+		Doc: "Off, the audio Home Assistant gets starts just before the point where the wake word was heard (Audio before the wake word), so the transcript is the request alone. On, it starts 1.3 s earlier and carries «Алиса» too: for a speech-to-text or a voice recognition on the HA side that wants the wake word."},
+		boolV(func(c *Config) *bool { return &c.WakeWordInStream }))
 	reg(Key{Name: "preroll_ms", Group: "voice", Label: "Audio before the wake word", Runtime: true, Sync: true, Advanced: true,
-		Doc: "How much audio from before the wake word goes to Home Assistant, so the first word is not cut. Too much and the wake word itself lands in the transcript."},
+		Doc: "Where the audio for Home Assistant starts, counted back from the point where the wake word was heard (with the wake word left out). That point is near the end of the word, a little after it in a room. Too little and the first word of the request is clipped; too much and the end of the wake word lands in the transcript. For the voice key and follow-ups: the audio from before the session started."},
 		value{kind: "int", min: 0, max: 2000, unit: "ms",
 			get: func(c *Config) []string { return one(strconv.Itoa(c.PrerollMs)) },
 			set: func(c *Config, v string) (err error) { c.PrerollMs, err = atoiRange(v, 0, 2000); return }})
@@ -312,6 +315,9 @@ func init() {
 	reg(Key{Name: "arbitration_wait_ms", Group: "voice", Label: "Arbitration wait", Runtime: true, Sync: true, Advanced: true,
 		Doc: "The longest a quiet claim waits for louder speakers to speak up."},
 		durV(100, 3000, time.Millisecond, func(c *Config) *time.Duration { return &c.ArbitrationWait }))
+	reg(Key{Name: "wake_capture", Group: "voice", Label: "Save audio around wake words", Runtime: true, Sync: true, Advanced: true,
+		Doc: "For tuning the wake word's timing: every wake word saves 3.5 s of the processed mic audio (2 s before the point it was heard, 1.5 s after) with its timing under <cfw>/wakes, the newest 200 kept (about 22 MB). Leave it off in normal use: it records what is said in the room."},
+		boolV(func(c *Config) *bool { return &c.WakeCapture }))
 	reg(Key{Name: "spotter_bin", Group: "voice", Label: "Spotter binary", Advanced: true,
 		Doc: "spotter-host, the voice front-end."}, textV(func(c *Config) *string { return &c.SpotterBin }, nil))
 	reg(Key{Name: "mic_device", Group: "voice", Label: "Mic device", Advanced: true, Doc: "Overrides the board's."},

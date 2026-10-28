@@ -24,12 +24,16 @@ type Event struct {
 	Kind   string
 	At     time.Duration // position in the host's input stream
 	Phrase string
+	// VQE is the event's sample position in vqe_0 (the host's AT line), -1 when unknown (an older
+	// spotter-host, SUBHIT). It anchors SubscribeVQEAt.
+	VQE int64
+	gen int // the child that reported it: positions restart with each one
 }
 
 const (
-	feedQueue  = 256           // raw 20 ms blocks (~5 s) buffered towards the child
-	prerollMax = 2 * 16000 * 2 // 2 s of vqe_0 kept for pre-roll
-	VQERate    = 16000
+	feedQueue = 256           // raw 20 ms blocks (~5 s) buffered towards the child
+	ringMax   = 4 * 16000 * 2 // 4 s of vqe_0 kept: pre-roll, and the audio before a WAKE reported late
+	VQERate   = 16000
 )
 
 // Spotter supervises spotter-host serve. Feed and the VQE fan-out are safe for concurrent use.
@@ -50,7 +54,10 @@ type Spotter struct {
 	canMode  bool         // the child said "READY call-mode": it handles SIGUSR1/2 (else they kill it)
 	callMode bool         // wanted; re-applied when the child restarts
 	mode     atomic.Int32 // the VQE's communication mode as the child last reported it (lock-free: read from the fan-out)
-	ring     []byte       // last prerollMax bytes of vqe_0
+	ring     []byte       // last ringMax bytes of vqe_0
+	ringEnd  int64        // bytes of vqe_0 the current child has sent: the ring ends there
+	gen      int          // the current child's number
+	at       Event        // the last AT line, waiting for its event (stdout's goroutine only)
 	running  bool
 	drops    int
 }
@@ -150,6 +157,9 @@ func (s *Spotter) setRunning(v bool) {
 	s.mu.Lock()
 	s.running = v
 	s.ring = s.ring[:0]
+	s.ringEnd = 0
+	s.gen++
+	s.at = Event{VQE: -1}
 	s.mu.Unlock()
 }
 
@@ -180,8 +190,24 @@ func (s *Spotter) line(l string) {
 		if again {
 			p.Signal(syscall.SIGUSR1) // restarted during a call
 		}
+	case "AT": // AT <stream_ms> <sample>: the position of the WAKE/CMD line that follows
+		if len(f) == 3 {
+			ms, err1 := strconv.ParseInt(f[1], 10, 64)
+			n, err2 := strconv.ParseInt(f[2], 10, 64)
+			if err1 == nil && err2 == nil {
+				s.mu.Lock()
+				s.at = Event{At: time.Duration(ms) * time.Millisecond, VQE: n, gen: s.gen}
+				s.mu.Unlock()
+			}
+		}
 	case "WAKE", "CMD":
 		if ev, ok := parseEvent(f[0], f[1:]); ok && s.OnEvent != nil {
+			s.mu.Lock()
+			if s.at.At == ev.At && s.at.VQE >= 0 {
+				ev.VQE, ev.gen = s.at.VQE, s.at.gen
+			}
+			s.at = Event{VQE: -1}
+			s.mu.Unlock()
 			s.OnEvent(ev)
 		}
 	case "SUBHIT":
@@ -213,7 +239,7 @@ func parseEvent(kind string, f []string) (Event, bool) {
 	if err != nil {
 		return Event{}, false
 	}
-	return Event{Kind: kind, At: time.Duration(ms) * time.Millisecond, Phrase: strings.Join(f[1:], " ")}, true
+	return Event{Kind: kind, At: time.Duration(ms) * time.Millisecond, Phrase: strings.Join(f[1:], " "), VQE: -1}, true
 }
 
 // Feed queues raw mic frames for the child; drops them (counted) if it lags, so the mic never
@@ -244,7 +270,8 @@ func (s *Spotter) readVQE(r io.ReadCloser) {
 			b := append([]byte(nil), buf[:n]...)
 			s.mu.Lock()
 			s.ring = append(s.ring, b...)
-			if over := len(s.ring) - prerollMax; over > 0 {
+			s.ringEnd += int64(len(b))
+			if over := len(s.ring) - ringMax; over > 0 {
 				s.ring = append(s.ring[:0], s.ring[over:]...)
 			}
 			for _, fn := range s.vqeSubs {
@@ -326,6 +353,45 @@ func (s *Spotter) SubscribeVQE(preroll time.Duration, fn func([]byte)) (unsubscr
 		}
 		fn(append([]byte(nil), s.ring[len(s.ring)-n:]...))
 	}
+	return s.subscribeVQE(fn)
+}
+
+// SubscribeVQEAt delivers vqe_0 from before ahead of ev's position on: what the ring still holds
+// of it at once, then live (a start not yet read is waited for). from is the sample position
+// fn's audio starts at. Without a position for ev (an older spotter-host, a child restarted since)
+// it falls back to SubscribeVQE(before) and from is -1. fn must not block or call back.
+func (s *Spotter) SubscribeVQEAt(ev Event, before time.Duration, fn func([]byte)) (unsubscribe func(), from int64) {
+	s.mu.Lock()
+	if ev.VQE < 0 || ev.gen != s.gen {
+		s.mu.Unlock()
+		return s.SubscribeVQE(before, fn), -1
+	}
+	defer s.mu.Unlock()
+	start := (ev.VQE - int64(before.Seconds()*VQERate)) * 2
+	if start < 0 {
+		start = 0
+	}
+	if first := s.ringEnd - int64(len(s.ring)); start < first {
+		start = first
+	}
+	if start <= s.ringEnd {
+		if start < s.ringEnd {
+			fn(append([]byte(nil), s.ring[int64(len(s.ring))-(s.ringEnd-start):]...))
+		}
+		return s.subscribeVQE(fn), start / 2
+	}
+	skip := start - s.ringEnd // the WAKE line came before its audio: wait for the start
+	return s.subscribeVQE(func(b []byte) {
+		if skip >= int64(len(b)) {
+			skip -= int64(len(b))
+			return
+		}
+		b, skip = b[skip:], 0
+		fn(b)
+	}), start / 2
+}
+
+func (s *Spotter) subscribeVQE(fn func([]byte)) (unsubscribe func()) {
 	if s.vqeSubs == nil {
 		s.vqeSubs = map[int]func([]byte){}
 	}

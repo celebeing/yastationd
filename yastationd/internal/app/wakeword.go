@@ -69,6 +69,9 @@ func joinInts(v []int) string {
 func (a *App) onWakeEvent(ev wake.Event) {
 	switch ev.Kind {
 	case "WAKE":
+		if a.cfg().WakeCapture {
+			a.captureWake(ev)
+		}
 		switch {
 		case a.micMuted():
 			a.log.Info("wake: ignored, mic muted")
@@ -85,7 +88,7 @@ func (a *App) onWakeEvent(ev wake.Event) {
 			if a.cfg().WakeWhileWaiting == "interrupt" {
 				a.log.Info("wake: interrupting the pending reply", "phrase", ev.Phrase)
 				a.publishButton("wake_word")
-				a.sat.interruptForWake()
+				a.sat.interruptForWake(ev)
 			} else {
 				a.log.Info("wake: ignored, HA is still answering the previous request")
 				a.express("busy", "busy", 0)
@@ -93,20 +96,27 @@ func (a *App) onWakeEvent(ev wake.Event) {
 		default:
 			a.log.Info("wake: detected", "phrase", ev.Phrase, "at", ev.At)
 			if a.arbitrationOn() {
-				a.arbitrateWake() // the loudest of the speakers that heard it answers
+				a.arbitrateWake(ev) // the loudest of the speakers that heard it answers
 				return
 			}
-			a.startWake()
+			a.startWake(ev)
 		}
 	case "CMD":
 		a.onCommand(ev.Phrase)
 	default:
 		a.log.Debug("wake: near miss", "kind", ev.Kind, "phrase", ev.Phrase)
+		if ev.Kind == "SUBHIT:WAKE" {
+			a.lastSubhit.Store(&ev)
+		}
 	}
 }
 
-// startWake starts the session for a wake word; startWakeWith with the speech held meanwhile.
-func (a *App) startWake() { a.startWakeWith(nil) }
+// startWake starts the session for a wake word ev; startWakeWith with the speech held meanwhile.
+func (a *App) startWake(ev wake.Event) {
+	h := &heldWake{}
+	h.unsub = a.wakeAudio(&ev, h.add)
+	a.startWakeWith(h)
+}
 
 func (a *App) startWakeWith(held *heldWake) {
 	a.publishButton("wake_word")
@@ -172,11 +182,26 @@ func isStop(phrase string) bool {
 	return false
 }
 
-// wakeAudio picks the session audio source: VQE output (with pre-roll) when the spotter runs,
-// else the raw mic channel.
-func (a *App) wakeAudio(fn func([]byte)) (unsubscribe func()) {
+// WakeWordLead: with wake_word_in_stream, how far before the WAKE point the audio for HA starts.
+// The spotter fires 0.55-0.7 s after the word starts (up to 1.3 s for a drawn-out one,
+// docs/wake-word-boundary.md).
+const wakeWordLead = 1300 * time.Millisecond
+
+// wakeAudio picks the session audio source: VQE output when the spotter runs, else the raw mic
+// channel. For a wake word (ev) the VQE audio starts at the wake word's position less the lead
+// (preroll_ms, or wakeWordLead with the wake word kept); otherwise preroll_ms before now.
+func (a *App) wakeAudio(ev *wake.Event, fn func([]byte)) (unsubscribe func()) {
 	if a.spot != nil && a.spot.Running() {
-		return a.spot.SubscribeVQE(time.Duration(a.cfg().PrerollMs)*time.Millisecond, fn)
+		c := a.cfg()
+		lead := time.Duration(c.PrerollMs) * time.Millisecond
+		if ev == nil {
+			return a.spot.SubscribeVQE(lead, fn)
+		}
+		if c.WakeWordInStream {
+			lead = wakeWordLead
+		}
+		unsub, _ := a.spot.SubscribeVQEAt(*ev, lead, fn)
+		return unsub
 	}
 	return a.mic.Subscribe(fn)
 }

@@ -87,7 +87,11 @@ type Config struct {
 	// Wake word: spotter-host serve (vendor spotter + VQE) as a child process.
 	WakeEnabled bool
 	SpotterBin  string
-	PrerollMs   int // VQE audio before the wake sent to HA, so the first word survives
+	PrerollMs   int // VQE audio sent to HA from before the WAKE point (the wake word cut off)
+	// WakeWordInStream: the audio for HA starts WakeWordLead before the WAKE point instead, with
+	// the wake word in it. WakeCapture saves the audio around each WAKE (docs/wake-word-boundary.md).
+	WakeWordInStream bool
+	WakeCapture      bool
 
 	// A pending reply: how long we wait for HA's answer (HA has no timeout of its own) before
 	// cancelling it, and what a wake word does meanwhile: "interrupt" (drop the connection, start

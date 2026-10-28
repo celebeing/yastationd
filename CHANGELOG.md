@@ -3,6 +3,16 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Voice**
+- The audio for Home Assistant starts from the point where the spotter heard «Алиса»: spotter-host
+  reports the WAKE's sample in the vqe_0 stream (`AT` lines, with the blocks it dropped counted),
+  and `preroll_ms` counts back from it, not from when the session subscribed.
+- `wake_word_in_stream`: send the wake word too (the stream starts 1.3 s before that point).
+- `wake_capture` (a test option): saves the audio around every wake word under `<cfw>/wakes`, to
+  measure where the wake word ends in real speech ([docs/wake-word-boundary.md](docs/wake-word-boundary.md)).
+
 ## v0.18.1 — 2026-10-28
 
 **Fixes and operations**

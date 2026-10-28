@@ -54,31 +54,32 @@ type App struct {
 	loc            *time.Location
 	start          time.Time
 
-	ring      *hw.Ring
-	ambilight *hw.Ambilight
-	fx        ambilightFx   // streamed effects on it (ambilightfx.go)
-	matrix    *hw.Matrix    // seg7 sysfs display
-	screen    *hw.DotMatrix // fbdev pixel display
-	mixer     *hw.Mixer
-	player    *hw.Player
-	mic       *hw.Mic
-	spot      *wake.Spotter // nil when the wake word is off
-	lifeState atomic.Int32  // lifecycle (lifecycle.go)
-	front     display.Front // the front display's scenes and animations; nil = no front display
-	seqs      sequences
-	music     musicState  // Music Assistant player; music.host nil when off
-	playing   atomic.Bool // our aplay is running
-	sat       *satellite
-	muted     atomic.Bool      // mic-mute switch latch
-	clock     *timesync.Syncer // nil when time_sync is off
-	setup     *wifisetup.Mode  // Wi-Fi setup mode; nil when off
-	combo     keyCombo
-	ic        *icState         // intercom; nil when off
-	ship      *logship.Shipper // logs to the LAN syslog server; nil when off
-	room      *roomSound       // mic levels (room sensors, arbitration); nil when not needed
-	arb       arbiter
-	states    stateMirror // the last value of every state object (statemirror.go)
-	web       webServer
+	ring       *hw.Ring
+	ambilight  *hw.Ambilight
+	fx         ambilightFx   // streamed effects on it (ambilightfx.go)
+	matrix     *hw.Matrix    // seg7 sysfs display
+	screen     *hw.DotMatrix // fbdev pixel display
+	mixer      *hw.Mixer
+	player     *hw.Player
+	mic        *hw.Mic
+	spot       *wake.Spotter              // nil when the wake word is off
+	lastSubhit atomic.Pointer[wake.Event] // the spotter's last near miss of the wake word (wakecapture.go)
+	lifeState  atomic.Int32               // lifecycle (lifecycle.go)
+	front      display.Front              // the front display's scenes and animations; nil = no front display
+	seqs       sequences
+	music      musicState  // Music Assistant player; music.host nil when off
+	playing    atomic.Bool // our aplay is running
+	sat        *satellite
+	muted      atomic.Bool      // mic-mute switch latch
+	clock      *timesync.Syncer // nil when time_sync is off
+	setup      *wifisetup.Mode  // Wi-Fi setup mode; nil when off
+	combo      keyCombo
+	ic         *icState         // intercom; nil when off
+	ship       *logship.Shipper // logs to the LAN syslog server; nil when off
+	room       *roomSound       // mic levels (room sensors, arbitration); nil when not needed
+	arb        arbiter
+	states     stateMirror // the last value of every state object (statemirror.go)
+	web        webServer
 
 	ringStack   *display.Stack[display.RingFrame]
 	matrixStack *display.Stack[display.FrontFrame]
