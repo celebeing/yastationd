@@ -117,7 +117,7 @@ func (s *satellite) startListeningWith(src string, held *heldWake) {
 
 	if a.micMuted() {
 		drop()
-		a.express("voice", "mute", errorTTL)
+		a.hook("voice_muted")
 		return
 	}
 	if c == nil {
@@ -164,7 +164,7 @@ func (s *satellite) startListeningWith(src string, held *heldWake) {
 		case <-v.started:
 		case <-time.After(sttStartWait):
 			s.stopListening(v, "HA did not start STT")
-			a.express("voice", "error", errorTTL)
+			a.hook("voice_error")
 			return
 		}
 		select {
@@ -177,7 +177,7 @@ func (s *satellite) startListeningWith(src string, held *heldWake) {
 				// connection clears it.
 				s.stopListening(v, "HA ignores our speech: satellite looks wedged")
 				s.dropConn("wedged satellite")
-				a.express("voice", "error", errorTTL)
+				a.hook("voice_error")
 				return
 			}
 		}
@@ -268,7 +268,7 @@ func (s *satellite) interruptForWake(ev wake.Event) {
 		if mine {
 			h.unsub()
 			a.log.Warn("voice: HA did not come back after the interrupt")
-			a.express("voice", "error", errorTTL)
+			a.hook("voice_error")
 		}
 	})
 	a.moment("voice", "listening", stageTTL)
@@ -327,7 +327,7 @@ func (s *satellite) setAwaiting(on bool) {
 	time.AfterFunc(timeout, func() {
 		if still() {
 			s.cancelReply("no reply in " + timeout.String())
-			s.a.express("voice", "sad", errorTTL)
+			s.a.hook("reply_timeout")
 		}
 	})
 }

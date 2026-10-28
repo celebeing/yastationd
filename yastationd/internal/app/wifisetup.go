@@ -130,26 +130,16 @@ func (a *App) toggleSetup() {
 	if err := a.setup.Enter(); err != nil {
 		a.log.Error("wifi setup: could not start", "err", err)
 		a.showSetup(false)
-		a.express("voice", "error", errorTTL)
+		a.hook("wifi_setup_failed")
 	}
 }
 
-// showSetup puts the setup-mode indication on, or takes it off.
+// showSetup fires wifi_setup (held while setup mode lasts), or ends it.
 func (a *App) showSetup(on bool) {
-	if !on {
-		a.ringStack.Remove("wifisetup")
-		a.matrixStack.Remove("wifisetup")
-		return
-	}
-	a.ringStack.Push("wifisetup", display.PrioSetup, 0, display.Comet(display.Yellow, 1200*time.Millisecond))
-	switch c, ok := a.frontAnim("setup"); {
-	case ok:
-		a.matrixStack.Push("wifisetup", display.PrioSetup, 0, c.Play(true, false, a.brightness))
-	case a.front != nil:
-		a.matrixStack.Push("wifisetup", display.PrioSetup, 0,
-			func(time.Time, display.FrontFrame) (display.FrontFrame, bool) {
-				return a.front.SetupMode(a.brightness()), false
-			})
+	if on {
+		a.hook("wifi_setup")
+	} else {
+		a.endHook("wifi_setup")
 	}
 }
 

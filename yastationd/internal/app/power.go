@@ -1,7 +1,6 @@
 package app
 
 import (
-	"os"
 	"strconv"
 	"time"
 
@@ -57,13 +56,5 @@ func (a *App) powerAlert(pd hw.PD) {
 	}
 	a.log.Warn("power: no healthy USB-C PD contract — use a PD charger (12 V) and a C-to-C cable",
 		"mv", pd.MilliVolts, "ma", pd.MilliAmps, "health", pd.Health)
-	snd := a.prof.Power.AlertSound
-	if snd == "" {
-		return
-	}
-	if _, err := os.Stat(a.cfg().Path(snd)); err != nil {
-		a.log.Warn("power: alert sound missing", "path", snd)
-		return
-	}
-	a.announce(a.cfg().Path(snd))
+	a.hook("power_problem")
 }

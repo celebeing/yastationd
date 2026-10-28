@@ -1,8 +1,7 @@
 # Assets: the owner's own media on the speaker
 
 Status (2026-10-28): videos built and tested on the desk (Go tests; the browser converter not yet
-run on a real file against a unit). The other kinds are ideas ([wishlist.md](wishlist.md), "Asset
-kinds and packs").
+run on a real file against a unit). Packs, sounds and themes: [asset-packs.md](asset-packs.md).
 
 The web app's **Assets** group holds media the owner adds to a speaker, one section per kind. The
 group only lists the kinds this speaker can use, and is hidden when there is none (a Mini has no

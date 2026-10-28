@@ -40,6 +40,7 @@ func testIntercomApp(t *testing.T, id, name string) *App {
 	cfg.IntercomRing = 2 * time.Second
 	cfg.IntercomPort = freeUDPPort(t)
 	a := &App{log: log,
+		ring:        &hw.Ring{}, // a ring to show on (nothing draws it here)
 		ringStack:   display.NewStack(func(time.Time) display.RingFrame { return display.Blank(12) }),
 		matrixStack: display.NewStack(func(time.Time) display.FrontFrame { return display.FrontFrame{} }),
 		mixer:       hw.NewMixer("0"),

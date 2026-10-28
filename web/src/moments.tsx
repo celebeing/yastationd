@@ -3,36 +3,50 @@ import * as api from './api'
 import type { Moment, MomentCatalog, Peer, Show, Step, SyncKind, SyncState } from './api'
 import { ShareSwitch } from './settings'
 
-// The Moments tab: what the speaker shows when something happens, and an editor for it
-// (docs/display-expressions.md, "Moments"). A moment is a list of candidates, the first one this
-// speaker has plays: an expression, an animation of its front display, a scenario, or a sequence
-// of steps of its own. Changes are saved on the speaker (<cfw>/moments.json) and apply at once.
+// The Moments tab: what the speaker shows and plays when something happens, and an editor for it
+// (docs/display-expressions.md, "Moments"; docs/asset-packs.md). A moment is a list of
+// candidates, the first one this speaker has plays: an expression, an animation of its front
+// display, a scenario, a sound, a ring effect, or a sequence of steps of its own (each step can
+// light the ring, show an animation or text and play a sound at once). Changes are saved on the
+// speaker (<cfw>/moments.json) and apply at once.
 
-type Kind = 'expression' | 'anim' | 'scenario' | 'sequence'
+type Kind = 'expression' | 'anim' | 'scenario' | 'sound' | 'ring' | 'sequence'
 
 function kindOf(s: Show, cat: MomentCatalog): Kind {
   if (typeof s !== 'string') return 'sequence'
   if (s.startsWith('scenario:')) return 'scenario'
   if (s.startsWith('anim:')) return 'anim'
+  if (s.startsWith('sound:') || s.startsWith('phrase:')) return 'sound'
+  if (s.startsWith('ring:')) return 'ring'
   if ((cat.expressions || []).includes(s)) return 'expression'
   if ((cat.anims || []).some((a) => a.name === s)) return 'anim'
   return 'expression'
 }
 
-const refName = (s: string) => s.replace(/^(scenario|anim):/, '')
+const refName = (s: string) => s.replace(/^(scenario|anim|sound|phrase|ring):/, '')
+
+/** hasSound: one of a sound name's alternatives ("a|b") is on this speaker. */
+const hasSound = (name: string, cat: MomentCatalog) => name.split('|').some((n) => (cat.sounds || []).includes(n))
+
+/** stepParts: what a step does, in words. */
+function stepParts(st: Step): string[] {
+  const ring = st.ring && `ring ${st.ring}${st.color ? ' ' + hex(st.color) : ''}`
+  return [st.express, st.anim || st.matrix, ring, st.text && `“${st.text}”`, st.sound && `sound ${st.sound}`, st.phrase && `say ${st.phrase}`].filter(Boolean) as string[]
+}
 
 /** describe: one line for a candidate. */
 function describe(s: Show, cat: MomentCatalog): string {
   if (typeof s !== 'string') {
     return s.steps
       .map((st) => {
-        const parts = [st.express, st.anim || st.matrix, st.ring && `ring ${st.ring}`, st.text && `“${st.text}”`].filter(Boolean)
-        return parts.join(' + ') + (st.hold ? ' (held)' : st.ms ? ` ${st.ms} ms` : '')
+        const parts = stepParts(st)
+        return (parts.length ? parts.join(' + ') : 'pause') + (st.hold ? ' (held)' : st.ms ? ` ${st.ms} ms` : '')
       })
       .join(' → ')
   }
   const k = kindOf(s, cat)
-  return k === 'expression' ? s : `${k === 'anim' ? 'animation' : 'scenario'} ${refName(s)}`
+  if (k === 'sound') return `${s.startsWith('phrase:') ? 'say' : 'sound'} ${refName(s)}`
+  return k === 'expression' ? s : `${k === 'anim' ? 'animation' : k} ${refName(s)}`
 }
 
 /** has: the reference exists on this speaker (the catalogue lists only what it has). */
@@ -44,6 +58,10 @@ function has(s: Show, cat: MomentCatalog): boolean {
       return (cat.scenarios || []).includes(n)
     case 'anim':
       return (cat.anims || []).some((a) => a.name === n)
+    case 'sound':
+      return hasSound(n, cat)
+    case 'ring':
+      return (cat.ring_effects || []).includes(n)
     default:
       return (cat.expressions || []).includes(n) || (cat.anims || []).some((a) => a.name === n)
   }
@@ -170,6 +188,10 @@ function MomentEditor(p: { m: Moment; cat: MomentCatalog; onPlay: (d: Show[]) =>
         return 'anim:' + ((cat.anims || [])[0]?.name || '')
       case 'scenario':
         return 'scenario:' + ((cat.scenarios || [])[0] || '')
+      case 'sound':
+        return 'sound:' + ((cat.sounds || [])[0] || '')
+      case 'ring':
+        return 'ring:' + ((cat.ring_effects || [])[0] || '')
       default:
         return { steps: [{ express: (cat.expressions || [])[0] || '', hold: stage }] }
     }
@@ -185,6 +207,8 @@ function MomentEditor(p: { m: Moment; cat: MomentCatalog; onPlay: (d: Show[]) =>
               <option value="expression">expression</option>
               <option value="anim">animation</option>
               <option value="scenario">scenario</option>
+              <option value="sound">sound</option>
+              <option value="ring">ring</option>
               <option value="sequence">sequence</option>
             </select>
             {typeof s === 'string' && <RefPicker s={s} kind={kindOf(s, cat)} cat={cat} onChange={(v) => set(i, v)} />}
@@ -235,6 +259,15 @@ function RefPicker({ s, kind, cat, onChange }: { s: string; kind: Kind; cat: Mom
       </select>
     )
   if (kind === 'anim') return <AnimPicker value={n} cat={cat} onChange={(v) => onChange('anim:' + v)} />
+  if (kind === 'sound') return <SoundPicker name={n} phrase={s.startsWith('phrase:')} cat={cat} onChange={(v, ph) => onChange((ph ? 'phrase:' : 'sound:') + v)} />
+  if (kind === 'ring')
+    return (
+      <select aria-label="Ring effect" value={n} onChange={(e) => onChange('ring:' + e.currentTarget.value)}>
+        {(cat.ring_effects || []).map((x) => (
+          <option value={x}>{x}</option>
+        ))}
+      </select>
+    )
   return (
     <select value={n} onChange={(e) => onChange(e.currentTarget.value)}>
       {!(cat.expressions || []).includes(n) && <option value={n}>{n}</option>}
@@ -260,8 +293,39 @@ function AnimPicker({ value, cat, onChange }: { value: string; cat: MomentCatalo
   )
 }
 
-type StepKind = 'express' | 'anim' | 'ring' | 'text'
-const stepKind = (st: Step): StepKind => (st.express ? 'express' : st.anim || st.matrix ? 'anim' : st.ring ? 'ring' : st.text !== undefined ? 'text' : 'express')
+type StepKind = 'express' | 'anim' | 'ring' | 'text' | 'sound' | 'pause'
+function stepKind(st: Step): StepKind {
+  if (st.express) return 'express'
+  if (st.anim || st.matrix) return 'anim'
+  if (st.ring) return 'ring'
+  if (st.text !== undefined) return 'text'
+  return st.sound || st.phrase ? 'sound' : 'pause'
+}
+
+/** hex and rgb convert a ring colour between the step's [r,g,b] and a colour input's #rrggbb. */
+const hex = (c: number[]) => '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('')
+const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
+
+/** SoundPicker: a sound name (or none) and whether it is said as speech (stopping other playback). */
+function SoundPicker(p: { name: string; phrase: boolean; cat: MomentCatalog; none?: boolean; onChange: (name: string, phrase: boolean) => void }) {
+  const sounds = p.cat.sounds || []
+  return (
+    <>
+      <select aria-label="Sound" value={p.name} onChange={(e) => p.onChange(e.currentTarget.value, p.phrase)}>
+        {p.none && <option value="">no sound</option>}
+        {p.name && !sounds.includes(p.name) && <option value={p.name}>{p.name}</option>}
+        {sounds.map((x) => (
+          <option value={x}>{x}</option>
+        ))}
+      </select>
+      {p.name && (
+        <label class="inline small" title="Stop other playback and say it, like a spoken line">
+          <input type="checkbox" checked={p.phrase} onChange={(e) => p.onChange(p.name, e.currentTarget.checked)} /> as speech
+        </label>
+      )}
+    </>
+  )
+}
 
 function SequenceEditor({ steps, cat, stage, onChange }: { steps: Step[]; cat: MomentCatalog; stage: boolean; onChange: (s: Step[]) => void }) {
   const set = (i: number, st: Step) => onChange(steps.map((x, k) => (k === i ? st : x)))
@@ -280,6 +344,10 @@ function SequenceEditor({ steps, cat, stage, onChange }: { steps: Step[]; cat: M
         return { ring: (cat.ring_effects || [])[0] || '', ms: 1000 }
       case 'text':
         return { text: '', ms: 3000 }
+      case 'sound':
+        return { sound: (cat.sounds || [])[0] || '' }
+      case 'pause':
+        return { ms: 1000 }
       default:
         return { express: (cat.expressions || [])[0] || '' }
     }
@@ -291,6 +359,9 @@ function SequenceEditor({ steps, cat, stage, onChange }: { steps: Step[]; cat: M
         const k = stepKind(st)
         const hold = i === last && !!st.hold
         const auto = k === 'anim' ? animMs(st.anim || st.matrix) : undefined
+        const snd = st.sound || st.phrase || ''
+        const setSound = (name: string, phrase: boolean) => set(i, { ...st, sound: name && !phrase ? name : undefined, phrase: name && phrase ? name : undefined })
+        const colour = k === 'ring' && (cat.colour_effects || []).includes(st.ring || '')
         return (
           <div class="row step">
             <span class="k">{i + 1}.</span>
@@ -299,6 +370,8 @@ function SequenceEditor({ steps, cat, stage, onChange }: { steps: Step[]; cat: M
               <option value="anim">animation</option>
               <option value="ring">ring</option>
               <option value="text">text</option>
+              <option value="sound">sound</option>
+              <option value="pause">pause</option>
             </select>
             {k === 'express' && (
               <select value={st.express} onChange={(e) => set(i, { ...st, express: e.currentTarget.value })}>
@@ -316,6 +389,31 @@ function SequenceEditor({ steps, cat, stage, onChange }: { steps: Step[]; cat: M
               </select>
             )}
             {k === 'text' && <input value={st.text} placeholder="text" onInput={(e) => set(i, { ...st, text: e.currentTarget.value })} />}
+            {colour && (
+              <input type="color" aria-label="Ring colour" value={hex(st.color || [255, 255, 255])} onInput={(e) => set(i, { ...st, color: rgb(e.currentTarget.value) })} />
+            )}
+            {colour && st.ring !== 'solid' && (
+              <input
+                class="ms"
+                type="number"
+                min="100"
+                step="100"
+                aria-label="Period, ms"
+                title="The effect's period in ms; empty = its own"
+                value={st.period || ''}
+                placeholder="period"
+                onInput={(e) => set(i, { ...st, period: +e.currentTarget.value || undefined })}
+              />
+            )}
+            {k === 'anim' && (
+              <select aria-label="When the animation is not on this display" title="When the animation is not on this display" value={st.else || ''} onChange={(e) => set(i, { ...st, else: e.currentTarget.value || undefined })}>
+                <option value="">else nothing</option>
+                <option value="blank">else blank</option>
+                <option value="setup">else setup scene</option>
+                <option value="alarm">else blinking 00:00</option>
+              </select>
+            )}
+            {k !== 'pause' && <SoundPicker name={snd} phrase={!!st.phrase} cat={cat} none={k !== 'sound'} onChange={setSound} />}
             {!hold && (
               <input
                 class="ms"
@@ -324,7 +422,7 @@ function SequenceEditor({ steps, cat, stage, onChange }: { steps: Step[]; cat: M
                 step="100"
                 value={st.ms || ''}
                 placeholder={auto ? String(auto) : 'auto'}
-                title="Milliseconds; empty = the animation's own length"
+                title="Milliseconds; empty = the animation's (or the sound's) own length"
                 onInput={(e) => set(i, { ...st, ms: +e.currentTarget.value || undefined })}
               />
             )}

@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -17,25 +18,6 @@ import (
 // (set from the web app), the board profile's moment.<name> (and <cfw>/board.conf), the defaults
 // of the front display's kind below, then an expression of the same name; a candidate counts only
 // if this speaker has it.
-
-// momentInfo is one moment the app announces, for the web app's editor.
-type momentInfo struct {
-	Name string `json:"name"`
-	When string `json:"when"`
-}
-
-// momentCatalog: the moments the app announces, in the order the web app lists them.
-var momentCatalog = []momentInfo{
-	{"startup", "once per device boot"},
-	{"listening", "the wake word or the voice key: the speaker listens"},
-	{"thinking", "the request went to the assistant: waiting for the answer"},
-	{"speaking", "the answer plays"},
-	{"waiting", "the answer takes long: the speaker still waits for it"},
-	{"dialog_end", "an answer played and no follow-up comes"},
-	{"arbitration_lost", "another speaker heard the wake word louder and answers"},
-	{"media_pause", "music paused"},
-	{"media_resume", "music resumed"},
-}
 
 // momentDefaults per front display kind ("seg7"; "pixels" for every pixel screen). Moments not
 // listed (the voice stages) show the expression of their name.
@@ -57,8 +39,9 @@ var momentDefaults = map[string]map[string][]string{
 }
 
 // show is one candidate of a moment: a reference — an expression ("wink"), a scenario
-// ("scenario:startup") or an animation of the front display ("anim:media/Like", or a bare name)
-// — or a sequence of steps of its own. In JSON a reference is a string, a sequence
+// ("scenario:startup"), an animation of the front display ("anim:media/Like", or a bare name), a
+// sound ("sound:volume_sound"), a sound said as speech ("phrase:no_power"), a ring effect
+// ("ring:degraded") — or a sequence of steps of its own. In JSON a reference is a string, a sequence
 // {"steps": [...]}.
 type show struct {
 	Ref   string
@@ -183,6 +166,9 @@ func (a *App) momentDefault(name string) []show {
 	if c, ok := momentDefaults[a.frontKind()][name]; ok {
 		return refs(c)
 	}
+	if c, ok := defaultTheme[name]; ok {
+		return c
+	}
 	return refs([]string{name})
 }
 
@@ -200,6 +186,15 @@ func (a *App) refAvailable(c string) bool {
 	if s, ok := strings.CutPrefix(c, "scenario:"); ok {
 		_, err := a.loadScenario(s)
 		return err == nil
+	}
+	if s, ok := strings.CutPrefix(c, "sound:"); ok {
+		return a.soundPath(s) != ""
+	}
+	if s, ok := strings.CutPrefix(c, "phrase:"); ok {
+		return a.soundPath(s) != ""
+	}
+	if s, ok := strings.CutPrefix(c, "ring:"); ok {
+		return a.ring != nil && effect(s) != nil
 	}
 	c = strings.TrimPrefix(c, "anim:")
 	if e, ok := expressions[c]; ok && e.ring != "" && a.ring != nil {
@@ -236,31 +231,81 @@ func (a *App) momentAt(slot, name string, ttl time.Duration, prio int) bool {
 	return a.play(slot, name, a.momentCandidates(name), ttl, prio)
 }
 
-// play shows the first available of shows in slot. A bare reference is express(); an "anim:" one,
-// a scenario or a sequence runs as steps in slot. A moment named after an expression with a ring
-// part (the voice stages) keeps that ring under a show of the owner's that has none.
+// showSteps is what a show runs as steps; false for a bare expression, which express() shows.
+func (a *App) showSteps(s show) ([]scenarioStep, bool) {
+	switch {
+	case s.Steps != nil:
+		return s.Steps, true
+	case strings.HasPrefix(s.Ref, "scenario:"):
+		sc, _ := a.loadScenario(strings.TrimPrefix(s.Ref, "scenario:"))
+		return sc.Steps, true
+	case strings.HasPrefix(s.Ref, "anim:"):
+		return []scenarioStep{{Anim: strings.TrimPrefix(s.Ref, "anim:")}}, true
+	case strings.HasPrefix(s.Ref, "sound:"):
+		return []scenarioStep{{Sound: strings.TrimPrefix(s.Ref, "sound:")}}, true
+	case strings.HasPrefix(s.Ref, "phrase:"):
+		return []scenarioStep{{Phrase: strings.TrimPrefix(s.Ref, "phrase:")}}, true
+	case strings.HasPrefix(s.Ref, "ring:"):
+		return []scenarioStep{{Ring: strings.TrimPrefix(s.Ref, "ring:")}}, true
+	}
+	return nil, false
+}
+
+// play shows the first available of shows in slot. A bare reference is express(); the others
+// run as steps in slot. A moment named after an expression with a ring part (the voice stages)
+// keeps that ring under a show of the owner's that has none.
 func (a *App) play(slot, name string, shows []show, ttl time.Duration, prio int) bool {
 	for _, s := range shows {
 		if !a.available(s) {
 			continue
 		}
-		steps := s.Steps
-		switch {
-		case steps != nil:
-		case strings.HasPrefix(s.Ref, "scenario:"):
-			sc, _ := a.loadScenario(strings.TrimPrefix(s.Ref, "scenario:"))
-			steps = sc.Steps
-		case strings.HasPrefix(s.Ref, "anim:"):
-			steps = []scenarioStep{{Anim: strings.TrimPrefix(s.Ref, "anim:")}}
-		default:
+		steps, ok := a.showSteps(s)
+		if !ok {
 			return a.expressAt(slot, s.Ref, ttl, prio)
 		}
 		e := expressions[name]
 		if e.ring == "" || stepsHaveRing(steps) {
 			e.ring = ""
 		}
-		a.runSteps(slot, steps, ttl, prio, e.ring, e.ringPrio)
+		a.runSteps(slot, steps, ttl, prio, stepRingPrio(prio), e.ring, e.ringPrio)
 		return true
 	}
 	return false
+}
+
+// hook fires a moment of the catalogue in its slot, at its priorities (defaulttheme.go).
+func (a *App) hook(name string) bool {
+	shown, _ := a.fire(name)
+	return shown
+}
+
+// fire is hook that also reports when the show's last sound ends (0: it plays none), for a caller
+// whose own audio waits for it (the announce chime before the announcement).
+func (a *App) fire(name string) (shown bool, soundEnd time.Duration) {
+	m := momentByName[name]
+	slot := cmp.Or(m.slot, "moment:"+name)
+	prio := cmp.Or(m.prio, display.PrioExpression)
+	ringPrio := cmp.Or(m.ringPrio, stepRingPrio(prio))
+	if m.yield != nil {
+		a.setYield(slot, func() bool { return m.yield(a) })
+	} else {
+		a.setYield(slot, nil)
+	}
+	for _, s := range a.momentCandidates(name) {
+		if !a.available(s) {
+			continue
+		}
+		steps, ok := a.showSteps(s)
+		if !ok {
+			return a.expressAt(slot, s.Ref, m.ttl, prio), 0
+		}
+		a.runSteps(slot, steps, m.ttl, prio, ringPrio, "", 0)
+		return true, a.soundEnd(steps)
+	}
+	return false, 0
+}
+
+// endHook ends a held moment of the catalogue: its layers, its sequence and its sound.
+func (a *App) endHook(name string) {
+	a.endShow(cmp.Or(momentByName[name].slot, "moment:"+name))
 }

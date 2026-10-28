@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -85,6 +86,9 @@ type momentCatalogView struct {
 	Scenarios   []string   `json:"scenarios"`
 	Anims       []animInfo `json:"anims"`
 	RingEffects []string   `json:"ring_effects"`
+	// ColourEffects are the ring shapes a step can colour (color, period).
+	ColourEffects []string `json:"colour_effects"`
+	Sounds        []string `json:"sounds"` // the sound names this speaker can play (sounds.go)
 }
 
 type animInfo struct {
@@ -110,7 +114,16 @@ func (a *App) momentViews() []momentView {
 }
 
 func (a *App) momentCatalogView() momentCatalogView {
-	c := momentCatalogView{Display: a.frontKind(), Scenarios: a.scenarioNames(), RingEffects: ringEffects}
+	c := momentCatalogView{Display: a.frontKind(), Scenarios: a.scenarioNames(), Sounds: a.soundNames()}
+	for e := range colourEffects {
+		c.ColourEffects = append(c.ColourEffects, e)
+	}
+	sort.Strings(c.ColourEffects)
+	for _, e := range slices.Concat(ringEffects, statusEffects, c.ColourEffects) {
+		if e != "none" && !slices.Contains(c.RingEffects, e) {
+			c.RingEffects = append(c.RingEffects, e)
+		}
+	}
 	for n := range expressions {
 		if a.refAvailable(n) {
 			c.Expressions = append(c.Expressions, n)

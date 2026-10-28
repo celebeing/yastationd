@@ -109,6 +109,7 @@ type App struct {
 	blPrev      int                               // the backlight of the frame written last; render goroutine only
 	luxSmooth   atomic.Uint64                     // smoothed light in lux (float64 bits), published to HA
 	luxKnown    atomic.Bool                       // luxSmooth holds a reading (0 lux in the dark is one)
+	yields      sync.Map                          // slot -> func() bool: its layers see-through (sequence.go)
 	luxReading  atomic.Uint64                     // the same reading before the calibration (float64 bits)
 	userMoments atomic.Pointer[map[string][]show] // <cfw>/moments.json (moments.go)
 	luxUnitCal  atomic.Pointer[[]luxcal.Point]    // set from the web app (lightcal.go); nil = the config's

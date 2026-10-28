@@ -181,7 +181,21 @@ export async function setPassword(id: string, base: string, user: string, passwo
 export type Features = { wifi?: boolean; led_preview?: boolean; moments?: boolean; videos?: boolean }
 export type Net = { id: number; ssid: string; security: string; priority: number; disabled: boolean; hidden: boolean }
 /** A moment's candidate: a reference ("wink", "anim:media/Like", "scenario:startup") or a sequence. */
-export type Step = { express?: string; anim?: string; matrix?: string; ring?: string; text?: string; ms?: number; hold?: boolean }
+/** A step of a sequence (docs/asset-packs.md): what it shows and plays at once; a step with none is a pause. */
+export type Step = {
+  express?: string
+  anim?: string
+  matrix?: string
+  ring?: string
+  color?: number[]
+  period?: number
+  else?: string
+  text?: string
+  sound?: string
+  phrase?: string
+  ms?: number
+  hold?: boolean
+}
 export type Show = string | { steps: Step[] }
 /** custom: the owner's candidates (null = the defaults); shows: the index of the one shown here (-1 none). */
 export type Moment = { name: string; when: string; default: Show[]; custom: Show[] | null; shows: number }
@@ -191,6 +205,8 @@ export type MomentCatalog = {
   scenarios: string[] | null
   anims: { name: string; ms: number; loop?: boolean }[] | null
   ring_effects: string[] | null
+  colour_effects: string[] | null
+  sounds: string[] | null
 }
 
 export type DDP = { port: number; pixels: number; order: string; first: string }

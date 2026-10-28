@@ -25,9 +25,12 @@ broker connects or the speaker becomes ready, so a stale probe does not show red
   speaker keeps working and answers normally — by design, only a missing HA link refuses voice.
 - **A voice attempt with no HA to talk to** (wake word or key, no satellite connection): a bright
   red pulse and the stock phrase `something_went_wrong`, cut by `make sounds` to its first
-  sentence «К сожалению, что-то пошло не так» (the second asks to redo the setup);
-  `audio.error_sound` in the profile. `backend_unavailable` is decoded too, as an
-  alternative.
+  sentence «К сожалению, что-то пошло не так» (the second asks to redo the setup): the
+  `voice_unavailable` moment. `backend_unavailable` is decoded too, as an alternative.
+
+Every indication on this page is a moment of the default theme (`booting`, `boot_failed`,
+`ha_lost`, `voice_unavailable`, `mic_muted`; [asset-packs.md](asset-packs.md)), so a theme or the
+board profile (`moment.<name>`) can change it.
 
 ## Config
 

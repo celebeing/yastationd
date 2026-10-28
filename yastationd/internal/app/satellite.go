@@ -94,7 +94,7 @@ func (s *satellite) OnDisconnect(c *wyoming.Conn) {
 	// own drop (cancel, interrupt) has already cleared the flag.
 	if wasMain && !held && s.awaitingReply() {
 		s.setAwaiting(false)
-		s.a.express("voice", "error", errorTTL)
+		s.a.hook("voice_error")
 	}
 }
 
@@ -164,7 +164,7 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 			break
 		}
 		a.log.Warn("wyoming: pipeline error", "code", ev.String("code"), "text", ev.String("text"))
-		a.express("voice", "error", errorTTL)
+		a.hook("voice_error")
 	case wyoming.TypeTimerStarted, wyoming.TypeTimerUpdated, wyoming.TypeTimerCancelled, wyoming.TypeTimerFinished:
 		a.onTimerEvent(ev)
 	case wyoming.TypeAudioStart:

@@ -66,7 +66,7 @@ func (a *App) scenarioNames() []string {
 
 // runScenario plays s in the scenario slot, replacing a scenario still running (sequence.go).
 func (a *App) runScenario(s scenario) {
-	a.runSteps(scenarioSlot, s.Steps, 0, display.PrioExpression, "", 0)
+	a.runSteps(scenarioSlot, s.Steps, 0, display.PrioExpression, display.PrioScenario, "", 0)
 }
 
 func (a *App) stopScenario() {

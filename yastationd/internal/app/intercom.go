@@ -27,7 +27,6 @@ const (
 	icUplinkQueue  = 5     // 20 ms frames (~100 ms): older uplink audio is dropped
 	icAssistDuck   = 0.3   // the far end's level while an Assist session or a reply runs in a call
 	icCallTargetNA = "—"   // the target select's only option while no other speaker is known
-	icToneGap      = 1500 * time.Millisecond
 )
 
 type icState struct {
@@ -43,10 +42,8 @@ type icState struct {
 	guard  *intercom.Guard          // of the current call
 	stop   func()                   // ends the current call's audio
 
-	toneStop  chan struct{} // the repeating ring tone
-	wokeAt    time.Time     // «Алиса» during a call (mu): opens the command window
-	wasUp     bool          // the last applied state was in_call (stateMu)
-	callPulse display.RenderFunc[display.RingFrame]
+	wokeAt time.Time // «Алиса» during a call (mu): opens the command window
+	wasUp  bool      // the last applied state was in_call (stateMu)
 }
 
 type icInfo struct {
@@ -69,8 +66,7 @@ func (a *App) newIntercom() *icState {
 		a.log.Warn("intercom: off, it needs the MQTT broker for signalling")
 		return nil
 	}
-	ic := &icState{name: c.IntercomName, peers: map[string]intercom.Peer{},
-		callPulse: display.Pulse(display.Blue, 2500*time.Millisecond)}
+	ic := &icState{name: c.IntercomName, peers: map[string]intercom.Peer{}}
 	if ic.name == "" {
 		ic.name = c.DeviceName
 	}
@@ -275,7 +271,7 @@ func (a *App) icCallOrAnswer(to, src string) {
 	p, ok := a.icFindPeer(to)
 	if !ok {
 		a.log.Info("intercom: unknown callee", "to", to, "src", src)
-		a.express("voice", "error", errorTTL)
+		a.hook("call_failed")
 		return
 	}
 	a.icCall(p, src)
@@ -284,7 +280,7 @@ func (a *App) icCallOrAnswer(to, src string) {
 func (a *App) icCall(p intercom.Peer, src string) {
 	if err := a.ic.m.Call(p.ID, p.Name); err != nil {
 		a.log.Info("intercom: call", "to", p.ID, "src", src, "err", err)
-		a.express("voice", "error", errorTTL)
+		a.hook("call_failed")
 	}
 }
 
@@ -313,80 +309,53 @@ func (a *App) onIntercomState(st intercom.Status) {
 	a.ic.applied = st.Since
 	a.log.Info("intercom: state", "state", st.State, "peer", st.Peer, "ended", st.Ended)
 	a.publishIntercom(st)
-	a.icStopTone()
+	a.endShow("intercom") // the state before: its ring, front and ring tone
 	if st.State != intercom.Idle && a.stopVideo("intercom") {
 		a.publishDisplayMode()
 	}
 	switch st.State {
 	case intercom.Calling:
-		a.ringStack.Push("intercom", display.PrioCall, 0, display.Comet(display.Green, 1200*time.Millisecond))
-		a.icFront(a.icClip("call_outgoing"))
-		a.icTone("calls_ringing_outgoing")
+		a.hook("call_outgoing")
 	case intercom.Ringing:
-		blink := display.Blink(display.Green, time.Second)
-		a.ringStack.Push("intercom", display.PrioCall, 0, func(now time.Time, below display.RingFrame) (display.RingFrame, bool) {
-			if a.icWindow() { // «Алиса» heard: show that it listens for the command
-				return below, false
-			}
-			return blink(now, below)
-		})
-		a.icFront(a.icClip("call_incoming"))
-		if !a.icTone("calls_ringing_incoming") {
-			a.icTone("") // the announce chime, repeated
-		}
+		a.hook("call_incoming")
 	case intercom.InCall:
-		a.ringStack.Push("intercom", display.PrioCall, 0, a.icInCallRing)
+		a.hook("call_connected")
 		a.icFront(a.icInCallFront(time.Now()))
-		if !a.icSound("calls_connected") {
-			a.announceChime()
-		}
 		a.icStartAudio()
 	case intercom.Idle:
 		wasUp := a.ic.wasUp
 		a.icStopAudio()
-		a.ringStack.Remove("intercom")
-		a.matrixStack.Remove("intercom")
+		a.icFront(nil)
 		switch {
 		case strings.HasPrefix(st.Ended, "rejected"), st.Ended == "no answer", strings.HasPrefix(st.Ended, "media error"):
-			if !a.icSound("calls_busy") {
-				a.icSound("calls_ended")
-			}
-			a.express("voice", "error", errorTTL)
-		case st.Ended == "missed": // rang out unanswered here (the caller gave up, or the ring timed out): no sound
+			a.hook("call_busy")
+		case st.Ended == "missed": // rang out unanswered here (the caller gave up, or the ring timed out)
+			a.hook("call_missed")
+		case wasUp:
+			a.hook("call_ended")
 		default:
-			if wasUp {
-				a.icSound("calls_ended")
-			}
-			a.ringStack.Push("intercom-end", display.PrioCall, 600*time.Millisecond, display.Flash(display.White, 500*time.Millisecond))
+			a.hook("call_cancelled")
 		}
 	}
 	a.ic.wasUp = st.State == intercom.InCall
 }
 
-// The call's front-display layer sits above the expressions (an Assist session in the call shows
+// The call's front-display layers sit above the expressions (an Assist session in the call shows
 // its stages on the ring) and below the local reflexes, so the volume bubble stays readable.
 const prioCallFront = display.PrioExpression + 2
 
+// icFront shows a reading of the call on the front display (its duration); nil takes it off.
 func (a *App) icFront(r display.RenderFunc[display.FrontFrame]) {
 	if r == nil {
-		a.matrixStack.Remove("intercom")
+		a.matrixStack.Remove("intercom-time")
 		return
 	}
-	a.matrixStack.Push("intercom", prioCallFront, 0, r)
+	a.matrixStack.Push("intercom-time", prioCallFront, 0, r)
 }
 
-// icClip is the front display's calling animation ("call_incoming" / "call_outgoing": the stock
-// "ringing" clip on seg7, the screen's call patterns on a pixel screen), looped; nil without one.
-func (a *App) icClip(name string) display.RenderFunc[display.FrontFrame] {
-	if !a.frontClips() {
-		return nil
-	}
-	c, ok := a.front.Anim(name)
-	if !ok {
-		return nil
-	}
-	return c.Play(true, false, a.brightness)
-}
+// icYield: the call's moments let an Assist session in the call, or the listening window after
+// «Алиса», show instead.
+func (a *App) icYield() bool { return a.sat.inDialog() || a.icWindow() }
 
 // icInCallFront shows the call's duration (m:ss).
 func (a *App) icInCallFront(start time.Time) display.RenderFunc[display.FrontFrame] {
@@ -400,83 +369,6 @@ func (a *App) icInCallFront(start time.Time) display.RenderFunc[display.FrontFra
 			m = 99
 		}
 		return a.front.Text(fmt.Sprintf("%2d:%02d", m, sec), a.brightness()), false
-	}
-}
-
-// icInCallRing: a slow blue breath while the mic streams to the other room (blue is no other
-// state's colour) — except under an Assist session in the call, whose stages show instead.
-func (a *App) icInCallRing(now time.Time, below display.RingFrame) (display.RingFrame, bool) {
-	if a.sat.inDialog() || a.icWindow() {
-		return below, false
-	}
-	return a.ic.callPulse(now, below)
-}
-
-// icSoundPath is a decoded vendor sound (make sounds) under <cfw>/sounds; "" when not there.
-func (a *App) icSoundPath(name string) string {
-	p := a.cfg().Path(a.prof.Platform.CFWRoot + "/sounds/" + name + ".wav")
-	if _, err := os.Stat(p); err != nil {
-		return ""
-	}
-	return p
-}
-
-// icSound plays a call sound beside everything else (a blip); false when it isn't there.
-func (a *App) icSound(name string) bool {
-	p := a.icSoundPath(name)
-	if p == "" {
-		return false
-	}
-	a.unmute()
-	if err := a.player.Blip(p); err != nil {
-		a.log.Warn("intercom: sound", "name", name, "err", err)
-		return false
-	}
-	return true
-}
-
-// icTone repeats a ringing sound (name "" = the announce chime) until icStopTone; false when it
-// isn't there.
-func (a *App) icTone(name string) bool {
-	path := a.prof.Audio.AnnounceSound
-	if name != "" {
-		path = a.icSoundPath(name)
-	} else if path != "" {
-		path = a.cfg().Path(path)
-	}
-	if path == "" {
-		return false
-	}
-	d, err := wavDuration(path)
-	if err != nil {
-		return false
-	}
-	stop := make(chan struct{})
-	a.ic.mu.Lock()
-	a.ic.toneStop = stop
-	a.ic.mu.Unlock()
-	go func() {
-		for {
-			a.unmute()
-			a.player.Blip(path)
-			select {
-			case <-stop:
-				return
-			case <-time.After(d + icToneGap):
-			}
-		}
-	}()
-	return true
-}
-
-func (a *App) icStopTone() {
-	a.ic.mu.Lock()
-	stop := a.ic.toneStop
-	a.ic.toneStop = nil
-	a.ic.mu.Unlock()
-	if stop != nil {
-		close(stop)
-		a.player.StopBlip() // the ringtone playing right now, too (it lasts ~12 s)
 	}
 }
 

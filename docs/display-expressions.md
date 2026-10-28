@@ -168,21 +168,29 @@ the end of a dialog is a `wink` on a Mini 3 and a `blink` on orion, a Bluetooth 
 nothing on a Mini 3 and the stock `bluetooth_connected` pattern on orion. Hard-coding
 `express("wink")` at the call site makes every platform play the poorest common denominator.
 
-**The rule:** code that reacts to an event calls `a.moment(name)`, never `express(…)` with a
-picture. A moment resolves through, first match wins:
+**The rule:** code that reacts to an event fires a moment (`a.moment(name)` for the voice stages,
+`a.hook(name)` for the rest, `a.endHook(name)` to end a held one), never `express(…)`, a ring
+effect or a sound of its own: the status indication (booting, HA lost, mute, calls, the timer's
+alarm, Wi-Fi setup) and every sound are moments too, so a theme can change any of them
+([asset-packs.md](asset-packs.md)). What code still draws is a reading, not a reaction: the volume
+level, a timer's countdown, a call's duration, the setup gesture's progress, a track title, a
+video, HA's commands. A moment resolves through, first match wins:
 
 0. the owner's choice, `<cfw>/moments.json`, set from the web app's Moments tab (below);
 1. `<cfw>/board.conf` and the board profile: `moment.<name> = <candidate>, <candidate>, …` (the
    board.conf override already covers every profile key, so a user re-maps a moment there);
 2. the defaults of the front display's kind in code (`seg7`, `pixels`), next to the per-display
-   animation maps;
+   animation maps, then the default theme (`internal/app/defaulttheme.go`: every moment of the
+   catalogue, with its slot, priorities and TTL);
 3. an expression of the same name, if there is one (so the voice stages need no entries);
 4. nothing — the moment has no picture on this platform (not an error).
 
-A candidate is an expression (`blink`), a scenario (`scenario:startup`), or a native animation of
-the front display by its name or path (`anim:media/Like`); it counts only if it exists on this
-speaker (the expression has a part on one of its surfaces, the pattern is in the firmware), so a
-list is a fallback chain from the richest to the plainest. Later: `random(a, b, c)` picks one of the
+A candidate is an expression (`blink`), a scenario (`scenario:startup`), a native animation of
+the front display by its name or path (`anim:media/Like`), a sound (`sound:volume_sound`), a sound
+said as speech (`phrase:no_power`: it stops other playback), or a ring effect (`ring:degraded`);
+it counts only if it exists on this speaker (the expression has a part on one of its surfaces, the
+pattern is in the firmware, the sound is decoded), so a list is a fallback chain from the richest
+to the plainest. Later: `random(a, b, c)` picks one of the
 available ones for variety (never the same twice in a row), and parameters for moments that carry
 a value (`volume` → the level, `timer` → the time left) are passed through to scenes that take them.
 
@@ -204,10 +212,15 @@ sequence of its own:
 }
 ```
 
-A step is the scenario step: `express` (an expression, ring and front), `anim` (an animation of
-the front display), `ring` (a ring effect), `text`, and `ms`; `ms` left out takes the animation's
-own length (2 s without one). The last step may `hold`: it stays, looping, until the moment ends
-(the slot moves on, or the caller's TTL). Without hold a sequence ends with its last step.
+A step is the scenario step, everything in it at once: `express` (an expression, ring and front),
+`anim` (an animation of the front display; `else`: `blank`, `setup` or `alarm` when this display
+does not have it), `ring` (a ring effect; the shapes `pulse`, `comet`, `blink`, `flash`, `solid`
+take `color` [r,g,b] and `period` ms), `text`, `sound` (a sound name, mixed beside everything
+else; `a|b` = a, else b) or `phrase` (said as speech), and `ms`. `ms` left out takes the
+animation's own length, else the sound's (2 s without either); a step with nothing but `ms` is a
+pause. The last step may `hold`: it stays, looping (its sound too, 1.5 s apart), until the moment
+ends (the slot moves on, the caller's TTL, or the code ends it). Without hold a sequence ends
+with its last step.
 
 Sequences, scenarios and `anim:` references play in the moment's own slot (`internal/app/
 sequence.go`): anything else shown in the slot (the next voice stage, an error, a clear) stops
@@ -220,7 +233,8 @@ defaults are the expressions of their names, so nothing changes until the owner 
 stage lasts until the next one, so its sequence should hold its last step (the editor says so).
 
 API (behind the login): `GET /api/moments` → `{moments: [{name, when, default, custom, shows}],
-catalog: {display, expressions, scenarios, anims: [{name, ms, loop}], ring_effects}}` (`custom`
+catalog: {display, expressions, scenarios, anims: [{name, ms, loop}], ring_effects,
+colour_effects, sounds}}` (`custom`
 null = the defaults; `shows` the index of the candidate shown here, −1 none; the catalogue holds
 what this speaker has); `PUT /api/moments/<name>` with a list of candidates; `DELETE
 /api/moments/<name>` back to the defaults; `POST /api/moment/<name>` plays it, with a body of
@@ -233,26 +247,24 @@ from HA (`moment/set`, later) to preview a mapping.
 
 ### The moment catalogue
 
-Status: **in code** = called by the app through `moment()`; **planned** = the event exists, the
-call site does not use a moment yet; the orion column is a first proposal from the pattern names,
-to be reviewed on glass (the stock patterns are still being watched through).
+The full list, with when each fires and what the default theme does, is `momentCatalog` and
+`defaultTheme` in `internal/app/defaulttheme.go` (the web app's Moments tab shows both), summed
+up in [asset-packs.md](asset-packs.md). Per display kind, `momentDefaults` (`moments.go`) picks
+the pictures:
 
-| Moment | When | seg7 (Mini 3, Mini 3 Pro) | pixels (orion) | Status |
-|---|---|---|---|---|
-| `listening`, `thinking`, `speaking`, `waiting` | voice stages | the expressions | the expressions (`oknix/`) | in code (moments since v0.17) |
-| `startup` | once per device boot | `scenario:startup` (eyes, wink) | `scenario:startup-pixel` (eyes, blink) | in code |
-| `dialog_end` | a reply played and no follow-up listening | `wink` | `blink` | in code |
-| `arbitration_lost` | another speaker heard the wake word louder and answers ([wake-arbitration.md](wake-arbitration.md)) | `glance` (` > >` quick, then `< < `; ours) | `scenario_emotion/Deactivation_Output` | in code |
-| `error` | voice / network failure | the expression | `error` | via rule 3 |
-| `mute`, `unmute` | the mic switch | — | `anim:mute`, `anim:unmute` | planned |
-| `volume` | volume changed (value) | the number | the exact number over a bar (`display/volume.go`; the stock `volume.led` sweeps the tens only) | in code, as the front's `Volume` scene (not a moment: it carries the level and keeps state) |
-| `alarm`, `timer_done` | an alarm / a timer rings | `ringing` | `alarm/alarm_loop`, `timer/timer_bell` | planned |
-| `call_incoming`, `call_outgoing`, `call_connected`, `call_ended`, `call_hold` | intercom | `ringing` for incoming | the stock `call_*` / `calls/*` patterns | planned |
-| `media_pause`, `media_resume` | music paused / resumed ([music-sendspin.md](music-sendspin.md#on-the-display)) | `pause` (no resume clip) | `media/Pause`, `media/Resume` | in code |
-| `media_next`, `media_previous`, `like`, `dislike` | music controls we sent (deferred: [music-sendspin.md](music-sendspin.md#deferred)) | `next`, `previous`, "LIKE" | `media/*` | planned |
-| `bluetooth_connected`, `bluetooth_disconnected` | A2DP | — | the stock patterns | planned |
-| `setup` | Wi-Fi setup mode | the setup face | `configure` | planned |
-| `update_downloading`, `block` | not ours (updates are blocked) | — | — | not used |
+| Moment | seg7 (Mini 3, Mini 3 Pro) | pixels (orion) |
+|---|---|---|
+| `listening`, `thinking`, `speaking`, `waiting` | the expressions | the expressions (`oknix/`) |
+| `startup` | `scenario:startup` (eyes, wink) | `scenario:startup-pixel` (eyes, blink) |
+| `dialog_end` | `wink` | `blink` |
+| `arbitration_lost` | `glance` (` > >` quick, then `< < `; ours) | `scenario_emotion/Deactivation_Output` |
+| `media_pause`, `media_resume` | `pause` (no resume clip) | `media/Pause`, `media/Resume` |
+| `call_outgoing`, `call_incoming`, `timer_finished`, `wifi_setup`, `booting` | the semantic animations `call_*`, `ringing`, `setup`, `booting` | the same, through the pattern map |
+
+Not moments: the volume level (the front's `Volume` scene carries the level and keeps state), a
+timer's countdown, a call's duration. Still to come: `media_next`, `media_previous`, `like`,
+`dislike` ([music-sendspin.md](music-sendspin.md#deferred)), `bluetooth_connected` /
+`_disconnected`.
 
 ## Priorities (high → low), per surface
 

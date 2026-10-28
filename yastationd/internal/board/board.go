@@ -149,9 +149,6 @@ type AudioSpec struct {
 	VolumeMax     int           // its maximum raw value
 	VolumeDefault int           // raw volume set on first start, before the user ever set one (0 = leave the boot value)
 	VolumeMap     []VolumePoint // stock volume curve; nil = a straight line over 20 levels
-	VolumeSound   string        // wav ticked on a volume key press ("" = none; absent file = none)
-	AnnounceSound string        // wav chimed before an announcement ("" = none; absent file = none)
-	ErrorSound    string        // wav said when a voice attempt finds no HA ("" = none; absent file = none)
 	Unmute        []string      // amixer cset lines run before playback
 	MicGain       string        // hardware mic gain control ("" = none)
 	MicGainValue  int           // applied at startup (-1 = leave alone)
@@ -254,12 +251,11 @@ type WakeSpec struct {
 	PrerollMs int
 }
 
-// PowerSpec: the USB-C PD sink (power_supply name, "" = none), the lowest contract voltage that
-// counts as healthy, and the stock voice line to play when it isn't (a wav: aplay can't do opus).
+// PowerSpec: the USB-C PD sink (power_supply name, "" = none) and the lowest contract voltage that
+// counts as healthy (below it: the power_problem moment).
 type PowerSpec struct {
 	PD            string
 	MinMilliVolts int
-	AlertSound    string
 }
 
 // LuxSpec: the ambient-light IIO device name prefix ("" = none), and the hardware gain and
@@ -406,12 +402,6 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Audio.VolumeDefault, err = strconv.Atoi(v)
 	case k == "audio.volume_map":
 		p.Audio.VolumeMap, err = parseVolumeMap(v)
-	case k == "audio.volume_sound":
-		p.Audio.VolumeSound = v
-	case k == "audio.announce_sound":
-		p.Audio.AnnounceSound = v
-	case k == "audio.error_sound":
-		p.Audio.ErrorSound = v
 	case k == "audio.unmute":
 		list(&p.Audio.Unmute)
 	case k == "audio.mic_gain":
@@ -448,8 +438,6 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Power.PD = v
 	case k == "power.min_mv":
 		p.Power.MinMilliVolts, err = strconv.Atoi(v)
-	case k == "power.alert_sound":
-		p.Power.AlertSound = v
 	case k == "lux.iio_prefix":
 		p.Lux.IIOPrefix = v
 	case k == "lux.gain":

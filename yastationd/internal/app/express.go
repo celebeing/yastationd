@@ -100,7 +100,7 @@ func (a *App) expressIn(slot, name string, ttl time.Duration, prio int, keepRing
 	// removes the previous state's clip.
 	if haveClip {
 		// A short clip asked for ttl keeps its last frame.
-		a.matrixStack.Push(slot, prio, ttl, clip.Play(e.loop, !e.loop && ttl > 0, a.brightness))
+		a.pushFront(slot, prio, ttl, clip.Play(e.loop, !e.loop && ttl > 0, a.brightness))
 		shown = true
 	} else {
 		a.matrixStack.Remove(slot)
@@ -119,7 +119,7 @@ func (a *App) expressIn(slot, name string, ttl time.Duration, prio int, keepRing
 					rttl = clip.Duration()
 				}
 			}
-			a.ringStack.Push(slot, e.ringPrio, rttl, r)
+			a.pushRing(slot, e.ringPrio, rttl, r)
 			shown = true
 		}
 	}

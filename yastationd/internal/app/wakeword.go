@@ -91,7 +91,7 @@ func (a *App) onWakeEvent(ev wake.Event) {
 				a.sat.interruptForWake(ev)
 			} else {
 				a.log.Info("wake: ignored, HA is still answering the previous request")
-				a.express("busy", "busy", 0)
+				a.hook("wake_busy")
 			}
 		default:
 			a.log.Info("wake: detected", "phrase", ev.Phrase, "at", ev.At)
@@ -143,7 +143,7 @@ func (a *App) onCommand(phrase string) {
 	}
 	if isStop(phrase) && a.sat.abortListening("«"+phrase+"»") {
 		a.log.Info("command: session cancelled", "phrase", phrase)
-		a.express("voice", "blink", 0)
+		a.hook("voice_cancelled")
 		return
 	}
 	if !a.speaking() {
@@ -151,7 +151,7 @@ func (a *App) onCommand(phrase string) {
 		if a.sat.awaitingReply() && isStop(phrase) {
 			a.log.Info("command: cancel the pending reply", "phrase", phrase)
 			a.sat.cancelReply("«" + phrase + "»")
-			a.express("voice", "blink", 0)
+			a.hook("voice_cancelled")
 			return
 		}
 		a.log.Debug("command ignored (not playing)", "phrase", phrase)

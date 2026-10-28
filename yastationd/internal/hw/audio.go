@@ -105,19 +105,25 @@ type Player struct {
 	mu     sync.Mutex
 	cancel context.CancelFunc
 	gen    int
-	blip   context.CancelFunc
+	blips  map[string]context.CancelFunc // the blip playing on each channel
 }
 
 // Blip plays a short sound beside whatever is playing (dmix mixes them), without touching the
 // playback state: no OnState, and Play/Stream/Stop don't cut it. A new Blip cuts the previous one,
 // so a burst of key presses gives one tick each instead of a pile-up.
-func (p *Player) Blip(path string) error {
+func (p *Player) Blip(path string) error { return p.BlipOn("", path) }
+
+// BlipOn is Blip on its own channel: a new blip cuts the previous one of the same channel only.
+func (p *Player) BlipOn(channel, path string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	p.mu.Lock()
-	if p.blip != nil {
-		p.blip()
+	if c := p.blips[channel]; c != nil {
+		c()
 	}
-	p.blip = cancel
+	if p.blips == nil {
+		p.blips = map[string]context.CancelFunc{}
+	}
+	p.blips[channel] = cancel
 	p.mu.Unlock()
 	cmd := aplayCmd(ctx, "-q", "-D", p.Device, path)
 	if err := cmd.Start(); err != nil {
@@ -128,13 +134,16 @@ func (p *Player) Blip(path string) error {
 	return nil
 }
 
-// StopBlip cuts the current blip, if any.
-func (p *Player) StopBlip() {
+// StopBlip cuts the current blip of the default channel, if any.
+func (p *Player) StopBlip() { p.StopBlipOn("") }
+
+// StopBlipOn cuts the blip playing on channel, if any.
+func (p *Player) StopBlipOn(channel string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.blip != nil {
-		p.blip()
-		p.blip = nil
+	if c := p.blips[channel]; c != nil {
+		c()
+		delete(p.blips, channel)
 	}
 }
 

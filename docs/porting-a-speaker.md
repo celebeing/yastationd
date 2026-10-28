@@ -56,7 +56,7 @@ then fold them into the profile.
 | `platform.wifi_reset` | the firmware's `/usr/bin/yandex-wifireset` (what its `WifiWatcher` runs; `strings maind`) | the Wi-Fi controller reset the network watchdog runs before rebooting ([storage.md](storage.md)); empty = none |
 | `platform.rtc_backed` | after a power cut of some minutes, `dmesg \| grep rtc` at boot ("setting system clock to …" right to the second, no low-voltage warning) | `true`: the clock shows the time before the SNTP check (orion) |
 | `platform.stop_initd` | `ps w` with the vendor stack gated: vendor processes that still draw on a surface (boot-animation players) | init.d scripts whose own `stop` the daemon runs at startup (orion: `S31animation`) |
-| `moment.<name>` | what the board's displays can show (its expressions and stock patterns) | per-board choice of picture for a CFW moment, overriding the display kind's defaults ([display-expressions.md](display-expressions.md), "Moments") |
+| `moment.<name>` | what the board's displays can show (its expressions and stock patterns), what it should sound like | per-board choice for a CFW moment (pictures, `sound:`/`phrase:`/`ring:` references; empty = nothing), overriding the display kind's defaults and the default theme ([display-expressions.md](display-expressions.md), "Moments"; [asset-packs.md](asset-packs.md)). The stock sounds are played by name from `<cfw>/sounds` (`make sounds`), so a board needs no sound keys |
 | `matrix.backlight` | `/sys/class/backlight/*` whose device is the screen | a sysfs brightness (0..255) that dims the whole screen: the display level goes there and frames keep their half-tones (orion: `fb1`) |
 | `matrix.min_brightness` | the dimmest level still readable in a dark room, on glass | the dimmest auto brightness unless `auto_brightness_min` is set, the default curve's darkest point, and the manual level's floor (bergamot, pickle 4; orion 2) |
 | `matrix.default_mode` | — | the front display mode of a fresh state: `clock` (default), `clock_date`, `off` |
@@ -73,7 +73,7 @@ then fold them into the profile.
 | `audio.mic_gain`, `mic_gain_value` | PDM/ADC gain controls | Gains often boot at 0. A hardware mic switch can cut the mics entirely (exact zeros); check the switch before concluding that capture is broken |
 | `mic.device/channels/rate/voice` | the vendor capture device (§3) | Open the device with the channel count the hardware frame really has |
 | `wake.*` | §4 | |
-| `power.pd/min_mv/alert_sound` | `/sys/class/power_supply/*` | Each PD read makes the driver re-query (and log), so poll rarely. Vendor sounds may be opus even when named `.wav`; `make sounds` decodes them |
+| `power.pd/min_mv` | `/sys/class/power_supply/*` | Each PD read makes the driver re-query (and log), so poll rarely. Below `min_mv` the `power_problem` moment plays the stock `no_power` line (vendor sounds may be opus even when named `.wav`; `make sounds` decodes them) |
 | `lux.iio_prefix/gain/integration_time` | `/sys/bus/iio/devices/*/name`, `*_available` | Behind a grille the stock gain gives a couple of counts; raise gain/integration |
 | `lux.calibration` | a lux meter next to a unit, [sensor-calibration.md](sensor-calibration.md) | `reading:lux` points: the board's base light calibration (a unit may override with `lux_calibration`) |
 | `mic.spl_offset` | a sound level meter next to a unit (the firmware's `quasar.cfg` `spl.splCalibShift` is a hint, not a value to copy: its dBFS need not be ours) | dBFS → dB SPL for the room sound sensors |

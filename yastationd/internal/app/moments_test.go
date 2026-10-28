@@ -147,7 +147,7 @@ func layers(a *App, slot string) (ring, front bool) {
 func TestSequenceEndsAndReplacesInPlace(t *testing.T) {
 	a := newMomentApp(t)
 	steps := []scenarioStep{{Express: "happy", Ms: 40}, {Anim: "wink", Ms: 40}, {Text: "hi", Ms: 40}}
-	a.runSteps("x", steps, 0, display.PrioExpression, "", 0)
+	a.runSteps("x", steps, 0, display.PrioExpression, display.PrioScenario, "", 0)
 	// the front is never empty while the sequence runs (steps replace in place)
 	deadline := time.Now().Add(100 * time.Millisecond)
 	for time.Now().Before(deadline) {
@@ -165,7 +165,7 @@ func TestSequenceEndsAndReplacesInPlace(t *testing.T) {
 func TestSequenceStoppedBySlot(t *testing.T) {
 	a := newMomentApp(t)
 	// step 2 would start at 50 ms; an express in the slot at 10 ms must stop the sequence
-	a.runSteps("voice", []scenarioStep{{Anim: "wink", Ms: 50}, {Express: "happy", Hold: true}}, 0, display.PrioExpression, "", 0)
+	a.runSteps("voice", []scenarioStep{{Anim: "wink", Ms: 50}, {Express: "happy", Hold: true}}, 0, display.PrioExpression, display.PrioScenario, "", 0)
 	time.Sleep(10 * time.Millisecond)
 	a.express("voice", "listening", 0)
 	time.Sleep(100 * time.Millisecond)
@@ -176,8 +176,8 @@ func TestSequenceStoppedBySlot(t *testing.T) {
 		t.Fatal("the sequence still runs")
 	}
 	// a new sequence in the slot replaces the old one
-	a.runSteps("voice", []scenarioStep{{Anim: "wink", Ms: 30}}, 0, display.PrioExpression, "", 0)
-	a.runSteps("voice", []scenarioStep{{Anim: "wink", Hold: true}}, 0, display.PrioExpression, "", 0)
+	a.runSteps("voice", []scenarioStep{{Anim: "wink", Ms: 30}}, 0, display.PrioExpression, display.PrioScenario, "", 0)
+	a.runSteps("voice", []scenarioStep{{Anim: "wink", Hold: true}}, 0, display.PrioExpression, display.PrioScenario, "", 0)
 	time.Sleep(80 * time.Millisecond)
 	if _, f := layers(a, "voice"); !f {
 		t.Fatal("the first sequence's end cleared the second's slot")
@@ -186,7 +186,7 @@ func TestSequenceStoppedBySlot(t *testing.T) {
 
 func TestSequenceTTLCutsShort(t *testing.T) {
 	a := newMomentApp(t)
-	a.runSteps("x", []scenarioStep{{Anim: "wink", Ms: 500}, {Express: "happy", Ms: 500}}, 50*time.Millisecond, display.PrioExpression, "", 0)
+	a.runSteps("x", []scenarioStep{{Anim: "wink", Ms: 500}, {Express: "happy", Ms: 500}}, 50*time.Millisecond, display.PrioExpression, display.PrioScenario, "", 0)
 	time.Sleep(120 * time.Millisecond)
 	if r, f := layers(a, "x"); r || f {
 		t.Fatal("the ttl did not end the sequence")

@@ -52,6 +52,7 @@ func (a *App) onTimerEvent(ev wyoming.Event) {
 	case wyoming.TypeTimerStarted:
 		left := time.Duration(ev.Int("total_seconds", 0)) * time.Second
 		t.m[id] = &voiceTimer{deadline: now.Add(left), left: left, active: true}
+		defer a.hook("timer_started") // after the unlock below
 	case wyoming.TypeTimerUpdated:
 		// total_seconds is the time left at the moment of the update.
 		left := time.Duration(ev.Int("total_seconds", 0)) * time.Second
@@ -107,7 +108,8 @@ func (a *App) refreshTimerDisplay() {
 	}
 }
 
-// startAlarm beeps and blinks until alarmCycles run out or stopAlarm is called.
+// startAlarm fires timer_finished (held) until alarmCycles of the beep run out or stopAlarm is
+// called. The beep is synthesized unless the moment's show has a sound of its own.
 func (a *App) startAlarm() {
 	t := &a.timers
 	t.mu.Lock()
@@ -119,21 +121,19 @@ func (a *App) startAlarm() {
 	t.alarm = stop
 	t.mu.Unlock()
 
-	a.ringStack.Push("alarm", display.PrioError, 0, display.Blink(display.Amber, 400*time.Millisecond))
-	if c, ok := a.frontAnim("ringing"); ok {
-		a.matrixStack.Push("alarm", display.PrioLocal, 0, c.Play(true, false, a.brightness))
-	} else if a.front != nil {
-		a.matrixStack.Push("alarm", display.PrioLocal, 0, func(now time.Time, _ display.FrontFrame) (display.FrontFrame, bool) {
-			if now.UnixMilli()/400%2 == 0 {
-				return a.front.Text("00:00", a.brightness()), false
-			}
-			return display.FrontFrame{}, false
-		})
-	}
+	_, sound := a.fire("timer_finished") // held: by default an amber blink and the ringing clip
 	go func() {
 		defer a.endAlarm(stop)
-		a.unmute()
 		pcm := beepPattern()
+		if sound > 0 { // the theme's sound loops in the moment: ring for as long as the beeps would
+			cycle := time.Duration(len(pcm)/2)*time.Second/alarmRate + time.Second
+			select {
+			case <-stop:
+			case <-time.After(alarmCycles * cycle):
+			}
+			return
+		}
+		a.unmute()
 		for i := 0; i < alarmCycles; i++ {
 			w, done, err := a.player.Stream(alarmRate, 1)
 			if err != nil {
@@ -164,8 +164,7 @@ func (a *App) endAlarm(stop chan struct{}) {
 		t.alarm = nil
 	}
 	t.mu.Unlock()
-	a.ringStack.Remove("alarm")
-	a.matrixStack.Remove("alarm")
+	a.endHook("timer_finished")
 }
 
 // stopAlarm silences a ringing alarm; reports whether one was ringing (so the key press that

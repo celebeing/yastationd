@@ -4,7 +4,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/celebeing/yastationd/yastationd/internal/display"
 	"github.com/celebeing/yastationd/yastationd/internal/health"
 )
 
@@ -97,38 +96,30 @@ func (a *App) statusLoop(stop <-chan struct{}) {
 	}
 }
 
-// showLife puts the boot-phase layers on the ring and the front display.
+// showLife fires the boot phase's moment (booting, boot_failed: held until ready).
 func (a *App) showLife(s life) {
 	a.lifeState.Store(int32(s))
 	switch s {
-	case lifeBooting, lifeBootFailed:
-		c := display.Blue
-		if s == lifeBootFailed {
-			c = display.Red
-		}
-		a.ringStack.Push(lifeSlot, display.PrioDegraded, 0, display.Pulse(c, 2*time.Second))
-		if clip, ok := a.frontAnim("booting"); ok {
-			a.matrixStack.Push(lifeSlot, display.PrioDegraded, 0, clip.Play(true, false, a.brightness))
-			return
-		}
-		// No animation: a blank front (the time is unknown anyway).
-		a.matrixStack.Push(lifeSlot, display.PrioDegraded, 0, func(time.Time, display.FrontFrame) (display.FrontFrame, bool) {
-			return display.FrontFrame{}, false
-		})
+	case lifeBooting:
+		a.hook("booting")
+	case lifeBootFailed:
+		a.hook("boot_failed")
 	case lifeReady:
-		a.unexpress(lifeSlot)
+		a.endShow(lifeSlot)
 		a.greetOncePerBoot()
 	}
 }
 
-// showDegraded: a dim red pulse on the ring while something is missing after ready.
+// showDegraded fires ha_lost (held; by default a dim red pulse) while something is missing after
+// ready, and ha_back when it is back.
 func (a *App) showDegraded(on bool) {
 	if on {
 		a.log.Warn("status: degraded", "health", a.hmon.State().String(), "ha_link", a.connected())
-		a.ringStack.Push("degraded", display.PrioDegraded, 0, display.Pulse(display.Red.Scale(40), 3*time.Second))
+		a.hook("ha_lost")
 	} else {
 		a.log.Info("status: back to normal")
-		a.ringStack.Remove("degraded")
+		a.endHook("ha_lost")
+		a.hook("ha_back")
 	}
 }
 
@@ -153,18 +144,10 @@ func (a *App) firstThisBoot(marker string) bool {
 	return true
 }
 
-// voiceUnavailable: a voice attempt with no HA to talk to — a bright red pulse and the stock
-// error phrase.
+// voiceUnavailable: a voice attempt with no HA to talk to (by default a bright red pulse and the
+// stock error phrase).
 func (a *App) voiceUnavailable() {
-	a.ringStack.Push("voice", display.PrioError, 2*time.Second, display.Pulse(display.Red, 700*time.Millisecond))
-	snd := a.prof.Audio.ErrorSound
-	if snd == "" {
-		return
-	}
-	if _, err := os.Stat(a.cfg().Path(snd)); err != nil {
-		return
-	}
-	a.announce(a.cfg().Path(snd))
+	a.hook("voice_unavailable")
 }
 
 // rtcSaneAfter: a clock before this is an RTC that lost its time (a pcf8563 that lost power

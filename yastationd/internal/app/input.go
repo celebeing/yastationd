@@ -191,14 +191,15 @@ func (a *App) micMuted() bool { return a.muted.Load() }
 func (a *App) setMute(muted bool) {
 	if a.muted.Swap(muted) != muted {
 		a.log.Info("mic mute", "on", muted)
+		if muted {
+			a.hook("mic_muted") // held: the amber ring while muted
+		} else {
+			a.endHook("mic_muted")
+			a.hook("mic_unmuted")
+		}
 	}
 	if muted && a.icActive() {
 		a.ic.m.Hangup("mic muted") // declines a ringing call, ends any other
-	}
-	if muted {
-		a.ringStack.Push("mute", display.PrioLocal, 0, effect("mute"))
-	} else {
-		a.ringStack.Remove("mute")
 	}
 	a.publishMicMuteValue(muted)
 }
@@ -282,39 +283,23 @@ func nudgeEdge(from, to, n int) int {
 	return 1
 }
 
-// volumeBeep ticks the stock volume sound at the new level, so the level is heard as it is set.
-// Keys only: a voice «громче» comes while something plays, and HA's slider is not at the speaker.
-// Not over music either: the music's own level is the feedback, and a tick on top of it sounds off.
+// volumeBeep fires volume_change (the stock tick at the new level, so the level is heard as it is
+// set). Keys only: a voice «громче» comes while something plays, and HA's slider is not at the
+// speaker. Not over music either: the music's own level is the feedback, and a tick on top of it
+// sounds off.
 func (a *App) volumeBeep() {
-	snd := a.prof.Audio.VolumeSound
-	if !a.cfg().VolumeBeep || snd == "" || a.music.streaming.Load() {
+	if !a.cfg().VolumeBeep || a.music.streaming.Load() {
 		return
 	}
-	path := a.cfg().Path(snd)
-	if _, err := os.Stat(path); err != nil { // not decoded onto this unit (make sounds)
-		return
-	}
-	a.unmute()
-	if err := a.player.Blip(path); err != nil {
-		a.log.Warn("volume beep", "err", err)
-	}
+	a.hook("volume_change")
 }
 
-// announceChime plays the board's announce sound and returns how long it lasts (0 = none).
+// announceChime fires the announce moment and returns how long its sounds last (0 = none).
 func (a *App) announceChime() time.Duration {
-	snd := a.prof.Audio.AnnounceSound
-	if !a.cfg().AnnounceChime || snd == "" {
+	if !a.cfg().AnnounceChime {
 		return 0
 	}
-	path := a.cfg().Path(snd)
-	d, err := wavDuration(path)
-	if err != nil { // not decoded onto this unit (make sounds)
-		return 0
-	}
-	if err := a.player.Blip(path); err != nil {
-		a.log.Warn("announce chime", "err", err)
-		return 0
-	}
+	_, d := a.fire("announce")
 	return d
 }
 
@@ -399,7 +384,12 @@ func (a *App) applyVolume(v int) { a.applyVolumeEdge(v, 0) }
 
 // applyVolumeEdge sets Master to v and shows the level; edge (-1/+1) says a nudge hit the bottom
 // or the top.
-func (a *App) applyVolumeEdge(v, edge int) { a.setMaster(v, edge, true) }
+func (a *App) applyVolumeEdge(v, edge int) {
+	a.setMaster(v, edge, true)
+	if edge != 0 {
+		a.hook("volume_edge")
+	}
+}
 
 // setMaster sets Master to v and shows the level; report says whether the music server hears of
 // it (not when the server itself set it: that would only echo back).
