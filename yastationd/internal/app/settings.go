@@ -139,6 +139,17 @@ func (a *App) boardValues() map[string][]string {
 	}
 }
 
+// boardHas: this board has the hardware a key needs ("" = any board).
+func (a *App) boardHas(needs string) bool {
+	switch needs {
+	case "ambilight":
+		return a.prof.Ambilight.Kind != "" && a.prof.Ambilight.Kind != "none"
+	case "pixels":
+		return a.prof.Matrix.Kind == "dotmatrix-fb"
+	}
+	return true
+}
+
 func sameLines(a, b []string) bool { return strings.Join(a, "\n") == strings.Join(b, "\n") }
 
 // secretMask stands for a secret's value both ways: shown for a set secret, and sent back
@@ -150,7 +161,7 @@ func (a *App) settingViews() []settingView {
 	boardVals := a.boardValues()
 	out := []settingView{}
 	for _, k := range config.Keys {
-		if k.Hidden {
+		if k.Hidden || !a.boardHas(k.Needs) {
 			continue
 		}
 		v := settingView{Name: k.Name, Group: k.Group, Label: k.Label, Doc: k.Doc, Kind: k.Kind,

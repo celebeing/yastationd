@@ -49,7 +49,7 @@ type Config struct {
 	// DDPPort: UDP port for LED frames streamed to the ambilight (LedFx, WLED tools; 0 = off).
 	DDPPort int
 	// AmbilightFxWhite: the music effects use the strip's white channel (else what would go
-	// there is drawn as R=G=B). Off by default.
+	// there is drawn as R=G=B). On by default.
 	AmbilightFxWhite bool
 	AutoBrightness   bool // clock brightness from the light sensor at first start (later: HA switch)
 	// Light-sensor reading -> clock brightness, interpolated on log(lux) between the points
@@ -296,6 +296,7 @@ func Default() Config {
 		SendspinState:       cfw + "/sendspin/state.json",
 		SendspinVolume:      "linked",
 		MusicDuckDB:         -26,
+		AmbilightFxWhite:    true,
 		MusicTitle:          true,
 		MarqueeSpeed:        1,
 		MusicClips:          true,

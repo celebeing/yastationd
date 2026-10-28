@@ -150,6 +150,23 @@ func TestWebSettingsKinds(t *testing.T) {
 	if c := get("auto_brightness_curve"); c["board"] == nil || c["changed"] != false {
 		t.Fatalf("the curve's board value: %v", c)
 	}
+	// Keys for hardware this board lacks are not listed.
+	listed := func(name string) bool {
+		_, out := call(t, "GET", srv.URL+"/api/settings", tok, "")
+		for _, k := range out["keys"].([]any) {
+			if k.(map[string]any)["name"] == name {
+				return true
+			}
+		}
+		return false
+	}
+	if listed("ambilight_fx_white") || listed("text_lines") {
+		t.Fatal("ambilight / pixel-screen keys on a board without them")
+	}
+	a.prof.Ambilight.Kind, a.prof.Matrix.Kind = "sysfs-rgbw", "dotmatrix-fb"
+	if !listed("ambilight_fx_white") || !listed("text_lines") || get("ambilight_fx_white")["default"].([]any)[0] != "true" {
+		t.Fatal("ambilight / pixel-screen keys missing on a board with them, or the white LED off by default")
+	}
 	// Flags as the pages need them.
 	if k := get("volume_step"); k["runtime"] != true || k["sync"] != true {
 		t.Fatalf("volume_step flags: %v", k)

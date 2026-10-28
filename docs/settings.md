@@ -13,6 +13,7 @@ its parser and printer, a group, a label, an explaining paragraph, and flags:
 | `Sync` | the key may be shared by every speaker; never set for a speaker's own (identity, addresses, calibrations, files, ports that must differ) |
 | `Hidden` | set elsewhere in the app (the login, the light calibration): not on the settings pages |
 | `Advanced` | paths, test hooks, hardware overrides, first-start seeds: under "Advanced" |
+| `Needs` | the hardware a key is for (`ambilight`, `pixels` = a dot-matrix front screen): boards without it don't list the key |
 
 The parser (`config.Parse`) goes through the same table, so a key cannot be parsed and described
 differently. Hardware overrides print empty unless the file sets them (`Config.Has`): the board

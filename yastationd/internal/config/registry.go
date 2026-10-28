@@ -35,6 +35,9 @@ type Key struct {
 	Hidden bool
 	// Advanced: paths, test hooks, hardware overrides — under "Advanced" in the settings.
 	Advanced bool
+	// Needs: the hardware the key is for ("ambilight", "pixels": a dot-matrix front screen);
+	// boards without it don't list the key.
+	Needs string
 
 	get func(*Config) []string
 	set func(*Config, string) error
@@ -211,10 +214,10 @@ func init() {
 	reg(Key{Name: "ring_brightness", Group: "display", Label: "Ring brightness at first start", Advanced: true,
 		Doc: "Only the value a new speaker starts with; afterwards Home Assistant's light entity rules."},
 		intV(0, 255, func(c *Config) *int { return &c.RingBrightness }))
-	reg(Key{Name: "ambilight_brightness", Group: "display", Label: "Ambilight brightness at first start", Advanced: true,
+	reg(Key{Name: "ambilight_brightness", Group: "display", Label: "Ambilight brightness at first start", Advanced: true, Needs: "ambilight",
 		Doc: "Boards with a rear strip: the value a new speaker starts with; afterwards Home Assistant's light entity rules."},
 		intV(0, 255, func(c *Config) *int { return &c.AmbilightBrightness }))
-	reg(Key{Name: "text_lines", Group: "display", Label: "Lines of text", Sync: true,
+	reg(Key{Name: "text_lines", Group: "display", Label: "Lines of text", Sync: true, Needs: "pixels",
 		Doc: "Pixel screens: text in one line, two lines, or chosen by its length (auto)."},
 		value{kind: "enum", options: []string{"auto", "1", "2"},
 			get: func(c *Config) []string {
@@ -237,11 +240,11 @@ func init() {
 	reg(Key{Name: "marquee_speed", Group: "display", Label: "Running text speed", Runtime: true, Sync: true,
 		Doc: "How fast running lines move, as a multiple of the default pace."},
 		floatV(0.25, 4, func(c *Config) *float64 { return &c.MarqueeSpeed }))
-	reg(Key{Name: "ddp_port", Group: "display", Label: "DDP port", Sync: true,
+	reg(Key{Name: "ddp_port", Group: "display", Label: "DDP port", Sync: true, Needs: "ambilight",
 		Doc: "Boards with an ambilight: the UDP port for LED frames from LedFx or WLED tools; 0 turns it off."},
 		intV(0, 65535, func(c *Config) *int { return &c.DDPPort }))
-	reg(Key{Name: "ambilight_fx_white", Group: "display", Label: "Music effects use white", Runtime: true, Sync: true,
-		Doc: "The ambilight's music effects drive the strip's white channel; off, white is drawn as equal red, green and blue."},
+	reg(Key{Name: "ambilight_fx_white", Group: "display", Label: "Ambilight effects: white LED", Runtime: true, Sync: true, Needs: "ambilight",
+		Doc: "The white in the ambilight's music effects (the highs of rain, the peak of vu) lights the strip's white LEDs; off, it is mixed from red, green and blue. DDP streams and the HA light are not affected."},
 		boolV(func(c *Config) *bool { return &c.AmbilightFxWhite }))
 
 	// --- sound ---
@@ -314,7 +317,7 @@ func init() {
 	reg(Key{Name: "music_clips", Group: "music", Label: "Pause and resume animations", Runtime: true, Sync: true,
 		Doc: "Animations on the front display when the music pauses and resumes."},
 		boolV(func(c *Config) *bool { return &c.MusicClips }))
-	reg(Key{Name: "music_levels", Group: "music", Label: "Spectrum under the clock", Runtime: true, Sync: true,
+	reg(Key{Name: "music_levels", Group: "music", Label: "Spectrum under the clock", Runtime: true, Sync: true, Needs: "pixels",
 		Doc: "Pixel screens: the music's spectrum under the clock."},
 		boolV(func(c *Config) *bool { return &c.MusicLevels }))
 	reg(Key{Name: "sendspin_port", Group: "music", Label: "Player port", Advanced: true,
@@ -490,11 +493,11 @@ func init() {
 		textV(func(c *Config) *string { return &c.FrameTapAddr }, nil))
 
 	// --- video ---
-	reg(Key{Name: "video_frames", Group: "video", Label: "Video frames", Advanced: true,
+	reg(Key{Name: "video_frames", Group: "video", Label: "Video frames", Advanced: true, Needs: "pixels",
 		Doc: "The video mode's frames file (made by cmd/videoconv)."}, textV(func(c *Config) *string { return &c.VideoFrames }, nil))
-	reg(Key{Name: "video_audio", Group: "video", Label: "Video sound", Advanced: true,
+	reg(Key{Name: "video_audio", Group: "video", Label: "Video sound", Advanced: true, Needs: "pixels",
 		Doc: "The video mode's WAV."}, textV(func(c *Config) *string { return &c.VideoAudio }, nil))
-	reg(Key{Name: "video_av_offset_ms", Group: "video", Label: "Picture offset", Runtime: true,
+	reg(Key{Name: "video_av_offset_ms", Group: "video", Label: "Picture offset", Runtime: true, Needs: "pixels",
 		Doc: "Shifts the picture against the sound; positive shows it later."},
 		durV(-2000, 2000, time.Millisecond, func(c *Config) *time.Duration { return &c.VideoAVOffset }))
 

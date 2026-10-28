@@ -14,6 +14,8 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
   this speaker's value and keeps them in step (retained MQTT topics; a speaker that was off
   catches up; moments go to speakers with the same kind of display).
 - A speaker card on top of every tab: name, address, status, volume with mute, display mode.
+- The ambilight's music effects use the strip's white LEDs by default (`ambilight_fx_white`),
+  and the settings list only what the board has (no ambilight or video keys on a Mini).
 
 **Fixes and operations**
 - `tools/fetch-vendor.sh <ssh-target> <board>` copies what the build needs off your own speaker
