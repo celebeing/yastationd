@@ -200,15 +200,18 @@ What they share:
 - **Some features need no enrollment:** a child's voice switching Alice into the kids' mode
   (reported by users, not documented in Yandex' help) is a classifier like the firmware's age model.
 
-What this means for us:
+The vendors' way next to the album design above (a comparison; no choice made yet):
 
-- **Guided enrollment is the main path,** as owners know it from their phones: "Алиса, запомни мой
-  голос" on the speaker, or "Enroll a voice" in the web app, five phrases, a name or an HA person
-  picked from a list. HA persons stand in for the vendors' accounts.
-- **The album is the advanced view,** for the household that wants to check or fix things, not a
-  step everyone must go through.
-- **One default threshold that works,** the slider and the preview under "advanced". Unsure means
-  guest, and voice never gates locks or alarms.
+| | Enrollment first (the vendors) | The album (this design) |
+|---|---|---|
+| Who acts | each person, once, five phrases | the owner, naming groups that appeared on their own |
+| Voices that are not enrolled | not collected; guests | collected and grouped, shown for naming or "not a person" |
+| What it needs from us | a guided flow ("Алиса, запомни мой голос" or the web app), HA persons standing in for accounts | the grouping, the log, rename / merge / correct, the store |
+| Privacy | only voiceprints people agreed to give | voiceprints of everyone who speaks, guests included, kept in the household |
+| Rare speakers | have to enroll on purpose | appear once they have spoken a few times |
+| Thresholds | fixed by the vendor from fleet data | set by the owner with the preview, from their own data |
+
+The two can be combined, e.g. guided enrollment feeding a group of the album.
 
 ## Calibration and debugging: voices like faces in a photo album
 
