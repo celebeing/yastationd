@@ -2,6 +2,7 @@ package app
 
 import (
 	"math"
+	"os"
 	"testing"
 	"time"
 
@@ -76,5 +77,58 @@ func TestBrightnessCurveMinimum(t *testing.T) {
 	a := &App{prof: p, store: newStateStore("", defaultState(128, 128, 1, false))}
 	if got := a.brightnessTarget(); got != 2 {
 		t.Fatalf("manual level floors at the minimum: %v", got)
+	}
+}
+
+// Auto brightness spans the dimmest (the config's, else the board's) to the clock brightness:
+// the curve's darkest level maps to the first, 255 to the second.
+func TestAutoBrightnessRange(t *testing.T) {
+	a := &App{luxPath: "x", store: newStateStore("", defaultState(128, 128, 200, true))}
+	a.prof.Matrix.MinBrightness = 4
+	at := func(curveLevel float64) float64 {
+		a.autoBright.Store(math.Float64bits(curveLevel))
+		return a.brightnessTarget()
+	}
+	if got := at(4); got != 4 {
+		t.Fatalf("darkest: %v", got)
+	}
+	if got := at(255); got != 200 {
+		t.Fatalf("brightest = the clock brightness: %v", got)
+	}
+	if got := at(129.5); math.Abs(got-102) > 0.01 {
+		t.Fatalf("halfway: %v", got)
+	}
+	c := config.Default()
+	c.AutoBrightnessMin = 20
+	a.conf.Store(&c)
+	if got := at(4); got != 20 {
+		t.Fatalf("the config's dimmest: %v", got)
+	}
+	// A clock brightness below the dimmest: the dimmest.
+	a.store.update(func(s *persistState) { s.ClockBright = 10 })
+	if got := at(255); got != 20 {
+		t.Fatalf("max below min: %v", got)
+	}
+	// Setting the clock brightness keeps auto on now.
+	a.cmdClockBrightness([]byte("150"))
+	if s := a.store.get(); !s.ClockAuto || s.ClockBright != 150 {
+		t.Fatalf("after setting it: %+v", s)
+	}
+}
+
+// A state file from before: with auto on its clock level was unused, so it becomes 255 (the auto
+// maximum it had); with auto off it stays.
+func TestClockMaxMigration(t *testing.T) {
+	dir := t.TempDir()
+	for _, c := range []struct {
+		file string
+		want int
+	}{{`{"clock_auto":true,"clock_bright":1}`, 255}, {`{"clock_auto":false,"clock_bright":40}`, 40},
+		{`{"clock_auto":true,"clock_bright":90,"clock_bright_is_max":true}`, 90}} {
+		p := dir + "/state"
+		os.WriteFile(p, []byte(c.file), 0o644)
+		if got := newStateStore(p, defaultState(128, 128, 255, true)).get(); got.ClockBright != c.want || !got.ClockMax {
+			t.Errorf("%s: %d, want %d", c.file, got.ClockBright, c.want)
+		}
 	}
 }

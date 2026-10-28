@@ -30,7 +30,8 @@ ambilight_brightness = 64
 # ddp_port = 4048
 # The music effects use the strip's white channel (off: drawn as R=G=B instead).
 # ambilight_fx_white = true
-clock_brightness     = 128
+# clock_brightness     = 255   (first start: the fixed level, and the brightest auto goes; later HA's Clock brightness)
+# auto_brightness_min  = 0     (the dimmest auto goes; 0 = the board's matrix.min_brightness)
 auto_brightness      = true
 # Lux (calibrated: docs/sensor-calibration.md) -> front-display brightness, on log(lux).
 # Default: 0.7:<board minimum>, 9:128, 150:255 (the minimum is the profile's matrix.min_brightness).

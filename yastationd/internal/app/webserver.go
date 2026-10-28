@@ -306,7 +306,7 @@ func (a *App) editConfig(changes map[string][]string, note string) error {
 		return err
 	}
 	data := config.EditNote(old, changes, note)
-	if _, err := config.Parse(strings.NewReader(string(data))); err != nil {
+	if _, err := checkConfigEdit(old, data); err != nil {
 		return err
 	}
 	if err := writeConfigFile(a.cfg().File, old, data); err != nil {
@@ -584,6 +584,7 @@ func (a *App) configTrialLoop(stop <-chan struct{}) {
 		return
 	}
 	os.Remove(a.trialMarker())
+	a.syncAccepted()
 	a.log.Info("config: accepted")
 }
 

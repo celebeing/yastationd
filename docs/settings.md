@@ -11,8 +11,8 @@ its parser and printer, a group, a label, an explaining paragraph, and flags:
 |---|---|
 | `Runtime` | a change applies while the daemon runs; otherwise saving it restarts the daemon on trial |
 | `Sync` | the key may be shared by every speaker; never set for a speaker's own (identity, addresses, calibrations, files, ports that must differ) |
-| `Hidden` | set elsewhere in the app (the login, the light calibration): not on the settings pages |
-| `Advanced` | paths, test hooks, hardware overrides, first-start seeds: under "Advanced" |
+| `Hidden` | set elsewhere in the app (the login, the light calibration) or only by tests and the daemon (`sysroot`, `state_file`, `heartbeat_file`): not on the pages |
+| `Advanced` | rarely touched (ports, paths, timing knobs, first-start seeds, hardware overrides): folded under "Advanced" on its page |
 | `Needs` | the hardware a key is for (`ambilight`, `pixels` = a dot-matrix front screen): boards without it don't list the key |
 
 The parser (`config.Parse`) goes through the same table, so a key cannot be parsed and described
@@ -47,18 +47,26 @@ writing, so a later diff doesn't mistake their keys for changes needing a restar
 
 ## The pages (`web/src/settings.tsx`)
 
-The Configuration group, by topic rather than by mechanism:
+The Configuration group, by topic rather than by mechanism. Which section is on which page lives
+in the registry (`config.Groups`, `Page`), so a new key only picks a section:
 
-| Tab | Holds |
+| Tab | Sections |
 |---|---|
-| General | how the speaker looks and sounds: HA's display options, the display and sound keys |
-| Voice | the wake word, the dialog with HA (follow-up, the reply deadline, a wake word while waiting), which speaker answers |
-| Moments | what it shows for each event (display-expressions.md) |
-| Home integration | fitting it into the home, usually once: name and ID, Home Assistant (MQTT), the network (watchdog, NTP, syslog) |
-| Music Assistant | the Sendspin player |
+| General | Display (with HA's display options), Ambilight, Sound, Video, a new speaker's first values |
+| Voice | the wake word, the dialog with HA (follow-up, the reply deadline, a wake word while waiting), which speaker answers, the voice front-end's hardware |
+| Moments | what the speaker shows for each event (display-expressions.md) |
+| Home integration | Identity (name, ID, board), Home Assistant (MQTT, room sound sensors, Wyoming, health probes), Web app, Time, Logs. Usually set once |
+| Music Assistant | the Sendspin player and the music on the display |
 | Intercom | calls between speakers |
-| Calibration, Wi-Fi, Login | as before; Wi-Fi also holds the setup mode's settings |
-| Advanced | every key marked `Advanced` (rarely touched: ports, paths, test hooks, timing knobs, hardware overrides, first-start values) |
+| Calibration | the light sensor (its own tool) and the mic's dB SPL offset |
+| Wi-Fi | the saved networks, the setup mode's settings, and what happens when the connection is lost (the reboot watchdog, Wi-Fi recovery). Always there, so the setup mode can be turned on from it |
+| Login | the web login |
+
+There is no Advanced page: on every page the keys marked `Advanced` (rarely touched: ports, paths,
+timing knobs, first-start values, overrides of the board's hardware profile) are folded under
+"Advanced" at the bottom, next to what they belong to. Keys only tests or the daemon itself use
+(`sysroot`, `state_file`, `heartbeat_file`) and the ones set on their own tabs (the login, the
+light calibration) are `Hidden`.
 
 - Every page mixes keys that apply at once with keys that need a restart. The first are saved as
   they change; the second carry a "restart" tag and their changes wait in a floating bar for one
@@ -67,6 +75,11 @@ The Configuration group, by topic rather than by mechanism:
 - **Changed settings stand out:** a key the file sets to something other than its value when
   unset — the default, or the board profile's for the hardware overrides, the mic calibration and
   the brightness curve (`board` in the API) — is marked and has a Reset (back to unset).
+- **A bad line in the file never keeps the speaker from starting:** the daemon loads it leniently
+  (`config.ParseLenient`): a line this build refuses (a value an older build took, an unknown
+  key) is logged and skipped, its key keeps the default, and the pages show it. Writers refuse a
+  new bad line but let an old one stay, so it never blocks other changes; setting the key replaces
+  it.
 - Secrets (`mqtt_pass`, `intercom_secret`, `wifi_setup_psk`) are never sent back: a mask stands for
   a set one, and the mask sent back leaves it unchanged.
 - Every key is on a page, so the app has no raw-file editor any more; `GET`/`PUT /api/config`
@@ -106,8 +119,12 @@ An item the owner shares lives in one retained topic, `<prefix>/shared/<kind>/<i
   trial's health mark stay those from before the first restart key, so a rollback undoes them all.
   After the restart the same retained values change nothing. It never sends its own values for
   items already shared; its unshared settings and its own keys (name, ID, calibrations) stay.
-- Options are checked together after any option change: a manual clock brightness turns auto
-  brightness off, and both go out.
+- Options are checked together after any option change, in case a handler changes another one
+  too.
+- **A shared value whose trial fails here** is not taken again on the next connect, which would
+  restart the speaker in a loop: `<cfw>/sync.pending` lists the shared values a running trial came
+  from, the trial's acceptance removes it, and found at start with no trial running it moves to
+  `<cfw>/sync.rejected`. Such an item shows as not taken until it changes again.
 - Values cross the broker in the clear, secrets included (the intercom secret is a natural one to
   share). The broker is on the LAN; put a login on it.
 

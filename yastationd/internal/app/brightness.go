@@ -39,15 +39,36 @@ const (
 )
 
 // brightnessTarget is the level the display should reach (1..255): auto from the light sensor
-// when on and read, else the manual level.
+// when on and read, else the clock brightness. Auto spans the dimmest (auto_brightness_min, else
+// the board's) to the clock brightness: the curve's darkest level maps to the first, 255 to the
+// second.
 func (a *App) brightnessTarget() float64 {
 	s := a.store.get()
+	lo := float64(a.autoMin())
+	hi := math.Max(float64(s.ClockBright), lo)
 	if s.ClockAuto && a.luxPath != "" {
 		if v := math.Float64frombits(a.autoBright.Load()); v > 0 {
-			return v
+			c := brightnessCurve(*a.cfg(), a.prof)
+			l0 := 0.0
+			if len(c) > 0 {
+				l0 = float64(c[0].Level)
+			}
+			if l0 >= 255 {
+				return hi
+			}
+			f := min(max((v-l0)/(255-l0), 0), 1)
+			return lo + f*(hi-lo)
 		}
 	}
-	return float64(max(s.ClockBright, a.prof.Matrix.MinBrightness))
+	return math.Max(float64(s.ClockBright), float64(a.prof.Matrix.MinBrightness))
+}
+
+// autoMin is the dimmest auto brightness: the config's, else the board's, at least 1.
+func (a *App) autoMin() int {
+	if m := a.cfg().AutoBrightnessMin; m > 0 {
+		return m
+	}
+	return max(a.prof.Matrix.MinBrightness, 1)
 }
 
 // brightnessCurve is the auto-brightness curve: the configured one, or the default with its
@@ -252,7 +273,8 @@ func (a *App) cmdClockBrightness(payload []byte) {
 		return
 	}
 	v := clamp(int(f), 1, 255)
-	a.store.update(func(s *persistState) { s.ClockBright, s.ClockAuto = v, false })
+	// the fixed level, and the auto maximum: setting it leaves auto brightness as it is
+	a.store.update(func(s *persistState) { s.ClockBright = v })
 	a.publishBrightness()
 }
 

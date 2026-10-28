@@ -215,12 +215,12 @@ function About({ list, latest }: { list: Peer[]; latest: { tag: string; url: str
 }
 
 // Two levels: a group, then its tabs (docs/web-ui.md).
-type Tab = 'overview' | 'log' | 'controls' | 'led' | 'general' | 'voice' | 'moments' | 'home' | 'music' | 'intercom' | 'calibration' | 'wifi' | 'account' | 'advanced'
+type Tab = 'overview' | 'log' | 'controls' | 'led' | 'general' | 'voice' | 'moments' | 'home' | 'music' | 'intercom' | 'calibration' | 'wifi' | 'account'
 
 const GROUPS: { id: string; name: string; tabs: Tab[] }[] = [
   { id: 'status', name: 'Status', tabs: ['overview', 'log'] },
   { id: 'controls', name: 'Controls', tabs: ['controls', 'led'] },
-  { id: 'configuration', name: 'Configuration', tabs: ['general', 'voice', 'moments', 'home', 'music', 'intercom', 'calibration', 'wifi', 'account', 'advanced'] },
+  { id: 'configuration', name: 'Configuration', tabs: ['general', 'voice', 'moments', 'home', 'music', 'intercom', 'calibration', 'wifi', 'account'] },
 ]
 
 const TAB_NAMES: Record<Tab, string> = {
@@ -236,7 +236,6 @@ const TAB_NAMES: Record<Tab, string> = {
   intercom: 'Intercom',
   calibration: 'Calibration',
   wifi: 'Wi-Fi',
-  advanced: 'Advanced',
   account: 'Login',
 }
 
@@ -246,7 +245,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
   const fromHash = () => {
     const h = location.hash.slice(1)
     if (h === 'options' || h === 'settings') return 'general' // old names
-    if (h === 'config') return 'advanced'
+    if (h === 'config' || h === 'advanced') return 'general'
     return h in TAB_NAMES ? (h as Tab) : 'overview'
   }
   const [tab, setTabState] = useState<Tab>(fromHash)
@@ -279,7 +278,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
   }, [peer.id])
 
   const available = (t: Tab) =>
-    t === 'led' ? !!features.led_preview : t === 'wifi' ? !!features.wifi : t === 'moments' ? !!features.moments : true
+    t === 'led' ? !!features.led_preview : t === 'moments' ? !!features.moments : true
 
   if (props.status === 'offline') return <div class="card">{peer.name} does not answer at {peer.url}.</div>
   if (needLogin || props.status === 'login')
@@ -317,18 +316,19 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
       {!ents && <p class="muted">…</p>}
       {ents && tab === 'overview' && <Overview ents={ents} />}
       {ents && tab === 'controls' && <Controls which="runtime" ents={ents} peer={peer} base={base} reload={load} />}
-      {ents && (tab === 'general' || tab === 'voice') && <ConfigPage key={tab} page={tab} ents={ents} peer={peer} base={base} reload={load} />}
-      {(['home', 'music', 'intercom', 'advanced'] as Tab[]).includes(tab) && <ConfigPage key={tab} page={tab as any} peer={peer} base={base} />}
+      {(tab === 'general' || tab === 'voice') && <ConfigPage key={tab} page={tab} ents={ents || []} peer={peer} base={base} reload={load} />}
+      {(['home', 'music', 'intercom'] as Tab[]).includes(tab) && <ConfigPage key={tab} page={tab as any} peer={peer} base={base} />}
       {tab === 'calibration' && <CalibrationTab peer={peer} base={base} />}
+      {tab === 'calibration' && <ConfigPage page="calibration" peer={peer} base={base} />}
       {tab === 'moments' && <MomentsTab peer={peer} base={base} />}
       {tab === 'led' && <LedTab peer={peer} base={base} />}
-      {tab === 'wifi' && <WifiTab peer={peer} base={base} />}
-      {tab === 'wifi' && (
-        <section class="card">
-          <h3>Wi-Fi setup mode</h3>
-          <ConfigPage page="wifi" peer={peer} base={base} />
-        </section>
-      )}
+      {tab === 'wifi' &&
+        (features.wifi ? (
+          <WifiTab peer={peer} base={base} />
+        ) : (
+          <p class="muted">The Wi-Fi setup mode is off on this speaker: turn it on below to manage the saved networks here.</p>
+        ))}
+      {tab === 'wifi' && <ConfigPage page="wifi" peer={peer} base={base} />}
       {tab === 'log' && <LogTab peer={peer} base={base} />}
       {tab === 'account' && <Account peer={peer} base={base} />}
         </div>

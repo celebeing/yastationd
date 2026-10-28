@@ -43,21 +43,26 @@ type Key struct {
 	set func(*Config, string) error
 }
 
-// Groups orders the settings UI's sections.
-var Groups = []struct{ ID, Title string }{
-	{"identity", "Identity"},
-	{"display", "Display"},
-	{"sound", "Sound"},
-	{"voice", "Voice"},
-	{"music", "Music"},
-	{"intercom", "Intercom"},
-	{"ha", "Home Assistant"},
-	{"network", "Network"},
-	{"wifi_setup", "Wi-Fi setup mode"},
-	{"web", "Web app"},
-	{"video", "Video"},
-	{"system", "System"},
-	{"hardware", "Hardware overrides"},
+// Groups are the settings UI's sections, in order, and the page each is on (the web app's
+// Configuration tabs). A new key joins a section; a new section names its page here. Keys
+// marked Advanced are folded at the bottom of their page.
+var Groups = []struct{ ID, Title, Page string }{
+	{"display", "Display", "general"},
+	{"ambilight", "Ambilight", "general"},
+	{"sound", "Sound", "general"},
+	{"video", "Video", "general"},
+	{"initial", "A new speaker's first values", "general"},
+	{"voice", "Voice", "voice"},
+	{"identity", "Identity", "home"},
+	{"ha", "Home Assistant", "home"},
+	{"web", "Web app", "home"},
+	{"time", "Time", "home"},
+	{"logs", "Logs", "home"},
+	{"music", "Music Assistant", "music"},
+	{"intercom", "Intercom", "intercom"},
+	{"wifi_setup", "Wi-Fi setup mode", "wifi"},
+	{"network", "When the connection is lost", "wifi"},
+	{"calibration", "Mic", "calibration"},
 }
 
 // Keys is every config key, in the settings UI's order within each group.
@@ -182,41 +187,10 @@ func listV(f func(*Config) *[]string) value {
 }
 
 func init() {
-	// --- identity ---
-	reg(Key{Name: "device_id", Group: "identity", Label: "Device ID",
-		Doc: "The speaker's ID in MQTT topics and in Home Assistant's entity IDs. Changing it makes HA see a new device."},
-		textV(func(c *Config) *string { return &c.DeviceID }, nonEmpty))
-	reg(Key{Name: "device_name", Group: "identity", Label: "Name",
-		Doc: "The device's name in Home Assistant and in the web app; also the intercom and Music Assistant name unless those are set."},
-		textV(func(c *Config) *string { return &c.DeviceName }, nonEmpty))
-
 	// --- display ---
-	reg(Key{Name: "tz", Group: "display", Label: "Time zone", Sync: true,
-		Doc: "The clock's time zone, an IANA name such as Europe/Moscow."},
-		textV(func(c *Config) *string { return &c.TZ }, func(v string) error {
-			_, err := time.LoadLocation(v)
-			return err
-		}))
-	reg(Key{Name: "auto_brightness_curve", Group: "display", Label: "Auto brightness curve", Runtime: true, Sync: true, Advanced: true,
-		Doc: "Light (lux) to clock brightness (0–255) points, interpolated between them: lux:level, lux:level, … The first point's level is replaced by the board's dimmest readable level unless the curve is set here."},
-		value{kind: "text",
-			get: func(c *Config) []string { return one(CurveString(c.BrightnessCurve)) },
-			set: func(c *Config, v string) (err error) { c.BrightnessCurve, err = parseCurve(v); return }})
-	reg(Key{Name: "clock_brightness", Group: "display", Label: "Clock brightness at first start", Advanced: true,
-		Doc: "Only the value a new speaker starts with; afterwards the Clock brightness option rules."},
-		intV(0, 255, func(c *Config) *int { return &c.ClockBrightness }))
-	reg(Key{Name: "auto_brightness", Group: "display", Label: "Auto brightness at first start", Advanced: true,
-		Doc: "Only the value a new speaker starts with; afterwards the Auto brightness option rules."},
-		boolV(func(c *Config) *bool { return &c.AutoBrightness }))
-	reg(Key{Name: "display_faces", Group: "display", Label: "Faces at first start", Advanced: true,
-		Doc: "Only the value a new speaker starts with; afterwards the Display faces option rules."},
-		boolV(func(c *Config) *bool { return &c.DisplayFaces }))
-	reg(Key{Name: "ring_brightness", Group: "display", Label: "Ring brightness at first start", Advanced: true,
-		Doc: "Only the value a new speaker starts with; afterwards Home Assistant's light entity rules."},
-		intV(0, 255, func(c *Config) *int { return &c.RingBrightness }))
-	reg(Key{Name: "ambilight_brightness", Group: "display", Label: "Ambilight brightness at first start", Advanced: true, Needs: "ambilight",
-		Doc: "Boards with a rear strip: the value a new speaker starts with; afterwards Home Assistant's light entity rules."},
-		intV(0, 255, func(c *Config) *int { return &c.AmbilightBrightness }))
+	reg(Key{Name: "auto_brightness_min", Group: "display", Label: "Auto brightness: dimmest", Runtime: true,
+		Doc: "The dimmest the clock goes under auto brightness, in the dark. Empty or 0 uses the board's dimmest readable level. The brightest is the clock brightness above."},
+		intV(0, 255, func(c *Config) *int { return &c.AutoBrightnessMin }))
 	reg(Key{Name: "text_lines", Group: "display", Label: "Lines of text", Sync: true, Needs: "pixels",
 		Doc: "Pixel screens: text in one line, two lines, or chosen by its length (auto)."},
 		value{kind: "enum", options: []string{"auto", "1", "2"},
@@ -240,12 +214,35 @@ func init() {
 	reg(Key{Name: "marquee_speed", Group: "display", Label: "Running text speed", Runtime: true, Sync: true,
 		Doc: "How fast running lines move, as a multiple of the default pace."},
 		floatV(0.25, 4, func(c *Config) *float64 { return &c.MarqueeSpeed }))
-	reg(Key{Name: "ddp_port", Group: "display", Label: "DDP port", Sync: true, Needs: "ambilight", Advanced: true,
-		Doc: "Boards with an ambilight: the UDP port for LED frames from LedFx or WLED tools; 0 turns it off."},
-		intV(0, 65535, func(c *Config) *int { return &c.DDPPort }))
-	reg(Key{Name: "ambilight_fx_white", Group: "display", Label: "Ambilight effects: white LED", Runtime: true, Sync: true, Needs: "ambilight",
+	reg(Key{Name: "auto_brightness_curve", Group: "display", Label: "Auto brightness curve", Runtime: true, Sync: true, Advanced: true,
+		Doc: "The shape of auto brightness: light (lux) to a level 0–255 at a few points, lux:level, lux:level, … interpolated between them. The levels are scaled into the range from the dimmest to the clock brightness."},
+		value{kind: "text",
+			get: func(c *Config) []string { return one(CurveString(c.BrightnessCurve)) },
+			set: func(c *Config, v string) (err error) { c.BrightnessCurve, err = parseCurve(v); return }})
+	reg(Key{Name: "lux_path", Group: "display", Label: "Light sensor file", Advanced: true,
+		Doc: "The light sensor's IIO file; empty finds it from the board profile."}, textV(func(c *Config) *string { return &c.LuxPath }, nil))
+	reg(Key{Name: "lux_calibration", Group: "display", Label: "Light sensor calibration", Hidden: true,
+		Doc: "Set on the Calibration tab."},
+		value{kind: "text",
+			get: func(c *Config) []string {
+				if c.LuxCalibration == nil {
+					return one("")
+				}
+				return one(luxcal.String(c.LuxCalibration))
+			},
+			set: func(c *Config, v string) (err error) { c.LuxCalibration, err = luxcal.Parse(v); return }})
+	reg(Key{Name: "clips_dir", Group: "display", Label: "Clips", Advanced: true,
+		Doc: "Our converted stock clips, searched before the firmware's."}, textV(func(c *Config) *string { return &c.ClipsDir }, nil))
+	reg(Key{Name: "scenarios_dir", Group: "display", Label: "Scenarios", Advanced: true,
+		Doc: "Your own scenarios (*.json)."}, textV(func(c *Config) *string { return &c.ScenariosDir }, nil))
+
+	// --- ambilight ---
+	reg(Key{Name: "ambilight_fx_white", Group: "ambilight", Label: "Ambilight effects: white LED", Runtime: true, Sync: true, Needs: "ambilight",
 		Doc: "The white in the ambilight's music effects (the highs of rain, the peak of vu) lights the strip's white LEDs; off, it is mixed from red, green and blue. DDP streams and the HA light are not affected."},
 		boolV(func(c *Config) *bool { return &c.AmbilightFxWhite }))
+	reg(Key{Name: "ddp_port", Group: "ambilight", Label: "DDP port", Sync: true, Needs: "ambilight", Advanced: true,
+		Doc: "Boards with an ambilight: the UDP port for LED frames from LedFx or WLED tools; 0 turns it off."},
+		intV(0, 65535, func(c *Config) *int { return &c.DDPPort }))
 
 	// --- sound ---
 	reg(Key{Name: "volume_step", Group: "sound", Label: "Volume step", Runtime: true, Sync: true,
@@ -260,9 +257,39 @@ func init() {
 	reg(Key{Name: "announce_chime", Group: "sound", Label: "Announcement chime", Runtime: true, Sync: true,
 		Doc: "A chime before an announcement from Home Assistant."},
 		boolV(func(c *Config) *bool { return &c.AnnounceChime }))
-	reg(Key{Name: "room_sound", Group: "sound", Label: "Room sound sensors", Sync: true,
-		Doc: "Sound floor, level and activity sensors in Home Assistant: mic levels once a minute, never audio. They keep the mic open even with the wake word off."},
-		boolV(func(c *Config) *bool { return &c.RoomSound }))
+	reg(Key{Name: "amixer_card", Group: "sound", Label: "Mixer card", Advanced: true, Doc: "Overrides the board's."},
+		overrideV("amixer_card", textV(func(c *Config) *string { return &c.AmixerCard }, nil)))
+	reg(Key{Name: "aplay_device", Group: "sound", Label: "Playback device", Advanced: true, Doc: "Overrides the board's."},
+		overrideV("aplay_device", textV(func(c *Config) *string { return &c.AplayDevice }, nil)))
+	reg(Key{Name: "unmute", Group: "sound", Label: "Unmute controls", Advanced: true,
+		Doc: "Replaces the board's list of mixer settings applied at start, one per line."},
+		listV(func(c *Config) *[]string { return &c.Unmute }))
+
+	// --- video ---
+	reg(Key{Name: "video_frames", Group: "video", Label: "Video frames", Advanced: true, Needs: "pixels",
+		Doc: "The video mode's frames file (made by cmd/videoconv)."}, textV(func(c *Config) *string { return &c.VideoFrames }, nil))
+	reg(Key{Name: "video_audio", Group: "video", Label: "Video sound", Advanced: true, Needs: "pixels",
+		Doc: "The video mode's WAV."}, textV(func(c *Config) *string { return &c.VideoAudio }, nil))
+	reg(Key{Name: "video_av_offset_ms", Group: "video", Label: "Picture offset", Runtime: true, Needs: "pixels", Advanced: true,
+		Doc: "Shifts the picture against the sound; positive shows it later."},
+		durV(-2000, 2000, time.Millisecond, func(c *Config) *time.Duration { return &c.VideoAVOffset }))
+
+	// --- a new speaker's first values ---
+	reg(Key{Name: "clock_brightness", Group: "initial", Label: "Clock brightness", Advanced: true,
+		Doc: "Only the value a new speaker starts with (the fixed level, and the brightest auto brightness goes); afterwards the Clock brightness option rules."},
+		intV(0, 255, func(c *Config) *int { return &c.ClockBrightness }))
+	reg(Key{Name: "auto_brightness", Group: "initial", Label: "Auto brightness", Advanced: true,
+		Doc: "Only the value a new speaker starts with; afterwards the Auto brightness option rules."},
+		boolV(func(c *Config) *bool { return &c.AutoBrightness }))
+	reg(Key{Name: "display_faces", Group: "initial", Label: "Faces", Advanced: true,
+		Doc: "Only the value a new speaker starts with; afterwards the Display faces option rules."},
+		boolV(func(c *Config) *bool { return &c.DisplayFaces }))
+	reg(Key{Name: "ring_brightness", Group: "initial", Label: "Ring brightness", Advanced: true,
+		Doc: "Only the value a new speaker starts with; afterwards Home Assistant's light entity rules."},
+		intV(0, 255, func(c *Config) *int { return &c.RingBrightness }))
+	reg(Key{Name: "ambilight_brightness", Group: "initial", Label: "Ambilight brightness", Advanced: true, Needs: "ambilight",
+		Doc: "Boards with a rear strip: the value a new speaker starts with; afterwards Home Assistant's light entity rules."},
+		intV(0, 255, func(c *Config) *int { return &c.AmbilightBrightness }))
 
 	// --- voice ---
 	reg(Key{Name: "wake_enabled", Group: "voice", Label: "Wake word", Sync: true,
@@ -279,20 +306,138 @@ func init() {
 	reg(Key{Name: "wake_while_waiting", Group: "voice", Label: "Wake word while waiting", Runtime: true, Sync: true,
 		Doc: "A wake word while a reply is pending: interrupt starts the new request as soon as Home Assistant is back; ignore blinks busy."},
 		enumV([]string{"interrupt", "ignore"}, func(c *Config) *string { return &c.WakeWhileWaiting }))
-	reg(Key{Name: "arbitration", Group: "voice", Label: "Nearest speaker answers", Runtime: true, Sync: true,
+	reg(Key{Name: "arbitration", Group: "voice", Label: "Nearest speaker answers", Sync: true,
 		Doc: "Speakers that hear the same «Алиса» agree that only the loudest answers."},
 		boolV(func(c *Config) *bool { return &c.Arbitration }))
 	reg(Key{Name: "arbitration_wait_ms", Group: "voice", Label: "Arbitration wait", Runtime: true, Sync: true, Advanced: true,
 		Doc: "The longest a quiet claim waits for louder speakers to speak up."},
 		durV(100, 3000, time.Millisecond, func(c *Config) *time.Duration { return &c.ArbitrationWait }))
-	reg(Key{Name: "boot_connect_timeout", Group: "voice", Label: "First connection deadline", Sync: true, Advanced: true,
-		Doc: "After boot, how long the broker and Home Assistant's link may take before the speaker shows that the first connection failed."},
-		durV(1, 600, time.Second, func(c *Config) *time.Duration { return &c.BootConnectTimeout }))
+	reg(Key{Name: "spotter_bin", Group: "voice", Label: "Spotter binary", Advanced: true,
+		Doc: "spotter-host, the voice front-end."}, textV(func(c *Config) *string { return &c.SpotterBin }, nil))
+	reg(Key{Name: "mic_device", Group: "voice", Label: "Mic device", Advanced: true, Doc: "Overrides the board's."},
+		overrideV("mic_device", textV(func(c *Config) *string { return &c.MicDevice }, nil)))
+	reg(Key{Name: "mic_channels", Group: "voice", Label: "Mic channels", Advanced: true, Doc: "Overrides the board's."},
+		overrideV("mic_channels", intV(1, 16, func(c *Config) *int { return &c.MicChannels })))
+	reg(Key{Name: "mic_rate", Group: "voice", Label: "Mic rate", Advanced: true,
+		Doc: "The device rate, decimated to 16 kHz: a multiple of 16000."},
+		overrideV("mic_rate", intV(16000, 96000, func(c *Config) *int { return &c.MicRate })))
+	reg(Key{Name: "mic_channel", Group: "voice", Label: "Mic channel", Advanced: true, Doc: "Overrides the board's."},
+		overrideV("mic_channel", intV(0, 15, func(c *Config) *int { return &c.MicChannel })))
+	reg(Key{Name: "mic_pdm_gain", Group: "voice", Label: "Mic PDM gain", Advanced: true, Doc: "Overrides the board's; -1 leaves it."},
+		overrideV("mic_pdm_gain", intV(-1, 48, func(c *Config) *int { return &c.MicPDMGain })))
+	reg(Key{Name: "spotter_libs", Group: "voice", Label: "Vendor libraries", Advanced: true, Doc: "Overrides the board's."},
+		overrideV("spotter_libs", textV(func(c *Config) *string { return &c.SpotterLibs }, nil)))
+	reg(Key{Name: "wake_model", Group: "voice", Label: "Wake word model", Advanced: true, Doc: "Overrides the board's."},
+		overrideV("wake_model", textV(func(c *Config) *string { return &c.WakeModel }, nil)))
+	reg(Key{Name: "command_model", Group: "voice", Label: "Command model", Advanced: true, Doc: "Overrides the board's."},
+		overrideV("command_model", textV(func(c *Config) *string { return &c.CommandModel }, nil)))
+
+	// --- identity ---
+	reg(Key{Name: "device_id", Group: "identity", Label: "Device ID",
+		Doc: "The speaker's ID in MQTT topics and in Home Assistant's entity IDs. Changing it makes HA see a new device."},
+		textV(func(c *Config) *string { return &c.DeviceID }, nonEmpty))
+	reg(Key{Name: "device_name", Group: "identity", Label: "Name",
+		Doc: "The device's name in Home Assistant and in the web app; also the intercom and Music Assistant name unless those are set."},
+		textV(func(c *Config) *string { return &c.DeviceName }, nonEmpty))
+	reg(Key{Name: "board", Group: "identity", Label: "Board", Advanced: true,
+		Doc: "auto detects the model from the device tree; or a codename (bergamot, pickle, orion)."},
+		textV(func(c *Config) *string { return &c.Board }, nil))
+	reg(Key{Name: "board_file", Group: "identity", Label: "Board overrides file", Advanced: true,
+		Doc: "Single board-profile keys changed without a rebuild."}, textV(func(c *Config) *string { return &c.BoardFile }, nil))
+
+	// --- home assistant ---
+	reg(Key{Name: "mqtt_host", Group: "ha", Label: "MQTT broker",
+		Doc: "Home Assistant's MQTT broker; empty runs the speaker without one."},
+		textV(func(c *Config) *string { return &c.MQTTHost }, nil))
+	reg(Key{Name: "mqtt_port", Group: "ha", Label: "MQTT port",
+		Doc: "The broker's port."}, intV(1, 65535, func(c *Config) *int { return &c.MQTTPort }))
+	reg(Key{Name: "mqtt_user", Group: "ha", Label: "MQTT user", Doc: "Empty for a broker without a login."},
+		textV(func(c *Config) *string { return &c.MQTTUser }, nil))
+	reg(Key{Name: "mqtt_pass", Group: "ha", Label: "MQTT password", Doc: "The broker's password."},
+		secretV(func(c *Config) *string { return &c.MQTTPass }, nil))
+	reg(Key{Name: "room_sound", Group: "ha", Label: "Room sound sensors", Sync: true,
+		Doc: "Sound floor, level and activity sensors in Home Assistant: mic levels once a minute, never audio. They keep the mic open even with the wake word off."},
+		boolV(func(c *Config) *bool { return &c.RoomSound }))
 	reg(Key{Name: "wyoming_port", Group: "ha", Label: "Wyoming port", Advanced: true,
 		Doc: "The port Home Assistant's Wyoming integration connects to; 0 turns the satellite off."},
 		intV(0, 65535, func(c *Config) *int { return &c.WyomingPort }))
+	reg(Key{Name: "boot_connect_timeout", Group: "ha", Label: "First connection deadline", Sync: true, Advanced: true,
+		Doc: "After boot, how long the broker and Home Assistant's link may take before the speaker shows that the first connection failed."},
+		durV(1, 600, time.Second, func(c *Config) *time.Duration { return &c.BootConnectTimeout }))
+	reg(Key{Name: "topic_prefix", Group: "ha", Label: "Topic prefix", Advanced: true,
+		Doc: "State and command topics are <prefix>/<device ID>/…; every speaker that should see the others needs the same one."},
+		textV(func(c *Config) *string { return &c.TopicPrefix }, nonEmpty))
+	reg(Key{Name: "discovery_prefix", Group: "ha", Label: "Discovery prefix", Advanced: true,
+		Doc: "Home Assistant's MQTT discovery prefix."},
+		textV(func(c *Config) *string { return &c.DiscoveryPrefix }, nonEmpty))
+	reg(Key{Name: "probe", Group: "ha", Label: "Health probes", Sync: true, Advanced: true,
+		Doc: "Reachability checks for the health state, one per line: name=host:port@role, role broker, pipeline or lan."},
+		listV(func(c *Config) *[]string { return &c.Probes }))
 
-	// --- music ---
+	// --- web app ---
+	reg(Key{Name: "http_addr", Group: "web", Label: "Web server address", Advanced: true,
+		Doc: "[host]:port of this web app and its API; empty turns it off."},
+		textV(func(c *Config) *string { return &c.HTTPAddr }, func(v string) error {
+			if v == "" {
+				return nil
+			}
+			_, port, perr := net.SplitHostPort(v)
+			n, aerr := strconv.Atoi(port)
+			if perr != nil || aerr != nil || n < 1 || n > 65535 {
+				return fmt.Errorf("want [host]:port, e.g. :80")
+			}
+			return nil
+		}))
+	reg(Key{Name: "web_user", Group: "web", Label: "Login", Hidden: true, Doc: "Set on the Login tab."},
+		textV(func(c *Config) *string { return &c.WebUser }, nonEmpty))
+	reg(Key{Name: "web_password", Group: "web", Label: "Password", Hidden: true, Doc: "Set on the Login tab."},
+		secretV(func(c *Config) *string { return &c.WebPassword }, func(v string) error {
+			if !web.ValidHash(v) {
+				return fmt.Errorf("want a pbkdf2-sha256$… hash (set it from the web UI)")
+			}
+			return nil
+		}))
+	reg(Key{Name: "led_preview", Group: "web", Label: "LED preview", Sync: true,
+		Doc: "The LED tab: what the screen, the ring and the ambilight show, live."},
+		boolV(func(c *Config) *bool { return &c.LEDPreview }))
+	reg(Key{Name: "frametap_addr", Group: "web", Label: "Frame tap address", Advanced: true,
+		Doc: "Development: a separate, unauthenticated LED stream for the desk tools (e.g. :8930). Empty turns it off."},
+		textV(func(c *Config) *string { return &c.FrameTapAddr }, nil))
+
+	// --- time ---
+	reg(Key{Name: "tz", Group: "time", Label: "Time zone", Sync: true,
+		Doc: "The clock's time zone, an IANA name such as Europe/Moscow."},
+		textV(func(c *Config) *string { return &c.TZ }, func(v string) error {
+			_, err := time.LoadLocation(v)
+			return err
+		}))
+	reg(Key{Name: "time_sync", Group: "time", Label: "Clock sync", Sync: true, Advanced: true,
+		Doc: "Set the clock over NTP when the firmware runs no time daemon."},
+		boolV(func(c *Config) *bool { return &c.TimeSync }))
+	reg(Key{Name: "ntp_server", Group: "time", Label: "NTP servers", Sync: true,
+		Doc: "Tried first, one per line; then the servers in the chrony config, then the default gateway."},
+		listV(func(c *Config) *[]string { return &c.NTPServers }))
+	reg(Key{Name: "chrony_conf", Group: "time", Label: "chrony config", Advanced: true,
+		Doc: "Where to find more NTP servers."}, textV(func(c *Config) *string { return &c.ChronyConf }, nil))
+
+	// --- logs ---
+	reg(Key{Name: "log_remote", Group: "logs", Label: "Syslog server", Sync: true,
+		Doc: "host:port of a syslog server on the LAN (TCP). Logs wait on flash while it is unreachable. Empty turns it off."},
+		textV(func(c *Config) *string { return &c.LogRemote }, nil))
+	reg(Key{Name: "log_spool_kb", Group: "logs", Label: "Log spool size", Unit: "KB", Sync: true, Advanced: true,
+		Doc: "The most logs kept on flash while the syslog server is unreachable."},
+		intV(64, 65536, func(c *Config) *int { return &c.LogSpoolKB }))
+	reg(Key{Name: "log_level", Group: "logs", Label: "Log level", Advanced: true,
+		Doc: "How much the daemon logs."}, enumV([]string{"debug", "info", "warn", "error"}, func(c *Config) *string { return &c.LogLevel }))
+	reg(Key{Name: "state_file", Group: "logs", Label: "State file", Hidden: true,
+		Doc: "Where the speaker keeps what Home Assistant set (ring colour, display mode, volume…)."},
+		textV(func(c *Config) *string { return &c.StateFile }, nil))
+	reg(Key{Name: "heartbeat_file", Group: "logs", Label: "Heartbeat file", Hidden: true,
+		Doc: "Touched while the daemon is alive."}, textV(func(c *Config) *string { return &c.HeartbeatFile }, nil))
+	reg(Key{Name: "sysroot", Group: "logs", Label: "Sysroot", Hidden: true,
+		Doc: "Testing: a fake root for /sys and /dev."}, textV(func(c *Config) *string { return &c.SysRoot }, nil))
+
+	// --- music assistant ---
 	reg(Key{Name: "sendspin", Group: "music", Label: "Music Assistant player", Sync: true,
 		Doc: "Play music from Music Assistant (Sendspin)."},
 		boolV(func(c *Config) *bool { return &c.Sendspin }))
@@ -317,7 +462,7 @@ func init() {
 	reg(Key{Name: "music_clips", Group: "music", Label: "Pause and resume animations", Runtime: true, Sync: true,
 		Doc: "Animations on the front display when the music pauses and resumes."},
 		boolV(func(c *Config) *bool { return &c.MusicClips }))
-	reg(Key{Name: "music_levels", Group: "music", Label: "Spectrum under the clock", Runtime: true, Sync: true, Needs: "pixels",
+	reg(Key{Name: "music_levels", Group: "music", Label: "Spectrum under the clock", Sync: true, Needs: "pixels",
 		Doc: "Pixel screens: the music's spectrum under the clock."},
 		boolV(func(c *Config) *bool { return &c.MusicLevels }))
 	reg(Key{Name: "sendspin_port", Group: "music", Label: "Player port", Advanced: true,
@@ -373,58 +518,8 @@ func init() {
 		Doc: "Testing: each call's raw uplink is saved in this directory."},
 		textV(func(c *Config) *string { return &c.IntercomRecordDir }, nil))
 
-	// --- Home Assistant ---
-	reg(Key{Name: "mqtt_host", Group: "ha", Label: "MQTT broker",
-		Doc: "Home Assistant's MQTT broker; empty runs the speaker without one."},
-		textV(func(c *Config) *string { return &c.MQTTHost }, nil))
-	reg(Key{Name: "mqtt_port", Group: "ha", Label: "MQTT port",
-		Doc: "The broker's port."}, value{kind: "int", min: 1, max: 65535,
-		get: func(c *Config) []string { return one(strconv.Itoa(c.MQTTPort)) },
-		set: func(c *Config, v string) (err error) { c.MQTTPort, err = strconv.Atoi(v); return }})
-	reg(Key{Name: "mqtt_user", Group: "ha", Label: "MQTT user", Doc: "Empty for a broker without a login."},
-		textV(func(c *Config) *string { return &c.MQTTUser }, nil))
-	reg(Key{Name: "mqtt_pass", Group: "ha", Label: "MQTT password", Doc: "The broker's password."},
-		secretV(func(c *Config) *string { return &c.MQTTPass }, nil))
-	reg(Key{Name: "topic_prefix", Group: "ha", Label: "Topic prefix", Advanced: true,
-		Doc: "State and command topics are <prefix>/<device ID>/…; every speaker that should see the others needs the same one."},
-		textV(func(c *Config) *string { return &c.TopicPrefix }, nonEmpty))
-	reg(Key{Name: "discovery_prefix", Group: "ha", Label: "Discovery prefix", Advanced: true,
-		Doc: "Home Assistant's MQTT discovery prefix."},
-		textV(func(c *Config) *string { return &c.DiscoveryPrefix }, nonEmpty))
-	reg(Key{Name: "probe", Group: "ha", Label: "Health probes", Advanced: true,
-		Doc: "Reachability checks for the health state, one per line: name=host:port@role, role broker, pipeline or lan."},
-		listV(func(c *Config) *[]string { return &c.Probes }))
-
-	// --- network ---
-	reg(Key{Name: "net_watchdog_min", Group: "network", Label: "Reboot when offline for", Sync: true,
-		Doc: "Reboot when the default gateway has been unreachable this long (doubling after each such reboot, up to 4 h); 0 turns it off."},
-		durV(0, 1440, time.Minute, func(c *Config) *time.Duration { return &c.NetWatchdog }))
-	reg(Key{Name: "net_wifi_recovery", Group: "network", Label: "Wi-Fi recovery", Sync: true, Advanced: true,
-		Doc: "Before rebooting, bring the Wi-Fi back as the stock firmware does: reload the Wi-Fi config, then reset the controller."},
-		boolV(func(c *Config) *bool { return &c.NetWifiRecovery }))
-	reg(Key{Name: "net_wifi_reconfigure_min", Group: "network", Label: "Reload Wi-Fi config after", Sync: true, Advanced: true,
-		Doc: "0 skips this step."}, durV(0, 1440, time.Minute, func(c *Config) *time.Duration { return &c.NetWifiReconfigure }))
-	reg(Key{Name: "net_wifi_reset_min", Group: "network", Label: "Reset Wi-Fi after", Sync: true, Advanced: true,
-		Doc: "0 skips this step."}, durV(0, 1440, time.Minute, func(c *Config) *time.Duration { return &c.NetWifiReset }))
-	reg(Key{Name: "net_wifi_reset_every_min", Group: "network", Label: "Reset Wi-Fi again every", Sync: true, Advanced: true,
-		Doc: "0 resets only once."}, durV(0, 1440, time.Minute, func(c *Config) *time.Duration { return &c.NetWifiResetEvery }))
-	reg(Key{Name: "time_sync", Group: "network", Label: "Clock sync", Sync: true, Advanced: true,
-		Doc: "Set the clock over NTP when the firmware runs no time daemon."},
-		boolV(func(c *Config) *bool { return &c.TimeSync }))
-	reg(Key{Name: "ntp_server", Group: "network", Label: "NTP servers", Sync: true,
-		Doc: "Tried first, one per line; then the servers in the chrony config, then the default gateway."},
-		listV(func(c *Config) *[]string { return &c.NTPServers }))
-	reg(Key{Name: "chrony_conf", Group: "network", Label: "chrony config", Advanced: true,
-		Doc: "Where to find more NTP servers."}, textV(func(c *Config) *string { return &c.ChronyConf }, nil))
-	reg(Key{Name: "log_remote", Group: "network", Label: "Syslog server", Sync: true,
-		Doc: "host:port of a syslog server on the LAN (TCP). Logs wait on flash while it is unreachable. Empty turns it off."},
-		textV(func(c *Config) *string { return &c.LogRemote }, nil))
-	reg(Key{Name: "log_spool_kb", Group: "network", Label: "Log spool size", Unit: "KB", Sync: true, Advanced: true,
-		Doc: "The most logs kept on flash while the syslog server is unreachable."},
-		intV(64, 65536, func(c *Config) *int { return &c.LogSpoolKB }))
-
-	// --- Wi-Fi setup mode ---
-	reg(Key{Name: "wifi_setup", Group: "wifi_setup", Label: "Wi-Fi setup mode", Sync: true,
+	// --- wi-fi setup mode ---
+	reg(Key{Name: "wifi_setup", Group: "wifi_setup", Label: "Wi-Fi setup mode",
 		Doc: "Mute the mic, then hold the voice key for 5 s: the speaker becomes an access point with a page for its saved networks."},
 		boolV(func(c *Config) *bool { return &c.WifiSetup }))
 	reg(Key{Name: "wifi_setup_ssid", Group: "wifi_setup", Label: "Network name",
@@ -462,109 +557,24 @@ func init() {
 	reg(Key{Name: "wpa_conf", Group: "wifi_setup", Label: "wpa_supplicant config", Advanced: true,
 		Doc: "Empty uses the running wpa_supplicant's -c."}, textV(func(c *Config) *string { return &c.WPAConf }, nil))
 
-	// --- web ---
-	reg(Key{Name: "http_addr", Group: "ha", Label: "Web server address", Advanced: true,
-		Doc: "[host]:port of this web app and its API; empty turns it off."},
-		textV(func(c *Config) *string { return &c.HTTPAddr }, func(v string) error {
-			if v == "" {
-				return nil
-			}
-			_, port, perr := net.SplitHostPort(v)
-			n, aerr := strconv.Atoi(port)
-			if perr != nil || aerr != nil || n < 1 || n > 65535 {
-				return fmt.Errorf("want [host]:port, e.g. :80")
-			}
-			return nil
-		}))
-	reg(Key{Name: "web_user", Group: "web", Label: "Login", Hidden: true, Doc: "Set on the Login tab."},
-		textV(func(c *Config) *string { return &c.WebUser }, nonEmpty))
-	reg(Key{Name: "web_password", Group: "web", Label: "Password", Hidden: true, Doc: "Set on the Login tab."},
-		secretV(func(c *Config) *string { return &c.WebPassword }, func(v string) error {
-			if !web.ValidHash(v) {
-				return fmt.Errorf("want a pbkdf2-sha256$… hash (set it from the web UI)")
-			}
-			return nil
-		}))
-	reg(Key{Name: "led_preview", Group: "web", Label: "LED preview", Sync: true, Advanced: true,
-		Doc: "The LED tab: what the screen, the ring and the ambilight show, live."},
-		boolV(func(c *Config) *bool { return &c.LEDPreview }))
-	reg(Key{Name: "frametap_addr", Group: "web", Label: "Frame tap address", Advanced: true,
-		Doc: "Development: a separate, unauthenticated LED stream for the desk tools (e.g. :8930). Empty turns it off."},
-		textV(func(c *Config) *string { return &c.FrameTapAddr }, nil))
+	// --- when the connection is lost ---
+	reg(Key{Name: "net_watchdog_min", Group: "network", Label: "Reboot when offline for", Sync: true,
+		Doc: "Reboot when the default gateway has been unreachable this long (doubling after each such reboot, up to 4 h); 0 turns it off."},
+		durV(0, 1440, time.Minute, func(c *Config) *time.Duration { return &c.NetWatchdog }))
+	reg(Key{Name: "net_wifi_recovery", Group: "network", Label: "Wi-Fi recovery", Sync: true, Advanced: true,
+		Doc: "Before rebooting, bring the Wi-Fi back as the stock firmware does: reload the Wi-Fi config, then reset the controller."},
+		boolV(func(c *Config) *bool { return &c.NetWifiRecovery }))
+	reg(Key{Name: "net_wifi_reconfigure_min", Group: "network", Label: "Reload Wi-Fi config after", Sync: true, Advanced: true,
+		Doc: "0 skips this step."}, durV(0, 1440, time.Minute, func(c *Config) *time.Duration { return &c.NetWifiReconfigure }))
+	reg(Key{Name: "net_wifi_reset_min", Group: "network", Label: "Reset Wi-Fi after", Sync: true, Advanced: true,
+		Doc: "0 skips this step."}, durV(0, 1440, time.Minute, func(c *Config) *time.Duration { return &c.NetWifiReset }))
+	reg(Key{Name: "net_wifi_reset_every_min", Group: "network", Label: "Reset Wi-Fi again every", Sync: true, Advanced: true,
+		Doc: "0 resets only once."}, durV(0, 1440, time.Minute, func(c *Config) *time.Duration { return &c.NetWifiResetEvery }))
 
-	// --- video ---
-	reg(Key{Name: "video_frames", Group: "video", Label: "Video frames", Advanced: true, Needs: "pixels",
-		Doc: "The video mode's frames file (made by cmd/videoconv)."}, textV(func(c *Config) *string { return &c.VideoFrames }, nil))
-	reg(Key{Name: "video_audio", Group: "video", Label: "Video sound", Advanced: true, Needs: "pixels",
-		Doc: "The video mode's WAV."}, textV(func(c *Config) *string { return &c.VideoAudio }, nil))
-	reg(Key{Name: "video_av_offset_ms", Group: "video", Label: "Picture offset", Runtime: true, Needs: "pixels", Advanced: true,
-		Doc: "Shifts the picture against the sound; positive shows it later."},
-		durV(-2000, 2000, time.Millisecond, func(c *Config) *time.Duration { return &c.VideoAVOffset }))
-
-	// --- system ---
-	reg(Key{Name: "lux_calibration", Group: "system", Label: "Light sensor calibration", Hidden: true,
-		Doc: "Set on the Calibration tab."},
-		value{kind: "text",
-			get: func(c *Config) []string {
-				if c.LuxCalibration == nil {
-					return one("")
-				}
-				return one(luxcal.String(c.LuxCalibration))
-			},
-			set: func(c *Config, v string) (err error) { c.LuxCalibration, err = luxcal.Parse(v); return }})
-	reg(Key{Name: "mic_spl_offset", Group: "system", Label: "Mic calibration", Unit: "dB", Advanced: true,
+	// --- mic ---
+	reg(Key{Name: "mic_spl_offset", Group: "calibration", Label: "Mic calibration", Unit: "dB",
 		Doc: "This speaker's dBFS to dB SPL offset, over the board's; 0 uses the board's."},
-		value{kind: "float", min: -200, max: 200,
-			get: func(c *Config) []string { return one(strconv.FormatFloat(c.MicSPLOffset, 'f', -1, 64)) },
-			set: func(c *Config, v string) (err error) { c.MicSPLOffset, err = strconv.ParseFloat(v, 64); return }})
-	reg(Key{Name: "log_level", Group: "system", Label: "Log level", Advanced: true,
-		Doc: "debug, info, warn or error."}, textV(func(c *Config) *string { return &c.LogLevel }, nil))
-	reg(Key{Name: "clips_dir", Group: "system", Label: "Clips", Advanced: true,
-		Doc: "Our converted stock clips, searched before the firmware's."}, textV(func(c *Config) *string { return &c.ClipsDir }, nil))
-	reg(Key{Name: "scenarios_dir", Group: "system", Label: "Scenarios", Advanced: true,
-		Doc: "Your own scenarios (*.json)."}, textV(func(c *Config) *string { return &c.ScenariosDir }, nil))
-	reg(Key{Name: "spotter_bin", Group: "system", Label: "Spotter binary", Advanced: true,
-		Doc: "spotter-host, the voice front-end."}, textV(func(c *Config) *string { return &c.SpotterBin }, nil))
-	reg(Key{Name: "state_file", Group: "system", Label: "State file", Advanced: true,
-		Doc: "Where the speaker keeps what Home Assistant set (ring colour, display mode, volume…)."},
-		textV(func(c *Config) *string { return &c.StateFile }, nil))
-	reg(Key{Name: "heartbeat_file", Group: "system", Label: "Heartbeat file", Advanced: true,
-		Doc: "Touched while the daemon is alive."}, textV(func(c *Config) *string { return &c.HeartbeatFile }, nil))
-	reg(Key{Name: "sysroot", Group: "system", Label: "Sysroot", Advanced: true,
-		Doc: "Testing: a fake root for /sys and /dev."}, textV(func(c *Config) *string { return &c.SysRoot }, nil))
-
-	// --- hardware overrides (only when set in the file: Config.Has) ---
-	reg(Key{Name: "board", Group: "hardware", Label: "Board", Advanced: true,
-		Doc: "auto detects the model from the device tree; or a codename (bergamot, pickle, orion)."},
-		textV(func(c *Config) *string { return &c.Board }, nil))
-	reg(Key{Name: "board_file", Group: "hardware", Label: "Board overrides file", Advanced: true,
-		Doc: "Single board-profile keys changed without a rebuild."}, textV(func(c *Config) *string { return &c.BoardFile }, nil))
-	reg(Key{Name: "lux_path", Group: "hardware", Label: "Light sensor file", Advanced: true,
-		Doc: "The light sensor's IIO file; empty finds it from the board profile."}, textV(func(c *Config) *string { return &c.LuxPath }, nil))
-	reg(Key{Name: "amixer_card", Group: "hardware", Label: "Mixer card", Advanced: true, Doc: "Overrides the board's."},
-		overrideV("amixer_card", textV(func(c *Config) *string { return &c.AmixerCard }, nil)))
-	reg(Key{Name: "aplay_device", Group: "hardware", Label: "Playback device", Advanced: true, Doc: "Overrides the board's."},
-		overrideV("aplay_device", textV(func(c *Config) *string { return &c.AplayDevice }, nil)))
-	reg(Key{Name: "unmute", Group: "hardware", Label: "Unmute controls", Advanced: true,
-		Doc: "Replaces the board's list of mixer settings applied at start, one per line."},
-		listV(func(c *Config) *[]string { return &c.Unmute }))
-	reg(Key{Name: "mic_device", Group: "hardware", Label: "Mic device", Advanced: true, Doc: "Overrides the board's."},
-		overrideV("mic_device", textV(func(c *Config) *string { return &c.MicDevice }, nil)))
-	reg(Key{Name: "mic_channels", Group: "hardware", Label: "Mic channels", Advanced: true, Doc: "Overrides the board's."},
-		overrideV("mic_channels", intV(1, 16, func(c *Config) *int { return &c.MicChannels })))
-	reg(Key{Name: "mic_rate", Group: "hardware", Label: "Mic rate", Advanced: true,
-		Doc: "The device rate, decimated to 16 kHz: a multiple of 16000."},
-		overrideV("mic_rate", intV(16000, 96000, func(c *Config) *int { return &c.MicRate })))
-	reg(Key{Name: "mic_channel", Group: "hardware", Label: "Mic channel", Advanced: true, Doc: "Overrides the board's."},
-		overrideV("mic_channel", intV(0, 15, func(c *Config) *int { return &c.MicChannel })))
-	reg(Key{Name: "mic_pdm_gain", Group: "hardware", Label: "Mic PDM gain", Advanced: true, Doc: "Overrides the board's; -1 leaves it."},
-		overrideV("mic_pdm_gain", intV(-1, 48, func(c *Config) *int { return &c.MicPDMGain })))
-	reg(Key{Name: "spotter_libs", Group: "hardware", Label: "Vendor libraries", Advanced: true, Doc: "Overrides the board's."},
-		overrideV("spotter_libs", textV(func(c *Config) *string { return &c.SpotterLibs }, nil)))
-	reg(Key{Name: "wake_model", Group: "hardware", Label: "Wake word model", Advanced: true, Doc: "Overrides the board's."},
-		overrideV("wake_model", textV(func(c *Config) *string { return &c.WakeModel }, nil)))
-	reg(Key{Name: "command_model", Group: "hardware", Label: "Command model", Advanced: true, Doc: "Overrides the board's."},
-		overrideV("command_model", textV(func(c *Config) *string { return &c.CommandModel }, nil)))
+		floatV(-200, 200, func(c *Config) *float64 { return &c.MicSPLOffset }))
 }
 
 // overrideV: a hardware override prints empty unless the file sets it (the board's value rules).

@@ -207,7 +207,8 @@ findings: [`../docs/music-sendspin.md`](../docs/music-sendspin.md).
    mapped through `auto_brightness_curve` (default `0.04:4, 0.55:128, 10:255`, calibrated on the
    black bergamot against a lux meter: 1 lx → 0.03, 37 lx → 0.55, office light → 80; 4 is the
    dimmest still readable in the dark, 128 comfortable in normal light), 8 % hysteresis. HA: switch
-   `Auto brightness`, number `Clock brightness` (setting it turns auto off); `Illuminance` now
+   `Auto brightness`, number `Clock brightness` (the fixed level, and since 2026-10-28 the brightest
+   auto goes; setting it no longer turns auto off); `Illuminance` now
    publishes the smoothed reading. **Sensors differ a lot between units** (same daylight: 0.48 /
    10.8 / 18.7 on the three speakers) — set a per-unit `auto_brightness_curve` if a speaker
    doesn't dim at night; calibrate from its `Illuminance` history.
@@ -217,6 +218,10 @@ findings: [`../docs/music-sendspin.md`](../docs/music-sendspin.md).
    doubling per 1.5 s) instead of jumping; the hysteresis is 8 % (with a whole step only where
    levels are whole steps). The curve's darkest point defaults to the board's
    `matrix.min_brightness` (bergamot, pickle 4; orion 2), which also floors the manual level.
+   **Range since 2026-10-28:** auto runs from the dimmest (`auto_brightness_min`, else the board's
+   minimum) to the clock brightness: the curve's darkest level maps to the first, 255 to the second.
+   A state file from before with auto on gets clock brightness 255, so nothing changes until it is
+   set.
    On orion the level goes to the screen's backlight (`matrix.backlight`), with the frame at
    2/3..full scale making up the fraction: a dimmed frame lost its half-tones at the dark end,
    a dim backlight keeps them (A/B on glass).

@@ -32,9 +32,12 @@ type persistState struct {
 	FollowUp          string `json:"follow_up"`    // dialog mode: off|question|always
 	Volume            int    `json:"volume"`       // Master 0..255; -1 = never set (leave the boot value)
 	ClockAuto         bool   `json:"clock_auto"`   // clock brightness follows the light sensor
-	ClockBright       int    `json:"clock_bright"` // manual clock brightness 1..255
-	MusicVolume       int    `json:"music_volume"` // Music Assistant player volume 0..100 (volume "separate")
-	Faces             bool   `json:"faces"`        // voice expressions on the front display
+	ClockBright       int    `json:"clock_bright"` // clock brightness 1..255: fixed when not auto, else the brightest auto goes
+	// ClockMax: ClockBright is also the auto maximum (since 2026-10-28). A file from before has
+	// it false: with auto on, its level was unused, so it becomes 255 (auto reached that).
+	ClockMax    bool `json:"clock_bright_is_max,omitempty"`
+	MusicVolume int  `json:"music_volume"` // Music Assistant player volume 0..100 (volume "separate")
+	Faces       bool `json:"faces"`        // voice expressions on the front display
 }
 
 func defaultState(ringBright, ambilightBright, clockBright int, clockAuto bool) persistState {
@@ -57,6 +60,7 @@ func defaultState(ringBright, ambilightBright, clockBright int, clockAuto bool) 
 		MusicVolume:       100,
 		ClockAuto:         clockAuto,
 		ClockBright:       max(clockBright, 1),
+		ClockMax:          true,
 	}
 }
 
@@ -86,6 +90,7 @@ func newStateStore(path string, dflt persistState) *stateStore {
 		// Unmarshal over the defaults so fields added since the file was written keep theirs.
 		// (Volume is absent in older files and stays -1 = untouched.)
 		loaded := dflt
+		loaded.ClockMax = false // only what the file says
 		if json.Unmarshal(b, &loaded) == nil {
 			if loaded.ClockBright <= 0 {
 				loaded.ClockBright = dflt.ClockBright
@@ -104,6 +109,12 @@ func newStateStore(path string, dflt persistState) *stateStore {
 			}
 			if loaded.FollowUp == "" {
 				loaded.FollowUp = dflt.FollowUp
+			}
+			if !loaded.ClockMax {
+				if loaded.ClockAuto {
+					loaded.ClockBright = 255
+				}
+				loaded.ClockMax = true
 			}
 			st.s = loaded
 		}

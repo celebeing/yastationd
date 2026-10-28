@@ -65,6 +65,21 @@ func TestApplyConfigText(t *testing.T) {
 	}
 }
 
+// A line an older build took and this one refuses stays in the file without blocking other
+// changes; a new bad line is still refused.
+func TestOldBadLineTolerated(t *testing.T) {
+	a, _ := newWebApp(t)
+	text := []byte("device_id = t1\ntz = Mars/Base\n")
+	os.WriteFile(a.cfg().File, text, 0o600)
+	a.adoptConfig(text)
+	if restart, _, err := a.applyConfigText([]byte("device_id = t1\ntz = Mars/Base\nvolume_step = 2\n"), "test"); err != nil || restart || a.cfg().VolumeStep != 2 {
+		t.Fatalf("blocked by the old line: %v %v", restart, err)
+	}
+	if _, _, err := a.applyConfigText([]byte("device_id = t1\ntz = Mars/Base\nvolume_step = 2\nvolume_max = 1\n"), "test"); err == nil {
+		t.Fatal("a new bad line went through")
+	}
+}
+
 // The login and the light calibration write their keys themselves; a later settings change must
 // not mistake them for changes that need a restart.
 func TestOwnWritersAdoptTheirKeys(t *testing.T) {

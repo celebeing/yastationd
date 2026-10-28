@@ -141,7 +141,9 @@ After calibrating, the four read 159–165 lx under the same light.
 
 `auto_brightness_curve` maps lux (calibrated) to the display level. The default,
 `0.7:<min>, 9:128, 150:255`, is the curve the black Mini 3 was tuned with in its own reading
-units, converted by its calibration; `<min>` is the board's `matrix.min_brightness`. A curve
+units, converted by its calibration; `<min>` is the board's `matrix.min_brightness`. The curve
+gives the shape; the range is from `auto_brightness_min` (else the board's minimum) to the clock
+brightness (HA's `Clock brightness`, also the fixed level with auto off). A curve
 written before 2026-10-26 is in the old reading units of one speaker: convert its points with that
 speaker's calibration, or drop it.
 

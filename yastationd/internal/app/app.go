@@ -440,6 +440,7 @@ func (a *App) Run(ctx context.Context) error {
 		a.hmon.AddProbe(name, addr, role)
 	}
 
+	a.loadSyncRejected() // before the broker hands over the shared values
 	if a.cfg().MQTTHost != "" {
 		a.mqtt = mqtt.New(mqtt.Options{
 			Host: a.cfg().MQTTHost, Port: a.cfg().MQTTPort,

@@ -9,13 +9,16 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
 - The web app's settings are rebuilt on one registry of config keys: every setting has an
   explanation, and most apply at once — the config is reloaded live, a restart (on trial) only
   for keys that need one (marked; one floating "Apply and restart"). The **Configuration** group
-  is by topic: General, Voice, Moments, Home integration, Music Assistant, Intercom, Calibration, Wi-Fi,
-  Login, Advanced. The raw config editor is gone from the app (every key is on a page; the API
-  stays).
+  is by topic: General, Voice, Moments, Home integration, Music Assistant, Intercom, Calibration,
+  Wi-Fi, Login; rarely touched keys are folded under "Advanced" on their own page. The raw config
+  editor is gone from the app (every key is on a page; the API stays).
 - **Share with every speaker:** a switch on each setting, option and moment gives all speakers
   this speaker's value and keeps them in step (retained MQTT topics; a speaker that was off
   catches up; moments go to speakers with the same kind of display).
 - A speaker card on top of every tab: name, address, status, volume with mute, display mode.
+- **Auto brightness has a range:** from a dimmest level (`auto_brightness_min`, else the
+  board's) to the clock brightness, which is now also the auto maximum; setting it no longer
+  turns auto off. Speakers with auto on keep their behaviour (their clock brightness becomes 255).
 - The ambilight's music effects use the strip's white LEDs by default (`ambilight_fx_white`),
   and the settings list only what the board has (no ambilight or video keys on a Mini).
 

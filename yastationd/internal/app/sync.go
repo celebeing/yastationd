@@ -8,6 +8,7 @@ import (
 	"os"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/celebeing/yastationd/yastationd/internal/config"
@@ -29,9 +30,11 @@ type sharedMsg struct {
 }
 
 type shared struct {
-	mu    sync.Mutex
-	items map[string]sharedMsg // kind + "/" + item
-	bus   publisher            // tests: in place of the MQTT client
+	mu       sync.Mutex
+	items    map[string]sharedMsg // kind + "/" + item
+	rejected map[string]int64     // kind + "/" + item → the At of a shared value whose trial failed here
+	lastAt   atomic.Int64         // the last At this speaker gave (sharedNow)
+	bus      publisher            // tests: in place of the MQTT client
 }
 
 type publisher interface {
@@ -52,6 +55,20 @@ func (a *App) sharedBus() publisher {
 // syncOptions are the HA config entities that can be shared (those this board has).
 var syncOptions = []string{"auto_brightness", "clock_brightness", "text_duration", "animation_duration", "follow_up",
 	"display_faces", "ambilight_fx_brightness"}
+
+// sharedNow: the At of a change, unix ms, never repeating on this speaker (a rejected value is
+// known by its At, so two changes in one millisecond must differ).
+func (a *App) sharedNow() int64 {
+	for {
+		last, now := a.shared.lastAt.Load(), time.Now().UnixMilli()
+		if now <= last {
+			now = last + 1
+		}
+		if a.shared.lastAt.CompareAndSwap(last, now) {
+			return now
+		}
+	}
+}
 
 func (a *App) momentKind() string { return "moment/" + a.frontKind() }
 
@@ -127,7 +144,7 @@ func (a *App) publishShared(kind, item string, on bool) bool {
 	if !ok {
 		return false
 	}
-	m := sharedMsg{V: v, At: time.Now().UnixMilli(), By: a.cfg().DeviceID}
+	m := sharedMsg{V: v, At: a.sharedNow(), By: a.cfg().DeviceID}
 	b, _ := json.Marshal(m)
 	a.sharedSet(kind, item, &m)
 	bus.Publish(topic, string(b))
@@ -180,6 +197,9 @@ func (a *App) onShared(kind, item string, payload []byte) {
 	if v, ok := a.localShared(kind, item); !ok || sameJSON(v, m.V) {
 		return
 	}
+	if a.syncRejected(kind+"/"+item) == m.At {
+		return // this value failed its trial here; a later change is tried again
+	}
 	if err := a.applyShared(kind, item, m.V); err != nil {
 		a.log.Warn("sync: not taken", "kind", kind, "item", item, "from", m.By, "err", err)
 		return
@@ -198,7 +218,11 @@ func (a *App) applyShared(kind, item string, v json.RawMessage) error {
 		if err != nil {
 			return err
 		}
-		_, _, err = a.applyConfigText(config.EditNote(old, map[string][]string{item: vals}, "shared by the other speakers"), "sync")
+		restart, _, err := a.applyConfigText(config.EditNote(old, map[string][]string{item: vals}, "shared by the other speakers"), "sync")
+		if err == nil && restart {
+			m, _ := a.sharedGet(kind, item)
+			a.notePendingSync(kind+"/"+item, m.At)
+		}
 		return err
 	case kind == "option":
 		var s string
@@ -231,8 +255,7 @@ func (a *App) shareOptions(c map[string]func([]byte)) {
 		obj := obj
 		c[obj] = func(p []byte) {
 			fn(p)
-			// every shared option: one can change another (a manual clock brightness turns
-			// auto brightness off)
+			// every shared option: a handler may change another option too
 			for _, o := range syncOptions {
 				a.shareChanged("option", o)
 			}
@@ -247,6 +270,9 @@ type syncView struct {
 	Options   map[string]sharedAt `json:"options"`
 	Moments   map[string]sharedAt `json:"moments"`
 	OptionIDs []string            `json:"option_ids"` // the options this speaker can share
+	// Rejected: shared settings whose value failed its trial here and is not taken
+	// ("setting/<key>"; until the item changes again).
+	Rejected []string `json:"rejected"`
 }
 
 type sharedAt struct {
@@ -258,6 +284,12 @@ func (a *App) syncViewNow() syncView {
 	v := syncView{Connected: a.sharedBus() != nil, Settings: map[string]sharedAt{},
 		Options: map[string]sharedAt{}, Moments: map[string]sharedAt{}, OptionIDs: []string{}}
 	a.shared.mu.Lock()
+	v.Rejected = []string{}
+	for key, at := range a.shared.rejected {
+		if m, ok := a.shared.items[key]; ok && m.At == at {
+			v.Rejected = append(v.Rejected, key)
+		}
+	}
 	for key, m := range a.shared.items {
 		at := sharedAt{m.At, m.By}
 		switch kind, item := splitShared(key); {
@@ -339,9 +371,71 @@ func (a *App) shareSettings(c *config.Config, changed []string) {
 		if sameJSON(v, m.V) {
 			continue
 		}
-		next := sharedMsg{V: v, At: time.Now().UnixMilli(), By: a.cfg().DeviceID}
+		next := sharedMsg{V: v, At: a.sharedNow(), By: a.cfg().DeviceID}
 		b, _ := json.Marshal(next)
 		a.sharedSet("setting", name, &next)
 		bus.Publish(a.topics.Shared("setting", name), string(b))
 	}
+}
+
+// A shared restart key goes through the trial like any other; when the trial fails, the speaker
+// must not take the same value again on the next connect (a restart loop). <cfw>/sync.pending
+// lists the shared values a running trial came from; the trial's acceptance removes it. Found at
+// start with no trial running, the trial was rolled back (by the daemon or the supervisor): its
+// values go to <cfw>/sync.rejected and are skipped until the item changes again.
+const (
+	syncPendingFile  = "sync.pending"
+	syncRejectedFile = "sync.rejected"
+)
+
+func (a *App) cfwFile(name string) string {
+	return a.cfg().Path(a.prof.Platform.CFWRoot + "/" + name)
+}
+
+func readSyncMap(path string) map[string]int64 {
+	m := map[string]int64{}
+	if b, err := os.ReadFile(path); err == nil {
+		json.Unmarshal(b, &m)
+	}
+	return m
+}
+
+func writeSyncMap(path string, m map[string]int64) {
+	b, _ := json.Marshal(m)
+	os.WriteFile(path, b, 0o644)
+}
+
+func (a *App) notePendingSync(key string, at int64) {
+	path := a.cfwFile(syncPendingFile)
+	m := readSyncMap(path)
+	m[key] = at
+	writeSyncMap(path, m)
+}
+
+// syncAccepted: the trial passed; its shared values stay.
+func (a *App) syncAccepted() { os.Remove(a.cfwFile(syncPendingFile)) }
+
+// loadSyncRejected runs at start, before the broker: a pending list without a running trial means
+// the trial was rolled back.
+func (a *App) loadSyncRejected() {
+	rejected := readSyncMap(a.cfwFile(syncRejectedFile))
+	if _, err := os.Stat(a.trialMarker()); err != nil {
+		if pending := readSyncMap(a.cfwFile(syncPendingFile)); len(pending) > 0 {
+			for k, at := range pending {
+				rejected[k] = at
+				a.log.Warn("sync: a shared value failed its trial here, not taken again until it changes", "item", k)
+			}
+			writeSyncMap(a.cfwFile(syncRejectedFile), rejected)
+			os.Remove(a.cfwFile(syncPendingFile))
+		}
+	}
+	a.shared.mu.Lock()
+	a.shared.rejected = rejected
+	a.shared.mu.Unlock()
+}
+
+func (a *App) syncRejected(key string) int64 {
+	a.shared.mu.Lock()
+	defer a.shared.mu.Unlock()
+	return a.shared.rejected[key]
 }

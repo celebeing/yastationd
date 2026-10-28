@@ -326,12 +326,10 @@ ring.
 **Status:** done 2026-10-26 ([display-expressions.md](display-expressions.md), "Text on the pixel
 screen").
 
-## Moments: apply to speakers of the same kind
+## Station 3: MQTT activity on the screen
 
-The Moments tab edits one speaker ([display-expressions.md](display-expressions.md), "The owner's
-moments"). Speakers of one display kind (two Mini 3s) usually want the same choices: an "apply to
-all <kind> speakers" button in the editor could PUT the moment to every peer with the same
-display kind (the app already talks to them), flagging candidates a peer lacks.
+A party trick, to discuss later: show the broker traffic live on a free pixel row of orion's
+screen (a dot per message in or out, or a running trace), the way old modems blinked their lights.
 
 ## Station 3: the power budget with the white channel on
 

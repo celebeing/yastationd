@@ -127,7 +127,7 @@ A subproject: TypeScript, Preact, Vite (versions pinned exactly), built into
 
 Per speaker, a section menu beside the content: the groups as captions, their sections under
 them (a scrolling row on narrow screens). The open section is in the address (`#options`), so it
-can be linked (the old `#options` and `#settings` open General, `#config` Advanced). Lists of settings and controls are settings pages — one narrow column, a name and
+can be linked (the old `#options`, `#settings` and `#config` open General). Lists of settings and controls are settings pages — one narrow column, a name and
 its control on one line — while sensors, the log, the LED preview and the config file use the
 window's width.
 
@@ -135,7 +135,7 @@ window's width.
 |---|---|
 | Status | Sensors (and diagnostics), Log |
 | Controls | Display and voice (the runtime controls HA has: lights, display, expressions, volume…), LED |
-| Configuration | General, Voice, Moments, Home integration, Music Assistant, Intercom, Calibration, Wi-Fi, Login, Advanced — [settings.md](settings.md) |
+| Configuration | General, Voice, Moments, Home integration, Music Assistant, Intercom, Calibration, Wi-Fi, Login — [settings.md](settings.md) |
 
 ## Calibration
 

@@ -11,11 +11,11 @@ import { Control, name } from './controls'
 // explanation on the settings page.
 const OPTIONS: Record<string, { group: string; doc: string }> = {
   auto_brightness: { group: 'display', doc: "The clock's brightness follows the light sensor." },
-  clock_brightness: { group: 'display', doc: "The clock's brightness while auto brightness is off." },
+  clock_brightness: { group: 'display', doc: 'The fixed brightness while auto brightness is off; with it on, the brightest it goes in bright light.' },
   display_faces: { group: 'display', doc: 'Faces and clips on the front display while the assistant listens, thinks and talks.' },
   text_duration: { group: 'display', doc: 'How long a message from Home Assistant stays on the display.' },
   animation_duration: { group: 'display', doc: 'How long an expression or ring animation started from Home Assistant plays.' },
-  ambilight_fx_brightness: { group: 'display', doc: "The ambilight's brightness under the music effects." },
+  ambilight_fx_brightness: { group: 'ambilight', doc: "The ambilight's brightness under the music effects." },
   follow_up: { group: 'voice', doc: 'Whether the speaker listens again after it answers, for a reply without the wake word.' },
 }
 
@@ -193,19 +193,17 @@ function groupsOf(s: Settings, pick: (k: SettingKey) => boolean) {
 // The configuration pages: which groups of keys each shows. Every page mixes keys that apply at
 // once (saved as they change) with keys that need a restart (marked; their changes wait in a
 // floating bar for one "Apply and restart").
-export type ConfigPageID = 'general' | 'voice' | 'home' | 'music' | 'intercom' | 'wifi' | 'advanced'
+export type ConfigPageID = 'general' | 'voice' | 'home' | 'music' | 'intercom' | 'wifi' | 'calibration'
 
-const PAGES: Record<ConfigPageID, { groups: string[]; intro: string; options?: boolean }> = {
-  general: { groups: ['display', 'sound', 'web', 'video'], options: true, intro: 'How the speaker looks and sounds.' },
-  voice: { groups: ['voice'], options: true, intro: 'The wake word, the dialog with Home Assistant, and which speaker answers.' },
-  home: {
-    groups: ['identity', 'ha', 'network'],
-    intro: 'Fitting the speaker into your home: its name, Home Assistant, the network. Usually set once.',
-  },
-  music: { groups: ['music'], intro: 'The speaker as a Music Assistant player (Sendspin).' },
-  intercom: { groups: ['intercom'], intro: 'Calls between the speakers.' },
-  wifi: { groups: ['wifi_setup'], intro: '' },
-  advanced: { groups: [], intro: 'Paths, ports, test hooks, hardware overrides and first-start values. Rarely needed.' },
+// Which sections a page holds comes from the daemon (config.Groups); here only the words on top.
+const INTRO: Record<ConfigPageID, string> = {
+  general: 'How the speaker looks and sounds.',
+  voice: 'The wake word, the dialog with Home Assistant, and which speaker answers.',
+  home: 'Fitting the speaker into your home: its name, Home Assistant, the web app, time and logs. Usually set once.',
+  music: 'The speaker as a Music Assistant player (Sendspin).',
+  intercom: 'Calls between the speakers.',
+  wifi: '',
+  calibration: '',
 }
 
 export function ConfigPage(p: Ctx & { page: ConfigPageID; ents?: Entity[]; reload?: () => void }) {
@@ -213,7 +211,7 @@ export function ConfigPage(p: Ctx & { page: ConfigPageID; ents?: Entity[]; reloa
   const [pending, setPending] = useState<Record<string, string[]>>({})
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
-  const page = PAGES[p.page]
+  const intro = INTRO[p.page]
   if (!s) return err ? <p class="err">{err}</p> : <p class="muted">…</p>
 
   function flash(m: string) {
@@ -282,11 +280,11 @@ export function ConfigPage(p: Ctx & { page: ConfigPageID; ents?: Entity[]; reloa
       />
     )
   }
-  const adv = p.page === 'advanced'
-  const groups = groupsOf(s, (k) => (adv ? !!k.advanced : !k.advanced && page.groups.includes(k.group)))
-  const opts = page.options
-    ? (p.ents || []).filter((e) => e.writable && e.config.entity_category === 'config' && page.groups.includes(OPTIONS[e.object]?.group || 'display'))
-    : []
+  const onPage = (group: string) => s.groups.find((g) => g.ID === group)?.Page === p.page
+  // A page: its sections, then its rarely touched keys folded under "Advanced".
+  const groups = groupsOf(s, (k) => onPage(k.group) && !k.advanced)
+  const folded = groupsOf(s, (k) => onPage(k.group) && !!k.advanced)
+  const opts = (p.ents || []).filter((e) => e.writable && e.config.entity_category === 'config' && onPage(OPTIONS[e.object]?.group || 'display'))
   for (const e of opts) {
     const id = OPTIONS[e.object]?.group || 'display'
     if (!groups.some((g) => g.id === id)) groups.push({ id, title: s.groups.find((g) => g.ID === id)?.Title || id, keys: [] })
@@ -296,17 +294,23 @@ export function ConfigPage(p: Ctx & { page: ConfigPageID; ents?: Entity[]; reloa
   const n = Object.keys(pending).length
   return (
     <div class="settings">
-      {page.intro && (
+      {intro && (
         <p class="muted small">
-          {page.intro}
+          {intro}
         </p>
       )}
       {s.trial && <p class="small"><span class="badge">on trial</span> The last settings are on trial: they stay if the speaker is as healthy as before.</p>}
+      {s.skipped && s.skipped.length > 0 && (
+        <p class="err small">
+          The config file has lines this version skips (their keys keep the default): {s.skipped.join('; ')}. Setting the key here
+          replaces the line.
+        </p>
+      )}
       {err && <p class="err">{err}</p>}
       {sync && !sync.connected && <p class="muted small">No MQTT broker: sharing with the other speakers is off.</p>}
       {groups.map((g) => (
         <section>
-          {groups.length > 1 || p.page === 'general' ? <h3>{g.title}</h3> : null}
+          {groups.length > 1 || !['voice', 'music', 'intercom'].includes(p.page) ? <h3>{g.title}</h3> : null}
           {opts
             .filter((e) => (OPTIONS[e.object]?.group || 'display') === g.id)
             .map((e) => (
@@ -320,6 +324,17 @@ export function ConfigPage(p: Ctx & { page: ConfigPageID; ents?: Entity[]; reloa
           {g.keys.map(row)}
         </section>
       ))}
+      {folded.length > 0 && (
+        <details class="advanced">
+          <summary>Advanced</summary>
+          {folded.map((g) => (
+            <section>
+              {folded.length > 1 && <h3>{g.title}</h3>}
+              {g.keys.map(row)}
+            </section>
+          ))}
+        </details>
+      )}
       {(n > 0 || msg || busy) && (
         <div class="applybar" role="status">
           <span class="small">{n > 0 ? `${n} change${n > 1 ? 's' : ''} need${n > 1 ? '' : 's'} a restart. It is on trial: a speaker worse off rolls back by itself.` : msg}</span>

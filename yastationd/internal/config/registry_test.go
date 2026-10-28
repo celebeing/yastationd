@@ -7,8 +7,12 @@ import (
 
 func TestRegistryRoundTrip(t *testing.T) {
 	groups := map[string]bool{}
+	pages := map[string]bool{"general": true, "voice": true, "home": true, "music": true, "intercom": true, "wifi": true, "calibration": true}
 	for _, g := range Groups {
 		groups[g.ID] = true
+		if !pages[g.Page] {
+			t.Errorf("section %s: page %q", g.ID, g.Page)
+		}
 	}
 	for _, k := range Keys {
 		if !groups[k.Group] || k.Label == "" || k.Doc == "" {
@@ -109,5 +113,18 @@ func TestEditNoteDoesNotPileUp(t *testing.T) {
 	s = string(EditNote([]byte(base+"\n# set from the web app\nvolume_step = 2\n"), map[string][]string{"volume_max": {"80"}}, "set from the web app"))
 	if s != base+"\n# set from the web app\nvolume_step = 2\nvolume_max = 80\n" {
 		t.Fatalf("second key under the same note: %q", s)
+	}
+}
+
+func TestParseLenient(t *testing.T) {
+	c, errs := ParseLenient(strings.NewReader("tz = Mars/Base\nvolume_step = 3\nnonsense\nno_such = 1\ndevice_name = \n"))
+	if len(errs) != 4 || c.VolumeStep != 3 || c.TZ != "Europe/Moscow" || c.DeviceName != Default().DeviceName {
+		t.Fatalf("lenient: %v %+v", errs, c)
+	}
+	if c.Has("tz") || len(c.Skipped) != 4 {
+		t.Fatalf("a skipped key counts as set: %v", c.Skipped)
+	}
+	if _, err := Parse(strings.NewReader("tz = Mars/Base\n")); err == nil {
+		t.Fatal("strict Parse took it")
 	}
 }

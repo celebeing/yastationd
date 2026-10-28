@@ -28,15 +28,15 @@ func (a *App) applyConfigText(data []byte, why string) (restart bool, changed []
 	if cur.File == "" {
 		return false, nil, errors.New("no config file")
 	}
-	next, err := config.Parse(strings.NewReader(string(data)))
-	if err != nil {
-		return false, nil, err
-	}
-	next.File = cur.File
 	old, err := os.ReadFile(cur.File)
 	if err != nil {
 		return false, nil, err
 	}
+	next, err := checkConfigEdit(old, data)
+	if err != nil {
+		return false, nil, err
+	}
+	next.File = cur.File
 	if string(old) == string(data) {
 		return false, nil, nil
 	}
@@ -66,6 +66,24 @@ func (a *App) applyConfigText(data []byte, why string) (restart bool, changed []
 	return false, changed, nil
 }
 
+// checkConfigEdit parses the new text of the config file. A bad line is refused unless it was
+// already in the old text (the daemon started with it skipped): an old line a newer build refuses
+// must not block every other change.
+func checkConfigEdit(old, data []byte) (config.Config, error) {
+	next, errs := config.ParseLenient(strings.NewReader(string(data)))
+	_, oldErrs := config.ParseLenient(strings.NewReader(string(old)))
+	had := map[string]bool{}
+	for _, e := range oldErrs {
+		had[e.Text] = true
+	}
+	for _, e := range errs {
+		if !had[e.Text] {
+			return next, e
+		}
+	}
+	return next, nil
+}
+
 // writeConfigFile replaces the config file with data, the old text kept as .bak.
 func writeConfigFile(path string, old, data []byte) error {
 	if err := os.WriteFile(path+".bak", old, 0o600); err != nil {
@@ -81,10 +99,7 @@ func writeConfigFile(path string, old, data []byte) error {
 // adoptConfig records that the file now holds data, for writers that apply their own key live
 // (the login, the light calibration): the next diff must not see those keys as changes.
 func (a *App) adoptConfig(data []byte) {
-	next, err := config.Parse(strings.NewReader(string(data)))
-	if err != nil {
-		return
-	}
+	next, _ := config.ParseLenient(strings.NewReader(string(data)))
 	next.File = a.cfg().File
 	a.conf.Store(&next)
 }
@@ -136,6 +151,7 @@ func (a *App) boardValues() map[string][]string {
 		"spotter_libs":          one(p.Wake.Libs),
 		"mic_spl_offset":        one(strconv.FormatFloat(p.Mic.SPLOffset, 'f', -1, 64)),
 		"auto_brightness_curve": one(config.CurveString(brightnessCurve(def, p))),
+		"auto_brightness_min":   num(max(p.Matrix.MinBrightness, 1)),
 	}
 }
 
@@ -149,6 +165,9 @@ func (a *App) boardHas(needs string) bool {
 	}
 	return true
 }
+
+// zeroIsBoard: keys whose 0 means "the board's value".
+var zeroIsBoard = map[string]bool{"mic_spl_offset": true, "auto_brightness_min": true}
 
 func sameLines(a, b []string) bool { return strings.Join(a, "\n") == strings.Join(b, "\n") }
 
@@ -178,7 +197,7 @@ func (a *App) settingViews() []settingView {
 		if v.Board != nil {
 			ref = v.Board
 		}
-		v.Changed = v.Set && !sameLines(v.Value, ref) && !(k.Name == "mic_spl_offset" && sameLines(v.Value, []string{"0"}))
+		v.Changed = v.Set && !sameLines(v.Value, ref) && !(zeroIsBoard[k.Name] && sameLines(v.Value, []string{"0"}))
 		if k.Kind == "secret" {
 			v.Default = []string{}
 			if len(v.Value) == 1 && v.Value[0] != "" {
@@ -198,7 +217,11 @@ func (a *App) apiSettings(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		_, terr := os.Stat(a.trialMarker())
-		writeJSON(w, http.StatusOK, map[string]any{"groups": config.Groups, "keys": a.settingViews(), "trial": terr == nil})
+		skipped := a.cfg().Skipped
+		if skipped == nil {
+			skipped = []string{}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"groups": config.Groups, "keys": a.settingViews(), "trial": terr == nil, "skipped": skipped})
 	case http.MethodPut:
 		var in struct {
 			Changes map[string][]string `json:"changes"`

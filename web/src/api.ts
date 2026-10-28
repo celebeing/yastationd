@@ -250,7 +250,7 @@ export type SettingKey = {
   set: boolean
   changed: boolean
 }
-export type Settings = { groups: { ID: string; Title: string }[]; keys: SettingKey[]; trial: boolean }
+export type Settings = { groups: { ID: string; Title: string; Page: string }[]; keys: SettingKey[]; trial: boolean; skipped?: string[] }
 export const settings = (id: string, base: string) => authed<Settings>(id, base, '/api/settings')
 /** putSettings: key → its lines ([] = back to the default). restarting: a key needed a restart. */
 export const putSettings = (id: string, base: string, changes: Record<string, string[]>) =>

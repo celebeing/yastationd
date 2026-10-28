@@ -272,7 +272,7 @@ func TestSyncOptions(t *testing.T) {
 		t.Fatal("share")
 	}
 	b.flush()
-	// A manual brightness on s2 turns its auto brightness off: both go across.
+	// Two shared options go across together.
 	s2.commands()["clock_brightness"]([]byte("40"))
 	b.flush()
 	if st := s1.store.get(); st.ClockBright != 40 || st.ClockAuto {
@@ -365,5 +365,50 @@ func TestWebSync(t *testing.T) {
 	b.flush()
 	if _, ok := b.retained["yastation/shared/setting/volume_step"]; code != 200 || ok {
 		t.Fatal("unshare clears the retained topic")
+	}
+}
+
+// A shared restart key whose trial fails here is not taken again on the next connect (that
+// would restart the speaker in a loop), until the item changes.
+func TestSyncFailedTrialNotRetaken(t *testing.T) {
+	b := newBroker()
+	s1, s2 := speaker(t, "s1"), speaker(t, "s2")
+	s1.quit, s2.quit = func() {}, func() {}
+	b.attach(s1)
+	b.attach(s2)
+	s1.publishShared("setting", "wake_enabled", true)
+	b.flush()
+	setKey(t, s1, "wake_enabled", "false")
+	b.flush()
+	if _, err := os.Stat(s2.trialMarker()); err != nil {
+		t.Fatal("s2 should be on trial")
+	}
+	// s2's trial fails: the old config comes back, the daemon restarts.
+	s2.trialFailed("test")
+	text, _ := os.ReadFile(s2.cfg().File)
+	s2.adoptConfig(text)
+	s2.restartPending.Store(false)
+	s2.loadSyncRejected()
+	os.Remove(s2.cfg().File + ".bak")
+	b.attach(s2) // reconnects: the same retained value
+	if _, err := os.Stat(s2.trialMarker()); err == nil {
+		t.Fatal("took the rejected value again")
+	}
+	if v := s2.syncViewNow(); len(v.Rejected) != 1 || v.Rejected[0] != "setting/wake_enabled" {
+		t.Fatalf("rejected: %v", v.Rejected)
+	}
+	// A new change of the item is tried again.
+	setKey(t, s1, "wake_enabled", "true")
+	text, _ = os.ReadFile(s1.cfg().File)
+	s1.adoptConfig(text)
+	setKey(t, s1, "wake_enabled", "false")
+	b.flush()
+	if _, err := os.Stat(s2.trialMarker()); err != nil {
+		t.Fatal("a later change was not tried")
+	}
+	// Its trial passes: nothing stays pending.
+	s2.syncAccepted()
+	if _, err := os.Stat(s2.cfwFile(syncPendingFile)); err == nil {
+		t.Fatal("pending kept after acceptance")
 	}
 }

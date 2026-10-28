@@ -27,7 +27,10 @@ func main() {
 		return
 	}
 
-	cfg, err := config.Load(*confPath)
+	cfg, skipped, err := config.LoadLenient(*confPath)
+	for _, e := range skipped {
+		slog.Error("config: line skipped, its key keeps the default", "path", *confPath, "err", e.Error())
+	}
 	if err != nil {
 		if os.IsNotExist(err) {
 			slog.Warn("config not found, using defaults", "path", *confPath)

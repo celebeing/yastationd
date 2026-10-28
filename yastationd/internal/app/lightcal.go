@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/celebeing/yastationd/yastationd/internal/config"
@@ -183,7 +182,7 @@ func (a *App) saveLuxCalibration(pts []luxcal.Point) error {
 	}
 	data := config.EditNote(old, map[string][]string{"lux_calibration": vals},
 		"the light sensor, calibrated from the web app "+time.Now().Format("2006-01-02"))
-	if _, err := config.Parse(strings.NewReader(string(data))); err != nil {
+	if _, err := checkConfigEdit(old, data); err != nil {
 		return err
 	}
 	tmp := a.cfg().File + ".tmp"

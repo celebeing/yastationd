@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	_ "time/tzdata" // tz names are checked while parsing
 )
 
 type Config struct {
@@ -43,7 +44,10 @@ type Config struct {
 	// (docs/sensor-calibration.md); nil = the profile's.
 	LuxCalibration []luxcal.Point
 
-	ClockBrightness     int // manual clock brightness at first start (later: HA "Clock brightness")
+	ClockBrightness int // clock brightness at first start (later: HA "Clock brightness")
+	// AutoBrightnessMin: the dimmest auto brightness goes (1..255); 0 = the board's
+	// matrix.min_brightness.
+	AutoBrightnessMin   int
 	RingBrightness      int // ring light brightness at first start (0..255)
 	AmbilightBrightness int // rear ambilight brightness at first start (0..255)
 	// DDPPort: UDP port for LED frames streamed to the ambilight (LedFx, WLED tools; 0 = off).
@@ -210,6 +214,7 @@ type Config struct {
 	LogLevel      string
 
 	present map[string]bool // keys present in the parsed file
+	Skipped []string        // lines ParseLenient left out, as errors
 }
 
 // Has reports whether key appeared in the parsed config (used for profile overrides).
@@ -273,7 +278,7 @@ func Default() Config {
 		DiscoveryPrefix:     "homeassistant",
 		Board:               "auto",
 		BoardFile:           cfw + "/board.conf",
-		ClockBrightness:     128,
+		ClockBrightness:     255,
 		AutoBrightness:      true,
 		BrightnessCurve:     DefaultBrightnessCurve,
 		RingBrightness:      128,
@@ -345,7 +350,34 @@ func Load(path string) (Config, error) {
 }
 
 func Parse(r io.Reader) (Config, error) {
+	c, errs := ParseLenient(r)
+	if len(errs) > 0 {
+		return c, errs[0]
+	}
+	return c, nil
+}
+
+// LineError is a line ParseLenient skipped.
+type LineError struct {
+	Line int
+	Text string // the line, trimmed
+	Key  string
+	Err  error
+}
+
+func (e LineError) Error() string {
+	if e.Key == "" {
+		return fmt.Sprintf("line %d: %v", e.Line, e.Err)
+	}
+	return fmt.Sprintf("line %d: %s: %v", e.Line, e.Key, e.Err)
+}
+
+// ParseLenient parses like Parse but skips a bad line (its key keeps the default) and goes on,
+// reporting every skipped line. The daemon loads its file this way: a key an older build took
+// and this one refuses must not keep the speaker from starting.
+func ParseLenient(r io.Reader) (Config, []LineError) {
 	c := Default()
+	var errs []LineError
 	sc := bufio.NewScanner(r)
 	line := 0
 	for sc.Scan() {
@@ -356,14 +388,37 @@ func Parse(r io.Reader) (Config, error) {
 		}
 		k, v, ok := strings.Cut(s, "=")
 		if !ok {
-			return c, fmt.Errorf("line %d: expected key = value", line)
+			errs = append(errs, LineError{line, s, "", fmt.Errorf("expected key = value")})
+			continue
 		}
 		k, v = strings.TrimSpace(k), strings.TrimSpace(v)
+		saved := c
 		if err := c.set(k, v); err != nil {
-			return c, fmt.Errorf("line %d: %s: %w", line, k, err)
+			present := c.present
+			c = saved // the key keeps the value it had
+			c.present = present
+			delete(c.present, k)
+			errs = append(errs, LineError{line, s, k, err})
 		}
 	}
-	return c, sc.Err()
+	if err := sc.Err(); err != nil {
+		errs = append(errs, LineError{line, "", "", err})
+	}
+	for _, e := range errs {
+		c.Skipped = append(c.Skipped, e.Error())
+	}
+	return c, errs
+}
+
+// LoadLenient reads a file with ParseLenient.
+func LoadLenient(path string) (Config, []LineError, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return Config{}, nil, err
+	}
+	defer f.Close()
+	c, errs := ParseLenient(f)
+	return c, errs, nil
 }
 
 func (c *Config) set(k, v string) error {
