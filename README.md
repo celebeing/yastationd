@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/brand/logo.svg" width="112" alt="yastationd">
+
 # yastationd
 
 **Станции в Home Assistant: голос, свет и музыка без облака**

@@ -132,7 +132,10 @@ function Speakers({ home }: { home: Peer }) {
   return (
     <div class="layout">
       <aside>
-        <h1>Speakers</h1>
+        <h1 class="brandmark">
+          <img src="/favicon.svg" alt="" width={22} height={22} />
+          Speakers
+        </h1>
         {list.map((p) => (
           <button class={'speaker' + (p.id === sel ? ' sel' : '')} onClick={() => setSel(p.id)}>
             <span class={'dot ' + (status[p.id] || 'checking')} title={status[p.id]} />

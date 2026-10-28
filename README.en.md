@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/brand/logo.svg" width="112" alt="yastationd"></p>
+
 # yastationd
 
 [Русский](README.md) · English

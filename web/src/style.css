@@ -4,10 +4,14 @@
   --fg: #1d1c1a;
   --muted: #7a766e;
   --line: #e2ded6;
-  --accent: #6b4fd8;
+  /* The brand (docs/design.md): ember, from the logo's red-to-gold gradient. */
+  --accent: #c2410c;
+  --on-accent: #ffffff;
+  --brand: linear-gradient(90deg, #d62f2f, #ffb627);
   --ok: #2f8f4e;
-  --err: #c0392b;
-  --warn: #c98a12;
+  --err: #b91c1c;
+  --warn: #a16207;
+  --on-warn: #ffffff;
   color-scheme: light;
   font: 15px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
@@ -18,7 +22,12 @@
     --fg: #ecebe8;
     --muted: #9a958c;
     --line: #34322e;
-    --accent: #a08cf0;
+    --accent: #fb923c;
+    --on-accent: #1b1410;
+    --ok: #4ade80;
+    --err: #f87171;
+    --warn: #facc15;
+    --on-warn: #1b1410;
     color-scheme: dark;
   }
 }
@@ -26,6 +35,7 @@
 body { margin: 0; background: var(--bg); color: var(--fg); }
 a { color: var(--accent); }
 h1 { font-size: 1.1rem; margin: 0 0 0.75rem; }
+h1.brandmark { display: flex; align-items: center; gap: 0.5rem; }
 h2 { font-size: 1.25rem; margin: 0; }
 h3 { font-size: 1rem; font-weight: 600; margin: 0 0 0.75rem; }
 .muted { color: var(--muted); }
@@ -41,7 +51,7 @@ aside { display: flex; flex-direction: column; gap: 0.4rem; }
 button { font: inherit; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); padding: 0.4rem 0.8rem; cursor: pointer; }
 button:hover:not(:disabled) { border-color: var(--accent); }
 button:disabled { opacity: 0.5; cursor: default; }
-button[type='submit'], .row > button:first-child, button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button[type='submit'], .row > button:first-child, button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 button.ghost { background: transparent; color: var(--fg); }
 .speaker { display: grid; grid-template-columns: 12px 1fr; column-gap: 0.6rem; text-align: left; padding: 0.6rem 0.75rem; }
 .speaker .muted { grid-column: 2; }
@@ -73,7 +83,7 @@ textarea.config { width: 100%; min-height: 60vh; font: 13px/1.45 ui-monospace, '
 .row { display: flex; gap: 0.6rem; align-items: center; margin-top: 0.75rem; flex-wrap: wrap; }
 .row .k { min-width: 6.5rem; color: var(--muted); }
 .row select { max-width: 100%; }
-.badge { margin-left: 0.5rem; font-size: 0.75rem; padding: 0.1rem 0.45rem; border-radius: 99px; background: var(--warn); color: #fff; text-transform: none; letter-spacing: 0; }
+.badge { margin-left: 0.5rem; font-size: 0.75rem; padding: 0.1rem 0.45rem; border-radius: 99px; background: var(--warn); color: var(--on-warn); text-transform: none; letter-spacing: 0; }
 .switch { position: relative; display: inline-block; width: 42px; height: 24px; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .switch span { position: absolute; inset: 0; background: var(--line); border-radius: 99px; transition: 0.15s; cursor: pointer; }
@@ -92,7 +102,7 @@ canvas.led { max-width: 100%; border-radius: 8px; display: block; margin-bottom:
 .log { max-height: 65vh; overflow: auto; font-size: 0.78rem; line-height: 1.35; background: var(--bg);
   border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem 0.6rem; margin-top: 0.75rem;
   white-space: pre-wrap; word-break: break-all; }
-.log .lwarn { color: #b7791f; }
+.log .lwarn { color: var(--warn); }
 .log .lerr { color: var(--err); }
 
 /* The speaker panel: its header across, then a vertical section menu beside the content. */
@@ -139,7 +149,7 @@ label.field input { width: 5.5rem; }
 .mhead { display: grid; grid-template-columns: minmax(10rem, 1fr) 2fr auto; gap: 0.8rem; align-items: center; }
 .mshows { overflow-wrap: anywhere; }
 .mbtns { display: flex; gap: 0.4rem; }
-.badge { font-size: 0.75em; padding: 0.05rem 0.4rem; border-radius: 6px; background: var(--accent); color: #fff; vertical-align: middle; }
+.badge { font-size: 0.75em; padding: 0.05rem 0.4rem; border-radius: 6px; background: var(--accent); color: var(--on-accent); vertical-align: middle; }
 .medit { margin-top: 0.6rem; border-top: 1px solid var(--line); padding-top: 0.4rem; }
 .cand { border-left: 3px solid var(--line); padding-left: 0.6rem; margin-top: 0.6rem; }
 .cand .row, .steps .row { margin-top: 0.4rem; }
@@ -179,7 +189,7 @@ input.anim { min-width: 8rem; flex: 1; max-width: 22rem; }
 .vitals dd.bad { color: var(--err); }
 .vitals .gauge { display: block; height: 4px; margin-top: 0.35rem; border-radius: 2px; background: color-mix(in srgb, var(--fg) 9%, transparent); overflow: hidden; }
 .vitals .gauge:empty { background: transparent; }
-.vitals .gauge i { display: block; height: 100%; border-radius: 2px; background: var(--accent); transition: width 0.6s ease; }
+.vitals .gauge i { display: block; height: 100%; border-radius: 2px; background: color-mix(in srgb, var(--fg) 45%, transparent); transition: width 0.6s ease; }
 .vitals .gauge.warn i { background: var(--warn); }
 .vitals .gauge.bad i { background: var(--err); }
 @media (prefers-reduced-motion: reduce) { .vitals .gauge i { transition: none; } }
@@ -190,7 +200,7 @@ input.anim { min-width: 8rem; flex: 1; max-width: 22rem; }
 .spctl input[type='range'] { width: 140px; }
 .spctl .vol { min-width: 2.2rem; text-align: right; font-variant-numeric: tabular-nums; }
 .spctl .err { flex-basis: 100%; margin: 0; }
-button.mute.on { background: var(--warn); border-color: var(--warn); color: #fff; }
+button.mute.on { background: var(--warn); border-color: var(--warn); color: var(--on-warn); }
 @media (max-width: 760px) { .spcard { grid-template-columns: 1fr; } }
 
 /* Settings rows (settings.tsx): name, control, share switch; the explanation under them. */

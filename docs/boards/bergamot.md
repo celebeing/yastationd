@@ -44,6 +44,14 @@ Profile: `yastationd/internal/board/profiles/bergamot.conf` · Survey: `dumps/su
   `mute=2|flag`). **cget readback does not reflect writes**; `SPK mute` has no audible effect.
 - **Never SIGKILL a playing aplay**: it can leave dmix's semaphore held and wedge all later playback
   (recovery: `ipcrm -M 0x400 -M 0x401 -S 0x400`). yastationd uses SIGTERM.
+- **A diagnostics run froze a Mini 3** (2026-10-28): no network, no ssh, the ring lit lilac, a
+  power cycle to recover. The run had dumped every mixer control (`amixer -c 0 contents`: the
+  codec's `snd_*_get` prints are the last kernel lines that reached the log server) and queried the
+  Wi-Fi driver (`wpa_cli signal_poll`, which hits its unsupported cfg80211 calls, `vm_cfg80211_get_channel,
+  no support yet`; `/proc/net/wireless`); the hang came within seconds after, so which one did it is
+  not known. Treat all three as unsafe: read or set the named controls you need (`cget`/`cset
+  name=...`), take ALSA facts from `/proc/asound`, and Wi-Fi state from `wpa_cli status` (the daemon
+  runs it routinely). `<cfw>/bin/diag.sh` keeps them out (docs/diagnostics.md).
 
 ## Mic array & voice front-end
 - `hw:0,1`: 8ch S16 48 kHz (exclusive, no dsnoop). ch0–2 = PDM mics (equivalent, floor ~-61 dBFS at
