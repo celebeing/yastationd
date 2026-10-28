@@ -4,11 +4,13 @@
   --fg: #1d1c1a;
   --muted: #7a766e;
   --line: #e2ded6;
-  /* The brand (docs/design.md): ember, from the logo's red-to-gold gradient. */
-  --accent: #c2410c;
+  /* docs/design.md: teal for what you act on, ember (the logo's red-to-gold) for the brand. */
+  --accent: #0f766e;
   --on-accent: #ffffff;
+  --ember: #c2410c;
+  --on-ember: #ffffff;
   --brand: linear-gradient(90deg, #d62f2f, #ffb627);
-  --ok: #2f8f4e;
+  --ok: #4d7c0f;
   --err: #b91c1c;
   --warn: #a16207;
   --on-warn: #ffffff;
@@ -22,9 +24,11 @@
     --fg: #ecebe8;
     --muted: #9a958c;
     --line: #34322e;
-    --accent: #fb923c;
-    --on-accent: #1b1410;
-    --ok: #4ade80;
+    --accent: #2dd4bf;
+    --on-accent: #0b1513;
+    --ember: #fb923c;
+    --on-ember: #1b1410;
+    --ok: #a3e635;
     --err: #f87171;
     --warn: #facc15;
     --on-warn: #1b1410;
@@ -149,7 +153,7 @@ label.field input { width: 5.5rem; }
 .mhead { display: grid; grid-template-columns: minmax(10rem, 1fr) 2fr auto; gap: 0.8rem; align-items: center; }
 .mshows { overflow-wrap: anywhere; }
 .mbtns { display: flex; gap: 0.4rem; }
-.badge { font-size: 0.75em; padding: 0.05rem 0.4rem; border-radius: 6px; background: var(--accent); color: var(--on-accent); vertical-align: middle; }
+.badge { font-size: 0.75em; padding: 0.05rem 0.4rem; border-radius: 6px; background: var(--ember); color: var(--on-ember); vertical-align: middle; }
 .medit { margin-top: 0.6rem; border-top: 1px solid var(--line); padding-top: 0.4rem; }
 .cand { border-left: 3px solid var(--line); padding-left: 0.6rem; margin-top: 0.6rem; }
 .cand .row, .steps .row { margin-top: 0.4rem; }

@@ -20,8 +20,8 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
 
 **Web app**
 - A logo (a deltoid on an ember red-to-gold disc) in the README, the favicon and beside
-  "Speakers"; the app's accent moves from violet to ember orange, the status colours get dark-theme
-  versions, and [docs/design.md](docs/design.md) sets the rules.
+  "Speakers"; the app's accent moves from violet to teal (the logo's ember stays for the brand), the
+  status colours get dark-theme versions, and [docs/design.md](docs/design.md) sets the rules.
 - The speaker card: a vitals panel beside the name (the speaker's and the daemon's uptime apart,
   load, temperature, free memory, the daemon's memory, free flash; `GET /api/vitals`, and
   `/metrics` gains `yastation_system_uptime_seconds`), the controls in one toolbar row under it.

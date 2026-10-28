@@ -44,23 +44,29 @@ base; dark redefines the tokens under `prefers-color-scheme: dark`.
 | `--fg` | `#1d1c1a` | `#ecebe8` | text |
 | `--muted` | `#7a766e` | `#9a958c` | labels, secondary text |
 | `--line` | `#e2ded6` | `#34322e` | hairlines and borders |
-| `--accent` | `#c2410c` | `#fb923c` | what you can act on or what is selected: links, primary buttons, switches on, the selected speaker and section, a changed setting, focus rings |
-| `--on-accent` | `#ffffff` | `#1b1410` | text on an accent fill |
+| `--accent` | `#0f766e` | `#2dd4bf` | teal, the complement of the logo's ember: what you can act on or what is selected (links, primary buttons, switches on, sliders, the selected speaker and section, a changed setting, focus rings) |
+| `--on-accent` | `#ffffff` | `#0b1513` | text on an accent fill |
+| `--ember` | `#c2410c` | `#fb923c` | the brand's own colour, used sparingly: a new release out, the "on trial" badge |
+| `--on-ember` | `#ffffff` | `#1b1410` | text on an ember fill |
 | `--brand` | the ember gradient | same | the logo only, and at most one decorative stroke per screen |
-| `--ok` | `#2f8f4e` | `#4ade80` | healthy: online, pipeline up |
+| `--ok` | `#4d7c0f` | `#a3e635` | healthy: online, pipeline up (a lime green, kept apart from the teal accent) |
 | `--warn` | `#a16207` | `#facc15` | needs a look: degraded, mic off, running short |
 | `--on-warn` | `#ffffff` | `#1b1410` | text on a warn fill |
 | `--err` | `#b91c1c` | `#f87171` | broken: offline, errors, a failed save |
 
-Contrast: the accent is 5.2:1 on white and 8:1 on the dark card; `--warn` 4.9:1; text tokens pass
+Contrast: the accent is 5.5:1 on white and 9:1 on the dark card; `--warn` 4.9:1; text tokens pass
 AA. Check a new colour against `--card` and `--bg` in both themes (≥ 4.5:1 for text, ≥ 3:1 for
 large text and UI marks) before using it.
+
+**Ember is the brand, teal does the work.** An all-orange interface reads as one long warning (the
+first ember-accented version did), so the working accent is the logo's complement and ember stays
+rare: the logo, and a badge or two that are about the project itself.
 
 **Meaning, not decoration.** The accent marks interaction and selection only; status uses ok /
 warn / err only, and always with words (a chip says "offline", not just red). Neutral data stays
 neutral: the vitals' gauges fill in a grey (`--fg` at 45 %) and turn warn or err only past a
-threshold, so colour on the card always means "look here". Because the accent is orange and warn is
-amber, never use warn as a decoration or the accent as a status.
+threshold, so colour on the card always means "look here". Ember and warn are both warm: never use
+ember for a status, nor warn as a decoration.
 
 ## Type
 
