@@ -149,6 +149,30 @@ close to the noise floor of this test.
    plan.
 4. **Not recommended:** black-box probing, DSP heuristics, Vosk on bergamot, and Path B for this purpose.
 
+## First real recordings (Mini 3, 2026-10-28)
+
+One voice, one room, the speaker a metre or two away, «Алиса, сколько времени?» said eleven times
+at different speeds, `preroll_ms = 150`, `wake_capture` on. Labels: Vosk small-ru on each capture,
+with a grammar of the phrase's words (9 of 11 got a «алиса»; the other two were heard only as the
+command). Offsets are against the WAKE's sample (`wake_at_ms`, 2000 in every capture: the ring
+always held the audio):
+
+| | median | range |
+|---|---|---|
+| «алиса» starts | −410 ms | −770 … −380 |
+| «алиса» ends | **−110 ms** | −230 … −80 |
+| the command starts | −110 ms (said without a pause) | −230 … −80 |
+
+- **The spotter fires about 110 ms after the word ends** on this unit and voice, close to the desk
+  estimate for the room condition (+140) and later than for clean speech (+25).
+- With `preroll_ms = 150` the stream starts ~40 ms before the word's end: **9 of 9 transcripts
+  were the request alone** («Сколько времени?», answered by HA's built-in matcher at once). With 300
+  ms (the default before) 3 of 4 transcripts began with «Алиса», and those went to the LLM.
+- The slowest «Алиса» (ending 230 ms before the WAKE) lost ~80 ms of the next word: HA heard
+  «Сколько время?», still understood. So 150 trades a rare clipped first syllable for no wake word.
+- Still to measure: a Station 3 (orion's model has a second-stage verifier: likely later WAKEs, so a
+  larger offset), more voices and distances, a pause after «Алиса».
+
 ## Validation plan (real recordings)
 
 1. A CFW test option saves, per WAKE: `vqe_0` from [WAKE − 2 s, WAKE + 1.5 s] (anchored on the sample
