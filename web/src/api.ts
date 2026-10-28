@@ -22,7 +22,7 @@ export type Entity = {
   updated?: number
 }
 
-export type State = { info: Peer; entities: Entity[] }
+export type State = { info: Peer & { features?: Features }; entities: Entity[] }
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -32,6 +32,8 @@ export class ApiError extends Error {
 
 const TOKENS = 'yst.tokens'
 const CRED = 'yst.cred'
+const LATEST = 'yst.latest'
+const NO_LINK = 'no connection' // the request never reached the speaker
 
 function tokens(): Record<string, string> {
   try {
@@ -84,7 +86,7 @@ async function req<T>(base: string, path: string, opts: RequestInit = {}, token?
   try {
     r = await fetch(base + path, { ...opts, headers, signal: ctl.signal })
   } catch (e) {
-    throw new ApiError(0, 'нет связи')
+    throw new ApiError(0, NO_LINK)
   } finally {
     clearTimeout(timer)
   }
@@ -109,10 +111,6 @@ export async function login(id: string, base: string, user: string, password: st
   setToken(id, r.token)
   setCred(user, password)
   return { defaultPassword: r.default_password }
-}
-
-export function logout(id: string) {
-  setToken(id, null)
 }
 
 /** authed calls: a 401 forgets the token. */
@@ -167,16 +165,13 @@ export function uploadAsset(id: string, base: string, path: string, body: Blob, 
       if (x.status >= 200 && x.status < 300) resolve(b)
       else reject(new ApiError(x.status, (b && b.error) || x.statusText))
     }
-    x.onerror = () => reject(new ApiError(0, 'нет связи'))
+    x.onerror = () => reject(new ApiError(0, NO_LINK))
     x.send(body)
   })
 }
 
 export const control = (id: string, base: string, object: string, payload: string) =>
   authed<{ ok: boolean }>(id, base, '/api/control/' + encodeURIComponent(object), { method: 'POST', body: payload, headers: { 'Content-Type': 'text/plain' } })
-export const getConfig = (id: string, base: string) => authed<{ file: string; text: string; trial: boolean }>(id, base, '/api/config')
-export const putConfig = (id: string, base: string, text: string) =>
-  authed<{ ok: boolean; restarting: boolean; changed?: string[] }>(id, base, '/api/config', { method: 'PUT', body: JSON.stringify({ text }) })
 export async function setPassword(id: string, base: string, user: string, password: string) {
   const r = await authed<{ token: string }>(id, base, '/api/password', { method: 'POST', body: JSON.stringify({ user, password }) })
   setToken(id, r.token)
@@ -222,7 +217,7 @@ export async function diag(id: string, base: string, raw: boolean): Promise<{ bl
     const tok = tokenFor(id)
     r = await fetch(base + '/api/diag' + (raw ? '?raw=1' : ''), { headers: tok ? { Authorization: 'Bearer ' + tok } : {}, signal: ctl.signal })
   } catch {
-    throw new ApiError(0, 'нет связи')
+    throw new ApiError(0, NO_LINK)
   } finally {
     clearTimeout(timer)
   }
@@ -249,27 +244,32 @@ export function tapURL(id: string, base: string, path: string): string {
   return `${base}/tap${path}?token=${encodeURIComponent(tokenFor(id) || '')}`
 }
 
-export const REPO = 'https://github.com/celebeing/yastationd'
+const REPO_PATH = 'celebeing/yastationd'
+export const REPO = 'https://github.com/' + REPO_PATH
+const LATEST_TTL_MS = 10 * 60_000
+
+/** The newest release as GitHub has it (date: not filled in yet). */
+export type Release = { tag: string; url: string; date: string }
 
 /** latestRelease asks GitHub from the browser (the speakers have no internet; the browser
  * usually does, and GitHub's API allows any origin) for the newest vX.Y.Z tag; every tag gets a
  * GitHub Release from CI. The answer is kept for this tab for 10 minutes unless `fresh`.
  * null when GitHub cannot be reached. */
-export async function latestRelease(fresh = false): Promise<{ tag: string; url: string; date: string } | null> {
+export async function latestRelease(fresh = false): Promise<Release | null> {
   try {
-    const cached = JSON.parse(sessionStorage.getItem('yst.latest') || 'null')
-    if (!fresh && cached && Date.now() - cached.at < 600_000) return cached.rel
+    const cached = JSON.parse(sessionStorage.getItem(LATEST) || 'null')
+    if (!fresh && cached && Date.now() - cached.at < LATEST_TTL_MS) return cached.rel
   } catch {}
   try {
-    const r = await fetch('https://api.github.com/repos/celebeing/yastationd/tags?per_page=100', { headers: { Accept: 'application/vnd.github+json' } })
+    const r = await fetch(`https://api.github.com/repos/${REPO_PATH}/tags?per_page=100`, { headers: { Accept: 'application/vnd.github+json' } })
     if (!r.ok) return null
     const tags: { name: string }[] = await r.json()
     let best = ''
     for (const t of tags) if (/^v\d+\.\d+\.\d+$/.test(t.name) && (!best || behind(best, t.name))) best = t.name
     if (!best) return null
-    const rel = { tag: best, url: `${REPO}/releases/tag/${best}`, date: '' }
+    const rel: Release = { tag: best, url: `${REPO}/releases/tag/${best}`, date: '' }
     try {
-      sessionStorage.setItem('yst.latest', JSON.stringify({ at: Date.now(), rel }))
+      sessionStorage.setItem(LATEST, JSON.stringify({ at: Date.now(), rel }))
     } catch {}
     return rel
   } catch {

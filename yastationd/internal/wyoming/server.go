@@ -24,14 +24,17 @@ type Conn struct {
 	mu sync.Mutex
 }
 
+// Send writes one event to the peer.
 func (c *Conn) Send(ev Event) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return Write(c.nc, ev)
 }
 
+// RemoteAddr is the peer's address.
 func (c *Conn) RemoteAddr() string { return c.nc.RemoteAddr().String() }
 
+// Close drops the connection.
 func (c *Conn) Close() error { return c.nc.Close() }
 
 // Server accepts Wyoming peers. Connections are concurrent: besides its long-lived satellite

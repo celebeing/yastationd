@@ -70,7 +70,7 @@ func TestBinscledRoundTrip(t *testing.T) {
 func TestPlayClip(t *testing.T) {
 	c, _ := ParseScled("t", strings.NewReader(testScled))
 	t0 := time.Unix(1000, 0)
-	once := PlayClip(c, false, func() int { return 128 })
+	once := playClip(c, false, false, func() int { return 128 })
 	f, done := once(t0, MatrixFrame{})
 	if done || f.Level.Seg[0][0] != 255 || f.Brightness != 128 {
 		t.Fatalf("first frame %+v done=%v", f, done)
@@ -81,7 +81,7 @@ func TestPlayClip(t *testing.T) {
 	if _, done = once(t0.Add(150*time.Millisecond), MatrixFrame{}); !done {
 		t.Fatal("one-shot clip did not end")
 	}
-	loop := PlayClip(c, true, func() int { return 255 })
+	loop := playClip(c, true, false, func() int { return 255 })
 	loop(t0, MatrixFrame{})
 	if f, done = loop(t0.Add(160*time.Millisecond), MatrixFrame{}); done || f.Level.Seg[0][0] != 255 {
 		t.Fatalf("looping clip at 160 ms: %+v done=%v", f, done)
@@ -130,7 +130,7 @@ func TestClipFromRaw(t *testing.T) {
 func TestPlayClipNormalizes(t *testing.T) {
 	// A dim stock-like clip (peak 85) plays at full level; relative levels are kept.
 	c, _ := ParseScled("dim", strings.NewReader("0 0 0 0 0 0 85 | 0 0 0 0 0 0 40 | 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 | 0 0 0 0 | 100\n"))
-	f, _ := PlayClip(c, true, func() int { return 255 })(time.Now(), MatrixFrame{})
+	f, _ := playClip(c, true, false, func() int { return 255 })(time.Now(), MatrixFrame{})
 	if f.Level.Seg[0][6] != 255 || f.Level.Seg[1][6] != 120 {
 		t.Fatalf("levels = %d, %d", f.Level.Seg[0][6], f.Level.Seg[1][6])
 	}

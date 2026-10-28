@@ -12,6 +12,7 @@
   --err: #b91c1c;
   --warn: #a16207;
   --on-warn: #ffffff;
+  --on-err: #ffffff;
   color-scheme: light;
   font: 15px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
@@ -28,6 +29,7 @@
     --err: #f87171;
     --warn: #facc15;
     --on-warn: #1b1410;
+    --on-err: #1b1410;
     color-scheme: dark;
   }
 }
@@ -51,6 +53,7 @@ aside { display: flex; flex-direction: column; gap: 0.4rem; }
 button { font: inherit; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); padding: 0.4rem 0.8rem; cursor: pointer; }
 button:hover:not(:disabled) { border-color: var(--accent); }
 button:disabled { opacity: 0.5; cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button[type='submit'], .row > button:first-child, button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 button.ghost { background: transparent; color: var(--fg); }
 .speaker { display: grid; grid-template-columns: 12px 1fr; column-gap: 0.6rem; text-align: left; padding: 0.6rem 0.75rem; }
@@ -61,9 +64,6 @@ button.ghost { background: transparent; color: var(--fg); }
 .dot.ok { background: var(--ok); }
 .dot.login { background: var(--warn); }
 .dot.offline { background: var(--err); }
-.sp-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 0.75rem; margin-bottom: 1rem; }
-.tabs { display: flex; gap: 0.3rem; flex-wrap: wrap; }
-.tabs button.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; align-items: start; }
 .grid { display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 1rem; margin: 0; }
 dt { color: var(--muted); }
@@ -79,17 +79,17 @@ input[type='number'] { width: 5.5rem; }
 .text input { width: 12rem; }
 .login { display: flex; flex-direction: column; gap: 0.7rem; max-width: 360px; }
 .login label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.9em; color: var(--muted); }
-textarea.config { width: 100%; min-height: 60vh; font: 13px/1.45 ui-monospace, 'SF Mono', Menlo, Consolas, monospace; white-space: pre; }
 .row { display: flex; gap: 0.6rem; align-items: center; margin-top: 0.75rem; flex-wrap: wrap; }
 .row .k { min-width: 6.5rem; color: var(--muted); }
 .row select { max-width: 100%; }
-.badge { margin-left: 0.5rem; font-size: 0.75rem; padding: 0.1rem 0.45rem; border-radius: 99px; background: var(--warn); color: var(--on-warn); text-transform: none; letter-spacing: 0; }
+.badge { margin-left: 0.5rem; font-size: 0.75em; padding: 0.05rem 0.4rem; border-radius: 6px; background: var(--accent); color: var(--on-accent); vertical-align: middle; }
 .switch { position: relative; display: inline-block; width: 42px; height: 24px; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .switch span { position: absolute; inset: 0; background: var(--line); border-radius: 99px; transition: 0.15s; cursor: pointer; }
 .switch span::before { content: ''; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: 0.15s; }
 .switch input:checked + span { background: var(--accent); }
 .switch input:checked + span::before { transform: translateX(18px); }
+.switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 table.nets { width: 100%; border-collapse: collapse; }
 table.nets td, table.nets th { text-align: left; padding: 0.35rem 0.4rem; border-top: 1px solid var(--line); }
 table.nets th { color: var(--muted); font-weight: 500; border-top: 0; }
@@ -151,7 +151,6 @@ label.field input { width: 5.5rem; }
 .mhead { display: grid; grid-template-columns: minmax(10rem, 1fr) 2fr auto; gap: 0.8rem; align-items: center; }
 .mshows { overflow-wrap: anywhere; }
 .mbtns { display: flex; gap: 0.4rem; }
-.badge { font-size: 0.75em; padding: 0.05rem 0.4rem; border-radius: 6px; background: var(--accent); color: var(--on-accent); vertical-align: middle; }
 .medit { margin-top: 0.6rem; border-top: 1px solid var(--line); padding-top: 0.4rem; }
 .cand { border-left: 3px solid var(--line); padding-left: 0.6rem; margin-top: 0.6rem; }
 .cand .row, .steps .row { margin-top: 0.4rem; }
@@ -194,7 +193,6 @@ input.anim { min-width: 8rem; flex: 1; max-width: 22rem; }
 .vitals .gauge i { display: block; height: 100%; border-radius: 2px; background: color-mix(in srgb, var(--fg) 45%, transparent); transition: width 0.6s ease; }
 .vitals .gauge.warn i { background: var(--warn); }
 .vitals .gauge.bad i { background: var(--err); }
-@media (prefers-reduced-motion: reduce) { .vitals .gauge i { transition: none; } }
 /* The everyday controls: one toolbar row under both, wrapping on narrow screens. */
 .spctl { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 2rem; border-top: 1px solid var(--line); padding-top: 0.8rem; }
 .spctl .ctl { display: inline-flex; justify-content: flex-start; gap: 0.6rem; padding: 0; border-top: 0; }
@@ -210,7 +208,7 @@ button.mute.on { background: var(--warn); border-color: var(--warn); color: var(
 .settings section h3 { margin: 0 0 0.25rem; }
 .setting { border-top: 1px solid var(--line); padding: 0.65rem 0.1rem 0.55rem; }
 .srow { display: grid; grid-template-columns: minmax(9rem, 1fr) auto auto; gap: 0.75rem; align-items: center; }
-.sname { font-weight: 500; }
+.srow .sname { font-weight: 500; }
 .sctl { display: flex; justify-content: flex-end; }
 .sdoc { margin: 0.3rem 0 0; font-size: 0.85rem; color: var(--muted); max-width: 38rem; }
 input.wide { width: 16rem; max-width: 100%; }
@@ -243,5 +241,8 @@ details.advanced summary { cursor: pointer; color: var(--muted); margin-bottom: 
 .progress { margin-top: 0.6rem; }
 .progress .gauge { display: block; height: 6px; margin-top: 0.3rem; border-radius: 3px; background: color-mix(in srgb, var(--fg) 9%, transparent); overflow: hidden; }
 .progress .gauge i { display: block; height: 100%; background: var(--accent); transition: width 0.3s ease; }
-button.danger { background: var(--err); border-color: var(--err); color: #fff; }
+button.danger { background: var(--err); border-color: var(--err); color: var(--on-err); }
 @media (max-width: 760px) { .assetlist .actions { white-space: normal; text-align: left; } .assetlist tr { display: grid; } }
+
+/* docs/design.md: motion only answers an action, and none at all when the system asks. */
+@media (prefers-reduced-motion: reduce) { .switch span, .switch span::before, .vitals .gauge i, .progress .gauge i { transition: none; } }

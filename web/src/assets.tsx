@@ -6,6 +6,9 @@ import type { Peer } from './api'
 // only kind so far: a video file converted here in the browser (no ffmpeg needed), or files made
 // by cmd/videoconv, uploaded into the speaker's library.
 
+// Room left free on the speaker's flash after an upload, for its logs and config.
+const KEEP_FREE = 20 << 20
+
 const fmtMB = (b: number) => (b >= 10 << 20 ? Math.round(b / 1048576) + ' MB' : b >= 1 << 20 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB')
 
 /** A video's name on the speaker, from its file name: lower-case letters, digits, - and _. */
@@ -111,7 +114,7 @@ export function VideosTab({ peer, base, reload }: { peer: Peer; base: string; re
             </tbody>
           </table>
         )}
-        <p class="muted small">{fmtMB(a.free)} free on the speaker.</p>
+        {a.free >= 0 && <p class="muted small">{fmtMB(a.free)} free on the speaker.</p>}
       </section>
       <AddVideo peer={peer} base={base} screen={v.screen} free={a.free} onDone={load} />
     </div>
@@ -156,7 +159,7 @@ function AddVideo(p: { peer: Peer; base: string; screen: [number, number]; free:
         fr = frames
         au = audio
       }
-      if (fr.size + (au?.size || 0) > p.free - (20 << 20)) throw new Error('not enough room on the speaker')
+      if (p.free >= 0 && fr.size + (au?.size || 0) > p.free - KEEP_FREE) throw new Error('not enough room on the speaker')
       const r = await upload('frames', fr, 'Uploading the picture')
       if (au) await upload('audio', au, 'Uploading the sound')
       setDone(`${name}: ${r.frames} frames, ${(r.duration_ms / 1000).toFixed(1)} s${au ? '' : ', no sound'}.`)

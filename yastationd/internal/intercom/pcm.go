@@ -6,6 +6,7 @@ import "encoding/binary"
 // into 20 ms frames.
 type Framer struct{ buf []byte }
 
+// Push appends b and emits every whole frame it completes.
 func (f *Framer) Push(b []byte, emit func([]int16)) {
 	f.buf = append(f.buf, b...)
 	for len(f.buf) >= FrameBytes {
@@ -25,6 +26,7 @@ func (f *Framer) Push(b []byte, emit func([]int16)) {
 // little time) by linear interpolation: plenty for a voice band that ends at 8 kHz.
 type Upsampler3 struct{ prev int16 }
 
+// Bytes returns s at 48 kHz as S16LE bytes, carrying the last sample over to the next call.
 func (u *Upsampler3) Bytes(s []int16) []byte {
 	out := make([]byte, len(s)*6)
 	p := int(u.prev)

@@ -140,13 +140,13 @@ function KeyControl({ k, value, commit }: { k: SettingKey; value: string[]; comm
     case 'bool':
       return (
         <label class="switch">
-          <input type="checkbox" checked={v === 'true'} onChange={(e) => commit([String(e.currentTarget.checked)])} />
+          <input type="checkbox" aria-label={k.label} checked={v === 'true'} onChange={(e) => commit([String(e.currentTarget.checked)])} />
           <span />
         </label>
       )
     case 'enum':
       return (
-        <select value={v} onChange={(e) => commit([e.currentTarget.value])}>
+        <select aria-label={k.label} value={v} onChange={(e) => commit([e.currentTarget.value])}>
           {(k.options || []).map((o) => (
             <option value={o}>{o}</option>
           ))}
@@ -158,6 +158,7 @@ function KeyControl({ k, value, commit }: { k: SettingKey; value: string[]; comm
         <span class="num">
           <input
             type="number"
+            aria-label={k.label}
             min={k.min}
             max={k.max}
             step={k.kind === 'float' ? 'any' : 1}
@@ -170,11 +171,12 @@ function KeyControl({ k, value, commit }: { k: SettingKey; value: string[]; comm
         </span>
       )
     case 'list':
-      return <textarea class="lines" rows={Math.max(2, value.length + 1)} value={text} onInput={(e) => setText(e.currentTarget.value)} onBlur={done} />
+      return <textarea class="lines" aria-label={k.label} rows={Math.max(2, value.length + 1)} value={text} onInput={(e) => setText(e.currentTarget.value)} onBlur={done} />
     case 'secret':
       return (
         <input
           type="password"
+          aria-label={k.label}
           autocomplete="new-password"
           placeholder={v ? 'set — type to change' : 'not set'}
           value={text === v ? '' : text}
@@ -184,7 +186,7 @@ function KeyControl({ k, value, commit }: { k: SettingKey; value: string[]; comm
         />
       )
     default:
-      return <input class="wide" value={text} onInput={(e) => setText(e.currentTarget.value)} onBlur={done} onKeyDown={enter} />
+      return <input class="wide" aria-label={k.label} value={text} onInput={(e) => setText(e.currentTarget.value)} onBlur={done} onKeyDown={enter} />
   }
 }
 

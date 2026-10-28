@@ -33,6 +33,7 @@ const (
 	roomMinShare = 0.25 // of a minute's blocks needed for a value
 	roomRefresh  = 15 * time.Minute
 	roomSilentDB = -96.0 // a block of digital silence
+	roomHighpass = 150.0 // Hz: the high-pass before the level, like the VQE's (the mics' low-frequency noise)
 )
 
 // roomRate is the rate the level is taken at: every rate/roomRate-th capture sample, with no
@@ -69,7 +70,7 @@ type recentLevel struct {
 func newRoomSound(rate, channels, channel int, skip func() bool) *roomSound {
 	stride := max(rate/roomRate, 1)
 	return &roomSound{rate: rate / stride, channel: channel, fsz: 2 * channels, stride: stride,
-		hpf: hw.NewHighpass(150, float64(rate/stride)), skip: skip}
+		hpf: hw.NewHighpass(roomHighpass, float64(rate/stride)), skip: skip}
 }
 
 // feed takes raw interleaved capture frames (the mic's SubscribeRaw).
@@ -111,12 +112,7 @@ func (r *roomSound) peak(span time.Duration, loudest int) (level, overFloor floa
 		return 0, 0, false
 	}
 	sort.Sort(sort.Reverse(sort.Float64Slice(lv)))
-	lv = lv[:min(loudest, len(lv))]
-	var e float64
-	for _, v := range lv {
-		e += math.Pow(10, v/10)
-	}
-	level = math.Max(10*math.Log10(e/float64(len(lv))), roomSilentDB)
+	level = energyMean(lv[:min(loudest, len(lv))])
 	if r.floor != 0 {
 		overFloor = level - r.floor
 	}
@@ -152,11 +148,9 @@ func minuteStats(lv []float64, total int) roomStats {
 	sorted := append([]float64(nil), lv...)
 	sort.Float64s(sorted)
 	floor := sorted[len(sorted)/10]
-	var e float64
 	active := 0
 	var over [3]float64
 	for _, v := range lv {
-		e += math.Pow(10, v/10)
 		if v > floor+roomActiveDB {
 			active++
 		}
@@ -168,11 +162,21 @@ func minuteStats(lv []float64, total int) roomStats {
 	}
 	return roomStats{
 		floor:    floor,
-		level:    math.Max(10*math.Log10(e/float64(len(lv))), roomSilentDB),
+		level:    energyMean(lv),
 		activity: 100 * float64(active) / float64(len(lv)),
 		over:     over,
 		ok:       true,
 	}
+}
+
+// energyMean is the energy average (Leq) of block levels in dB, floored at roomSilentDB; lv must
+// not be empty.
+func energyMean(lv []float64) float64 {
+	var e float64
+	for _, v := range lv {
+		e += math.Pow(10, v/10)
+	}
+	return math.Max(10*math.Log10(e/float64(len(lv))), roomSilentDB)
 }
 
 // dbfs of a mean square of S16 samples (full scale = a full-scale sine's RMS is about -3).

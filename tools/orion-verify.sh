@@ -66,8 +66,15 @@ ps w >>"$LOG" 2>&1
 getval() { amixer -c0 cget "$1" 2>/dev/null | sed -n 's/^[[:space:]]*: values=//p' | tail -n 1; }
 setval() { amixer -c0 cset "$1" "$2" >>"$LOG" 2>&1; }
 
+# A full mixer dump (`amixer contents`) froze a bergamot's kernel in its codec driver
+# (docs/diagnostics.md, "Never in diag.sh"). It ran fine on orion during the bring-up, but it is
+# opt-in now: FULL_MIXER=1 sh orion-verify.sh.
 sect "mixer BEFORE (full)"
-amixer -c0 contents >"$OUT/amixer-before.txt" 2>&1 || log "amixer contents failed (root? card?)"
+if [ "${FULL_MIXER:-0}" = 1 ]; then
+	amixer -c0 contents >"$OUT/amixer-before.txt" 2>&1 || log "amixer contents failed (root? card?)"
+else
+	log "full mixer dump skipped (FULL_MIXER=1 to take it)"
+fi
 
 sect "power_supply ya_pd"
 PD=/sys/class/power_supply/ya_pd
@@ -247,7 +254,7 @@ else
 fi
 
 sect "mixer AFTER + dmesg"
-amixer -c0 contents >"$OUT/amixer-after.txt" 2>&1
+[ "${FULL_MIXER:-0}" = 1 ] && amixer -c0 contents >"$OUT/amixer-after.txt" 2>&1
 dmesg 2>/dev/null | grep -iE "acm8625|pcm|loopback|pdm" | tail -30 >>"$LOG" 2>&1
 
 sect "done"

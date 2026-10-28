@@ -55,17 +55,21 @@ func setTriggerNone(root, name string) error {
 	return os.WriteFile(p, []byte("none"), 0o644)
 }
 
+// RGB is one red/green/blue pixel.
 type RGB struct{ R, G, B uint8 }
 
+// Scale multiplies every channel by k/255.
 func (c RGB) Scale(k int) RGB {
 	return RGB{uint8(int(c.R) * k / 255), uint8(int(c.G) * k / 255), uint8(int(c.B) * k / 255)}
 }
 
+// Hex is the colour as rrggbb.
 func (c RGB) Hex() string { return fmt.Sprintf("%02x%02x%02x", c.R, c.G, c.B) }
 
 // RGBW is one red/green/blue/white pixel.
 type RGBW struct{ R, G, B, W uint8 }
 
+// Scale multiplies every channel by k/255.
 func (c RGBW) Scale(k int) RGBW {
 	return RGBW{
 		R: uint8(int(c.R) * k / 255),
@@ -75,6 +79,7 @@ func (c RGBW) Scale(k int) RGBW {
 	}
 }
 
+// Hex is the colour as rrggbbww.
 func (c RGBW) Hex() string { return fmt.Sprintf("%02x%02x%02x%02x", c.R, c.G, c.B, c.W) }
 
 // Ring is an RGB LED ring of n pixels, one sysfs LED per pixel per colour. Names come from a
@@ -84,6 +89,7 @@ type Ring struct {
 	px [][3]ledNode
 }
 
+// NewRing opens the ring's LEDs under root, switching their triggers off.
 func NewRing(root string, pixels int, pattern string, colors []string) (*Ring, error) {
 	if len(colors) != 3 {
 		return nil, fmt.Errorf("ring: need 3 colours, got %d", len(colors))
@@ -109,6 +115,7 @@ func (r *Ring) Pixels() int {
 	return len(r.px)
 }
 
+// Show writes a frame (extra pixels are ignored).
 func (r *Ring) Show(f []RGB) error {
 	if r == nil {
 		return nil
@@ -144,6 +151,7 @@ type Ambilight struct {
 	fbDirty    bool // the last frame was written once: write it again to latch it
 }
 
+// NewAmbilight opens the strip's sysfs LEDs under root (see AmbilightSpec in package board).
 func NewAmbilight(root string, pixels int, pattern string, colors, dies []string) (*Ambilight, error) {
 	if len(colors) != 4 {
 		return nil, fmt.Errorf("ambilight: need 4 colours, got %d", len(colors))
@@ -223,6 +231,7 @@ func (a *Ambilight) UseFB(root, name, format, compatible, pattern string, colors
 	return nil
 }
 
+// Pixels is the strip's length (0 for no strip).
 func (a *Ambilight) Pixels() int {
 	if a == nil {
 		return 0
@@ -230,6 +239,7 @@ func (a *Ambilight) Pixels() int {
 	return len(a.px)
 }
 
+// Show writes a frame.
 func (a *Ambilight) Show(f []RGBW) error {
 	if a == nil {
 		return nil
@@ -296,6 +306,7 @@ const (
 	SegG
 )
 
+// Digits is the number of digits of a seg7 front display.
 const Digits = 4
 
 // MatrixFrame is one picture of the front clock: 4 seven-segment digits (0 = leftmost) plus the
@@ -330,6 +341,7 @@ type Matrix struct {
 	hasDegree bool
 }
 
+// NewMatrix maps the display's LEDs under root (see Matrix for the name patterns).
 func NewMatrix(root, segment string, colon []string, dot, degree string) *Matrix {
 	m := &Matrix{}
 	for p := 0; p < Digits; p++ {
@@ -390,6 +402,7 @@ func (m *Matrix) Elements() (colon, dot, degree bool) {
 	return len(m.colon) > 0, m.hasDot, m.hasDegree
 }
 
+// Show writes a frame.
 func (m *Matrix) Show(f MatrixFrame) error {
 	if m == nil {
 		return nil

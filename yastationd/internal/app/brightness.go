@@ -20,11 +20,12 @@ import (
 // past a little hysteresis, becomes the target. Off = the manual level from HA.
 //
 // The shown level glides to the target in the log domain (perceptually even: a doubling takes
-// as long at the dark end as at the bright one), no faster than brightMaxRate, stepped by the render loop so a frame and its
-// level match. On a screen with a backlight (orion's matrix.backlight) the level is mostly the
-// backlight: frames are drawn near full scale and keep their half-tones, which a dimmed frame
-// loses at the dark end (8-bit drive values collapse); the backlight takes the level rounded up
-// and the frame the remaining fraction (2/3..1), so the level still moves smoothly.
+// as long at the dark end as at the bright one), no faster than brightMaxRate, stepped by the
+// render loop so a frame and its level match. On a screen with a backlight (orion's
+// matrix.backlight) the level is mostly the backlight: frames are drawn near full scale and keep
+// their half-tones, which a dimmed frame loses at the dark end (8-bit drive values collapse); the
+// backlight takes the level rounded up and the frame the remaining fraction (2/3..1), so the
+// level still moves smoothly.
 
 const (
 	luxEvery      = time.Second
@@ -176,6 +177,7 @@ func (a *App) luxLoop(stop <-chan struct{}) {
 		a.luxReading.Store(math.Float64bits(reading))
 		lux := luxcal.Lux(a.luxCalibration(), reading) // read each time: the web app may set it
 		a.luxSmooth.Store(math.Float64bits(lux))
+		a.luxKnown.Store(true)
 		target := curveLevel(brightnessCurve(*a.cfg(), a.prof), math.Max(lux, 1e-6)) // the curve may change live
 		cur := math.Float64frombits(a.autoBright.Load())
 		if cur == 0 || moveBrightness(cur, target, a.backlight != nil) {

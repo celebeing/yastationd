@@ -1,5 +1,6 @@
 #!/bin/sh
-# yastationd — HASS agent for the de-Yandexed Station Mini 3. A respawn supervisor restarts it on crash.
+# yastationd — the CFW's Home Assistant agent (every supported speaker). A respawn supervisor
+# restarts it on crash.
 # Install to /etc/init.d/ (rootfs is read-only: remount rw to copy, see the Makefile).
 # The supervisor itself is <cfw>/init.d/supervise.sh (backoff, rollback to .prev, log rotation), so
 # changing it needs no rootfs write; without it a plain respawn loop runs instead.

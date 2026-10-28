@@ -20,7 +20,7 @@ const (
 // logSources: what the view can show, by name.
 func (a *App) logSources() map[string][]string {
 	return map[string][]string{
-		"daemon": {a.cfg().Path("/tmp/yastationd.log")},
+		"daemon": {a.cfg().Path(daemonLog)},
 		// busybox syslogd rotates messages into messages.0; the older one first.
 		"system": {a.cfg().Path("/var/log/messages.0"), a.cfg().Path("/var/log/messages")},
 	}
@@ -34,7 +34,7 @@ func (a *App) apiLog(w http.ResponseWriter, r *http.Request) {
 	}
 	files, ok := a.logSources()[source]
 	if !ok {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "source: daemon or system"})
+		writeErr(w, http.StatusBadRequest, "source: daemon or system")
 		return
 	}
 	n := logLinesDefault

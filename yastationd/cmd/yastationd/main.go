@@ -1,5 +1,6 @@
-// Command yastationd is the on-device Home Assistant agent for the de-Yandexed Station Mini 3.
-// Phase 1: LED ring, clock matrix, volume, mic-mute, button reflexes, announcements, health.
+// Command yastationd is the CFW's on-device agent: it turns a speaker into an offline Home
+// Assistant speaker (LEDs and front display, keys, volume, wake word and voice satellite, music,
+// intercom, web app). The board profile (internal/board) adapts it to each model; see README.md.
 package main
 
 import (
@@ -10,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-
 	_ "time/tzdata" // embed zoneinfo; the device has none
 
 	"github.com/celebeing/yastationd/yastationd/internal/app"

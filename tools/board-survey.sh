@@ -34,7 +34,10 @@ run 'cat /proc/bus/input/devices'
 sec audio
 run 'cat /proc/asound/cards /proc/asound/pcm'
 run 'for f in /etc/asound*.conf /etc/alsa/conf.d/*; do echo "--- $f"; cat "$f"; done'
-for c in /proc/asound/card[0-9]*; do run "amixer -c ${c##*card} contents"; done
+# Never `amixer contents` / `controls` / `scontents` (or a loop reading every control): dumping all
+# mixer controls froze a bergamot's kernel in its codec driver (docs/diagnostics.md, "Never in
+# diag.sh"). The cards' own /proc files are safe; read the named controls you need by hand.
+for c in /proc/asound/card[0-9]*; do run "ls $c; cat $c/id"; done
 run 'cat /etc/hardvold.config 2>/dev/null'
 run 'for f in /etc/init.d/S4*alsa* /etc/init.d/S4*audio* /etc/init.d/S4*hardvol* /etc/init.d/S9*; do echo "--- $f"; cat "$f"; done'
 run 'ls -la /tmp/amp_* 2>/dev/null; grep -l . /sys/bus/i2c/devices/*/name 2>/dev/null | while read n; do echo "$n: $(cat $n)"; done'

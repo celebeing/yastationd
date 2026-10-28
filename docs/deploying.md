@@ -40,7 +40,7 @@ scripts branch on its existence.
 | `<cfw>/yastationd_off` | kill switch: the supervisor stops respawning while it exists |
 | `/etc/init.d/S52zyastationd` | the only rootfs file: boot hook that starts the supervisor (copy kept in `<cfw>/init.d/`) |
 | `<cfw>/init.d/supervise.sh` | the supervisor (see below); without it the hook falls back to a plain 2 s respawn loop |
-| `<cfw>/bin/diag.sh` | the diagnostics collector (busybox sh, read-only; uploaded by `tools/deploy.sh`, nothing runs it by itself): one redacted archive in `/tmp` to send when something is wrong ([diagnostics.md](diagnostics.md)) |
+| `<cfw>/bin/diag.sh` | the diagnostics collector (busybox sh, read-only; uploaded by `tools/deploy.sh` and `make deploy`, nothing runs it by itself): one redacted archive in `/tmp` to send when something is wrong ([diagnostics.md](diagnostics.md)) |
 | `/tmp/yastationd.log` | log (tmpfs — gone on reboot), copy-truncated at 1 MB with one `.1` kept |
 
 The vendor's own files stay untouched, except the two reversible guards below.
@@ -246,8 +246,10 @@ traffic.
 
 ## 4. Updating
 
-One speaker: `make deploy` (build, upload aside along with `supervise.sh`, stop → keep the old
-binary as `.prev` → swap → start, tail the log). Several: `tools/deploy.sh` with a
+One speaker, daemon only: `make deploy` (build, upload aside along with `supervise.sh` and
+`diag.sh`, stop → keep the old binary as `.prev` → swap → start, tail the log). It ships nothing
+else (no helpers, no dropbear) and does not check that the daemon came up: a quick iteration
+step. The full roll-out, for one speaker or several, is `tools/deploy.sh` with a
 `tools/deploy.hosts` list (see `tools/deploy.hosts.example`). Each line is `<ssh-target>
 <platform> [cfw-root override] [helper-arch override]`; the board profile supplies omitted
 values. The script also rolls out `spotter-host` (and `sendspin-host` when built, and `hostapd` — a local build, else the newest recorded one in `$VENDOR/builds/hostapd/`; a speaker left without one gets a warning) and stops at

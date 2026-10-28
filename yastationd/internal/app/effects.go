@@ -97,14 +97,3 @@ func scaleEffect(r display.RenderFunc[display.RingFrame], bright int) display.Re
 // animOff is the ring_animation select's idle option. Not "none": HA's MQTT select treats a
 // "None" state payload (any case) as a reset to unknown.
 const animOff = "off"
-
-// ringAnimations are the ring_animation select options: idle + every effect but the plain one.
-func ringAnimations() []string {
-	out := []string{animOff}
-	for _, e := range ringEffects {
-		if e != "none" {
-			out = append(out, e)
-		}
-	}
-	return out
-}

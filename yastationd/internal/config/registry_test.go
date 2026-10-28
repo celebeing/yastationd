@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -126,5 +128,26 @@ func TestParseLenient(t *testing.T) {
 	}
 	if _, err := Parse(strings.NewReader("tz = Mars/Base\n")); err == nil {
 		t.Fatal("strict Parse took it")
+	}
+}
+
+// Every key is named, set or in a comment, in both example configs (CLAUDE.md: a new key goes
+// into both), so a reader of either file finds all of them.
+func TestExamplesListEveryKey(t *testing.T) {
+	word := regexp.MustCompile(`[a-z][a-z0-9_]*`)
+	for _, f := range []string{"../../configs/yastationd.conf.example", "../../configs/orion.conf.example"} {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		seen := map[string]bool{}
+		for _, w := range word.FindAllString(string(b), -1) {
+			seen[w] = true
+		}
+		for _, k := range Keys {
+			if !seen[k.Name] {
+				t.Errorf("%s: %s is missing", f, k.Name)
+			}
+		}
 	}
 }

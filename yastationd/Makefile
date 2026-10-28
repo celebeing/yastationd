@@ -144,6 +144,7 @@ SOUNDS ?= no_power volume_sound notification_sound something_went_wrong backend_
 AF_notification_sound := -af volume=-8dB
 AF_something_went_wrong := -af atrim=0:2.6,afade=t=out:st=2.45:d=0.15
 sounds:
+	@mkdir -p build
 	$(SSH) 'mkdir -p $(DESTDIR)/sounds'
 	set -e; for s in $(SOUNDS); do \
 	  if ! $(SSH) "d=/system/vendor/quasar/sounds; for f in ru-RU/$$s.opus ru-RU/$$s.wav ru-RU/$$s.mp3 common/$$s.mp3 $$s.mp3; do [ -f \$$d/\$$f ] && exec cat \$$d/\$$f; done; exit 1" > build/$$s.src; then \

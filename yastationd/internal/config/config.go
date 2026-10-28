@@ -5,8 +5,6 @@ package config
 import (
 	"bufio"
 	"fmt"
-	"github.com/celebeing/yastationd/yastationd/internal/luxcal"
-	"github.com/celebeing/yastationd/yastationd/internal/web"
 	"io"
 	"os"
 	"sort"
@@ -14,8 +12,14 @@ import (
 	"strings"
 	"time"
 	_ "time/tzdata" // tz names are checked while parsing
+
+	"github.com/celebeing/yastationd/yastationd/internal/ddp"
+	"github.com/celebeing/yastationd/yastationd/internal/luxcal"
+	"github.com/celebeing/yastationd/yastationd/internal/web"
 )
 
+// Config is the daemon's configuration. Every key is declared in registry.go (Keys), which
+// parses and prints it; the fields here only hold the values.
 type Config struct {
 	File string // the file it was loaded from (set by main; the setup page edits it)
 
@@ -273,6 +277,7 @@ func parseCurve(v string) ([]CurvePoint, error) {
 	return out, nil
 }
 
+// Default is the configuration with no file: every key at its default.
 func Default() Config {
 	cfw := CFWRoot()
 	return Config{
@@ -288,7 +293,7 @@ func Default() Config {
 		BrightnessCurve:     DefaultBrightnessCurve,
 		RingBrightness:      128,
 		AmbilightBrightness: 128,
-		DDPPort:             4048,
+		DDPPort:             ddp.DefaultPort,
 		TZ:                  "Europe/Moscow",
 		VolumeStep:          1,
 		VolumeMax:           100,
@@ -344,6 +349,7 @@ func Default() Config {
 	}
 }
 
+// Load reads a config file strictly (see Parse).
 func Load(path string) (Config, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -353,6 +359,7 @@ func Load(path string) (Config, error) {
 	return Parse(f)
 }
 
+// Parse reads a config, failing on the first bad line (ParseLenient skips them instead).
 func Parse(r io.Reader) (Config, error) {
 	c, errs := ParseLenient(r)
 	if len(errs) > 0 {

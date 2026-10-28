@@ -20,6 +20,7 @@ type Mixer struct {
 	run  func(args ...string) (string, error)
 }
 
+// NewMixer drives ALSA card card through amixer.
 func NewMixer(card string) *Mixer {
 	return &Mixer{Card: card, run: func(args ...string) (string, error) {
 		out, err := exec.Command("amixer", args...).CombinedOutput()
@@ -137,6 +138,7 @@ func (p *Player) StopBlip() {
 	}
 }
 
+// Play starts playing path, not waiting for it (Start without the handles).
 func (p *Player) Play(path string) error {
 	_, _, err := p.Start(path)
 	return err
@@ -253,6 +255,7 @@ func aplayCmd(ctx context.Context, args ...string) *exec.Cmd {
 	return cmd
 }
 
+// Stop cuts the current playback, if any.
 func (p *Player) Stop() {
 	p.mu.Lock()
 	defer p.mu.Unlock()

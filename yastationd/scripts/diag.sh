@@ -5,23 +5,25 @@
 #
 #   ssh root@<speaker> 'sh -s' < yastationd/scripts/diag.sh                 # archive left in /tmp
 #   ssh root@<speaker> 'sh -s -- -' < yastationd/scripts/diag.sh > diag.tar.gz
-#   <cfw>/bin/diag.sh [-r] [-o DIR] [-]
+#   <cfw>/bin/diag.sh [-r] [-x] [-o DIR] [-]
 #
 #   -o DIR   write diag-<device_id>-<YYYYmmdd-HHMMSS>.tar.gz into DIR (default /tmp); its path is
 #            the last line on stdout
 #   -        write the tar.gz to stdout instead (progress goes to stderr)
 #   -r       raw: no redaction (for your own use; never attach a raw archive to a public issue)
 #   -x       also take live readings from drivers: the IIO sensors' raw values, every LED's
-#            brightness and trigger, the USB-PD power_supply uevent, /proc/net/wireless. Each is
-#            read by the daemon or was read safely by hand, but not all of them together; off by
-#            default, for a unit you can power-cycle.
+#            brightness and trigger, the USB-PD power_supply uevent. Each is read by the daemon
+#            or was read safely by hand, but not all of them together; off by default, for a
+#            unit you can power-cycle.
 #
 # Never added here, whatever the flag (2026-10-28, see docs/diagnostics.md):
 #   - `amixer contents` / `controls` / `scontents`, or any loop over every mixer control: reading
 #     every control froze bergamot's kernel in the codec driver (after the SPDIF "Channel A
 #     Status" control); the unit needed a power cycle. ALSA facts come from /proc/asound only.
-#   - `wpa_cli signal_poll` (and `iw`): they reach cfg80211 calls the vendor Wi-Fi driver does
-#     not support. `wpa_cli status` / `list_networks` are wpa_supplicant's own state and stay.
+#   - `wpa_cli signal_poll` (and `iw`) and /proc/net/wireless: they reach cfg80211 calls the
+#     vendor Wi-Fi driver does not support; all were in the run that froze bergamot
+#     (docs/boards/bergamot.md). `wpa_cli status` / `list_networks` are wpa_supplicant's own
+#     state and stay.
 #   - efuse and pcba_ids reads (serials, and not proven harmless).
 #
 # Strictly read-only: it reads files, runs status commands and asks the daemon over local HTTP;
@@ -50,7 +52,7 @@ while [ $# -gt 0 ]; do
 	-r) RAW=1 ;;
 	-x) HW=1 ;;
 	-) STDOUT=1 ;;
-	-h | --help) sed -n '2,30p' "$0" 2>/dev/null || echo "usage: diag.sh [-r] [-x] [-o DIR] [-]"; exit 0 ;;
+	-h | --help) sed -n '2,40p' "$0" 2>/dev/null || echo "usage: diag.sh [-r] [-x] [-o DIR] [-]"; exit 0 ;;
 	*) echo "diag.sh: unknown argument '$1' (usage: diag.sh [-r] [-x] [-o DIR] [-])" >&2; exit 2 ;;
 	esac
 	shift
@@ -296,10 +298,9 @@ run "ip rule"
 run "cat /proc/net/dev"
 run "cat /etc/resolv.conf; ls -la /etc/resolv.conf"
 run "cat /etc/hosts" 5 40
-# No `wpa_cli signal_poll` / `iw`: the vendor Wi-Fi driver's cfg80211 does not support them (header).
+# No `wpa_cli signal_poll` / `iw` / /proc/net/wireless: the vendor Wi-Fi driver's cfg80211 does not support them (header).
 run "wpa_cli -i wlan0 status"
 run "wpa_cli -i wlan0 list_networks"
-[ "$HW" = 1 ] && run "cat /proc/net/wireless"
 WPA=$(ps w | awk '/[w]pa_supplicant/ {for (i = 1; i <= NF; i++) { if ($i == "-c") { print $(i+1); exit } if ($i ~ /^-c\//) { print substr($i, 3); exit } }}')
 note ""
 if [ -n "$WPA" ] && [ -f "$WPA" ]; then
@@ -452,7 +453,7 @@ note "flash         $(df -k "$CFW" 2>/dev/null | awk 'NR == 2 {printf "%s KB fre
 note "temperature   $(for z in /sys/class/thermal/thermal_zone*/temp; do [ -f "$z" ] && printf '%s ' "$(cat "$z")"; done)"
 note "reboot reason $(cat /sys/class/aml_info/reboot_reason 2>/dev/null || echo n/a)"
 if [ -f /tmp/yastationd.heartbeat ]; then note "heartbeat     written $(($(date +%s) - $(date -r /tmp/yastationd.heartbeat +%s))) s ago"; else note "heartbeat     absent"; fi
-note "driver probes $([ "$HW" = 1 ] && echo 'ON (-x: sensor, LED, PD, /proc/net/wireless readings)' || echo 'off (no -x)')"
+note "driver probes $([ "$HW" = 1 ] && echo 'ON (-x: sensor, LED, PD readings)' || echo 'off (no -x)')"
 if [ -f "$LOG" ]; then
 	note "log           $(wc -l <"$LOG") lines; ERROR $(grep -c 'level=ERROR' "$LOG"), WARN $(grep -c 'level=WARN' "$LOG"); starts $(grep -c '^=== start' "$LOG")"
 	note ""

@@ -12,7 +12,6 @@ import (
 	"bufio"
 	"embed"
 	"fmt"
-	"github.com/celebeing/yastationd/yastationd/internal/luxcal"
 	"io"
 	"math"
 	"os"
@@ -20,6 +19,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/celebeing/yastationd/yastationd/internal/luxcal"
 )
 
 //go:embed profiles/*.conf
@@ -134,6 +135,7 @@ type InputSpec struct {
 	AbsoluteRange map[int]AbsoluteRange // EV_ABS code -> trusted min/max when EVIOCGABS lies
 }
 
+// AbsoluteRange is an EV_ABS axis's range as the profile states it (abs_range.<code> = min,max).
 type AbsoluteRange struct {
 	Minimum int32
 	Maximum int32
@@ -214,6 +216,7 @@ func (a AudioSpec) RawFromPercent(pct int) int {
 	return a.RawFromLevel(float64(pct) * float64(a.VolumeLevels()) / 100)
 }
 
+// PercentFromRaw is the inverse of RawFromPercent.
 func (a AudioSpec) PercentFromRaw(raw int) int {
 	return int(math.Round(a.LevelFromRaw(raw) * 100 / float64(a.VolumeLevels())))
 }

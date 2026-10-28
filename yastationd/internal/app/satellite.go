@@ -21,6 +21,9 @@ const (
 	followDelay   = 300 * time.Millisecond
 )
 
+// defaultTTSRate is the sample rate assumed when HA's audio events carry none (Piper's).
+const defaultTTSRate = 22050
+
 // sndQueueLen bounds buffered audio chunks per stream. HA sends 2 KiB chunks faster than
 // real time; 8192 of them is ~6 min of 22050 Hz mono — far beyond any announcement.
 const sndQueueLen = 8192
@@ -35,9 +38,10 @@ const (
 	rebufferWait = 2 * time.Second
 )
 
-// satellite is the Wyoming satellite role (playback only for now: HA's announce and TTS
-// replies). The read loop must never block on aplay: HA drops a peer that misses a ping for
-// 5 s, so audio chunks go through a queue drained by a writer goroutine.
+// satellite is the Wyoming satellite role: HA's announcements and TTS replies here, the mic
+// sessions (push-to-talk, wake word) in voice.go. The read loop must never block on aplay: HA
+// drops a peer that misses a ping for 5 s, so audio chunks go through a queue drained by a writer
+// goroutine.
 type satellite struct {
 	a *App
 
@@ -100,7 +104,7 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 	case wyoming.TypeDescribe:
 		c.Send(wyoming.Info(wyoming.SatelliteInfo{
 			Name:        a.cfg().DeviceName,
-			Description: "yastationd on a de-Yandexed Station Mini 3",
+			Description: satelliteDescription(a.prof.Model),
 			Version:     version.Version,
 		}))
 	case wyoming.TypePing:
@@ -116,8 +120,8 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 		s.mu.Unlock()
 		s.resumeHeldWake()
 	case wyoming.TypePauseSatellite:
-		// HA muted the satellite (its mute switch) or is going away; nothing streams from us
-		// yet (no mic until Phase 2), so just drop any voice-stage indication.
+		// HA muted the satellite (its mute switch) or is going away: end a mic session on this
+		// connection, forget a pending reply and drop any voice-stage indication.
 		a.log.Info("wyoming", "event", ev.Type, "peer", c.RemoteAddr())
 		s.endListeningOn(c, "satellite paused")
 		s.setAwaiting(false)
@@ -140,7 +144,7 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 		if ev.Type == wyoming.TypeTranscript {
 			s.endListeningOn(c, "transcript")
 			s.setAwaiting(true)
-			s.lastHeard.Store(time.Now().UnixNano()) // whose request an HA intercom call is (icClaimCall)
+			s.lastHeard.Store(time.Now().UnixNano()) // whose request an HA intercom call is (cmdIntercomCall)
 		}
 		if ev.Type == wyoming.TypeSynthesize {
 			// HA doesn't forward continue_conversation to Wyoming satellites; emulate it from the
@@ -164,13 +168,13 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 	case wyoming.TypeTimerStarted, wyoming.TypeTimerUpdated, wyoming.TypeTimerCancelled, wyoming.TypeTimerFinished:
 		a.onTimerEvent(ev)
 	case wyoming.TypeAudioStart:
-		s.startStream(c, ev.Int("rate", 22050), ev.Int("width", 2), ev.Int("channels", 1))
+		s.startStream(c, ev.Int("rate", defaultTTSRate), ev.Int("width", 2), ev.Int("channels", 1))
 	case wyoming.TypeAudioChunk:
 		s.mu.Lock()
 		st := s.cur
 		s.mu.Unlock()
 		if st == nil || st.owner != c { // audio without audio-start: start from the chunk's format
-			st = s.startStream(c, ev.Int("rate", 22050), ev.Int("width", 2), ev.Int("channels", 1))
+			st = s.startStream(c, ev.Int("rate", defaultTTSRate), ev.Int("width", 2), ev.Int("channels", 1))
 		}
 		if st != nil && len(ev.Payload) > 0 {
 			now := time.Now()
@@ -239,7 +243,7 @@ func (s *satellite) pump(st *sndStream, w io.WriteCloser) {
 	defer w.Close()
 	bps := st.rate * st.channels * 2
 	if bps <= 0 {
-		bps = 2 * 22050
+		bps = 2 * defaultTTSRate
 	}
 	want := int(prebufferDur.Seconds() * float64(bps))
 	var (
@@ -389,6 +393,15 @@ func (s *satellite) endStream(c *wyoming.Conn, played bool) {
 			s.a.icListenIfRinging() // HA announced an incoming call («… принять?»)
 		}
 	}()
+}
+
+// satelliteDescription is what HA shows for the satellite: the board's model, when the profile
+// names one.
+func satelliteDescription(model string) string {
+	if model == "" {
+		return "yastationd on a de-Yandexed speaker"
+	}
+	return "yastationd on a de-Yandexed " + model
 }
 
 // voiceStage shows a pipeline stage (ring, front display) unless audio is already playing (speaking wins).

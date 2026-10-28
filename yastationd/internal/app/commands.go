@@ -47,6 +47,19 @@ func (a *App) commands() map[string]func([]byte) {
 	return c
 }
 
+// The display stacks' slots of the one-shot overlays (display/cmd, show_text, ring_animation):
+// a new one replaces the running one.
+const (
+	matrixOverlaySlot = "ov_matrix"
+	ringOverlaySlot   = "ov_ring"
+)
+
+// Bounds of the persisted durations (text_duration, animation_duration), in seconds.
+const (
+	minDurationSecs = 1
+	maxDurationSecs = 600
+)
+
 func (a *App) subscribe() {
 	t := a.topics
 	for obj, fn := range a.commands() {
@@ -181,7 +194,7 @@ func (a *App) cmdVolume(payload []byte) {
 }
 
 // speaker: a bare file path or URL to play. file:// and plain paths are played directly; a
-// remote URL is rejected for now (no downloader wired yet) — announcements come from the bank.
+// remote URL is rejected (no downloader here): remote media goes through the Wyoming satellite.
 func (a *App) cmdSpeaker(payload []byte) {
 	s := strings.TrimSpace(string(payload))
 	switch {
@@ -223,7 +236,7 @@ func (a *App) cmdDisplay(payload []byte) {
 }
 
 func (a *App) matrixOverlay(op string, args json.RawMessage, prio int, ttl time.Duration) {
-	name := "ov_matrix"
+	name := matrixOverlaySlot
 	if a.front == nil {
 		a.log.Info("display/cmd: no front display", "op", op)
 		return
@@ -297,7 +310,7 @@ func (a *App) matrixOverlay(op string, args json.RawMessage, prio int, ttl time.
 }
 
 func (a *App) ringOverlay(op string, args json.RawMessage, prio int, ttl time.Duration) {
-	name := "ov_ring"
+	name := ringOverlaySlot
 	switch op {
 	case "effect":
 		// {name, color?: [r,g,b] | {r,g,b}, brightness?}: any ring effect (the light's effect_list)
@@ -356,7 +369,7 @@ func parseRGB(raw json.RawMessage) (hw.RGB, bool) {
 	return hw.RGB{}, false
 }
 
-// playRingEffect runs a ring effect as the timed overlay (slot "ov_ring"). It lights the ring
+// playRingEffect runs a ring effect as the timed overlay (slot ringOverlaySlot). It lights the ring
 // even when the HA light is off and doesn't touch the light's state: when the TTL ends the ring
 // falls back to whatever the daemon shows underneath. Colour/brightness default to the light's.
 func (a *App) playRingEffect(name string, color *hw.RGB, brightness *int, prio int, ttl time.Duration) bool {
@@ -385,7 +398,7 @@ func (a *App) playRingEffect(name string, color *hw.RGB, brightness *int, prio i
 	if sp, ok := effectPrio[name]; ok && sp > prio {
 		prio = sp
 	}
-	a.ringStack.Push("ov_ring", prio, ttl, r)
+	a.ringStack.Push(ringOverlaySlot, prio, ttl, r)
 	return true
 }
 
@@ -395,7 +408,7 @@ func (a *App) cmdShowText(payload []byte) {
 		return
 	}
 	secs := a.store.get().TextSecs
-	a.matrixStack.Push("ov_matrix", display.PrioScenario, time.Duration(secs)*time.Second,
+	a.matrixStack.Push(matrixOverlaySlot, display.PrioScenario, time.Duration(secs)*time.Second,
 		a.front.Marquee(string(payload), a.marqueeStep(), a.brightness))
 }
 
@@ -404,7 +417,7 @@ func (a *App) cmdRingAnimation(payload []byte) {
 	name := strings.TrimSpace(string(payload))
 	topic := a.topics.State("ring_animation")
 	if name == animOff {
-		a.ringStack.Remove("ov_ring")
+		a.ringStack.Remove(ringOverlaySlot)
 		a.publish(topic, animOff)
 		return
 	}
@@ -422,14 +435,14 @@ func (a *App) cmdRingAnimation(payload []byte) {
 	})
 }
 
-// cmdDuration handles a persisted 1..600 s duration number.
+// cmdDuration handles a persisted duration number (minDurationSecs..maxDurationSecs).
 func (a *App) cmdDuration(obj string, field func(*persistState) *int) func([]byte) {
 	return func(payload []byte) {
 		f, err := strconv.ParseFloat(strings.TrimSpace(string(payload)), 64)
 		if err != nil {
 			return
 		}
-		v := clamp(int(f), 1, 600)
+		v := clamp(int(f), minDurationSecs, maxDurationSecs)
 		a.store.update(func(s *persistState) { *field(s) = v })
 		a.publish(a.topics.State(obj), strconv.Itoa(v))
 	}

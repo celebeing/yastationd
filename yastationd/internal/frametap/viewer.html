@@ -6,8 +6,10 @@
 <title>yastationd LED preview</title>
 <style>
   :root {
-    --bg: #0d0f12; --panel: #161a1f; --line: #262c34; --text: #d9dee5; --dim: #8a94a1;
-    --accent: #6cb6ff; --warn: #f0b35a; --bad: #ff7a7a;
+    /* docs/design.md's dark tokens: a dark-only tool page */
+    --bg: #121417; --panel: #1b1e22; --line: #2e333a; --text: #e8ebef; --dim: #9aa3ae;
+    --accent: #38bdf8; --bad: #f87171;
+    color-scheme: dark;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
@@ -30,10 +32,11 @@
   .row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
   .row > label.k { color: var(--dim); min-width: 92px; }
   button, select, input[type=text], input[type=url] {
-    background: #1f252c; color: var(--text); border: 1px solid #33404d; border-radius: 5px;
+    background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 5px;
     padding: 4px 9px; font: inherit; }
   button:hover { border-color: var(--accent); }
-  button.on { background: #24384d; border-color: var(--accent); }
+  button.on { background: color-mix(in srgb, var(--accent) 20%, var(--panel)); border-color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   input[type=range] { width: 180px; }
   input[type=text] { min-width: 220px; }
   input[type=url] { min-width: 280px; }
@@ -94,7 +97,7 @@ const sources = [];   // {url, info, es, frames: [], el, canvas, ctx, meta, prob
 let paused = false, cursor = -1; // cursor: index into the reference (first) source's history
 
 const $ = id => document.getElementById(id);
-const unhex = (s, n) => { const a = new Uint8Array(s.length / 2);
+const unhex = s => { const a = new Uint8Array(s.length / 2);
   for (let i = 0; i < a.length; i++) a[i] = parseInt(s.substr(i * 2, 2), 16); return a; };
 const err = msg => { $("err").textContent = msg || ""; };
 
@@ -111,8 +114,9 @@ function addSource(url) {
   if (sources.some(s => s.url === url)) return;
   const s = { url, info: null, frames: [], lastSeq: 0, drops: 0, times: [] };
   s.el = document.createElement("div"); s.el.className = "src";
-  s.el.innerHTML = `<div class="head"><b class="name">${url}</b><span class="meta"></span>
-    <button class="x" title="remove">✕</button></div><canvas></canvas><div class="probe"></div>`;
+  s.el.innerHTML = `<div class="head"><b class="name"></b><span class="meta"></span>
+    <button class="x" title="remove" aria-label="remove">✕</button></div><canvas></canvas><div class="probe"></div>`;
+  s.el.querySelector(".name").textContent = url; // from ?src=: text, never markup
   s.canvas = s.el.querySelector("canvas"); s.ctx = s.canvas.getContext("2d");
   s.meta = s.el.querySelector(".meta"); s.probe = s.el.querySelector(".probe");
   s.el.querySelector(".x").onclick = () => { s.es && s.es.close(); s.el.remove();
@@ -125,7 +129,7 @@ function addSource(url) {
     s.info = info;
     s.el.querySelector(".name").textContent = `${info.name || info.device} · ${info.board}`;
     layout(s); fillControls(); connect(s);
-  }).catch(e => { s.meta.innerHTML = `<span class="status-off">unreachable: ${e}</span>`; });
+  }).catch(e => { s.meta.replaceChildren(Object.assign(document.createElement("span"), { className: "status-off", textContent: `unreachable: ${e}` })); });
 }
 
 function connect(s) {

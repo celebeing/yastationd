@@ -19,7 +19,6 @@ type fakeBroker struct {
 	retained map[string]string
 	queue    [][2]string
 	apps     []*App
-	busy     bool
 }
 
 type fakeClient struct {

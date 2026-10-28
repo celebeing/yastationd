@@ -40,8 +40,8 @@ type Mic struct {
 const micRestart = 2 * time.Second
 
 const (
-	MicOutRate    = 16000
-	micChunkFrame = 1024 // output samples per delivered chunk (64 ms)
+	MicOutRate    = 16000 // the rate subscribers get (decimated from the capture rate)
+	micChunkFrame = 1024  // output samples per delivered chunk (64 ms)
 )
 
 // micReadFrames: device frames per read — 20 ms of audio, whatever the capture rate.
@@ -254,6 +254,7 @@ type Highpass struct {
 	x1, x2, y1, y2     float64
 }
 
+// NewHighpass designs the filter for cutoff fc at sample rate fs (Hz).
 func NewHighpass(fc, fs float64) *Highpass {
 	w := 2 * math.Pi * fc / fs
 	alpha := math.Sin(w) / math.Sqrt2 // Q = 1/sqrt(2)
@@ -265,6 +266,7 @@ func NewHighpass(fc, fs float64) *Highpass {
 	}
 }
 
+// Push filters one sample.
 func (h *Highpass) Push(s int16) int16 {
 	x := float64(s)
 	y := h.b0*x + h.b1*h.x1 + h.b2*h.x2 - h.a1*h.y1 - h.a2*h.y2

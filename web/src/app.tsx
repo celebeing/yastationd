@@ -82,7 +82,7 @@ function Speakers({ home }: { home: Peer }) {
   const [list, setList] = useState<Peer[]>([home])
   const [status, setStatus] = useState<Record<string, Status>>({})
   const [sel, setSel] = useState(home.id)
-  const [latest, setLatest] = useState<{ tag: string; url: string; date: string } | null>(null)
+  const [latest, setLatest] = useState<api.Release | null>(null)
   const recheck = useRef(false)
   useEffect(() => {
     api.latestRelease().then(setLatest)
@@ -171,7 +171,7 @@ function Speakers({ home }: { home: Peer }) {
 
 const ABOUT = '\u0000about'
 
-function About({ list, latest }: { list: Peer[]; latest: { tag: string; url: string; date: string } | null }) {
+function About({ list, latest }: { list: Peer[]; latest: api.Release | null }) {
   return (
     <section class="card about-card">
       <h2>yastationd</h2>
@@ -268,7 +268,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
     try {
       const s = await api.state(peer.id, base)
       setEnts(s.entities)
-      setFeatures((s.info as any).features || {})
+      setFeatures(s.info.features || {})
       setErr('')
       setNeedLogin(false)
     } catch (e: any) {
@@ -321,7 +321,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
       {err && <p class="err">{err}</p>}
       {!ents && <p class="muted">…</p>}
       {ents && tab === 'overview' && <Overview ents={ents} />}
-      {ents && tab === 'controls' && <Controls which="runtime" ents={ents} peer={peer} base={base} reload={load} />}
+      {ents && tab === 'controls' && <Controls ents={ents} peer={peer} base={base} reload={load} />}
       {(tab === 'general' || tab === 'voice') && <ConfigPage key={tab} page={tab} ents={ents || []} peer={peer} base={base} reload={load} />}
       {(['home', 'music', 'intercom'] as Tab[]).includes(tab) && <ConfigPage key={tab} page={tab as any} peer={peer} base={base} />}
       {tab === 'calibration' && <CalibrationTab peer={peer} base={base} />}
@@ -560,13 +560,7 @@ function fmtValue(e: Entity): string {
       return e.value
     }
   }
-  if (e.object === 'uptime') {
-    const s = Number(e.value)
-    const d = Math.floor(s / 86400),
-      h = Math.floor((s % 86400) / 3600),
-      m = Math.floor((s % 3600) / 60)
-    return (d ? d + 'd ' : '') + h + 'h ' + m + 'm'
-  }
+  if (e.object === 'uptime') return fmtSpan(Number(e.value))
   const u = e.config.unit_of_measurement
   return u ? `${e.value} ${u}` : e.value
 }
@@ -609,10 +603,10 @@ function Overview({ ents }: { ents: Entity[] }) {
   )
 }
 
-// Controls: the runtime controls ("runtime": lights, display, expressions…) or the settings HA
-// keeps as config entities ("options").
-function Controls(props: { which: 'runtime' | 'options'; ents: Entity[]; peer: Peer; base: string; reload: () => void }) {
-  const ctl = props.ents.filter((e) => e.writable && (e.config.entity_category === 'config') === (props.which === 'options'))
+// Controls: the runtime controls (lights, display, expressions…); the settings HA keeps as config
+// entities are on the configuration pages (settings.tsx).
+function Controls(props: { ents: Entity[]; peer: Peer; base: string; reload: () => void }) {
+  const ctl = props.ents.filter((e) => e.writable && e.config.entity_category !== 'config')
   const [err, setErr] = useState('')
   async function send(e: Entity, payload: string) {
     setErr('')
@@ -627,7 +621,7 @@ function Controls(props: { which: 'runtime' | 'options'; ents: Entity[]; peer: P
   // line, so a switch is never a screen's width away from what it switches.
   return (
     <div class="settings">
-      <h3>{props.which === 'options' ? 'Options' : 'Display, lights and voice'}</h3>
+      <h3>Display, lights and voice</h3>
       {err && <p class="err">{err}</p>}
       {ctl.map((e) => (
         <div class="ctl">

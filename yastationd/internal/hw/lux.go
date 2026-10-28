@@ -30,6 +30,7 @@ func FindLux(root, prefix string) string {
 	return ""
 }
 
+// ReadLux reads one value of an IIO light sensor file (its raw scale; see package luxcal).
 func ReadLux(path string) (float64, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {

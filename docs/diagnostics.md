@@ -20,15 +20,15 @@ ssh root@<speaker-ip> '<cfw>/bin/diag.sh -' > diag.tar.gz    # straight to the h
 ssh root@<speaker-ip> 'sh -s -- -' < yastationd/scripts/diag.sh > diag.tar.gz   # a unit without it
 ```
 
-`tools/deploy.sh` uploads it to `<cfw>/bin/diag.sh` with every deploy; nothing runs it on its own.
-The third form needs nothing installed (a CFW older than the script, or a broken deploy).
+`tools/deploy.sh` and `make deploy` upload it to `<cfw>/bin/diag.sh` with every deploy; nothing
+runs it on its own. The third form needs nothing installed (a CFW older than the script, or a broken deploy).
 
 | Flag | |
 |---|---|
 | `-o DIR` | write `diag-<device_id>-<YYYYmmdd-HHMMSS>.tar.gz` there instead of `/tmp` |
 | `-` | write the tar.gz to stdout (progress goes to stderr) |
 | `-r` | raw: no redaction, for your own use only |
-| `-x` | also take live readings from drivers: the IIO sensors' raw values, every LED's brightness and trigger, the USB-PD `power_supply` uevent, `/proc/net/wireless`. Off by default; use it on a unit you can power-cycle |
+| `-x` | also take live readings from drivers: the IIO sensors' raw values, every LED's brightness and trigger, the USB-PD `power_supply` uevent. Off by default; use it on a unit you can power-cycle |
 
 It finds `<cfw>` the way the boot hook does (`/bkupgrade/cfw`, else `/data/cfw`; never creates
 either). Every command is time-boxed (5–8 s, in its own process group, so a whole pipeline is
@@ -69,9 +69,9 @@ under a second.
   `snd_*_get` prints, after the SPDIF "Channel A Status" control. The unit needed a power cycle.
   The daemon and hardvold read a few named controls, which is fine. A diagnostic reads the
   stream state from `/proc/asound` instead.
-- **`wpa_cli signal_poll`, `iw`:** they reach cfg80211 calls the vendor Wi-Fi driver does not
-  support (`get_channel`, `get_tx_power`). `wpa_cli status` and `list_networks` only report
-  wpa_supplicant's own state.
+- **`wpa_cli signal_poll`, `iw`, `/proc/net/wireless`:** they reach cfg80211 calls the vendor
+  Wi-Fi driver does not support (`get_channel`, `get_tx_power`). `wpa_cli status` and
+  `list_networks` only report wpa_supplicant's own state.
 - **efuse, `pcba_ids`**: serial numbers, and nobody has shown that reading them is harmless.
 - Anything that writes: no remount, no config change, nothing to Wi-Fi, the egress lock or
   dropbear, no vendor binaries started, no sound, no LEDs.

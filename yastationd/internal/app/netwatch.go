@@ -18,11 +18,12 @@ import (
 // unreachable for net_wifi_reconfigure_min it has wpa_supplicant reload its configuration; after
 // net_wifi_reset_min it resets the Wi-Fi controller with the board's platform.wifi_reset (the
 // firmware's yandex-wifireset: driver out, SDIO power cycled, back in), again every
-// net_wifi_reset_every_min (net_wifi_recovery = false: neither); after cfg.NetWatchdog it logs the kernel's last lines, puts the waiting log
-// lines on flash and reboots. Each watchdog reboot doubles the next wait (up to netWatchMax) so
-// that a router outage does not reboot every speaker every few minutes; an hour of good network
-// resets it. The count lives in <cfw>/netwatch.count and is measured in uptime, not wall time: a
-// mini's clock is stale after a reboot until the network is back.
+// net_wifi_reset_every_min (net_wifi_recovery = false: neither); after cfg.NetWatchdog it logs
+// the kernel's last lines, puts the waiting log lines on flash and reboots. Each watchdog reboot
+// doubles the next wait (up to netWatchMax) so that a router outage does not reboot every speaker
+// every few minutes; an hour of good network resets it. The count lives in <cfw>/netwatch.count
+// and is measured in uptime, not wall time: a mini's clock is stale after a reboot until the
+// network is back.
 
 const (
 	netWatchEvery = 30 * time.Second
@@ -31,6 +32,7 @@ const (
 	netWatchCount = "netwatch.count"
 
 	netWifiCmdTimeout = time.Minute
+	netPingTimeout    = 5 * time.Second // the whole gateway ping (it waits 2 s for the reply)
 )
 
 type netAction int
@@ -99,7 +101,7 @@ func (a *App) netWatchLoop(stop <-chan struct{}) {
 	if a.cfg().NetWatchdog <= 0 {
 		return
 	}
-	countFile := a.cfg().Path(a.prof.Platform.CFWRoot + "/" + netWatchCount)
+	countFile := a.cfwFile(netWatchCount)
 	w := netWatch{}
 	if c := a.cfg(); c.NetWifiRecovery {
 		w.reconfigureAfter, w.resetEvery = c.NetWifiReconfigure, c.NetWifiResetEvery
@@ -185,7 +187,7 @@ func (a *App) networkUp() bool {
 	if gw == "" {
 		return false
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), netPingTimeout)
 	defer cancel()
 	return exec.CommandContext(ctx, "ping", "-c", "1", "-W", "2", gw).Run() == nil
 }
@@ -208,7 +210,11 @@ func uptime() time.Duration {
 	if err != nil {
 		return 0
 	}
-	f, err := strconv.ParseFloat(strings.Fields(string(b))[0], 64)
+	fields := strings.Fields(string(b))
+	if len(fields) == 0 {
+		return 0
+	}
+	f, err := strconv.ParseFloat(fields[0], 64)
 	if err != nil {
 		return 0
 	}

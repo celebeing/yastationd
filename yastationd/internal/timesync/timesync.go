@@ -1,7 +1,7 @@
 // Package timesync keeps the system clock right on firmwares with no working NTP daemon (fw 0.6.x
 // ships no chronyd, and its vendor loop polls public pools our egress lock blocks). It is a
 // minimal SNTP client that steps the clock. When chronyd/ntpd runs, it only checks the daemon's
-// work: there's no RTC battery, so the clock boots stale (bergamot: two days behind), and chronyd
+// work: most boards have no battery-backed RTC, so the clock boots stale (bergamot: two days behind), and chronyd
 // was seen slewing such an offset for ~11 minutes before stepping, with the clock showing the old
 // time and no cue. So a daemon's clock counts as synced only once an SNTP query agrees with it
 // (a big disagreement is stepped right away), or, with no server answering, when the kernel's
@@ -42,6 +42,7 @@ const (
 // ntpEpoch is 1900-01-01 in Unix seconds.
 const ntpEpoch = 2208988800
 
+// Syncer keeps the system clock set over SNTP (see the package doc).
 type Syncer struct {
 	Servers    []string // configured servers, tried first
 	ChronyConf string   // e.g. /etc/chrony.conf; "" = skip
@@ -65,6 +66,7 @@ func (s *Syncer) setSynced(v bool) {
 	}
 }
 
+// Run syncs (or checks a system daemon's clock) until stop closes, retrying with backoff.
 func (s *Syncer) Run(stop <-chan struct{}) {
 	if s.query == nil {
 		s.query = func(server string) (time.Duration, error) { return Query(server, queryWait) }

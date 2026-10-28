@@ -136,8 +136,8 @@ the invite from the lower device id wins (the other side treats it as its call).
 - `internal/hw`: a `LiveOut` — a low-latency aplay for a live stream, beside `Player`.
 - `internal/app/intercom.go`: wiring — MQTT topics, mic/VQE subscription, playout, ring layer,
   peers for the HA select.
-  - **wake word:** stays on during a call, with the far-end guard (see the voice scenario);
-    the command spotter's «стоп» does not hang up in v1.
+  - **wake word:** stays on during a call, no far-end guard (the AEC keeps the far end's
+    «Алиса» off the spotters); «Алиса, стоп» hangs up (see the voice scenario).
   - **voice key:** ringing → answer; calling/in_call → hang up; it does not start a voice session
     while a call is up.
   - **music:** ducked like during an Assist session (`assistantBusy`).
@@ -155,6 +155,17 @@ the invite from the lower device id wins (the other side treats it as its call).
   | outgoing | green comet | the `ringing` clip | `calls_ringing_outgoing`, repeated |
   | in a call | slow blue breath (no other state's colour); an Assist session's stages show over it | the call's duration `m:ss` | `calls_connected` at the start |
   | ended | a white flash | the clock | `calls_ended` (after a call), `calls_busy` (refused / no answer) |
+
+  How a call ended is the `intercom` sensor's `ended` attribute, and it picks what the end does
+  (`onIntercomState`, `internal/app/intercom.go`):
+
+  | `ended` | When | Sound and display |
+  |---|---|---|
+  | `rejected: <reason>` | the callee refused (`busy`, `declined`, `timeout`, `off`) | `calls_busy` (else `calls_ended`) and the "error" expression |
+  | `no answer` | our ring ran out (`intercom_ring_secs`) | as above |
+  | `media error: …` | the audio could not start or broke | as above |
+  | `missed` | it rang here unanswered (the caller gave up, or the ring timed out) | nothing |
+  | anything else (`hung up by the peer`, `maximum duration`, a local hang-up, `crossed calls`…) | a normal end | `calls_ended` if the call was up, a white flash on the ring |
 
   The call sounds are vendor files decoded onto the unit by `make sounds` (never in the repo).
 - **Keys:** the voice key answers a ringing call and ends any other; the **mic-mute switch
@@ -252,8 +263,8 @@ decision first.
 ## Implementation notes (v1)
 
 - Code: `yastationd/internal/intercom` (no daemon imports), `internal/hw/liveout.go`,
-  `internal/app/intercom.go`; hooks in `wakeword.go` (the far-end guard), `input.go` (voice key),
-  `satellite.go` (transcript; listening after an announcement while ringing), `music.go` (duck),
+  `internal/app/intercom.go`; hooks in `wakeword.go` (voice commands during a call), `input.go`
+  (voice key), `satellite.go` (transcript; listening after an announcement while ringing), `music.go` (duck),
   `wifisetup.go` (hang up first), `app.go` (bye on shutdown).
 - **The jitter target grows only on a late packet** (one that arrived after its slot was
   concealed: real network jitter), one frame at a time up to 160 ms, and decays a frame per 10 s

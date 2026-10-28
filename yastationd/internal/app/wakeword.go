@@ -197,7 +197,7 @@ func (a *App) prerollLead() time.Duration {
 	return time.Duration(ms) * time.Millisecond
 }
 
-// WakeWordLead: with wake_word_in_stream, how far before the WAKE point the audio for HA starts.
+// wakeWordLead: with wake_word_in_stream, how far before the WAKE point the audio for HA starts.
 // The spotter fires 0.55-0.7 s after the word starts (up to 1.3 s for a drawn-out one,
 // docs/wake-word-boundary.md).
 const wakeWordLead = 1300 * time.Millisecond

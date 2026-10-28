@@ -157,18 +157,24 @@ func (f Seg7Front) Anim(name string) (Anim, bool) {
 	if f.Clips == nil {
 		return nil, false
 	}
-	names, ok := seg7Anims[name]
+	return pickAnim(seg7Anims, name, f.Clips.Load)
+}
+
+// pickAnim loads the semantic animation name through table (its candidates, in order; a name not
+// in the table is a file name itself; an empty entry = none on this display).
+func pickAnim[A Anim](table map[string][]string, name string, load func(...string) (A, bool)) (Anim, bool) {
+	names, ok := table[name]
 	if !ok {
 		names = []string{name}
 	}
 	if len(names) == 0 {
 		return nil, false
 	}
-	c, ok := f.Clips.Load(names...)
+	a, ok := load(names...)
 	if !ok {
 		return nil, false
 	}
-	return c, true
+	return a, true
 }
 
 func (f Seg7Front) Anims() []string {
@@ -228,18 +234,7 @@ func (f PixelFront) Anim(name string) (Anim, bool) {
 	if f.Patterns == nil {
 		return nil, false
 	}
-	names, ok := pixelAnims[name]
-	if !ok {
-		names = []string{name}
-	}
-	if len(names) == 0 {
-		return nil, false
-	}
-	p, ok := f.Patterns.Load(names...)
-	if !ok {
-		return nil, false
-	}
-	return p, true
+	return pickAnim(pixelAnims, name, f.Patterns.Load)
 }
 
 func (f PixelFront) Anims() []string {

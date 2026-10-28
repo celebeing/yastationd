@@ -254,14 +254,7 @@ func (a *App) nudgePercent(n int) {
 			to = step
 		}
 	}
-	edge := 0
-	if to == from && n != 0 {
-		edge = 1
-		if n < 0 {
-			edge = -1
-		}
-	}
-	a.applyVolumeEdge(a.rawFromPercent(to), edge)
+	a.applyVolumeEdge(a.rawFromPercent(to), nudgeEdge(from, to, n))
 }
 
 // nudgeVolume moves Master by n steps of the board's volume curve (5 % each) and shows the local
@@ -274,15 +267,19 @@ func (a *App) nudgeVolume(n int) {
 	}
 	from := a.unscaleVolume(cur)
 	to := a.prof.Audio.StepVolume(from, n)
-	nv := a.scaleVolume(to)
-	edge := 0
-	if to == from && n != 0 { // pushed past the bottom or the top
-		edge = 1
-		if n < 0 {
-			edge = -1
-		}
+	a.applyVolumeEdge(a.scaleVolume(to), nudgeEdge(from, to, n))
+}
+
+// nudgeEdge is applyVolumeEdge's edge for a nudge by n from from to to: -1/+1 when it was pushed
+// past the bottom or the top (the level did not move), else 0.
+func nudgeEdge(from, to, n int) int {
+	switch {
+	case to != from || n == 0:
+		return 0
+	case n < 0:
+		return -1
 	}
-	a.applyVolumeEdge(nv, edge)
+	return 1
 }
 
 // volumeBeep ticks the stock volume sound at the new level, so the level is heard as it is set.
@@ -329,7 +326,7 @@ func wavDuration(path string) (time.Duration, error) {
 		return 0, err
 	}
 	defer f.Close()
-	h := make([]byte, 44)
+	h := make([]byte, wavHeaderLen)
 	if _, err := io.ReadFull(f, h); err != nil {
 		return 0, err
 	}
@@ -341,7 +338,7 @@ func wavDuration(path string) (time.Duration, error) {
 	if string(h[:4]) != "RIFF" || byteRate == 0 {
 		return 0, fmt.Errorf("%s: not a PCM wav", path)
 	}
-	return time.Duration(fi.Size()-44) * time.Second / time.Duration(byteRate), nil
+	return time.Duration(fi.Size()-wavHeaderLen) * time.Second / time.Duration(byteRate), nil
 }
 
 // volume_max scales the board's curve: a percentage goes through the curve first, and the raw

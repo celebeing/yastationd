@@ -31,9 +31,9 @@ type Event struct {
 }
 
 const (
-	feedQueue = 256           // raw 20 ms blocks (~5 s) buffered towards the child
-	ringMax   = 4 * 16000 * 2 // 4 s of vqe_0 kept: pre-roll, and the audio before a WAKE reported late
-	VQERate   = 16000
+	feedQueue = 256             // raw 20 ms blocks (~5 s) buffered towards the child
+	ringMax   = 4 * VQERate * 2 // 4 s of vqe_0 kept: pre-roll, and the audio before a WAKE reported late
+	VQERate   = 16000           // vqe_0's sample rate (S16LE mono)
 )
 
 // Spotter supervises spotter-host serve. Feed and the VQE fan-out are safe for concurrent use.

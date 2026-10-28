@@ -31,3 +31,5 @@ clean:
 
 distclean:
 	rm -rf build src
+
+.PHONY: all clean distclean

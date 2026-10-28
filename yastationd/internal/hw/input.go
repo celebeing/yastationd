@@ -25,6 +25,7 @@ const (
 	SwMuteDevice = 0x0e
 )
 
+// InputEvent is one evdev event (struct input_event without its timestamp).
 type InputEvent struct {
 	Type  uint16
 	Code  uint16
@@ -75,6 +76,7 @@ func ReadEvents(r io.Reader, fn func(InputEvent)) error {
 	}
 }
 
+// OpenInput opens an evdev device for ReadEvents.
 func OpenInput(path string) (*os.File, error) { return os.Open(path) }
 
 // FindInput maps an evdev device's kernel name (the N: Name= line of /proc/bus/input/devices,
@@ -168,6 +170,8 @@ type CircularAxis struct {
 	haveLast     bool
 }
 
+// NewCircularAxis splits a full turn of the axis into stepsPerTurn steps; a pause longer than
+// gestureGap starts a new gesture.
 func NewCircularAxis(info AbsInfo, stepsPerTurn int, gestureGap time.Duration) *CircularAxis {
 	return &CircularAxis{
 		min:          info.Minimum,

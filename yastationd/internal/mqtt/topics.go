@@ -11,12 +11,14 @@ type Topics struct {
 	prefix, disc, id string
 }
 
+// NewTopics builds the topics of device id (see Topics).
 func NewTopics(prefix, disc, id string) Topics {
 	return Topics{prefix: prefix, disc: disc, id: id}
 }
 
 func (t Topics) node() string { return "yastation_" + t.id }
 
+// Availability is the retained online/offline topic (the LWT).
 func (t Topics) Availability() string { return fmt.Sprintf("%s/%s/availability", t.prefix, t.id) }
 
 // Discovery is the HA MQTT-Discovery config topic for one object.

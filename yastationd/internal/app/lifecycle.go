@@ -137,12 +137,20 @@ func (a *App) showDegraded(on bool) {
 const bootMarker = "/tmp/yastationd.boot-shown"
 
 func (a *App) greetOncePerBoot() {
-	marker := a.cfg().Path(bootMarker)
-	if _, err := os.Stat(marker); err == nil {
-		return
+	if a.firstThisBoot(bootMarker) {
+		a.moment(lifeSlot, "startup", 0)
 	}
-	os.WriteFile(marker, nil, 0o644)
-	a.moment(lifeSlot, "startup", 0)
+}
+
+// firstThisBoot reports whether marker (a file under /tmp, which survives daemon respawns but not
+// a reboot) was missing, and creates it: true once per device boot.
+func (a *App) firstThisBoot(marker string) bool {
+	p := a.cfg().Path(marker)
+	if _, err := os.Stat(p); err == nil {
+		return false
+	}
+	os.WriteFile(p, nil, 0o644)
+	return true
 }
 
 // voiceUnavailable: a voice attempt with no HA to talk to — a bright red pulse and the stock

@@ -91,7 +91,8 @@ volume_beep  = true
 # vqe_models           =         (default <cfw>/vendor/vqe_models if there, else the firmware's)
 
 # --- Wyoming satellite (HA: Settings → Integrations → Wyoming → host = this device, port below).
-# Playback only for now: HA announcements (assist_satellite.announce) and TTS replies. 0 = off.
+# HA's announcements (assist_satellite.announce) and TTS replies, and the voice (wake word,
+# push-to-talk) into the Assist pipeline. 0 = off.
 wyoming_port = 10700
 # the LED ring as a light entity in HA (its MQTT topic works either way)
 # ha_ring_light = false

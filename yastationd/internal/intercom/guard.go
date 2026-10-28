@@ -113,14 +113,6 @@ func (g *Guard) Far(f []int16, now time.Time) {
 	g.mu.Unlock()
 }
 
-// FarSpokeWithin reports whether the far end was heard in the last d (the wake-word guard: an
-// «Алиса» from the other room leaking through the AEC is not ours).
-func (g *Guard) FarSpokeWithin(now time.Time, d time.Duration) bool {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	return !g.farAt.IsZero() && now.Sub(g.farAt) < d
-}
-
 // Up processes an uplink frame in place.
 func (g *Guard) Up(f []int16, now time.Time) {
 	g.mu.Lock()

@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -161,21 +162,25 @@ func (a *App) publishShared(kind, item string, on bool) bool {
 	if bus == nil {
 		return false
 	}
-	topic := a.topics.Shared(kind, item)
 	if !on {
 		a.sharedSet(kind, item, nil)
-		bus.Publish(topic, "")
+		bus.Publish(a.topics.Shared(kind, item), "")
 		return true
 	}
 	v, ok := a.localShared(kind, item)
 	if !ok {
 		return false
 	}
+	a.sendShared(bus, kind, item, v)
+	return true
+}
+
+// sendShared stamps v as this speaker's change of an item, keeps it, and publishes it.
+func (a *App) sendShared(bus publisher, kind, item string, v json.RawMessage) {
 	m := sharedMsg{V: v, At: a.sharedNow(), By: a.cfg().DeviceID}
 	b, _ := json.Marshal(m)
 	a.sharedSet(kind, item, &m)
-	bus.Publish(topic, string(b))
-	return true
+	bus.Publish(a.topics.Shared(kind, item), string(b))
 }
 
 // shareChanged: after a local change of an item, a shared one goes out to the others (nothing
@@ -201,7 +206,6 @@ func (a *App) syncKinds() []string {
 
 func (a *App) syncSubscribe() {
 	for _, kind := range a.syncKinds() {
-		kind := kind
 		a.mqtt.SubscribeTopic(a.topics.SharedAll(kind), func(topic string, payload []byte) {
 			if item := a.topics.SharedItem(kind, topic); item != "" {
 				a.onShared(kind, item, payload)
@@ -241,11 +245,7 @@ func (a *App) applyShared(kind, item string, v json.RawMessage) error {
 		if err := json.Unmarshal(normShared(kind, item, v), &vals); err != nil {
 			return err
 		}
-		old, err := os.ReadFile(a.cfg().File)
-		if err != nil {
-			return err
-		}
-		restart, _, err := a.applyConfigText(config.EditNote(old, map[string][]string{item: vals}, "shared by the other speakers"), "sync")
+		restart, _, err := a.applyConfigKeys(map[string][]string{item: vals}, "shared by the other speakers", "sync")
 		if err == nil && restart {
 			m, _ := a.sharedGet(kind, item)
 			a.notePendingSync(kind+"/"+item, m.At)
@@ -279,7 +279,6 @@ func (a *App) shareOptions(c map[string]func([]byte)) {
 		if fn == nil {
 			continue
 		}
-		obj := obj
 		c[obj] = func(p []byte) {
 			fn(p)
 			// every shared option: a handler may change another option too
@@ -339,11 +338,10 @@ func (a *App) syncViewNow() syncView {
 	return v
 }
 
+// splitShared splits a shared item's key (kind + "/" + item) at its last slash: a moment's kind
+// has one of its own.
 func splitShared(key string) (kind, item string) {
-	i := len(key) - 1
-	for i >= 0 && key[i] != '/' {
-		i--
-	}
+	i := strings.LastIndexByte(key, '/')
 	return key[:max(i, 0)], key[i+1:]
 }
 
@@ -359,8 +357,8 @@ func (a *App) apiSync(w http.ResponseWriter, r *http.Request) {
 			Item string `json:"item"`
 			On   bool   `json:"on"`
 		}
-		if json.NewDecoder(io.LimitReader(r.Body, 4<<10)).Decode(&in) != nil || in.Item == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "want {kind, item, on}"})
+		if json.NewDecoder(io.LimitReader(r.Body, smallBody)).Decode(&in) != nil || in.Item == "" {
+			writeErr(w, http.StatusBadRequest, "want {kind, item, on}")
 			return
 		}
 		kind := in.Kind
@@ -368,16 +366,16 @@ func (a *App) apiSync(w http.ResponseWriter, r *http.Request) {
 			kind = a.momentKind()
 		}
 		if _, ok := a.localShared(kind, in.Item); !ok {
-			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": in.Kind + " " + in.Item + ": cannot be shared"})
+			writeErr(w, http.StatusUnprocessableEntity, in.Kind+" "+in.Item+": cannot be shared")
 			return
 		}
 		if !a.publishShared(kind, in.Item, in.On) {
-			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "no MQTT broker: sharing goes through it"})
+			writeErr(w, http.StatusServiceUnavailable, "no MQTT broker: sharing goes through it")
 			return
 		}
 		writeJSON(w, http.StatusOK, a.syncViewNow())
 	default:
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "GET or POST"})
+		writeErr(w, http.StatusMethodNotAllowed, "GET or POST")
 	}
 }
 
@@ -398,10 +396,7 @@ func (a *App) shareSettings(c *config.Config, changed []string) {
 		if sameJSON(v, normShared("setting", name, m.V)) {
 			continue
 		}
-		next := sharedMsg{V: v, At: a.sharedNow(), By: a.cfg().DeviceID}
-		b, _ := json.Marshal(next)
-		a.sharedSet("setting", name, &next)
-		bus.Publish(a.topics.Shared("setting", name), string(b))
+		a.sendShared(bus, "setting", name, v)
 	}
 }
 

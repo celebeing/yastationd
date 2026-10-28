@@ -12,7 +12,7 @@ export default defineConfig({
   },
   server: {
     proxy: process.env.YASTATION
-      ? { '/api': process.env.YASTATION, '/metrics': process.env.YASTATION }
+      ? { '/api': process.env.YASTATION, '/metrics': process.env.YASTATION, '/tap': process.env.YASTATION }
       : undefined,
   },
 })

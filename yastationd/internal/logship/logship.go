@@ -32,6 +32,7 @@ type Source struct {
 	App  string
 }
 
+// Shipper tails Sources and sends their lines as syslog to Addr, spooling while it is down.
 type Shipper struct {
 	Addr     string // host:port of the syslog server (TCP)
 	Host     string // the HOSTNAME field: the device id

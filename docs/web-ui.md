@@ -62,6 +62,10 @@ to the binary. Flash is written only when the config is saved.
 | `GET /api/settings`, `PUT /api/settings` | the config keys with their descriptions; set some ([settings.md](settings.md)) |
 | `GET /api/sync`, `POST /api/sync` | what is shared with the other speakers; share or stop sharing an item |
 | `POST /api/password` | change the login |
+| `GET /api/wifi`, `POST /api/wifi/networks` | the saved Wi-Fi networks (no passwords), the current one, whether setup mode is on; add a network (`{ssid, psk, hidden, priority}`) — only with `wifi_setup` on ([wifi-setup.md](wifi-setup.md)) |
+| `GET /api/moments`, `PUT\|DELETE /api/moments/<name>`, `POST /api/moment/<name>` | the moments and their catalogue; set the owner's choice or go back to the defaults; show one (a body of candidates previews an unsaved draft) |
+| `GET /api/log?source=daemon\|system&lines=N` | the tail of the daemon's or the system log, oldest first ([storage.md](storage.md)) |
+| `GET\|POST\|DELETE /api/calibrate/light` | the light-sensor calibration: its state; `{"lux": N}` measures and stores a point; drop the unit's own ([sensor-calibration.md](sensor-calibration.md)) |
 
 ### One definition for MQTT and the web
 

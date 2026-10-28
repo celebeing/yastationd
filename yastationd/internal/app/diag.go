@@ -19,21 +19,22 @@ const diagTimeout = 2 * time.Minute
 
 func (a *App) apiDiag(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "GET"})
+		writeErr(w, http.StatusMethodNotAllowed, "GET")
 		return
 	}
-	script := a.cfg().Path(a.prof.Platform.CFWRoot + "/bin/diag.sh")
+	script := a.cfwFile("bin/diag.sh")
 	if _, err := os.Stat(script); err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "diag.sh is not installed on this speaker (an older deploy)"})
+		writeErr(w, http.StatusNotFound, "diag.sh is not installed on this speaker (an older deploy)")
 		return
 	}
 	if !a.diagBusy.CompareAndSwap(false, true) {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "a diagnostics run is already going"})
+		writeErr(w, http.StatusConflict, "a diagnostics run is already going")
 		return
 	}
 	defer a.diagBusy.Store(false)
 	args := []string{script}
-	if r.URL.Query().Get("raw") == "1" {
+	raw := r.URL.Query().Get("raw") == "1"
+	if raw {
 		args = append(args, "-r")
 	}
 	args = append(args, "-")
@@ -45,16 +46,16 @@ func (a *App) apiDiag(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	err := cmd.Run()
 	b := out.Bytes()
-	if err != nil || len(b) < 2 || b[0] != 0x1f || b[1] != 0x8b { // not a gzip
+	if err != nil || !isGzip(b) {
 		tail := strings.TrimSpace(errb.String())
 		if len(tail) > 500 {
 			tail = tail[len(tail)-500:]
 		}
 		a.log.Warn("diag: failed", "err", err, "stderr", tail)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("diag.sh failed: %v %s", err, tail)})
+		writeErr(w, http.StatusInternalServerError, fmt.Sprintf("diag.sh failed: %v %s", err, tail))
 		return
 	}
-	a.log.Info("diag: archive made", "bytes", len(b), "raw", len(args) == 3, "took", time.Since(start).Round(time.Millisecond))
+	a.log.Info("diag: archive made", "bytes", len(b), "raw", raw, "took", time.Since(start).Round(time.Millisecond))
 	name := fmt.Sprintf("diag-%s-%s.tar.gz", a.cfg().DeviceID, time.Now().Format("20060102-150405"))
 	w.Header().Set("Content-Type", "application/gzip")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)

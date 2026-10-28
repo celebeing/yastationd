@@ -115,3 +115,51 @@ chrony_conf = /etc/chrony.conf
 
 # Use debug while validating the circular panel; change to info afterwards.
 log_level = debug
+
+# --- the rest, with their defaults (comments as in yastationd.conf.example; docs in brackets) ---
+# Waiting for HA's reply: our deadline in s, and what a wake word does meanwhile
+# (interrupt or ignore; docs/voice-slow-replies.md). First connection timeout at boot, in s
+# (docs/status-indication.md).
+# reply_timeout        = 90
+# wake_while_waiting   = interrupt
+# boot_connect_timeout = 40
+# display_faces = true          (voice expressions on the screen at first start)
+# announce_chime = true         (a chime before an HA announcement; needs `make sounds`)
+# Music Assistant player (docs/music-sendspin.md). Off by default.
+# sendspin          = true
+# sendspin_name     = <speaker name in HA>           (default: device_name)
+# sendspin_server   = ws://<ma-host>:8927/sendspin   (optional: dial MA instead of waiting for it)
+# sendspin_volume   = linked                         (linked or separate)
+# music_duck_db     = -26                            (music level under the assistant, -60..0)
+# sendspin_unpaired = true                           (let MA play before it is paired)
+# sendspin_bin = <cfw>/bin/sendspin-host   sendspin_port = 8928   sendspin_state = <cfw>/sendspin/state.json
+# Intercom (docs/intercom.md, docs/ha-intercom-setup.md). Off by default.
+# intercom             = true
+# intercom_secret      = <at least 16 characters, the same on every speaker>
+# intercom_name        = <the room name others call this speaker by>   (default: device_name)
+# intercom_port        = 10710   (UDP)
+# intercom_auto_answer = false
+# intercom_ring_secs   = 30
+# intercom_max_secs    = 1800
+# intercom_jitter_ms   = 40
+# intercom_gain_db     = 30      (the uplink's gain only without the VQE call mode)
+# vqe_models           =         (default <cfw>/vendor/vqe_models if there, else the firmware's)
+# intercom_record_dir  =         (testing: save each call's raw uplink there)
+# Wi-Fi setup mode (docs/wifi-setup.md): mute the mic, then hold the voice key for 5 s.
+# wifi_setup         = true
+# wifi_setup_ssid    = yastation-<device_id>
+# wifi_setup_psk     =                (empty = open network; 8..63 characters = WPA2-PSK)
+# wifi_setup_channel = 6
+# wifi_setup_address = 10.42.0.1/24   (a /24)
+# hostapd_bin        = <cfw>/bin/hostapd
+# wpa_conf           =                (empty = the running wpa_supplicant's -c)
+# Web app: web_password = (a pbkdf2-sha256$… hash, set from the app; empty = "yastation"),
+# led_preview = true (the LED preview in the web app; docs/web-ui.md).
+# Paths (defaults rooted under <cfw>; override only for testing):
+# spotter_bin = <cfw>/bin/spotter-host   clips_dir = <cfw>/clips   scenarios_dir = <cfw>/scenarios
+# state_file = <cfw>/yastationd.state   heartbeat_file = /tmp/yastationd.heartbeat   sysroot =
+# lux_path =                    (the light sensor's IIO file; empty = found by the board profile)
+# board_file = <cfw>/board.conf (single board-profile keys changed without a rebuild)
+# Hardware overrides of the board profile, only when set here (orion's are verified; leave them):
+# aplay_device, amixer_card, unmute, mic_device, mic_channels, mic_rate, mic_channel,
+# mic_pdm_gain, spotter_libs, wake_model, command_model

@@ -13,6 +13,7 @@ import (
 
 	"github.com/celebeing/yastationd/yastationd/internal/board"
 	"github.com/celebeing/yastationd/yastationd/internal/config"
+	"github.com/celebeing/yastationd/yastationd/internal/health"
 )
 
 // Settings (docs/settings.md): the config file stays the one place for settings. Every change —
@@ -65,6 +66,16 @@ func (a *App) applyConfigText(data []byte, why string) (restart bool, changed []
 	}
 	a.shareSettings(&next, changed)
 	return false, changed, nil
+}
+
+// applyConfigKeys sets keys in the config file (an empty list removes a key) with a note, and
+// applies the result as applyConfigText does.
+func (a *App) applyConfigKeys(changes map[string][]string, note, why string) (restart bool, changed []string, err error) {
+	old, err := os.ReadFile(a.cfg().File)
+	if err != nil {
+		return false, nil, err
+	}
+	return a.applyConfigText(config.EditNote(old, changes, note), why)
 }
 
 // checkConfigEdit parses the new text of the config file. A bad line is refused unless it was
@@ -228,45 +239,181 @@ func (a *App) apiSettings(w http.ResponseWriter, r *http.Request) {
 		var in struct {
 			Changes map[string][]string `json:"changes"`
 		}
-		if json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&in) != nil || len(in.Changes) == 0 {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "want {\"changes\": {key: [values]}}"})
+		if json.NewDecoder(io.LimitReader(r.Body, listBody)).Decode(&in) != nil || len(in.Changes) == 0 {
+			writeErr(w, http.StatusBadRequest, "want {\"changes\": {key: [values]}}")
 			return
 		}
 		changes := map[string][]string{}
 		for name, vals := range in.Changes {
 			k := config.Lookup(name)
 			if k == nil || k.Hidden {
-				writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": name + ": not a setting"})
+				writeErr(w, http.StatusUnprocessableEntity, name+": not a setting")
 				return
 			}
 			if k.Kind == "secret" && len(vals) == 1 && vals[0] == secretMask {
 				continue // unchanged
 			}
 			if !k.List() && len(vals) > 1 {
-				writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": name + ": one value"})
+				writeErr(w, http.StatusUnprocessableEntity, name+": one value")
 				return
 			}
 			changes[name] = vals
 		}
 		if len(changes) == 0 {
-			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "restarting": false, "changed": []string{}})
+			writeApplied(w, false, nil)
 			return
 		}
 		old, err := os.ReadFile(a.cfg().File)
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			writeErr(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		restart, changed, err := a.applyConfigText(config.EditNote(old, changes, "set from the web app"), "settings")
 		if err != nil {
-			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			writeErr(w, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
-		if changed == nil {
-			changed = []string{}
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "restarting": restart, "changed": changed})
+		writeApplied(w, restart, changed)
 	default:
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "GET or PUT"})
+		writeErr(w, http.StatusMethodNotAllowed, "GET or PUT")
+	}
+}
+
+// editConfig changes keys in the config file in place (validated, the old file kept as .bak).
+func (a *App) editConfig(changes map[string][]string, note string) error {
+	a.confMu.Lock()
+	defer a.confMu.Unlock()
+	if a.cfg().File == "" {
+		return errors.New("no config file")
+	}
+	old, err := os.ReadFile(a.cfg().File)
+	if err != nil {
+		return err
+	}
+	data := config.EditNote(old, changes, note)
+	if _, err := checkConfigEdit(old, data); err != nil {
+		return err
+	}
+	if err := writeConfigFile(a.cfg().File, old, data); err != nil {
+		return err
+	}
+	a.adoptConfig(data)
+	return nil
+}
+
+// writeApplied is the reply to a saved config change: whether the daemon restarts on trial, and
+// the keys that changed.
+func writeApplied(w http.ResponseWriter, restart bool, changed []string) {
+	if changed == nil {
+		changed = []string{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "restarting": restart, "changed": changed})
+}
+
+// The config editor (docs/web-ui.md, "Saving the config"): the file's text in, validated by the
+// daemon's own parser, saved with the old one as .bak and a trial marker, then the daemon
+// restarts. It removes the marker after configTrial up; a crash before that makes the supervisor
+// put the .bak back.
+
+const configTrial = time.Minute
+
+func (a *App) trialMarker() string {
+	return a.cfwFile("config.trial")
+}
+
+func (a *App) apiConfig(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		b, err := os.ReadFile(a.cfg().File)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		_, terr := os.Stat(a.trialMarker())
+		writeJSON(w, http.StatusOK, map[string]any{"file": a.cfg().File, "text": string(b), "trial": terr == nil})
+	case http.MethodPut:
+		var in struct{ Text string }
+		if json.NewDecoder(io.LimitReader(r.Body, textBody)).Decode(&in) != nil {
+			writeErr(w, http.StatusBadRequest, "bad request")
+			return
+		}
+		restart, changed, err := a.applyConfigText([]byte(in.Text), "config editor")
+		if err != nil {
+			writeErr(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		writeApplied(w, restart, changed)
+	default:
+		writeErr(w, http.StatusMethodNotAllowed, "GET or PUT")
+	}
+}
+
+func (a *App) saveConfigTrial(old, data []byte) error {
+	// A restart already pending (several shared keys arriving at once): the .bak and the marker
+	// keep the config and the health from before the first change, so a rollback goes all the way.
+	if _, err := os.Stat(a.trialMarker()); err == nil && a.restartPending.Load() {
+		tmp := a.cfg().File + ".new"
+		if err := os.WriteFile(tmp, data, 0o600); err != nil {
+			return err
+		}
+		return os.Rename(tmp, a.cfg().File)
+	}
+	if err := os.WriteFile(a.cfg().File+".bak", old, 0o600); err != nil {
+		return err
+	}
+	tmp := a.cfg().File + ".new"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return err
+	}
+	// The marker holds the health before the save: the new config must do at least as well.
+	if err := os.WriteFile(a.trialMarker(), []byte(strconv.Itoa(int(a.hmon.State()))), 0o644); err != nil {
+		return err
+	}
+	a.restartPending.Store(true)
+	return os.Rename(tmp, a.cfg().File)
+}
+
+// configTrialLoop judges a config on trial after configTrial: accepted when the speaker is at least
+// as healthy (broker, HA's pipeline) as before the save, else rolled back.
+func (a *App) configTrialLoop(stop <-chan struct{}) {
+	b, err := os.ReadFile(a.trialMarker())
+	if err != nil {
+		return
+	}
+	before, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	if err != nil {
+		before = int(health.OfflineNoLAN) // no record: anything goes
+	}
+	a.log.Info("config: on trial", "for", configTrial, "health_before", health.State(before).String())
+	select {
+	case <-stop:
+		return
+	case <-time.After(configTrial):
+	}
+	if now := a.hmon.State(); int(now) > before {
+		a.trialFailed("health " + now.String() + ", was " + health.State(before).String())
+		return
+	}
+	os.Remove(a.trialMarker())
+	a.syncAccepted()
+	a.log.Info("config: accepted")
+}
+
+// trialFailed rolls a config on trial back (no-op when none is): the .bak goes back, the marker
+// goes, the daemon restarts.
+func (a *App) trialFailed(why string) {
+	if _, err := os.Stat(a.trialMarker()); err != nil {
+		return
+	}
+	a.log.Error("config: the config on trial fails, rolling back", "why", why)
+	if old, err := os.ReadFile(a.cfg().File + ".bak"); err == nil {
+		tmp := a.cfg().File + ".restore"
+		if os.WriteFile(tmp, old, 0o600) == nil {
+			os.Rename(tmp, a.cfg().File)
+		}
+	}
+	os.Remove(a.trialMarker())
+	if a.quit != nil {
+		a.quit()
 	}
 }

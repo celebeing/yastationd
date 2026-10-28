@@ -13,14 +13,14 @@ export function Control({ e, send }: { e: Entity; send: (p: string) => void }) {
       const on = e.value === (c.payload_on || 'ON')
       return (
         <label class="switch">
-          <input type="checkbox" checked={on} onChange={(x) => send(x.currentTarget.checked ? c.payload_on || 'ON' : c.payload_off || 'OFF')} />
+          <input type="checkbox" aria-label={name(e)} checked={on} onChange={(x) => send(x.currentTarget.checked ? c.payload_on || 'ON' : c.payload_off || 'OFF')} />
           <span />
         </label>
       )
     }
     case 'select':
       return (
-        <select value={e.value || ''} onChange={(x) => send(x.currentTarget.value)}>
+        <select aria-label={name(e)} value={e.value || ''} onChange={(x) => send(x.currentTarget.value)}>
           {(c.options || []).map((o: string) => (
             <option value={o}>{o}</option>
           ))}
@@ -54,6 +54,7 @@ function NumberControl({ e, send }: { e: Entity; send: (p: string) => void }) {
       {slider && (
         <input
           type="range"
+          aria-label={name(e)}
           min={c.min}
           max={c.max}
           step={c.step || 1}
@@ -67,6 +68,7 @@ function NumberControl({ e, send }: { e: Entity; send: (p: string) => void }) {
       )}
       <input
         type="number"
+        aria-label={name(e)}
         min={c.min}
         max={c.max}
         step={c.step || 1}
@@ -93,7 +95,7 @@ function TextControl({ e, send }: { e: Entity; send: (p: string) => void }) {
         if (e.component === 'notify') setV('')
       }}
     >
-      <input value={v} maxLength={e.config.max || 255} onInput={(x) => setV(x.currentTarget.value)} />
+      <input aria-label={name(e)} value={v} maxLength={e.config.max || 255} onInput={(x) => setV(x.currentTarget.value)} />
       <button type="submit">{e.component === 'notify' ? 'Show' : 'Set'}</button>
     </form>
   )

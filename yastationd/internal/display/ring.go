@@ -25,15 +25,7 @@ func Solid(n int, c hw.RGB) RingFrame {
 	return f
 }
 
-// Fill lights the first k of n pixels in c — a level bar.
-func Fill(n, k int, c hw.RGB) RingFrame {
-	f := make(RingFrame, n)
-	for i := 0; i < k && i < n; i++ {
-		f[i] = c
-	}
-	return f
-}
-
+// The colours of the ring effects, at full level.
 var (
 	Cyan   = hw.RGB{R: 0, G: 180, B: 255}
 	Blue   = hw.RGB{R: 0, G: 40, B: 255}

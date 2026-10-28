@@ -2,7 +2,14 @@
 
 # yastationd
 
+**Stations in Home Assistant: voice, light and music without the cloud**
+
+[![Release](https://img.shields.io/github/v/release/celebeing/yastationd)](https://github.com/celebeing/yastationd/releases)
+[![License: MIT](https://img.shields.io/github/license/celebeing/yastationd)](LICENSE)
+
 [Русский](README.md) · English
+
+[Features](#what-the-speaker-does-with-the-cfw) · [Speakers](#supported-speakers) · [Installing](#installing) · [Docs](docs/index.md) · [Changes](CHANGELOG.md)
 
 <p align="center"><img src="docs/media/reel-station3.gif" height="180" alt="Station 3: clock, date, animations, a marquee, Bad Apple">&emsp;&emsp;&emsp;<img src="docs/media/reel-mini3.gif" height="180" alt="Station Mini 3: clock, animations, volume, a marquee, a timer"><br><sub>Station 3 and Station Mini 3 in the simulator: clock, date, animations, a marquee, a timer, Bad Apple.</sub></p>
 
@@ -108,9 +115,9 @@ HA, from single expressions to timed scenarios across the ring and the display.
   every speaker on the LAN in one list, found by itself; per speaker its sensors, the runtime
   controls HA has (display, expressions, brightness, volume…), a live LED preview, the moments
   (what it shows for each event, with an editor), the saved Wi-Fi networks (add one), its logs, a light-sensor
-  calibration against a lux meter, every setting by topic with an explanation (most apply at once;
+  calibration against a lux meter or a camera's exposure, every setting by topic with an explanation (most apply at once;
   where a restart is needed it is on trial and rolls itself back if the speaker gets worse), the
-  login, and an update check. Prometheus metrics at `/metrics`.
+  login, and an update check.
 - On a Station 3, **Assets → Videos**: your own clips for its screen (like Bad Apple). A video file
   is converted right in the browser and uploaded, no ffmpeg needed ([docs/assets.md](docs/assets.md)).
 - One switch makes a setting, option or moment shared by every speaker: they take this speaker's
@@ -168,8 +175,8 @@ HA, from single expressions to timed scenarios across the ring and the display.
 |---|---|---|
 | `bergamot` | Station Mini 3 | full support, two units in daily use |
 | `pickle` | Station Mini 3 Pro | full support (16-pixel ring, aarch64 userland) |
-| `yandexmidi` | Station 2 | profiled from firmware only, no unit yet |
 | `orion` | Station 3 | full support: voice with the stock wake word (NPU verifier), playback, volume, circular controls, ring, rear ambilight (with DDP effects), the 21×12 screen with the firmware's own animations, our pixel clock and fonts, music on the screen |
+| `yandexmidi` | Station 2 | profiled from firmware only, no unit yet |
 
 Per-board notes: [docs/boards/](docs/boards/README.md).
 
@@ -195,10 +202,12 @@ of this project's scope: we assume you already have it.
 | [`yastationd/`](yastationd/README.md) | The on-device agent: entities, config, build. Board profiles: `internal/board/profiles/` |
 | [`spotter-host/`](spotter-host/README.md) | Voice front-end host (wake word, echo cancellation), per-arch build |
 | [`sendspin-host/`](sendspin-host/README.md) | Music Assistant (Sendspin) player, a native helper on sendspin-cpp, per-arch build (zig) |
+| [`web/`](web/) | The web app (Preact), embedded in `yastationd` |
 | [`hass/`](hass/) | HA-side scripts the Assist agent can call (ring animation, show text) |
-| [`tools/`](tools/) | Read-only board survey, multi-speaker `deploy.sh`, firmware-dump helpers |
+| [`tools/`](tools/) | Builds in docker (`build.sh`), multi-speaker `deploy.sh`, a read-only board survey, firmware-dump helpers |
 | [`docs/`](docs/index.md) | Design docs, hardware notes, reverse-engineering findings — start at the index |
 | [`docs/ha-assistant-setup.md`](docs/ha-assistant-setup.md) | Setting up the voice assistant in Home Assistant (STT, TTS, agent, pipeline) |
+| [`docs/building.md`](docs/building.md) | Building |
 | [`docs/deploying.md`](docs/deploying.md) | **For agents:** installing, updating and removing the CFW on a speaker |
 | [`docs/porting-a-speaker.md`](docs/porting-a-speaker.md) | **For agents:** how to research a new speaker and add support for it |
 
@@ -211,7 +220,7 @@ details. They are gitignored and must never be committed or shared. Committed fi
 ## Versions
 
 Releases are `vX.Y.Z` tags; see [CHANGELOG.md](CHANGELOG.md). The running version shows in HA
-(device card and the Version sensor). How to cut one: [docs/releasing.md](docs/releasing.md).
+(device card and the Version sensor) and in the web app. How to cut one: [docs/releasing.md](docs/releasing.md).
 
 ## License
 

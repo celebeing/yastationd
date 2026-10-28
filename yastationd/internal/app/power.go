@@ -52,11 +52,9 @@ func powerProblem(pd hw.PD, minMV int) bool {
 }
 
 func (a *App) powerAlert(pd hw.PD) {
-	marker := a.cfg().Path(powerAlertedMarker)
-	if _, err := os.Stat(marker); err == nil {
+	if !a.firstThisBoot(powerAlertedMarker) {
 		return
 	}
-	os.WriteFile(marker, nil, 0o644)
 	a.log.Warn("power: no healthy USB-C PD contract — use a PD charger (12 V) and a C-to-C cable",
 		"mv", pd.MilliVolts, "ma", pd.MilliAmps, "health", pd.Health)
 	snd := a.prof.Power.AlertSound

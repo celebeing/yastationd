@@ -10,6 +10,7 @@ import (
 	paho "github.com/eclipse/paho.mqtt.golang"
 )
 
+// Client is the daemon's connection to the broker.
 type Client struct {
 	c      paho.Client
 	topics Topics
@@ -19,6 +20,8 @@ type Client struct {
 	onBroker  func(bool)
 }
 
+// Options configure New. OnConnect runs on every (re)connect, OnBroker on every change of the
+// connection.
 type Options struct {
 	Host, User, Pass string
 	Port             int
@@ -29,6 +32,7 @@ type Options struct {
 	OnBroker         func(connected bool)
 }
 
+// New makes a client; it starts connecting on Connect (paho retries on its own afterwards).
 func New(o Options) *Client {
 	cl := &Client{topics: o.Topics, log: o.Log, onConnect: o.OnConnect, onBroker: o.OnBroker}
 
@@ -100,6 +104,7 @@ func (c *Client) Publish(topic, payload string) { c.publish(topic, payload, true
 // PublishEvent sends a non-retained event (e.g. a button press).
 func (c *Client) PublishEvent(topic, payload string) { c.publish(topic, payload, false) }
 
+// Subscribe calls fn with every message on topic (QoS 1).
 func (c *Client) Subscribe(topic string, fn func(payload []byte)) {
 	c.c.Subscribe(topic, 1, func(_ paho.Client, m paho.Message) { fn(m.Payload()) })
 }

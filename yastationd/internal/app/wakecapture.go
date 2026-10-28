@@ -23,6 +23,8 @@ const (
 	captureWait   = 5 * time.Second // the audio after the WAKE arrives in real time
 	captureKeep   = 200             // newest captures kept (~110 kB each)
 	captureDir    = "wakes"
+	// captureSubhitSpan: a near miss (SUBHIT) this long before the WAKE is recorded with it.
+	captureSubhitSpan = 3 * time.Second
 )
 
 // wakeCapture is the JSON saved next to each WAV.
@@ -72,7 +74,7 @@ func (a *App) captureWake(ev wake.Event) {
 	if from >= 0 {
 		meta.WakeAtMs = (ev.VQE - from) * 1000 / wake.VQERate
 	}
-	if sh := a.lastSubhit.Load(); sh != nil && ev.At-sh.At >= 0 && ev.At-sh.At < 3*time.Second {
+	if sh := a.lastSubhit.Load(); sh != nil && ev.At-sh.At >= 0 && ev.At-sh.At < captureSubhitSpan {
 		meta.SubhitMs = sh.At.Milliseconds()
 	}
 	go func() {
@@ -84,7 +86,7 @@ func (a *App) captureWake(ev wake.Event) {
 		mu.Lock()
 		pcm := buf
 		mu.Unlock()
-		dir := a.cfg().Path(a.prof.Platform.CFWRoot + "/" + captureDir)
+		dir := a.cfwFile(captureDir)
 		if err := saveCapture(dir, now.Format("20060102-150405.000"), pcm, meta); err != nil {
 			a.log.Warn("wake capture: not saved", "err", err)
 			return
@@ -115,9 +117,12 @@ func saveCapture(dir, name string, pcm []byte, meta wakeCapture) error {
 	return nil
 }
 
+// wavHeaderLen is the canonical PCM WAV header (RIFF + fmt + data chunk headers).
+const wavHeaderLen = 44
+
 // wavFile wraps 16-bit mono PCM in a WAV header.
 func wavFile(pcm []byte, rate int) []byte {
-	h := make([]byte, 44, 44+len(pcm))
+	h := make([]byte, wavHeaderLen, wavHeaderLen+len(pcm))
 	copy(h, "RIFF")
 	binary.LittleEndian.PutUint32(h[4:], uint32(36+len(pcm)))
 	copy(h[8:], "WAVEfmt ")

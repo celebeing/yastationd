@@ -30,7 +30,7 @@ var momentCatalog = []momentInfo{
 	{"listening", "the wake word or the voice key: the speaker listens"},
 	{"thinking", "the request went to the assistant: waiting for the answer"},
 	{"speaking", "the answer plays"},
-	{"waiting", "a follow-up: the speaker waits for the next phrase"},
+	{"waiting", "the answer takes long: the speaker still waits for it"},
 	{"dialog_end", "an answer played and no follow-up comes"},
 	{"arbitration_lost", "another speaker heard the wake word louder and answers"},
 	{"media_pause", "music paused"},
@@ -106,7 +106,7 @@ func refs(names []string) []show {
 const momentFile = "moments.json"
 
 func (a *App) momentPath() string {
-	return a.cfg().Path(a.prof.Platform.CFWRoot + "/" + momentFile)
+	return a.cfwFile(momentFile)
 }
 
 // loadMoments reads the owner's moments (none when the file is missing).
@@ -169,11 +169,10 @@ func (a *App) frontKind() string {
 	if a.front == nil {
 		return ""
 	}
-	if k := a.front.Kind(); strings.HasPrefix(k, "pixels") {
-		return "pixels"
-	} else {
+	if k := a.front.Kind(); !strings.HasPrefix(k, "pixels") {
 		return k
 	}
+	return "pixels"
 }
 
 // momentDefault lists what a moment shows without the owner's choice, in order.

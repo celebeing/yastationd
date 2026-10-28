@@ -31,6 +31,10 @@ const (
 	musicTitleMax = 30 * time.Second
 	// musicTitleLate: a track first seen this far in was already playing (no title).
 	musicTitleLate = 10_000 // ms
+	// levelsSpanDB: sendspin-host's band levels 0..255 cover this many dB below full scale.
+	levelsSpanDB = 60.0
+	// defaultMusicBands: the spectrum's band count without a pixel screen (the ambilight's).
+	defaultMusicBands = 21
 )
 
 type musicTrack struct {
@@ -82,7 +86,7 @@ func (a *App) musicBandCount() int {
 		w, _ := a.screen.Size()
 		return w
 	}
-	return 21
+	return defaultMusicBands
 }
 
 // musicLevelsFresh: spectrum frames are coming (music plays).
@@ -90,6 +94,12 @@ func (a *App) musicLevelsFresh(now time.Time) bool {
 	m := &a.music.screen
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return a.levelsFreshLocked(now)
+}
+
+// levelsFreshLocked is musicLevelsFresh with a.music.screen.mu held.
+func (a *App) levelsFreshLocked(now time.Time) bool {
+	m := &a.music.screen
 	return !m.levelsAt.IsZero() && now.Sub(m.levelsAt) <= levelsFresh && a.music.streaming.Load()
 }
 
@@ -193,7 +203,7 @@ func (a *App) onMusicLevels(hexBands string) {
 		m.shown = make([]float64, len(b))
 	}
 	for i, v := range b {
-		db := float64(v)/255*60 - 60
+		db := float64(v)/255*levelsSpanDB - levelsSpanDB
 		m.bands[i] = math.Max(0, math.Min(1, (db-levelsLowDB)/(levelsHighDB-levelsLowDB)))
 	}
 	m.levelsAt = now
@@ -207,7 +217,7 @@ func (a *App) musicBands(now time.Time) []float64 {
 	m := &a.music.screen
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.levelsAt.IsZero() || now.Sub(m.levelsAt) > levelsFresh || !a.music.streaming.Load() {
+	if !a.levelsFreshLocked(now) {
 		m.drawnAt = time.Time{}
 		return nil
 	}

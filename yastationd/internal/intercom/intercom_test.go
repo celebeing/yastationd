@@ -248,9 +248,6 @@ func TestGuardLevelGateHalfDuplex(t *testing.T) {
 	if r := rms(f); r > 0.0003*0.707*31.6*gateDepth*halfDuplexLow*1.5 {
 		t.Fatalf("not ducked under far speech: %.6f", r)
 	}
-	if !g.FarSpokeWithin(now.Add(time.Second), 1500*time.Millisecond) || g.FarSpokeWithin(now.Add(2*time.Second), 1500*time.Millisecond) {
-		t.Fatal("far speech window")
-	}
 	// our speech goes through even while the far end talks
 	for i := 0; i < 5; i++ {
 		s = speech()
@@ -278,13 +275,12 @@ func TestVoiceCommands(t *testing.T) {
 // ---- two managers over loopback UDP, signalling handed across directly ----
 
 type pair struct {
-	a, b       *Manager
-	mu         sync.Mutex
-	statesA    []Status
-	statesB    []Status
-	dropToB    bool
-	policyB    string
-	autoAnswer bool
+	a, b    *Manager
+	mu      sync.Mutex
+	statesA []Status
+	statesB []Status
+	dropToB bool
+	policyB string
 }
 
 func freePort(t *testing.T) int {

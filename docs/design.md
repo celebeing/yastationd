@@ -1,8 +1,10 @@
 # Design: the logo, the palette, the web app's look
 
 The rules every screen of the project follows: the web app (`web/`), the Wi-Fi setup portal
-(`yastationd/internal/wifisetup/portal.html`), the README, and later the speakers' own screens. A
-new page or widget takes its colours and patterns from here, not from scratch.
+(`yastationd/internal/wifisetup/portal.html`), the LED viewer
+(`yastationd/internal/frametap/viewer.html`, dark tokens only), the README, and later the
+speakers' own screens. A new page or widget takes its colours and patterns from here, not from
+scratch.
 
 ## The logo
 
@@ -51,6 +53,7 @@ base; dark redefines the tokens under `prefers-color-scheme: dark`.
 | `--warn` | `#a16207` | `#facc15` | needs a look: degraded, mic off, running short |
 | `--on-warn` | `#ffffff` | `#1b1410` | text on a warn fill |
 | `--err` | `#b91c1c` | `#f87171` | broken: offline, errors, a failed save |
+| `--on-err` | `#ffffff` | `#1b1410` | text on an err fill (the delete button) |
 
 Contrast: the accent is 6.7:1 on white and 7.8:1 on the dark card; `--warn` 4.9:1; text tokens pass
 AA. Check a new colour against `--card` and `--bg` in both themes (≥ 4.5:1 for text, ≥ 3:1 for

@@ -14,8 +14,8 @@ type Device struct {
 	SWVersion    string   `json:"sw_version,omitempty"`
 }
 
-// Entity is a discovery config. Only the fields used by the MVP entities are modelled; the map
-// in Extra carries anything component-specific (colour modes, options, …).
+// Entity is a discovery config: its component and object, and in Config the entity's own
+// fields (name, topics, options, …); build adds the common ones.
 type Entity struct {
 	Component string // light, select, text, number, sensor, binary_sensor, media_player, event, button
 	Object    string
@@ -25,19 +25,16 @@ type Entity struct {
 type builder struct {
 	t   Topics
 	dev Device
-	// RingEffects is the ring light's effect_list; Animations the ring_animation select's
-	// options. HasAmbilight adds the independently controlled rear RGBW light.
+	// RingEffects is the ring light's effect_list. HasAmbilight adds the independently
+	// controlled rear RGBW light.
 	RingEffects  []string
-	Animations   []string
 	FollowModes  []string
 	HasAmbilight bool
 	// HasAmbilightFx adds the switch and brightness of effects streamed to the ambilight (DDP).
 	HasAmbilightFx bool
 	AmbilightFx    []string // the music effect select's options
-	// Expressions are the Expression select's options; HasFaces adds the Display faces switch
-	// (a front display that takes expression clips).
-	Expressions []string
-	HasFaces    bool
+	// HasFaces adds the Display faces switch (a front display that takes expression clips).
+	HasFaces bool
 	// DisplayModes are the Display select's options (nil = clock, off, message).
 	DisplayModes []string
 	// HARingLight adds the ring as an HA light (ha_ring_light); without it automations drive the
@@ -62,6 +59,7 @@ func (b *builder) SetIntercomPeers(names []string) {
 	b.mu.Unlock()
 }
 
+// NewBuilder makes the discovery builder for device dev.
 func NewBuilder(t Topics, dev Device) *builder { return &builder{t: t, dev: dev} }
 
 func (b *builder) displayModes() []string {
@@ -85,8 +83,9 @@ func (b *builder) build(e Entity) (topic string, payload []byte) {
 	return b.t.Discovery(e.Component, e.Object), payload
 }
 
-// Entities returns the MVP entity set. Topics are wired to Topics so the app only needs the
-// object names to publish state and subscribe to commands.
+// Entities returns every entity the speaker offers (HA's device card and the web app; see
+// WebOnly). Topics are wired to Topics so the app only needs the object names to publish state
+// and subscribe to commands.
 func (b *builder) Entities() []Entity {
 	t := b.t
 	entities := []Entity{

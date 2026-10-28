@@ -3,4 +3,5 @@
 // it, a -dirty suffix for an uncommitted tree). A plain `go build` reports "dev".
 package version
 
+// Version is set at link time (-ldflags -X).
 var Version = "dev"

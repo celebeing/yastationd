@@ -1,14 +1,19 @@
 package app
 
 import (
+	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/celebeing/yastationd/yastationd/internal/version"
 )
 
 // vitals: how the speaker and the daemon are doing, for the web app's card (GET /api/vitals) and
@@ -99,4 +104,88 @@ func memField(path string, keys ...string) (x, y, z int64) {
 
 func (a *App) apiVitals(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, a.readVitals())
+}
+
+// serveMetrics: Prometheus text — the numeric and on/off states the app publishes, and a few
+// process numbers. No login (read-only, the exporter convention).
+func (a *App) serveMetrics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+	dev := a.cfg().DeviceID
+	fmt.Fprintf(w, "# TYPE yastation_info gauge\nyastation_info{device=%q,board=%q,version=%q} 1\n", dev, a.prof.Name, version.Version)
+	fmt.Fprintf(w, "# TYPE yastation_uptime_seconds gauge\nyastation_uptime_seconds{device=%q} %d\n", dev, int(time.Since(a.start).Seconds()))
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	fmt.Fprintf(w, "# TYPE yastation_go_heap_bytes gauge\nyastation_go_heap_bytes{device=%q} %d\n", dev, ms.HeapAlloc)
+	fmt.Fprintf(w, "# TYPE yastation_goroutines gauge\nyastation_goroutines{device=%q} %d\n", dev, runtime.NumGoroutine())
+	if b, err := os.ReadFile("/proc/self/statm"); err == nil {
+		if f := strings.Fields(string(b)); len(f) > 1 {
+			if pages, err := strconv.Atoi(f[1]); err == nil {
+				fmt.Fprintf(w, "# TYPE yastation_rss_bytes gauge\nyastation_rss_bytes{device=%q} %d\n", dev, pages*os.Getpagesize())
+			}
+		}
+	}
+	a.systemMetrics(w, dev)
+	st := a.states.snapshot()
+	keys := make([]string, 0, len(st))
+	for k := range st {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		v := st[k].value
+		var f float64
+		switch v {
+		case "ON":
+			f = 1
+		case "OFF":
+			f = 0
+		default:
+			var err error
+			if f, err = strconv.ParseFloat(v, 64); err != nil {
+				if k == "health" { // a state as a label
+					fmt.Fprintf(w, "yastation_health{device=%q,state=%q} 1\n", dev, v)
+				}
+				continue
+			}
+		}
+		name := "yastation_" + metricName(k)
+		fmt.Fprintf(w, "# TYPE %s gauge\n%s{device=%q} %s\n", name, name, dev, strconv.FormatFloat(f, 'g', -1, 64))
+	}
+}
+
+func metricName(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_') {
+			b[i] = '_'
+		}
+	}
+	return string(b)
+}
+
+// systemMetrics: the speaker's memory, load, temperatures (every thermal zone, by its type) and
+// uptime.
+func (a *App) systemMetrics(w io.Writer, dev string) {
+	v := a.readVitals()
+	if v.MemTotal > 0 {
+		fmt.Fprintf(w, "# TYPE yastation_memory_bytes gauge\n")
+		fmt.Fprintf(w, "yastation_memory_bytes{device=%q,kind=\"total\"} %d\n", dev, v.MemTotal)
+		fmt.Fprintf(w, "yastation_memory_bytes{device=%q,kind=\"free\"} %d\n", dev, v.MemFree)
+		fmt.Fprintf(w, "yastation_memory_bytes{device=%q,kind=\"available\"} %d\n", dev, v.MemAvailable)
+	}
+	if len(v.Load) == 3 {
+		fmt.Fprintf(w, "# TYPE yastation_load gauge\n")
+		for i, span := range []string{"1m", "5m", "15m"} {
+			fmt.Fprintf(w, "yastation_load{device=%q,span=%q} %s\n", dev, span, strconv.FormatFloat(v.Load[i], 'f', 2, 64))
+		}
+	}
+	if len(v.Temps) > 0 {
+		fmt.Fprintf(w, "# TYPE yastation_temperature_celsius gauge\n")
+		for _, t := range v.Temps {
+			fmt.Fprintf(w, "yastation_temperature_celsius{device=%q,zone=%q} %s\n", dev, t.Zone, strconv.FormatFloat(t.C, 'f', 1, 64))
+		}
+	}
+	if v.SystemUptime > 0 {
+		fmt.Fprintf(w, "# TYPE yastation_system_uptime_seconds gauge\nyastation_system_uptime_seconds{device=%q} %d\n", dev, v.SystemUptime)
+	}
 }

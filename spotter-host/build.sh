@@ -2,7 +2,7 @@
 # Cross-build spotter-host against the device's own libraries.
 #   SYSROOT  dir with lib/ (device /lib) and system/vendor/quasar/libs/ (full libyandex_evil.so)
 #   OUT      output binary path
-#   ARCH     armhf (default; bergamot, glibc 2.30) or aarch64 (pickle, glibc 2.36)
+#   ARCH     armhf (default; bergamot, glibc 2.30) or aarch64 (pickle, glibc 2.36; orion)
 # armhf links against the device's glibc 2.30 (not the toolchain's), so the binary only needs
 # symbol versions the device has. On aarch64 the toolchain's glibc (2.35) is older than the
 # device's, so a plain dynamic link is enough.

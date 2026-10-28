@@ -190,13 +190,13 @@ function MomentEditor(p: { m: Moment; cat: MomentCatalog; onPlay: (d: Show[]) =>
             {typeof s === 'string' && <RefPicker s={s} kind={kindOf(s, cat)} cat={cat} onChange={(v) => set(i, v)} />}
             {!has(s, cat) && <span class="err small">not on this speaker</span>}
             <span class="grow" />
-            <button class="ghost icon" disabled={i === 0} onClick={() => move(i, -1)} title="Earlier">
+            <button class="ghost icon" disabled={i === 0} onClick={() => move(i, -1)} title="Earlier" aria-label="Earlier">
               ↑
             </button>
-            <button class="ghost icon" disabled={i === draft.length - 1} onClick={() => move(i, 1)} title="Later">
+            <button class="ghost icon" disabled={i === draft.length - 1} onClick={() => move(i, 1)} title="Later" aria-label="Later">
               ↓
             </button>
-            <button class="ghost icon" onClick={() => setDraft(draft.filter((_, k) => k !== i))} title="Remove">
+            <button class="ghost icon" onClick={() => setDraft(draft.filter((_, k) => k !== i))} title="Remove" aria-label="Remove">
               ✕
             </button>
           </div>
@@ -335,13 +335,13 @@ function SequenceEditor({ steps, cat, stage, onChange }: { steps: Step[]; cat: M
               </label>
             )}
             <span class="grow" />
-            <button class="ghost icon" disabled={i === 0} onClick={() => move(i, -1)}>
+            <button class="ghost icon" disabled={i === 0} onClick={() => move(i, -1)} title="Earlier" aria-label="Step earlier">
               ↑
             </button>
-            <button class="ghost icon" disabled={i === last} onClick={() => move(i, 1)}>
+            <button class="ghost icon" disabled={i === last} onClick={() => move(i, 1)} title="Later" aria-label="Step later">
               ↓
             </button>
-            <button class="ghost icon" disabled={steps.length === 1} onClick={() => onChange(steps.filter((_, x) => x !== i))}>
+            <button class="ghost icon" disabled={steps.length === 1} onClick={() => onChange(steps.filter((_, x) => x !== i))} title="Remove" aria-label="Remove the step">
               ✕
             </button>
           </div>

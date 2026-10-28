@@ -29,12 +29,12 @@ func (a *App) features() map[string]bool {
 
 func (a *App) apiWifi(w http.ResponseWriter, r *http.Request) {
 	if a.setup == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "Wi-Fi setup is off on this speaker"})
+		writeErr(w, http.StatusNotFound, "Wi-Fi setup is off on this speaker")
 		return
 	}
 	nets, cur, err := a.setup.SavedNetworks()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if nets == nil {
@@ -45,7 +45,7 @@ func (a *App) apiWifi(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) apiWifiAdd(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost || a.setup == nil {
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "POST, with Wi-Fi setup on"})
+		writeErr(w, http.StatusMethodNotAllowed, "POST, with Wi-Fi setup on")
 		return
 	}
 	var in struct {
@@ -54,16 +54,16 @@ func (a *App) apiWifiAdd(w http.ResponseWriter, r *http.Request) {
 		Hidden   bool   `json:"hidden"`
 		Priority int    `json:"priority"`
 	}
-	if json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&in) != nil || in.SSID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "a network name"})
+	if json.NewDecoder(io.LimitReader(r.Body, smallBody)).Decode(&in) != nil || in.SSID == "" {
+		writeErr(w, http.StatusBadRequest, "a network name")
 		return
 	}
 	err := a.setup.AddNetwork(in.SSID, in.PSK, in.Hidden, in.Priority)
 	switch {
 	case errors.Is(err, wifisetup.ErrNetworkExists):
-		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		writeErr(w, http.StatusConflict, err.Error())
 	case err != nil:
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeErr(w, http.StatusBadRequest, err.Error())
 	default:
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	}
@@ -133,30 +133,30 @@ func (a *App) apiMoments(w http.ResponseWriter, r *http.Request) {
 	name := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/moments"), "/")
 	if name == "" {
 		if r.Method != http.MethodGet {
-			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "GET"})
+			writeErr(w, http.StatusMethodNotAllowed, "GET")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"moments": a.momentViews(), "catalog": a.momentCatalogView()})
 		return
 	}
 	if !knownMoment(name) {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such moment"})
+		writeErr(w, http.StatusNotFound, "no such moment")
 		return
 	}
 	var shows []show
 	switch r.Method {
 	case http.MethodPut:
-		if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&shows); err != nil || shows == nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "want a list of candidates"})
+		if err := json.NewDecoder(io.LimitReader(r.Body, listBody)).Decode(&shows); err != nil || shows == nil {
+			writeErr(w, http.StatusBadRequest, "want a list of candidates")
 			return
 		}
 	case http.MethodDelete:
 	default:
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "PUT or DELETE"})
+		writeErr(w, http.StatusMethodNotAllowed, "PUT or DELETE")
 		return
 	}
 	if err := a.setMoment(name, shows); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	a.log.Info("web: moment set", "moment", name, "custom", shows != nil)
@@ -179,17 +179,17 @@ const momentPreview = 6 * time.Second
 // a draft that is not saved.
 func (a *App) apiMoment(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "POST"})
+		writeErr(w, http.StatusMethodNotAllowed, "POST")
 		return
 	}
 	name := strings.TrimPrefix(r.URL.Path, "/api/moment/")
 	if !knownMoment(name) {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such moment"})
+		writeErr(w, http.StatusNotFound, "no such moment")
 		return
 	}
 	shows := a.momentCandidates(name)
 	var draft []show
-	if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&draft); err == nil && draft != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, listBody)).Decode(&draft); err == nil && draft != nil {
 		shows = draft
 	}
 	shown := a.play("ov_moment", name, shows, momentPreview, display.PrioExpression)
@@ -201,16 +201,16 @@ func (a *App) apiMoment(w http.ResponseWriter, r *http.Request) {
 func (a *App) tapHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if a.tap == nil || !a.cfg().LEDPreview {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "LED preview is off (led_preview = true)"})
+			writeErr(w, http.StatusNotFound, "LED preview is off (led_preview = true)")
 			return
 		}
-		tok, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		tok := bearerToken(r)
 		if tok == "" {
 			tok = r.URL.Query().Get("token")
 		}
 		if !a.web.tokens.Valid(tok) {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "login required"})
+			writeErr(w, http.StatusUnauthorized, "login required")
 			return
 		}
 		http.StripPrefix("/tap", a.tap.Handler()).ServeHTTP(w, r)

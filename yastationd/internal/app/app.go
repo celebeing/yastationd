@@ -39,6 +39,9 @@ const (
 	screenInterval  = 20 * time.Millisecond
 	volumeBubbleTTL = 2 * time.Second
 	marqueeBaseStep = 350 * time.Millisecond // one character per step, at marquee_speed 1
+	telemetryEvery  = 30 * time.Second       // uptime and lux to MQTT
+	// daemonLog is where the supervisor writes the daemon's output (the web log view, log_remote).
+	daemonLog = "/tmp/yastationd.log"
 )
 
 type App struct {
@@ -105,6 +108,7 @@ type App struct {
 	backlight   *hw.Backlight                     // the front screen's backlight; nil = dim the frames
 	blPrev      int                               // the backlight of the frame written last; render goroutine only
 	luxSmooth   atomic.Uint64                     // smoothed light in lux (float64 bits), published to HA
+	luxKnown    atomic.Bool                       // luxSmooth holds a reading (0 lux in the dark is one)
 	luxReading  atomic.Uint64                     // the same reading before the calibration (float64 bits)
 	userMoments atomic.Pointer[map[string][]show] // <cfw>/moments.json (moments.go)
 	luxUnitCal  atomic.Pointer[[]luxcal.Point]    // set from the web app (lightcal.go); nil = the config's
@@ -285,8 +289,6 @@ func (a *App) startFrameTap(ctx context.Context) {
 	}
 }
 
-// openScreen opens the board's dot-matrix framebuffer, or a virtual one for matrix.dev =
-// "virtual:WxH" (the host simulator, cmd/ledsim).
 // cfg is the config in force (see App.conf); the defaults when none was stored (tests).
 func (a *App) cfg() *config.Config {
 	if c := a.conf.Load(); c != nil {
@@ -297,6 +299,8 @@ func (a *App) cfg() *config.Config {
 	return a.conf.Load()
 }
 
+// openScreen opens the board's dot-matrix framebuffer, or a virtual one for matrix.dev =
+// "virtual:WxH" (the host simulator, cmd/ledsim).
 func openScreen(cfg config.Config, prof board.Profile) (*hw.DotMatrix, error) {
 	dev := prof.Matrix.Dev
 	var w, h int
@@ -335,6 +339,8 @@ func (a *App) marqueeStep() time.Duration {
 	return time.Duration(float64(marqueeBaseStep) / a.cfg().MarqueeSpeed)
 }
 
+// matrixBase is the front display's bottom layer: the persisted display mode (clock, message,
+// off), or the video while it plays.
 func (a *App) matrixBase(now time.Time) display.FrontFrame {
 	s := a.store.get()
 	if a.front == nil {
@@ -373,6 +379,7 @@ func (a *App) matrixBase(now time.Time) display.FrontFrame {
 	}
 }
 
+// ringBase is the ring's bottom layer: the HA light, solid or with its effect.
 func (a *App) ringBase(now time.Time) display.RingFrame {
 	n := a.ring.Pixels() // the base fixes the frame size every layer above works with
 	s := a.store.get()
@@ -392,6 +399,7 @@ func (a *App) ringBase(now time.Time) display.RingFrame {
 	return display.Solid(n, c)
 }
 
+// ambilightBase is the ambilight's HA light as a frame (render goroutine only).
 func (a *App) ambilightBase() []hw.RGBW {
 	s := a.store.get()
 	key := ambilightVisual{On: s.AmbilightOn, Color: s.AmbilightRGBW, Brightness: s.AmbilightBright}
@@ -423,12 +431,10 @@ func (a *App) Run(ctx context.Context) error {
 	}
 	b := mqtt.NewBuilder(a.topics, dev)
 	b.RingEffects = ringEffects
-	b.Animations = ringAnimations()
 	b.FollowModes = followModes
 	b.HasAmbilight = a.ambilight != nil
 	b.HasAmbilightFx = a.ambilightFxOn()
 	b.AmbilightFx = musicFxNames
-	b.Expressions = a.expressionOptions()
 	b.HasFaces = a.frontClipsPossible()
 	b.HARingLight = a.cfg().HARingLight
 	b.DisplayModes = a.displayModes()
@@ -503,7 +509,7 @@ func (a *App) Run(ctx context.Context) error {
 		cfw := a.prof.Platform.CFWRoot
 		a.ship = &logship.Shipper{Addr: a.cfg().LogRemote, Host: a.cfg().DeviceID, Log: a.log,
 			Sources: []logship.Source{
-				{Path: a.cfg().Path("/tmp/yastationd.log"), App: "yastationd"},
+				{Path: a.cfg().Path(daemonLog), App: "yastationd"},
 				{Path: a.cfg().Path("/var/log/messages"), App: "syslog"},
 			},
 			Spool: a.cfg().Path(cfw + "/log-spool"), SpoolMax: a.cfg().LogSpoolKB << 10,
@@ -610,6 +616,8 @@ const (
 	frontMorph    = 120 * time.Millisecond
 )
 
+// renderLoop drives every light and display from the layer stacks, each on its own tick, until
+// stop.
 func (a *App) renderLoop(stop <-chan struct{}) {
 	t := time.NewTicker(frameInterval)
 	defer t.Stop()
@@ -695,6 +703,7 @@ func (a *App) onMQTTConnect() {
 	a.publishWebInfo()
 }
 
+// publishAllState publishes every state object (on connect, and at start for the web's mirror).
 func (a *App) publishAllState() {
 	s := a.store.get()
 	a.publish(a.topics.State("ring"), ringStateJSON(s))
@@ -723,8 +732,9 @@ func (a *App) publishAllState() {
 	a.publishMicMute()
 }
 
+// telemetryLoop publishes the uptime, and the light level when it moved enough (luxGate).
 func (a *App) telemetryLoop(stop <-chan struct{}) {
-	t := time.NewTicker(30 * time.Second)
+	t := time.NewTicker(telemetryEvery)
 	defer t.Stop()
 	var lux luxGate
 	for {
@@ -734,7 +744,7 @@ func (a *App) telemetryLoop(stop <-chan struct{}) {
 		case <-t.C:
 			a.publish(a.topics.State("uptime"), strconv.Itoa(int(time.Since(a.start).Seconds())))
 			if a.luxPath != "" {
-				if b := a.luxSmooth.Load(); b != 0 && lux.due(math.Float64frombits(b), time.Now()) {
+				if b := a.luxSmooth.Load(); a.luxKnown.Load() && lux.due(math.Float64frombits(b), time.Now()) {
 					a.publish(a.topics.State("lux"), strconv.FormatFloat(math.Float64frombits(b), 'f', 2, 64))
 					a.publish(a.topics.State("lux_attr"), a.luxAttrs())
 				}
@@ -760,8 +770,9 @@ func (a *App) onPlayState(playing bool) {
 	}
 }
 
+// parseProbe parses a probes entry, "name=host:port@role"; role in broker|pipeline|lan (default
+// lan), name defaulting to the address.
 func parseProbe(s string) (name, addr string, role health.Role) {
-	// "name=host:port@role"; role in broker|pipeline|lan (default lan).
 	role = health.RoleLAN
 	if n, rest, ok := strings.Cut(s, "="); ok {
 		name, s = n, rest

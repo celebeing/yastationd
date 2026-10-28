@@ -11,7 +11,7 @@ import (
 
 // Push-to-talk: the voice key starts an Assist pipeline at STT on HA's satellite connection and
 // streams the mic until HA has a transcript (its VAD decides when we stopped talking), an error
-// arrives, the key is pressed again, or maxListen passes. A wake word will start the same session.
+// arrives, the key is pressed again, or maxListen passes. A wake word starts the same session.
 
 const (
 	maxListen = 30 * time.Second

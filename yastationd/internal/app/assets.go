@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bytes"
 	"errors"
 	"io"
 	"net/http"
@@ -13,7 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/celebeing/yastationd/yastationd/internal/config"
 	"github.com/celebeing/yastationd/yastationd/internal/display"
 )
 
@@ -52,7 +50,7 @@ type assetsView struct {
 }
 
 func (a *App) videoLib() string {
-	return a.cfg().Path(a.prof.Platform.CFWRoot + "/" + videoLibDir)
+	return a.cfwFile(videoLibDir)
 }
 
 // videoFiles: a library video's frames file (gzipped or not) and its WAV.
@@ -74,7 +72,6 @@ func (a *App) assetsNow() assetsView {
 	}
 	v.Videos.MaxFrames, v.Videos.MaxAudio = maxFramesBytes, maxAudioBytes
 	v.Videos.Items = []videoAsset{}
-	cur := a.cfg().Path(a.cfg().VideoFrames)
 	v.Videos.Current = a.cfg().VideoFrames
 	ents, _ := os.ReadDir(a.videoLib())
 	seen := map[string]bool{}
@@ -85,7 +82,7 @@ func (a *App) assetsNow() assetsView {
 		}
 		seen[name] = true
 		frames, audio := a.videoFiles(name)
-		it := videoAsset{Name: name, Current: frames == cur || strings.TrimSuffix(frames, ".gz") == cur}
+		it := videoAsset{Name: name, Current: a.isCurrentVideo(frames)}
 		if st, err := os.Stat(frames); err == nil {
 			it.FramesBytes, it.Modified = st.Size(), st.ModTime().UnixMilli()
 		}
@@ -99,6 +96,16 @@ func (a *App) assetsNow() assetsView {
 	return v
 }
 
+// isCurrentVideo: frames (a library video's frames file) is the one the video mode plays.
+func (a *App) isCurrentVideo(frames string) bool {
+	cur := a.cfg().Path(a.cfg().VideoFrames)
+	return frames == cur || strings.TrimSuffix(frames, ".gz") == cur
+}
+
+// isGzip: b starts with the gzip magic.
+func isGzip(b []byte) bool { return len(b) >= 2 && b[0] == 0x1f && b[1] == 0x8b }
+
+// freeBytes: the bytes free for us on the file system of path (-1: unknown).
 func freeBytes(path string) int64 {
 	var st syscall.Statfs_t
 	if syscall.Statfs(path, &st) != nil {
@@ -113,23 +120,23 @@ func (a *App) apiAssets(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/assets"), "/"), "/")
 	if len(parts) == 1 && parts[0] == "" {
 		if r.Method != http.MethodGet {
-			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "GET"})
+			writeErr(w, http.StatusMethodNotAllowed, "GET")
 			return
 		}
 		writeJSON(w, http.StatusOK, a.assetsNow())
 		return
 	}
 	if parts[0] != "videos" || len(parts) < 2 || len(parts) > 3 {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such asset kind; there are: videos"})
+		writeErr(w, http.StatusNotFound, "no such asset kind; there are: videos")
 		return
 	}
 	if a.screen == nil {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "this speaker has no pixel screen: no video mode"})
+		writeErr(w, http.StatusConflict, "this speaker has no pixel screen: no video mode")
 		return
 	}
 	name := parts[1]
 	if !assetName.MatchString(name) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name: lower-case letters, digits, - and _, up to 40"})
+		writeErr(w, http.StatusBadRequest, "name: lower-case letters, digits, - and _, up to 40")
 		return
 	}
 	what := ""
@@ -158,7 +165,7 @@ func (a *App) apiAssets(w http.ResponseWriter, r *http.Request) {
 		if code == http.StatusOK {
 			code = http.StatusUnprocessableEntity
 		}
-		writeJSON(w, code, map[string]string{"error": err.Error()})
+		writeErr(w, code, err.Error())
 		return
 	}
 	a.log.Info("assets: video", "name", name, "op", r.Method+" "+what)
@@ -216,7 +223,7 @@ func (a *App) putVideoFrames(name string, r *http.Request) (int, time.Duration, 
 		f.Close()
 	}
 	dst := filepath.Join(a.videoLib(), name+".led")
-	if bytes.Equal(head, []byte{0x1f, 0x8b}) {
+	if isGzip(head) {
 		dst += ".gz"
 	}
 	os.Remove(strings.TrimSuffix(dst, ".gz"))
@@ -251,11 +258,7 @@ func (a *App) useVideo(name string) error {
 	}
 	root := a.cfg().SysRoot // the config holds paths on the speaker, not under a test's sysroot
 	ch := map[string][]string{"video_frames": {strings.TrimPrefix(frames, root)}, "video_audio": {strings.TrimPrefix(audio, root)}}
-	old, err := os.ReadFile(a.cfg().File)
-	if err != nil {
-		return err
-	}
-	_, _, err = a.applyConfigText(config.EditNote(old, ch, "set from the Assets page"), "assets")
+	_, _, err := a.applyConfigKeys(ch, "set from the Assets page", "assets")
 	return err
 }
 
@@ -264,18 +267,13 @@ func (a *App) deleteVideo(name string) error {
 	if !fileExists(frames) && !fileExists(audio) {
 		return errors.New("no such video")
 	}
-	cur := a.cfg().Path(a.cfg().VideoFrames)
-	if frames == cur || strings.TrimSuffix(frames, ".gz") == cur {
+	if a.isCurrentVideo(frames) {
 		if a.videoActive() {
 			a.stopVideo("its video deleted")
 			a.publishDisplayMode()
 		}
-		old, err := os.ReadFile(a.cfg().File)
-		if err != nil {
-			return err
-		}
 		ch := map[string][]string{"video_frames": nil, "video_audio": nil} // back to the defaults
-		if _, _, err := a.applyConfigText(config.EditNote(old, ch, "set from the Assets page"), "assets"); err != nil {
+		if _, _, err := a.applyConfigKeys(ch, "set from the Assets page", "assets"); err != nil {
 			return err
 		}
 	}

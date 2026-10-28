@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -58,7 +59,7 @@ func (a *App) lightCalView() lightCalView {
 // calibration (back to the board's).
 func (a *App) apiLightCal(w http.ResponseWriter, r *http.Request) {
 	if a.luxPath == "" {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "this speaker has no light sensor"})
+		writeErr(w, http.StatusNotFound, "this speaker has no light sensor")
 		return
 	}
 	switch r.Method {
@@ -66,16 +67,16 @@ func (a *App) apiLightCal(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, a.lightCalView())
 	case http.MethodPost:
 		var in struct{ Lux float64 }
-		if json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&in) != nil || in.Lux <= 0 {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "want {\"lux\": N}"})
+		if json.NewDecoder(io.LimitReader(r.Body, smallBody)).Decode(&in) != nil || in.Lux <= 0 {
+			writeErr(w, http.StatusBadRequest, "want {\"lux\": N}")
 			return
 		}
 		if in.Lux < lightCalMinLux {
-			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "too dark: calibrate in a well-lit room (30 lx or more)"})
+			writeErr(w, http.StatusUnprocessableEntity, fmt.Sprintf("too dark: calibrate in a well-lit room (%g lx or more)", lightCalMinLux))
 			return
 		}
 		if !a.luxCalBusy.CompareAndSwap(false, true) {
-			writeJSON(w, http.StatusConflict, map[string]string{"error": "a measurement is already running"})
+			writeErr(w, http.StatusConflict, "a measurement is already running")
 			return
 		}
 		defer a.luxCalBusy.Store(false)
@@ -92,13 +93,13 @@ func (a *App) apiLightCal(w http.ResponseWriter, r *http.Request) {
 		a.matrixStack.Remove("lightcal")
 		a.ringStack.Remove("lightcal")
 		if err != nil || reading <= 0 {
-			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "the sensor reads nothing: is it covered?"})
+			writeErr(w, http.StatusUnprocessableEntity, "the sensor reads nothing: is it covered?")
 			return
 		}
 		before := luxcal.Lux(a.luxCalibration(), reading)
 		pts := mergeLightPoint(a.unitLuxCalibration(), luxcal.Point{Reading: reading, Lux: in.Lux})
 		if err := a.saveLuxCalibration(pts); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			writeErr(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		a.log.Info("light sensor calibrated", "lux", in.Lux, "reading", reading, "was", math.Round(before*10)/10,
@@ -108,13 +109,13 @@ func (a *App) apiLightCal(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, v)
 	case http.MethodDelete:
 		if err := a.saveLuxCalibration(nil); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			writeErr(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		a.log.Info("light sensor calibration removed")
 		writeJSON(w, http.StatusOK, a.lightCalView())
 	default:
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "GET, POST or DELETE"})
+		writeErr(w, http.StatusMethodNotAllowed, "GET, POST or DELETE")
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"strings"
 )
 
+// Point maps a sensor reading to the lux a meter measured at it.
 type Point struct {
 	Reading, Lux float64
 }

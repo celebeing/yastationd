@@ -61,6 +61,15 @@
 #include "spotter_api.h"
 #include "vqe_api.h"
 
+/* Channel types the spotter library accepts (0..5; 6+ give "Unknown channel type"). */
+#define SPOTTER_NTYPES 6
+/* The VQE's output rate: every VQE-path stream (spotter input, fd 3, fd 4) is 16 kHz. */
+#define VQE_OUT_RATE 16000
+/* Max 16 kHz frames of VQE output per chunk (bergamot gives 256, orion 512). */
+#define FE_MAX_FRAMES 1024
+/* Max frames a detector's interleave buffer takes per det_feed() call. */
+#define DET_BUF_FRAMES 4096
+
 static const char *event_names[] = {
     "NEED_MORE_DATA_FOR_1ST_STAGE", "SUBHIT", "CONFIRMATION_1ST_STAGE", "1ST_STAGE_HIT",
     "NEED_MORE_DATA_FOR_2ND_STAGE", "CONFIRMATION_2ND_STAGE", "REJECTION_2ND_STAGE",
@@ -119,16 +128,15 @@ static int cmd_probe(const char *dir)
     report("spotter_conf_native_sample_rate", &err);
     printf("native_sample_rate %d\n", rate);
 
-    for (int what = 0; what < 6; what++) {
+    for (int what = 0; what < SPOTTER_NTYPES; what++) {
         int n = spotter_conf_get_required_channel_count(conf, what, &err);
         if (!report("spotter_conf_get_required_channel_count", &err))
             printf("required_channel_count(%d) %d\n", what, n);
     }
 
-    /* One channel of every type the conf requires, in type order (types 0..5 are accepted by
-     * the library; 6+ give "Unknown channel type"). */
+    /* One channel of every type the conf requires, in type order. */
     int types[16], n = 0;
-    for (int t = 0; t < 6; t++) {
+    for (int t = 0; t < SPOTTER_NTYPES; t++) {
         int k = spotter_conf_get_required_channel_count(conf, t, &err);
         report("spotter_conf_get_required_channel_count", &err);
         for (int i = 0; i < k && n < 16; i++)
@@ -405,12 +413,12 @@ static int cmd_vqe(float scale, int asr_mode, int comm_mode)
     struct fe f;
     if (fe_open(&f, scale, asr_mode, comm_mode))
         return 1;
-    short out[4 * 1024];
+    short out[4 * FE_MAX_FRAMES];
     double acc[4] = {0}, accin[4] = {0};
     unsigned long nacc = 0, nin = 0, chunks = 0;
     while (!fe_step(&f)) {
         int om;
-        size_t n = fe_collect(&f, out, 1024, &om);
+        size_t n = fe_collect(&f, out, FE_MAX_FRAMES, &om);
         if (chunks == 0) {
             size_t a, b, c, d;
             fe_out(&f, VQE_CH_VQE, 0, &a);
@@ -522,7 +530,7 @@ static int det_open(struct det *d, const char *tag, const char *dir, int rate)
     d->conf = spotter_conf_read(dir, &err);
     if (report("spotter_conf_read", &err) || !d->conf)
         return 1;
-    for (int t = 0; t < 6; t++) {
+    for (int t = 0; t < SPOTTER_NTYPES; t++) {
         int k = spotter_conf_get_required_channel_count(d->conf, t, &err);
         report("spotter_conf_get_required_channel_count", &err);
         for (int i = 0; i < k && d->ntypes < 8; i++)
@@ -535,7 +543,7 @@ static int det_open(struct det *d, const char *tag, const char *dir, int rate)
     for (int i = 0; i < d->ntypes; i++)
         fprintf(stderr, "%s%d", i ? "," : " ", d->types[i]);
     fprintf(stderr, " rate %d\n", rate);
-    d->buf = malloc(sizeof(short) * d->ntypes * 4096);
+    d->buf = malloc(sizeof(short) * d->ntypes * DET_BUF_FRAMES);
     return !d->buf;
 }
 
@@ -562,7 +570,7 @@ static void det_feed(struct det *d, size_t nframes, double t)
         if (serve_mode) {
             long ms = (long)(t * 1000);
             /* serve runs the VQE path: the stream is vqe_0's 16 kHz, the rate of fd 3 */
-            long long pos = vqe_on ? vqe_pos((unsigned long)(t * 16000 + 0.5)) : -1;
+            long long pos = vqe_on ? vqe_pos((unsigned long)(t * VQE_OUT_RATE + 0.5)) : -1;
             if ((ev == SPOTTER_CONFIRMATION_1ST_STAGE || ev == SPOTTER_CONFIRMATION_2ND_STAGE) && pos >= 0)
                 outf("AT %ld %lld\n%s %ld %s\n", ms, pos, d->tag, ms, phrase ? phrase : "");
             else if (ev == SPOTTER_CONFIRMATION_1ST_STAGE || ev == SPOTTER_CONFIRMATION_2ND_STAGE)
@@ -595,7 +603,7 @@ static int vqe_col(const struct det *d, int type)
 struct dblock {
     size_t n;
     unsigned long frames; /* the stream position after this block */
-    short v[4 * 1024];    /* fe_collect's 4-wide frames */
+    short v[4 * FE_MAX_FRAMES]; /* fe_collect's 4-wide frames */
 };
 struct dworker {
     struct det *d;
@@ -613,6 +621,10 @@ static void *dworker_run(void *arg)
     struct dworker *w = arg;
     struct det *d = w->d;
     struct dblock *b = malloc(sizeof(*b));
+    if (!b) {
+        fprintf(stderr, "%s: out of memory, spotter thread not running\n", d->tag);
+        return NULL;
+    }
     for (;;) {
         pthread_mutex_lock(&w->mu);
         while (!w->count && !w->quit)
@@ -680,7 +692,7 @@ static int cmd_listen(const char *amodel, const char *kmodel, float scale, int a
 {
     struct det dets[2];
     int nd = 0;
-    int rate = nx ? 48000 : 16000;
+    int rate = nx ? 48000 : VQE_OUT_RATE; /* -x feeds the 48 kHz capture as it is */
     if (amodel && det_open(&dets[nd++], "WAKE", amodel, rate))
         return 1;
     if (kmodel && det_open(&dets[nd++], "CMD", kmodel, rate))
@@ -699,6 +711,8 @@ static int cmd_listen(const char *amodel, const char *kmodel, float scale, int a
             }
         const size_t chunk = 4800; /* 100 ms */
         short *in = malloc(sizeof(short) * HW_CH * chunk);
+        if (!in)
+            return 1;
         for (;;) {
             size_t got = read_full(in, sizeof(short) * HW_CH * chunk) / (sizeof(short) * HW_CH);
             if (!got)
@@ -706,7 +720,7 @@ static int cmd_listen(const char *amodel, const char *kmodel, float scale, int a
             for (int k = 0; k < nd; k++) {
                 struct det *d = &dets[k];
                 for (size_t done = 0; done < got;) {
-                    size_t n = got - done > 4096 ? 4096 : got - done;
+                    size_t n = got - done > DET_BUF_FRAMES ? DET_BUF_FRAMES : got - done;
                     for (size_t i = 0; i < n; i++)
                         for (int c = 0; c < d->ntypes; c++)
                             d->buf[i * d->ntypes + c] = in[(done + i) * HW_CH + xmap[c]];
@@ -731,6 +745,7 @@ static int cmd_listen(const char *amodel, const char *kmodel, float scale, int a
             if (got < chunk)
                 break;
         }
+        free(in);
         return 0;
     }
 
@@ -741,7 +756,7 @@ static int cmd_listen(const char *amodel, const char *kmodel, float scale, int a
     for (int k = 0; k < nd; k++)
         if (dworker_start(&workers[k], &dets[k], rate))
             return 1;
-    short out[4 * 1024], mono[1024];
+    short out[4 * FE_MAX_FRAMES], mono[FE_MAX_FRAMES];
     int om = 0;
     int vfd = -1, gfd = -1, cur_comm = comm_mode;
     if (serve_mode) {
@@ -767,7 +782,7 @@ static int cmd_listen(const char *amodel, const char *kmodel, float scale, int a
             int bad = vqe_err("SetCommunicationMode", YandexVqeC_SetCommunicationMode(f.vqe, cur_comm));
             outf("MODE %d %s\n", cur_comm, bad ? "err" : "ok");
         }
-        size_t n = fe_collect(&f, out, 1024, &om);
+        size_t n = fe_collect(&f, out, FE_MAX_FRAMES, &om);
         frames += n;
         if (vfd >= 0) {
             for (size_t i = 0; i < n; i++)

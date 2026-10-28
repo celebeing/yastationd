@@ -80,12 +80,24 @@ type call struct {
 	stopWatch        chan struct{}
 }
 
+// Errors of Call and Answer.
 var (
 	ErrBusy     = errors.New("intercom: a call is already on")
 	ErrNoCall   = errors.New("intercom: no call to answer")
 	ErrSelfCall = errors.New("intercom: can't call ourselves")
 )
 
+// Defaults of the Options' timeouts, and the call-state timings.
+const (
+	defaultRingTimeout  = 30 * time.Second
+	defaultMediaTimeout = 5 * time.Second
+	// calleeRingExtra: the callee rings this much longer than the caller waits, so the caller's
+	// bye normally ends the ringing first.
+	calleeRingExtra = 5 * time.Second
+	mediaCheckEvery = time.Second / 2 // how often watch looks for the peer's media
+)
+
+// NewManager makes a Manager; zero timeouts and a nil Policy, Log or Now get defaults.
 func NewManager(o Options) *Manager {
 	if o.Log == nil {
 		o.Log = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -94,10 +106,10 @@ func NewManager(o Options) *Manager {
 		o.Now = time.Now
 	}
 	if o.RingTimeout <= 0 {
-		o.RingTimeout = 30 * time.Second
+		o.RingTimeout = defaultRingTimeout
 	}
 	if o.MediaTimeout <= 0 {
-		o.MediaTimeout = 5 * time.Second
+		o.MediaTimeout = defaultMediaTimeout
 	}
 	if o.Policy == nil {
 		o.Policy = func(string) string { return "" }
@@ -266,8 +278,7 @@ func (m *Manager) ringLocked(msg Msg) (Status, bool) {
 	c := &call{id: msg.Call, peer: msg.From, peerName: msg.Name, incoming: true,
 		callerNonce: msg.Nonce, peerAddr: msg.Addr, peerPort: msg.Port, peerSSRC: msg.SSRC}
 	m.c = c
-	// A little longer than the caller waits: its bye normally ends the ringing first.
-	c.timer = time.AfterFunc(m.o.RingTimeout+5*time.Second, func() { m.timeout(c) })
+	c.timer = time.AfterFunc(m.o.RingTimeout+calleeRingExtra, func() { m.timeout(c) })
 	st := m.setLocked(Status{State: Ringing, Peer: c.peer, PeerName: c.peerName, Incoming: true})
 	m.o.Log.Info("intercom: incoming call", "from", c.peer, "name", c.peerName)
 	if m.o.AutoAnswer {
@@ -297,7 +308,7 @@ func (m *Manager) startMediaLocked() (Status, error) {
 
 // watch ends the call when the peer's media stops (a lost bye, a peer that died).
 func (m *Manager) watch(c *call) {
-	t := time.NewTicker(time.Second / 2)
+	t := time.NewTicker(mediaCheckEvery)
 	defer t.Stop()
 	for {
 		select {
@@ -398,15 +409,19 @@ func (m *Manager) reply(to Msg, t, reason string) {
 	m.o.Send(to.From, out.Marshal())
 }
 
+// session is the current call's media session, nil when no call is up.
+func (m *Manager) session() *session {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.c == nil {
+		return nil
+	}
+	return m.c.sess
+}
+
 // Uplink sends one 20 ms frame of our audio (dropped when no call is up).
 func (m *Manager) Uplink(frame []int16) {
-	m.mu.Lock()
-	var s *session
-	if m.c != nil {
-		s = m.c.sess
-	}
-	m.mu.Unlock()
-	if s != nil {
+	if s := m.session(); s != nil {
 		if err := s.send(frame); err != nil {
 			m.o.Log.Debug("intercom: send", "err", err)
 		}
@@ -415,12 +430,7 @@ func (m *Manager) Uplink(frame []int16) {
 
 // Downlink returns the next frame to play, or nil when no call is up.
 func (m *Manager) Downlink() []int16 {
-	m.mu.Lock()
-	var s *session
-	if m.c != nil {
-		s = m.c.sess
-	}
-	m.mu.Unlock()
+	s := m.session()
 	if s == nil {
 		return nil
 	}
@@ -433,13 +443,9 @@ type CallStats struct {
 	Jitter    JitterStats
 }
 
+// Stats returns the current call's counters.
 func (m *Manager) Stats() CallStats {
-	m.mu.Lock()
-	var s *session
-	if m.c != nil {
-		s = m.c.sess
-	}
-	m.mu.Unlock()
+	s := m.session()
 	if s == nil {
 		return CallStats{}
 	}

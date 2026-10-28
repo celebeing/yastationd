@@ -72,6 +72,7 @@ type Assembler struct {
 	ch     int
 }
 
+// NewAssembler makes an assembler for a strip of pixels pixels.
 func NewAssembler(pixels int) *Assembler { return &Assembler{pixels: pixels} }
 
 // Add takes one packet and returns a complete frame when the sender pushed it (or, for senders

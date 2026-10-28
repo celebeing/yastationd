@@ -16,7 +16,7 @@ cmd/yastationd        main: flags, config, signal handling, tzdata embed
 cmd/ringdemo          dev tool: real ring effects (make build-ringdemo / make stage-ringdemo; stop yastationd first)
 cmd/fbleddemo         dev tool: front-screen `-clock`/`-uwu` smoke modes (make build-fbleddemo / make stage-fbleddemo; stop yastationd first)
 internal/board        board profiles: hardware, CFW root, helper architecture, device-tree detection
-internal/config       <cfw>/yastationd.conf parser (<cfw> = /bkupgrade/cfw on bergamot, /data/cfw on pickle/orion)
+internal/config       <cfw>/yastationd.conf parser (<cfw> = /bkupgrade/cfw on bergamot/orion, /data/cfw on pickle)
 internal/hw           sysfs LEDs (ring, matrix), evdev input, amixer/aplay, IIO lux
 internal/display      per-surface priority layer stack + clock/text/ring effects
 internal/mqtt         paho client (LWT, backoff), topics, HA MQTT-Discovery
@@ -45,7 +45,7 @@ Bringing up a new station: [`../docs/boards/README.md`](../docs/boards/README.md
 procedure, reversing checklist). Supported: `bergamot` (Station Mini 3), `pickle` (Station Mini 3
 Pro), `orion` (Station 3 — sound, ring and 21×12 front screen verified on-device).
 
-`<cfw>` is `/bkupgrade/cfw` on bergamot and `/data/cfw` on pickle/orion. The profile records this
+`<cfw>` is `/bkupgrade/cfw` on bergamot and orion and `/data/cfw` on pickle. The profile records this
 for host deployment; the daemon and init hook retain filesystem detection as their bootstrap
 fallback.
 
@@ -75,7 +75,7 @@ Full guide (first install, HA side, updates, removal, checks):
 `local.mk` (gitignored; see `local.mk.example`) or the command line. The platform profile supplies
 `DESTDIR` and `HELPER_ARCH`; either can still be overridden explicitly.
 For Orion bring-up, copy `configs/orion.conf.example` to a gitignored local file, replace its
-placeholders, and install it as `/data/cfw/yastationd.conf`.
+placeholders, and install it as `/bkupgrade/cfw/yastationd.conf`.
 
 ```
 make platform-info   # show selected platform, CFW root and native helper architecture
@@ -170,9 +170,10 @@ entity ids renamed to `script.yastation_*` and exposed via the websocket API.
 HA has no MQTT `media_player`, so announcements/TTS come in over **Wyoming**: yastationd listens on
 `wyoming_port` (10700) and HA's Wyoming integration (add host `<speaker-ip>`, port `10700`) creates an
 `assist_satellite` entity. `assist_satellite.announce` with `message` (pipeline TTS) or `media_id` (any
-URL ffmpeg can read) plays on the speaker; the ring pulses green meanwhile. Playback only for now —
-mic/wake word are Phase 2. HA also opens a short describe-only connection every ~30 s; connections are
-concurrent and a stream belongs to the connection that started it. Raw `yastation/<id>/speaker/set`
+URL ffmpeg can read) plays on the speaker; the ring pulses green meanwhile. The same satellite
+carries the voice: the wake word or the voice key streams the mic into the Assist pipeline. HA
+also opens a short describe-only connection every ~30 s; connections are concurrent and a stream
+belongs to the connection that started it. Raw `yastation/<id>/speaker/set`
 (local path / `STOP`) still plays local files for `mqtt.publish` automations.
 
 One-shot overlays go to `yastation/<id>/display/cmd` as JSON
@@ -206,8 +207,9 @@ findings: [`../docs/music-sendspin.md`](../docs/music-sendspin.md).
 1. ~~ALSA unmute recipe~~ — **pinned on-device 2026-10-22**: `AMP mute status = 0` (built-in default),
    play via `default` (dmix). See design §2 Audio.
 2. ~~Mosquitto broker~~ — exists: HA's Mosquitto on `<ha-host>:1883`, anonymous.
-3. Remote-URL announcements aren't wired yet (no downloader); only local files play. The pre-rendered
-   voice bank (Phase 2) will live under `/bkupgrade/cfw/voicebank/`.
+3. The raw `speaker/set` topic plays local files only (no downloader); a remote URL is logged and
+   dropped. Remote media goes through the Wyoming satellite instead (`assist_satellite.announce`,
+   HA converts it).
 4. The `input_event` record size is auto-detected at runtime (16 vs 24 bytes); verify on-device.
 5. ~~Auto-brightness~~ — **done 2026-10-23**: the ltr308 is set to gain 18 / 0.4 s (stock reads
    ~2 counts indoors behind the grille), read every second, smoothed on log(lux) (EMA τ 4 s) and

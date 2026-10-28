@@ -222,19 +222,10 @@ func (c Clip) Play(loop, hold bool, brightness func() int) RenderFunc[FrontFrame
 	return SegLayer(playClip(c, loop && !hold, hold, brightness))
 }
 
-// PlayClip renders c from the first frame it is asked for. With loop it repeats until the
-// layer is removed; otherwise the layer pops after one pass. Brightness scales every level,
-// so a clip follows the clock's auto-brightness.
-func PlayClip(c Clip, loop bool, brightness func() int) RenderFunc[MatrixFrame] {
-	return playClip(c, loop, false, brightness)
-}
-
-// HoldClip plays c once and then keeps its last frame until the layer's TTL removes it (a short
-// clip shown "for 5 s").
-func HoldClip(c Clip, brightness func() int) RenderFunc[MatrixFrame] {
-	return playClip(c, false, true, brightness)
-}
-
+// playClip renders c from the first frame it is asked for. With loop it repeats until the
+// layer is removed; with hold it plays once and keeps its last frame until the layer's TTL
+// removes it (a short clip shown "for 5 s"); otherwise the layer pops after one pass.
+// Brightness scales every level, so a clip follows the clock's auto-brightness.
 func playClip(c Clip, loop, hold bool, brightness func() int) RenderFunc[MatrixFrame] {
 	c = c.normalized()
 	total := c.Duration()
@@ -353,8 +344,11 @@ type RawFrame struct {
 	Ms     int      `json:"ms"`
 }
 
-// maxRawFrames bounds a clip sent over MQTT.
-const maxRawFrames = 500
+// maxRawFrames bounds a clip sent over MQTT, maxRawFrameMs one frame's duration (10 min).
+const (
+	maxRawFrames  = 500
+	maxRawFrameMs = 600000
+)
 
 // ClipFromRaw builds a clip from HA frames (full level for every lit element).
 func ClipFromRaw(frames []RawFrame) (Clip, error) {
@@ -363,8 +357,8 @@ func ClipFromRaw(frames []RawFrame) (Clip, error) {
 	}
 	c := Clip{Name: "raw"}
 	for i, r := range frames {
-		if r.Ms <= 0 || r.Ms > 600000 {
-			return Clip{}, fmt.Errorf("frame %d: ms must be 1..600000", i)
+		if r.Ms <= 0 || r.Ms > maxRawFrameMs {
+			return Clip{}, fmt.Errorf("frame %d: ms must be 1..%d", i, maxRawFrameMs)
 		}
 		var f ClipFrame
 		f.Dur = time.Duration(r.Ms) * time.Millisecond

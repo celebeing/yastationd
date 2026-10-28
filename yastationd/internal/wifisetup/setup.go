@@ -29,6 +29,7 @@ import (
 // runDir (/tmp), so a reboot always comes back as a plain Wi-Fi client. Only the page's edits to
 // wpa_supplicant.conf persist.
 
+// Options configure the setup mode (config keys wifi_setup_*, docs/wifi-setup.md).
 type Options struct {
 	HostapdBin string
 	SSID       string
@@ -52,6 +53,7 @@ type Options struct {
 	SharedHTTP bool
 }
 
+// Mode is the Wi-Fi setup mode: off until Enter, then an access point with the setup page.
 type Mode struct {
 	o Options
 
@@ -84,6 +86,8 @@ func (m *Mode) Portal() (http.Handler, net.IP) {
 	return nil, nil
 }
 
+// New makes the (inactive) setup mode, filling in defaults for an empty RunDir, Channel and
+// Address.
 func New(o Options) *Mode {
 	if o.RunDir == "" {
 		o.RunDir = "/tmp/yastationd-wifisetup"
@@ -97,6 +101,7 @@ func New(o Options) *Mode {
 	return &Mode{o: o}
 }
 
+// Active reports whether setup mode is on.
 func (m *Mode) Active() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()

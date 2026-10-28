@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// The call audio: 16 kHz mono S16, sent in 20 ms frames.
 const (
 	Rate         = 16000
 	FrameSamples = Rate / 50 // 20 ms

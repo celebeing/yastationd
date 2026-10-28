@@ -1,5 +1,7 @@
-// Package display implements the per-surface layer stack: the highest-priority live layer
-// wins, layers expire on a TTL, and the surface falls back to the base (clock / HA light).
+// Package display draws what the LED surfaces show — the ring's effects, the front display's
+// clock, text, clips and screen patterns (seg7 or pixels), the video mode — and composes each
+// surface with a layer stack: the highest-priority live layer wins, layers expire on a TTL, and
+// the surface falls back to the base (clock / HA light).
 package display
 
 import (
@@ -43,6 +45,7 @@ type layer[F any] struct {
 	render  RenderFunc[F]
 }
 
+// Stack composes frames of type F from a base and named layers by priority (see Frame).
 type Stack[F any] struct {
 	mu     sync.Mutex
 	base   func(now time.Time) F
@@ -66,6 +69,7 @@ func (s *Stack[F]) Top() Top {
 	return s.top
 }
 
+// NewStack makes a stack over base, which draws the bottom frame.
 func NewStack[F any](base func(now time.Time) F) *Stack[F] {
 	return &Stack[F]{base: base, layers: map[string]*layer[F]{}}
 }
@@ -95,12 +99,14 @@ func (s *Stack[F]) Keep(name string, ttl time.Duration) bool {
 	return true
 }
 
+// Remove drops the layer `name` (no-op when absent).
 func (s *Stack[F]) Remove(name string) {
 	s.mu.Lock()
 	delete(s.layers, name)
 	s.mu.Unlock()
 }
 
+// Has reports whether the layer `name` is on the stack (expired or not).
 func (s *Stack[F]) Has(name string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()

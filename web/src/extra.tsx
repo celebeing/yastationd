@@ -121,6 +121,10 @@ type Frame = { seq: number; screen?: string; seg7?: string; ring?: string; ambil
 const LIT_FLOOR = 48
 const LUT = new Uint8Array(256).map((_, i) => (i === 0 ? 0 : Math.round(LIT_FLOOR + (255 - LIT_FLOOR) * Math.pow(i / 255, 1 / 2.2))))
 const LIN = new Uint8Array(256).map((_, i) => (i === 0 ? 0 : Math.round(LIT_FLOOR + ((255 - LIT_FLOOR) * i) / 255)))
+// An unlit LED and an unlit clock segment: not black, so the off ones read on the glass.
+const UNLIT = '#0b0c0e'
+const UNLIT_SEG7 = '#16171a'
+const rgbCss = (R: number, G: number, B: number) => (R | G | B ? `rgb(${R},${G},${B})` : UNLIT)
 const unhex = (s: string) => {
   const out = new Uint8Array(s.length / 2)
   for (let i = 0; i < out.length; i++) out[i] = parseInt(s.substr(i * 2, 2), 16)
@@ -226,8 +230,8 @@ function Playground({ peer, base, info, onErr }: { peer: Peer; base: string; inf
       {has('display') && (info.patterns || []).length > 0 && (
         <div class="row">
           <span class="k">Animation</span>
-          <input type="text" placeholder={`filter ${info.patterns!.length}`} value={filter} onInput={(e) => setFilter(e.currentTarget.value)} />
-          <select value={cur} onChange={(e) => setPattern(e.currentTarget.value)}>
+          <input type="text" aria-label="Filter the animations" placeholder={`filter ${info.patterns!.length}`} value={filter} onInput={(e) => setFilter(e.currentTarget.value)} />
+          <select aria-label="Animation" value={cur} onChange={(e) => setPattern(e.currentTarget.value)}>
             {patterns.map((n) => (
               <option value={n}>{n}</option>
             ))}
@@ -305,7 +309,7 @@ function weaveTile(kind: 'grid' | 'stripes') {
  * dots. Index 0 at the top, clockwise, as on the units. col(k) is pixel k's shown RGB. */
 function drawRing(ctx: CanvasRenderingContext2D, board: string, n: number, col: (k: number) => number[], cx: number, cy: number, rr: number, dotR: number) {
   const ang = (k: number) => -Math.PI / 2 + (2 * Math.PI * k) / n
-  const css = (c: number[]) => (c[0] | c[1] | c[2] ? `rgb(${c[0]},${c[1]},${c[2]})` : '#0b0c0e')
+  const css = (c: number[]) => rgbCss(c[0], c[1], c[2])
   const half = Math.PI / n
   const belt = (radius: number, square: boolean, width: number) => {
     const M = 360
@@ -377,7 +381,7 @@ function draw(c: HTMLCanvasElement | null, i: TapInfo, f: Frame, perceived: bool
   ctx.fillStyle = '#000'
   ctx.fillRect(0, 0, width, height)
   const dot = (x: number, y: number, r: number, R: number, G: number, B: number) => {
-    ctx.fillStyle = R | G | B ? `rgb(${R},${G},${B})` : '#0b0c0e'
+    ctx.fillStyle = rgbCss(R, G, B)
     ctx.beginPath()
     ctx.arc(x, y, r, 0, 2 * Math.PI)
     ctx.fill()
@@ -402,7 +406,7 @@ function draw(c: HTMLCanvasElement | null, i: TapInfo, f: Frame, perceived: bool
         const R = show(px[k]),
           G = show(px[k + 1]),
           B = show(px[k + 2])
-        fctx.fillStyle = R | G | B ? `rgb(${R},${G},${B})` : '#0b0c0e'
+        fctx.fillStyle = rgbCss(R, G, B)
         fctx.fillRect(GLASS_PAD + x * P, GLASS_PAD + y * P, P, P)
       }
     ;[edge, halo] = [P * 0.12, P * 0.7]
@@ -413,7 +417,7 @@ function draw(c: HTMLCanvasElement | null, i: TapInfo, f: Frame, perceived: bool
       oy = GLASS_PAD - SEG7_BOX.y0 * S7
     for (const sh7 of seg7Shapes(i.seg7.colon, i.seg7.dot, i.seg7.degree)) {
       const v = show(lv[sh7.el])
-      fctx.fillStyle = v ? `rgb(${v},${v},${v})` : '#16171a'
+      fctx.fillStyle = v ? `rgb(${v},${v},${v})` : UNLIT_SEG7
       fctx.beginPath()
       if (sh7.circle) fctx.arc(ox + sh7.circle[0] * S7, oy + sh7.circle[1] * S7, sh7.circle[2] * S7, 0, 2 * Math.PI)
       else sh7.poly!.forEach(([x, y], k) => (k ? fctx.lineTo : fctx.moveTo).call(fctx, ox + x * S7, oy + y * S7))
@@ -495,16 +499,16 @@ export function LogTab({ peer, base }: { peer: Peer; base: string }) {
   return (
     <section class="card">
       <div class="row">
-        <select value={source} onChange={(e) => setSource(e.currentTarget.value)}>
+        <select aria-label="Log" value={source} onChange={(e) => setSource(e.currentTarget.value)}>
           <option value="daemon">yastationd</option>
           <option value="system">system (kernel, drivers)</option>
         </select>
-        <select value={String(lines)} onChange={(e) => setLines(+e.currentTarget.value)}>
+        <select aria-label="Lines" value={String(lines)} onChange={(e) => setLines(+e.currentTarget.value)}>
           {[100, 300, 1000, 2000].map((n) => (
             <option value={String(n)}>{n} lines</option>
           ))}
         </select>
-        <input type="text" placeholder="filter" value={filter} onInput={(e) => setFilter(e.currentTarget.value)} />
+        <input type="text" aria-label="Filter the lines" placeholder="filter" value={filter} onInput={(e) => setFilter(e.currentTarget.value)} />
         <label class="inline small">
           <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.currentTarget.checked)} /> follow
         </label>
@@ -556,7 +560,7 @@ function DiagDownload({ peer, base }: { peer: Peer; base: string }) {
       </p>
       <div class="row">
         <button class="primary" disabled={busy} onClick={go}>
-          {busy ? 'Collecting… (up to a minute)' : 'Download diagnostics'}
+          {busy ? 'Collecting… (up to two minutes)' : 'Download diagnostics'}
         </button>
         <label class="inline small">
           <input type="checkbox" checked={raw} onChange={(e) => setRaw(e.currentTarget.checked)} /> keep secrets and names (for yourself only)
@@ -671,7 +675,7 @@ export function CalibrationTab({ peer, base }: { peer: Peer; base: string }) {
       </p>
       <ExposureToLux key={method} method={method} onLux={setLux} />
       <div class="row">
-        <input type="number" min="1" step="any" placeholder="lux" value={lux} onInput={(e) => setLux(e.currentTarget.value)} />
+        <input type="number" aria-label="Lux" min="1" step="any" placeholder="lux" value={lux} onInput={(e) => setLux(e.currentTarget.value)} />
         <button class="primary" disabled={busy} onClick={measure}>
           {busy ? 'Measuring…' : 'Measure'}
         </button>

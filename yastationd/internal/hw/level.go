@@ -20,6 +20,7 @@ type LevelMeter struct {
 
 const levelWindow = MicOutRate / 10
 
+// Add measures a block of 16 kHz S16LE mono audio.
 func (l *LevelMeter) Add(pcm []byte) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -41,6 +42,7 @@ func (l *LevelMeter) Add(pcm []byte) {
 	}
 }
 
+// LevelStats summarises what a LevelMeter measured (see Stats).
 type LevelStats struct {
 	Seconds                       float64
 	PeakDBFS, LoudDBFS, FloorDBFS float64

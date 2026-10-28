@@ -47,7 +47,7 @@ type rainFx struct {
 	mu    sync.Mutex
 	avg   []float64
 	last  []time.Time // the range's last drop
-	fed   time.Time
+	ck    clock
 	drops []rainDrop
 	rnd   *rand.Rand
 }
@@ -64,19 +64,9 @@ func (r *rainFx) feed(bands []float64, now time.Time, pixels int) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	dt := 0.04
-	if !r.fed.IsZero() {
-		dt = math.Min(now.Sub(r.fed).Seconds(), 0.5)
-	}
-	r.fed = now
-	k := 1 - math.Exp(-dt/rainAvgTau)
+	k := 1 - math.Exp(-r.ck.dt(now)/rainAvgTau)
 	for i, rg := range rainRanges {
-		lo, hi := rg.lo*len(bands)/1000, max(rg.hi*len(bands)/1000, rg.lo*len(bands)/1000+1)
-		e := 0.0
-		for _, v := range bands[lo:min(hi, len(bands))] {
-			e += v
-		}
-		e /= float64(hi - lo)
+		e := rangeEnergy(bands, rg.lo, rg.hi)
 		rise := e - r.avg[i]
 		r.avg[i] += k * (e - r.avg[i])
 		if rise < rainOnset || e < rainFloor || now.Sub(r.last[i]) < rainRefract {

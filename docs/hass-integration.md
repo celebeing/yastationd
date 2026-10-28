@@ -35,7 +35,7 @@ These facts change several "obvious" choices, so they come first.
 | Input | `/dev/input/event0` = `gpio-keys` (KEY_MUTE 113 + SW_MUTE_DEVICE 14, the mic-mute hardware switch), `/dev/input/event1` = `aw933xx` touch (VOLUMEUP 115, VOLUMEDOWN 114, VOICECOMMAND 582). 24-byte `input_event`. | Read with evdev; `hardvold` already mirrors mic-mute→mixer. No `timeout` binary — time-box reads with `cmd & p=$!; sleep N; kill $p`. |
 | Ambient light | `ltr308als01` on IIO (`/sys/bus/iio/devices/iio:device{0,1}`, plus `meson-axg-saradc`). | Drive clock/ring auto-brightness and expose a lux `sensor`. |
 | Running base daemons | `hardvold` (pid), `bluealsa -p a2dp-sink -p a2dp-source -p hfp-ag --sbc-quality=high`, `bluealsa-aplay`, `clockd.sh` (our clock), dbus, wpa_supplicant, dhcpcd, chronyd, `watchdog` (`/dev/watchdog`). maind **dead**. | Design must coexist with `hardvold` (mixer mute) and `clockd` (matrix), and may reuse `bluealsa` for BT audio. |
-| LAN / HASS | `ping <ha-host>` (HASS) **OK**. Egress locked (RFC1918 allowed, public DROP). No broker yet on 88.32:1883. Device clock is UTC; busybox ignores `/etc/TZ`, use `TZ=MSK-3` explicitly. | HASS + a broker on the LAN are reachable under the egress lock with **no internet needed**. |
+| LAN / HASS | `ping <ha-host>` (HASS) **OK**. Egress locked (RFC1918 allowed, public DROP). No broker yet on `<ha-host>:1883`. Device clock is UTC; busybox ignores `/etc/TZ`, use `TZ=MSK-3` explicitly. | HASS + a broker on the LAN are reachable under the egress lock with **no internet needed**. |
 
 **Net effect:** the device is a small 32-bit-userland Linux box with ALSA/BlueZ/evdev/sysfs and
 no scripting runtime or package manager. The integration must be a **self-contained, cross-built,
@@ -317,7 +317,7 @@ external supervisor).
   that process; the agent must not open it** (avoid double-open). Optionally the agent can expose its
   heartbeat for a future integration, but it should not be the watchdog feeder.
 - **On-device liveness checks (periodic, local).** The agent runs a small health state machine from
-  cheap probes: **broker** (MQTT CONNACK / keepalive), **HASS** (TCP/HTTP to `88.32`), **`voice-server`
+  cheap probes: **broker** (MQTT CONNACK / keepalive), **HASS** (TCP/HTTP to `<ha-host>`), **`voice-server`
   pipeline** (TCP to `24117`/`24118`). States: `ONLINE` → `DEGRADED(no-broker)` /
   `DEGRADED(no-pipeline)` → `OFFLINE(no-LAN)`.
 - **MQTT availability / LWT + reconnect.** Every entity carries an `availability` topic; the broker

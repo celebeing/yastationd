@@ -122,6 +122,7 @@ func (a *App) intercomPolicy(from string) string {
 // icActive: a call is ringing, being placed or up.
 func (a *App) icActive() bool { return a.ic != nil && a.ic.m.Status().State != intercom.Idle }
 
+// icInCall: a call is up (media flowing).
 func (a *App) icInCall() bool { return a.ic != nil && a.ic.m.Status().State == intercom.InCall }
 
 // ---- MQTT ----
@@ -351,7 +352,7 @@ func (a *App) onIntercomState(st intercom.Status) {
 				a.icSound("calls_ended")
 			}
 			a.express("voice", "error", errorTTL)
-		case st.Ended == "missed":
+		case st.Ended == "missed": // rang out unanswered here (the caller gave up, or the ring timed out): no sound
 		default:
 			if wasUp {
 				a.icSound("calls_ended")

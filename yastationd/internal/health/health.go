@@ -8,13 +8,14 @@ import (
 	"time"
 )
 
+// State is the speaker's liveness as the probes see it.
 type State int
 
 const (
-	Online State = iota
-	DegradedNoPipeline
-	DegradedNoBroker
-	OfflineNoLAN
+	Online             State = iota // the broker and the pipeline probes answer
+	DegradedNoPipeline              // a pipeline (HA) probe fails
+	DegradedNoBroker                // the broker is unreachable or the MQTT client is down
+	OfflineNoLAN                    // no probe answers at all
 )
 
 func (s State) String() string {
@@ -35,6 +36,7 @@ type Probe struct {
 	Role Role
 }
 
+// Role is what a probe's target stands for.
 type Role int
 
 const (
@@ -43,6 +45,7 @@ const (
 	RoleLAN
 )
 
+// Monitor runs the probes and keeps the resulting State.
 type Monitor struct {
 	mu       sync.Mutex
 	probes   []Probe
@@ -50,21 +53,25 @@ type Monitor struct {
 	hbFile   string
 	onChange func(State)
 
-	// BrokerUp is fed by the MQTT client so the broker's own connection state, not just a TCP
+	// brokerConnected is fed by the MQTT client so the broker's own connection state, not just a TCP
 	// probe, drives the DEGRADED(no-broker) decision.
 	brokerConnected bool
 }
 
+// New makes a Monitor that touches hbFile on every round ("" = none) and calls onChange when
+// the state changes. It starts offline until the first round.
 func New(hbFile string, onChange func(State)) *Monitor {
 	return &Monitor{hbFile: hbFile, state: OfflineNoLAN, onChange: onChange}
 }
 
+// AddProbe adds a reachability target.
 func (m *Monitor) AddProbe(name, addr string, role Role) {
 	m.mu.Lock()
 	m.probes = append(m.probes, Probe{Name: name, Addr: addr, Role: role})
 	m.mu.Unlock()
 }
 
+// SetBrokerConnected records the MQTT client's connection state.
 func (m *Monitor) SetBrokerConnected(up bool) {
 	m.mu.Lock()
 	m.brokerConnected = up
@@ -78,6 +85,7 @@ func (m *Monitor) BrokerConnected() bool {
 	return m.brokerConnected
 }
 
+// State is the state of the last round.
 func (m *Monitor) State() State {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -88,7 +96,7 @@ func (m *Monitor) State() State {
 // not wait up to one interval to show).
 func (m *Monitor) Recheck(dialTimeout time.Duration) { go m.tick(dialTimeout) }
 
-// Run probes on a ticker until ctx is done. dialTimeout bounds each TCP attempt.
+// Run probes on a ticker until stop closes. dialTimeout bounds each TCP attempt.
 func (m *Monitor) Run(stop <-chan struct{}, interval, dialTimeout time.Duration) {
 	t := time.NewTicker(interval)
 	defer t.Stop()

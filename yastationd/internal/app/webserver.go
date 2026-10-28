@@ -5,20 +5,15 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
-	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/celebeing/yastationd/yastationd/internal/config"
-	"github.com/celebeing/yastationd/yastationd/internal/health"
 	"github.com/celebeing/yastationd/yastationd/internal/timesync"
 	"github.com/celebeing/yastationd/yastationd/internal/version"
 	"github.com/celebeing/yastationd/yastationd/internal/web"
@@ -164,15 +159,21 @@ func cors(h http.Handler) http.Handler {
 	})
 }
 
+// authed lets a request through to h only with a valid login token.
 func (a *App) authed(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		tok, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if !a.web.tokens.Valid(tok) {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "login required"})
+		if !a.web.tokens.Valid(bearerToken(r)) {
+			writeErr(w, http.StatusUnauthorized, "login required")
 			return
 		}
 		h(w, r)
 	}
+}
+
+// bearerToken is the request's Authorization header without its "Bearer " prefix.
+func bearerToken(r *http.Request) string {
+	tok, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	return tok
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
@@ -182,9 +183,29 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
+// writeErr is the API's error reply: {"error": msg} with the status code.
+func writeErr(w http.ResponseWriter, code int, msg string) {
+	writeJSON(w, code, map[string]string{"error": msg})
+}
+
+// API request body limits.
+const (
+	smallBody = 4 << 10   // a login, a Wi-Fi network, a sync toggle
+	listBody  = 64 << 10  // a control's payload, a list of moment candidates, settings changes
+	textBody  = 256 << 10 // the config file's text
+)
+
 func (a *App) selfInfo(r *http.Request) peerInfo {
 	return peerInfo{ID: a.cfg().DeviceID, Name: a.cfg().DeviceName, Board: a.prof.Name, Model: a.prof.Model,
 		Version: version.Version, URL: a.selfURL(r)}
+}
+
+// fullInfo is selfInfo with what only the app asks for: the tabs and the DDP details.
+func (a *App) fullInfo(r *http.Request) peerInfo {
+	p := a.selfInfo(r)
+	p.Features = a.features()
+	p.DDP = a.ddpInfo()
+	return p
 }
 
 // selfURL is how the LAN reaches this server: the request's host when there is one, else the
@@ -217,15 +238,12 @@ func outboundIP(routeFile string) string {
 }
 
 func (a *App) apiInfo(w http.ResponseWriter, r *http.Request) {
-	p := a.selfInfo(r)
-	p.Features = a.features()
-	p.DDP = a.ddpInfo()
-	writeJSON(w, http.StatusOK, p)
+	writeJSON(w, http.StatusOK, a.fullInfo(r))
 }
 
 func (a *App) apiLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "POST"})
+		writeErr(w, http.StatusMethodNotAllowed, "POST")
 		return
 	}
 	client, _, _ := net.SplitHostPort(r.RemoteAddr)
@@ -234,8 +252,8 @@ func (a *App) apiLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct{ User, Password string }
-	if json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&in) != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad request"})
+	if json.NewDecoder(io.LimitReader(r.Body, smallBody)).Decode(&in) != nil {
+		writeErr(w, http.StatusBadRequest, "bad request")
 		return
 	}
 	a.web.mu.Lock()
@@ -245,7 +263,7 @@ func (a *App) apiLogin(w http.ResponseWriter, r *http.Request) {
 	a.web.throttle.Result(client, ok)
 	if !ok {
 		a.log.Info("web: login failed", "client", client, "user", in.User)
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "wrong user or password"})
+		writeErr(w, http.StatusUnauthorized, "wrong user or password")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"token": a.web.tokens.New(), "default_password": hash == ""})
@@ -255,12 +273,12 @@ func (a *App) apiLogin(w http.ResponseWriter, r *http.Request) {
 // every token is revoked and the caller gets a new one.
 func (a *App) apiPassword(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "POST"})
+		writeErr(w, http.StatusMethodNotAllowed, "POST")
 		return
 	}
 	var in struct{ User, Password string }
-	if json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&in) != nil || len(in.Password) < 4 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "a password of 4 characters or more"})
+	if json.NewDecoder(io.LimitReader(r.Body, smallBody)).Decode(&in) != nil || len(in.Password) < 4 {
+		writeErr(w, http.StatusBadRequest, "a password of 4 characters or more")
 		return
 	}
 	a.web.mu.Lock()
@@ -271,7 +289,7 @@ func (a *App) apiPassword(w http.ResponseWriter, r *http.Request) {
 	}
 	hash := web.HashPassword(in.Password)
 	if err := a.editConfig(map[string][]string{"web_user": {user}, "web_password": {hash}}, "set from the web UI"); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	a.web.mu.Lock()
@@ -286,7 +304,7 @@ func (a *App) apiPassword(w http.ResponseWriter, r *http.Request) {
 // so a login survives restarts and redeploys. When it cannot be kept, a secret for this run only
 // (a restart logs everyone out, as before).
 func (a *App) webSecret() []byte {
-	path := a.cfg().Path(a.prof.Platform.CFWRoot + "/" + webSecretFile)
+	path := a.cfwFile(webSecretFile)
 	if b, err := os.ReadFile(path); err == nil && len(b) >= 32 {
 		return b
 	}
@@ -296,28 +314,6 @@ func (a *App) webSecret() []byte {
 		a.log.Warn("web: token secret not kept, a restart logs everyone out", "err", err)
 	}
 	return b
-}
-
-// editConfig changes keys in the config file in place (validated, the old file kept as .bak).
-func (a *App) editConfig(changes map[string][]string, note string) error {
-	a.confMu.Lock()
-	defer a.confMu.Unlock()
-	if a.cfg().File == "" {
-		return errors.New("no config file")
-	}
-	old, err := os.ReadFile(a.cfg().File)
-	if err != nil {
-		return err
-	}
-	data := config.EditNote(old, changes, note)
-	if _, err := checkConfigEdit(old, data); err != nil {
-		return err
-	}
-	if err := writeConfigFile(a.cfg().File, old, data); err != nil {
-		return err
-	}
-	a.adoptConfig(data)
-	return nil
 }
 
 // webEntity is a control or sensor as the app sees it.
@@ -372,16 +368,13 @@ func (a *App) webEntities() []webEntity {
 }
 
 func (a *App) apiState(w http.ResponseWriter, r *http.Request) {
-	p := a.selfInfo(r)
-	p.Features = a.features()
-	p.DDP = a.ddpInfo()
-	writeJSON(w, http.StatusOK, map[string]any{"info": p, "entities": a.webEntities()})
+	writeJSON(w, http.StatusOK, map[string]any{"info": a.fullInfo(r), "entities": a.webEntities()})
 }
 
 // apiControl runs a control's MQTT command handler with the request body as the payload.
 func (a *App) apiControl(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "POST"})
+		writeErr(w, http.StatusMethodNotAllowed, "POST")
 		return
 	}
 	obj := strings.TrimPrefix(r.URL.Path, "/api/control/")
@@ -393,12 +386,12 @@ func (a *App) apiControl(w http.ResponseWriter, r *http.Request) {
 	}
 	fn := a.commands()[obj]
 	if !allowed || fn == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such control"})
+		writeErr(w, http.StatusNotFound, "no such control")
 		return
 	}
-	body, err := io.ReadAll(io.LimitReader(r.Body, 64<<10))
+	body, err := io.ReadAll(io.LimitReader(r.Body, listBody))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad body"})
+		writeErr(w, http.StatusBadRequest, "bad body")
 		return
 	}
 	fn(body)
@@ -441,199 +434,4 @@ func (a *App) apiPeers(w http.ResponseWriter, r *http.Request) {
 	a.web.mu.Unlock()
 	sort.Slice(out[1:], func(i, j int) bool { return out[1+i].Name < out[1+j].Name })
 	writeJSON(w, http.StatusOK, out)
-}
-
-// serveMetrics: Prometheus text — the numeric and on/off states the app publishes, and a few
-// process numbers. No login (read-only, the exporter convention).
-func (a *App) serveMetrics(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-	dev := a.cfg().DeviceID
-	fmt.Fprintf(w, "# TYPE yastation_info gauge\nyastation_info{device=%q,board=%q,version=%q} 1\n", dev, a.prof.Name, version.Version)
-	fmt.Fprintf(w, "# TYPE yastation_uptime_seconds gauge\nyastation_uptime_seconds{device=%q} %d\n", dev, int(time.Since(a.start).Seconds()))
-	var ms runtime.MemStats
-	runtime.ReadMemStats(&ms)
-	fmt.Fprintf(w, "# TYPE yastation_go_heap_bytes gauge\nyastation_go_heap_bytes{device=%q} %d\n", dev, ms.HeapAlloc)
-	fmt.Fprintf(w, "# TYPE yastation_goroutines gauge\nyastation_goroutines{device=%q} %d\n", dev, runtime.NumGoroutine())
-	if b, err := os.ReadFile("/proc/self/statm"); err == nil {
-		if f := strings.Fields(string(b)); len(f) > 1 {
-			if pages, err := strconv.Atoi(f[1]); err == nil {
-				fmt.Fprintf(w, "# TYPE yastation_rss_bytes gauge\nyastation_rss_bytes{device=%q} %d\n", dev, pages*os.Getpagesize())
-			}
-		}
-	}
-	a.systemMetrics(w, dev)
-	st := a.states.snapshot()
-	keys := make([]string, 0, len(st))
-	for k := range st {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		v := st[k].value
-		var f float64
-		switch v {
-		case "ON":
-			f = 1
-		case "OFF":
-			f = 0
-		default:
-			var err error
-			if f, err = strconv.ParseFloat(v, 64); err != nil {
-				if k == "health" { // a state as a label
-					fmt.Fprintf(w, "yastation_health{device=%q,state=%q} 1\n", dev, v)
-				}
-				continue
-			}
-		}
-		name := "yastation_" + metricName(k)
-		fmt.Fprintf(w, "# TYPE %s gauge\n%s{device=%q} %s\n", name, name, dev, strconv.FormatFloat(f, 'g', -1, 64))
-	}
-}
-
-func metricName(s string) string {
-	b := []byte(s)
-	for i, c := range b {
-		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_') {
-			b[i] = '_'
-		}
-	}
-	return string(b)
-}
-
-// The config editor (docs/web-ui.md, "Saving the config"): the file's text in, validated by the
-// daemon's own parser, saved with the old one as .bak and a trial marker, then the daemon
-// restarts. It removes the marker after configTrial up; a crash before that makes the supervisor
-// put the .bak back.
-
-const configTrial = time.Minute
-
-func (a *App) trialMarker() string {
-	return a.cfg().Path(a.prof.Platform.CFWRoot + "/config.trial")
-}
-
-func (a *App) apiConfig(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		b, err := os.ReadFile(a.cfg().File)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
-		}
-		_, terr := os.Stat(a.trialMarker())
-		writeJSON(w, http.StatusOK, map[string]any{"file": a.cfg().File, "text": string(b), "trial": terr == nil})
-	case http.MethodPut:
-		var in struct{ Text string }
-		if json.NewDecoder(io.LimitReader(r.Body, 256<<10)).Decode(&in) != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad request"})
-			return
-		}
-		restart, changed, err := a.applyConfigText([]byte(in.Text), "config editor")
-		if err != nil {
-			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
-			return
-		}
-		if changed == nil {
-			changed = []string{}
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "restarting": restart, "changed": changed})
-	default:
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "GET or PUT"})
-	}
-}
-
-func (a *App) saveConfigTrial(old, data []byte) error {
-	// A restart already pending (several shared keys arriving at once): the .bak and the marker
-	// keep the config and the health from before the first change, so a rollback goes all the way.
-	if _, err := os.Stat(a.trialMarker()); err == nil && a.restartPending.Load() {
-		tmp := a.cfg().File + ".new"
-		if err := os.WriteFile(tmp, data, 0o600); err != nil {
-			return err
-		}
-		return os.Rename(tmp, a.cfg().File)
-	}
-	if err := os.WriteFile(a.cfg().File+".bak", old, 0o600); err != nil {
-		return err
-	}
-	tmp := a.cfg().File + ".new"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-	// The marker holds the health before the save: the new config must do at least as well.
-	if err := os.WriteFile(a.trialMarker(), []byte(strconv.Itoa(int(a.hmon.State()))), 0o644); err != nil {
-		return err
-	}
-	a.restartPending.Store(true)
-	return os.Rename(tmp, a.cfg().File)
-}
-
-// configTrialLoop judges a config on trial after configTrial: accepted when the speaker is at least
-// as healthy (broker, HA's pipeline) as before the save, else rolled back.
-func (a *App) configTrialLoop(stop <-chan struct{}) {
-	b, err := os.ReadFile(a.trialMarker())
-	if err != nil {
-		return
-	}
-	before, err := strconv.Atoi(strings.TrimSpace(string(b)))
-	if err != nil {
-		before = int(health.OfflineNoLAN) // no record: anything goes
-	}
-	a.log.Info("config: on trial", "for", configTrial, "health_before", health.State(before).String())
-	select {
-	case <-stop:
-		return
-	case <-time.After(configTrial):
-	}
-	if now := a.hmon.State(); int(now) > before {
-		a.trialFailed("health " + now.String() + ", was " + health.State(before).String())
-		return
-	}
-	os.Remove(a.trialMarker())
-	a.syncAccepted()
-	a.log.Info("config: accepted")
-}
-
-// trialFailed rolls a config on trial back (no-op when none is): the .bak goes back, the marker
-// goes, the daemon restarts.
-func (a *App) trialFailed(why string) {
-	if _, err := os.Stat(a.trialMarker()); err != nil {
-		return
-	}
-	a.log.Error("config: the config on trial fails, rolling back", "why", why)
-	if old, err := os.ReadFile(a.cfg().File + ".bak"); err == nil {
-		tmp := a.cfg().File + ".restore"
-		if os.WriteFile(tmp, old, 0o600) == nil {
-			os.Rename(tmp, a.cfg().File)
-		}
-	}
-	os.Remove(a.trialMarker())
-	if a.quit != nil {
-		a.quit()
-	}
-}
-
-// systemMetrics: the speaker's memory, load, temperatures (every thermal zone, by its type) and
-// uptime.
-func (a *App) systemMetrics(w io.Writer, dev string) {
-	v := a.readVitals()
-	if v.MemTotal > 0 {
-		fmt.Fprintf(w, "# TYPE yastation_memory_bytes gauge\n")
-		fmt.Fprintf(w, "yastation_memory_bytes{device=%q,kind=\"total\"} %d\n", dev, v.MemTotal)
-		fmt.Fprintf(w, "yastation_memory_bytes{device=%q,kind=\"free\"} %d\n", dev, v.MemFree)
-		fmt.Fprintf(w, "yastation_memory_bytes{device=%q,kind=\"available\"} %d\n", dev, v.MemAvailable)
-	}
-	if len(v.Load) == 3 {
-		fmt.Fprintf(w, "# TYPE yastation_load gauge\n")
-		for i, span := range []string{"1m", "5m", "15m"} {
-			fmt.Fprintf(w, "yastation_load{device=%q,span=%q} %s\n", dev, span, strconv.FormatFloat(v.Load[i], 'f', 2, 64))
-		}
-	}
-	if len(v.Temps) > 0 {
-		fmt.Fprintf(w, "# TYPE yastation_temperature_celsius gauge\n")
-		for _, t := range v.Temps {
-			fmt.Fprintf(w, "yastation_temperature_celsius{device=%q,zone=%q} %s\n", dev, t.Zone, strconv.FormatFloat(t.C, 'f', 1, 64))
-		}
-	}
-	if v.SystemUptime > 0 {
-		fmt.Fprintf(w, "# TYPE yastation_system_uptime_seconds gauge\nyastation_system_uptime_seconds{device=%q} %d\n", dev, v.SystemUptime)
-	}
 }
