@@ -3,7 +3,7 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.20.1 — 2026-10-28
 
 **Voice**
 - `preroll_ms` defaults to the board's value, measured for its wake word model
