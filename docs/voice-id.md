@@ -113,7 +113,7 @@ yastationd: compare with the household's voices → verdict ────┘
    the speaker stops.
 3. **yastationd** compares the voiceprint with the household's voices (cosine to each person's
    centroid; the best one above the threshold with a margin over the runner-up, else `guest`),
-   publishes the sensors, keeps the recent requests for the Voices tab, and gates the request.
+   publishes the sensors, sends the request event to the store, and gates the request.
 4. **Arbitration** ([wake-arbitration.md](wake-arbitration.md)): every speaker that heard the wake
    word starts its voiceprint at once, without waiting for the arbitration result; the winner's
    verdict counts (it streams to HA and publishes), the losers drop theirs. Later, maybe: the winner
@@ -146,39 +146,71 @@ phrase) and blocks a guest more cleanly. They do not exclude each other: the HA 
 same with either behind them, and a speaker could even send its wake-word voiceprint along for the
 server to combine.
 
-## Calibration and debugging, for everyone
+## Calibration and debugging: voices like faces in a photo album
 
-Nobody should need a week of HA debug recordings. The speaker learns from its normal use:
+Nobody should need a week of HA debug recordings, and nobody should label requests one by one.
+The speakers collect voiceprints from normal use and group them the way photo albums group faces:
 
-- **Recent requests.** Each speaker keeps its last ~100 requests: time, HA's transcript (the
-  satellite receives it), the voiceprint, the verdict, the score and the gender — not the audio by
-  default (a "keep audio for 10 minutes" switch lets you listen while labelling). The Voices tab
-  lists them: who it thought it was, how sure.
-- **Labelling.** Pick requests and say whose they are ("me", "<partner>"), or "not a person" (TV,
-  videos, noise). A person's centroid is the mean of their labelled voiceprints; the tab shows how
-  many there are and how tight they sit. Enough: ~10 requests per person, from more than one room.
-- **Suggestions.** The tab groups unlabelled requests by similarity: "a voice heard 23 times, all
-  alike — who is it?" — the first day of use is usually enough to name the household.
-- **Guided enrollment**, for a person who rarely talks to the speaker: "Enroll a voice" asks for
-  five short phrases on that speaker ("Алиса, сколько времени?") and labels them.
-- **The threshold with a preview.** Next to the slider: the score histogram of the recent
-  requests per person and for the rest, and "with this threshold, of the last 100 requests N would
-  have been ignored: [list]". Calibration is moving the slider until the list is the guests.
-- **One household, every speaker.** The voices (names and centroids, not recordings) are shared
-  between the speakers with the same model: a label made in one room is used in all. Stored in
-  `<cfw>/voices.json` on each; the web app keeps them in step (the peers' API), the model tag guards
-  against mixing models.
-- **Debug:** the sensors' attributes (score, runner-up, margin), a log line per verdict, and the
-  Voices tab show every decision with its numbers; `GET /api/voices/recent` for scripts. A desk
-  tool (`tools/voice-lab/`, the fbank + TFLite pipeline in Python) replays wav files through the same
-  models to tune on recordings.
+- **People appear by themselves.** Every request adds a voiceprint; similar ones are grouped
+  automatically and shown as "Person 1 · male · 87 phrases", "Person 2 · female · 4 phrases" (the
+  gender is the group's average from the firmware's classifier). A separate "not a person" group
+  takes false wakes, noise and empty transcripts (in the desk check they stand out: gender ≈ 0.5,
+  low similarity to everyone).
+- **A log of requests:** the time, the speaker it came from, HA's transcript (the satellite
+  receives it), who it was taken for and how sure. No audio by default (a "keep audio for 10
+  minutes" switch lets you listen while correcting).
+- **The owner's edits:** rename a group ("Person 1" → "me"), merge two groups, and mark a request
+  in the log as misrecognised (move it to another person, or to "not a person"). Edits are
+  constraints for the grouping, as tagged faces are in an album: later requests are grouped around
+  them, and regrouping never undoes them.
+- **Guided enrollment**, for someone who rarely talks to the speakers: "Enroll a voice" asks for
+  five short phrases and puts them in one group.
+- **The threshold with a preview**, on top of the groups: the score histogram per person and for
+  the rest, and "with this threshold, of the last 100 requests N would have been ignored: [list]".
+  Calibration is moving the slider until the list is the guests.
+- **Debug:** the sensors' attributes (score, runner-up, margin), a log line per verdict, the log
+  in the web app, `GET /api/voices/log` for scripts, and a desk tool (`tools/voice-lab/`, the fbank +
+  TFLite pipeline in Python) that replays wav files through the same models.
+
+### One store, two one-way streams
+
+Syncing all of that between speakers would be a mess; it is not needed. The speakers already share
+an MQTT broker, and two one-way streams are enough:
+
+```
+every speaker ── a request event ──────────► the store (one place)
+  (voiceprint ~2 KB, transcript, speaker, time, verdict)
+                                                │ grouping, names, the owner's edits
+the store ── the people's centroids (retained) ─► every speaker
+  (name, gender, 512 values per person: a few KB)
+```
+
+- **The verdict stays local and fast:** each speaker classifies against the centroids it holds
+  from the retained topic; no network round trip in the middle of a phrase.
+- **The log, the groups, the names and the edits live in the store only.** Speakers append events
+  and read centroids; only the store edits, so nothing can conflict.
+- **Small:** a couple of KB per request, tens of requests a day.
+- **While the store is unreachable** speakers keep their events and send them later (as
+  `log-spool` does for logs), and keep classifying with the last centroids they got.
+
+Where the store lives:
+
+1. **One of the speakers, chosen** (`voice_store = true` in its config; a Station 3 if there is
+   one: room on its eMMC, a faster CPU). The Voices tab lives there; the web app reaches every
+   speaker, so it shows from any. While that speaker is off, the log waits on the others and edits
+   wait. **The pick:** nothing to install besides the CFW.
+2. **HA**, through an integration of our own that keeps the log and the groups and shows them in
+   HA. A component outside the CFW to install and maintain.
+3. **A server**: the proxy of [speaker-id.md](speaker-id.md); then computing there is natural too,
+   and a speaker would send only its wake-word voiceprint.
 
 ## Privacy
 
-Voiceprints are biometric data. They stay on the household's own speakers: `<cfw>/voices.json`
-holds names and centroids; recent requests live in RAM (and their voiceprints only, no audio,
-unless the 10-minute switch is on); nothing leaves the LAN, nothing is committed. "Forget this
-voice" and "forget everything" in the tab delete them on every speaker.
+Voiceprints are biometric data. They stay in the household: the store keeps the log (voiceprints,
+transcripts, no audio unless the 10-minute switch is on) and the groups on its flash, the other
+speakers only the people's centroids; the broker carries them inside the LAN; nothing is
+committed. "Forget this person" and "forget everything" in the tab delete them in the store, and
+the retained centroids with them.
 
 ## Turning it on (for others)
 
@@ -186,19 +218,20 @@ voice" and "forget everything" in the tab delete them on every speaker.
   0.369, Mini 3 Pro, Station 3 have both; the Mini 3 0.6.x firmware needs the newer model and the
   library from another firmware (`make voice-models`, the way `vqe-models` works: copied from the
   owner's own unit or vendor tree, never from the repo). The web app says what is missing.
-- **Config:** `voice_id = true` (off by default). Gender works at once; names after labelling.
+- **Config:** `voice_id = true` on the speakers (off by default), `voice_store = true` on one of
+  them. Gender works at once; people appear in the Voices tab after a day or so of use, to be named.
 - **Nothing on the HA side** besides the new entities; the agent's prompt gets a line if wanted.
 
 ## Phases
 
 1. **spotter-host voiceprints:** fbank in C, TFLite via `dlopen`, `VOICE` events (final; partials).
    Checked against the desk pipeline on the same wav (same voiceprint within float error).
-2. **yastationd:** the voices store, the verdict, the HA sensors (gender first: no enrollment), the
-   recent requests, the API.
-3. **Voices tab:** recent requests, labelling, suggestions, the threshold preview, guided enrollment.
+2. **yastationd:** the verdict against centroids, the HA sensors (gender first: no enrollment).
+3. **The store and the Voices tab:** request events and retained centroids over MQTT, automatic
+   grouping, the log, rename / merge / correct, the threshold preview, guided enrollment.
 4. **Ignore guests:** abort on a guest verdict (or the hold-and-release fallback),
    `voice_ignored`, arbitration.
-5. **Sync** between speakers; `make voice-models` for the old Mini 3 firmware.
+5. `make voice-models` for the old Mini 3 firmware.
 
 ## Open questions
 
