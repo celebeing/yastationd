@@ -7,7 +7,7 @@
 # 128+n = killed by signal n) is a crash. A "short crash" is one after a run of < LONG s; only a
 # run of >= LONG s resets the count. Restart delay after a crash: BACKOFF_MIN s, doubling up to
 # BACKOFF_MAX. After CRASHES consecutive short crashes the previous binary (bin/yastationd.prev,
-# kept by `make deploy` / tools/deploy.sh) is swapped in and the bad one kept as .bad. If that
+# kept by tools/deploy.sh) is swapped in and the bad one kept as .bad. If that
 # crash-loops too, it keeps retrying every GIVEUP s: there is no vendor stack to fall back to.
 #
 # The log is copy-truncated at MAXLOG bytes (one .1 kept): the agent keeps its O_APPEND descriptor,

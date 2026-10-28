@@ -194,7 +194,7 @@ None of this is implemented or tried on a device yet.
 
 | Layer | Where | What gets you there |
 |---|---|---|
-| **dev** | `<cfw>` on the rw partition (`/data/cfw`, `/bkupgrade/cfw`) — today's `make deploy` | normal |
+| **dev** | `<cfw>` on the rw partition (`/data/cfw`, `/bkupgrade/cfw`) — today's `tools/deploy.sh` | normal |
 | **golden** | CFW baked into the rootfs (both models) **and** into `aml_sysrecovery` (pickle) | safe-mode boot (both); hard reset (pickle, wipes `/data`) |
 | **stock** | the original dumps on the host (`dumps/pickle/mtd6_aml_sysrecovery.img`, …) | write the original mtd6 back and hard-reset (pickle); hard reset (bergamot) |
 

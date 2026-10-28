@@ -33,10 +33,7 @@ Review of 2026-10-28 (whole repo).
 
 ## Duplication
 
-- **Deploy logic twice** — `yastationd/Makefile` `deploy` vs `tools/deploy.sh`: the Makefile
-  ships only the daemon, `supervise.sh`, `diag.sh`, no running check, no WARN/ERROR count
-  (docs/deploying.md says so now). Have `make deploy` call `tools/deploy.sh` with a one-line
-  hosts file, or share the remote swap script. M, medium risk.
+
 - **Board-overridable keys listed twice** — `internal/app/board.go` `resolveBoard` and
   `settings.go` `boardValues` spell out the same ~11 keys. One table of
   `{key, get(profile), set(profile, cfg)}`. M, low–medium risk.

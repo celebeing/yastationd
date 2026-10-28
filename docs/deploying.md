@@ -40,7 +40,7 @@ scripts branch on its existence.
 | `<cfw>/yastationd_off` | kill switch: the supervisor stops respawning while it exists |
 | `/etc/init.d/S52zyastationd` | the only rootfs file: boot hook that starts the supervisor (copy kept in `<cfw>/init.d/`) |
 | `<cfw>/init.d/supervise.sh` | the supervisor (see below); without it the hook falls back to a plain 2 s respawn loop |
-| `<cfw>/bin/diag.sh` | the diagnostics collector (busybox sh, read-only; uploaded by `tools/deploy.sh` and `make deploy`, nothing runs it by itself): one redacted archive in `/tmp` to send when something is wrong ([diagnostics.md](diagnostics.md)) |
+| `<cfw>/bin/diag.sh` | the diagnostics collector (busybox sh, read-only; uploaded by `tools/deploy.sh`, nothing runs it by itself): one redacted archive in `/tmp` to send when something is wrong ([diagnostics.md](diagnostics.md)) |
 | `/tmp/yastationd.log` | log (tmpfs — gone on reboot), copy-truncated at 1 MB with one `.1` kept |
 
 The vendor's own files stay untouched, except the two reversible guards below.
@@ -139,9 +139,7 @@ The exact toolchain versions and a container that pins them: [building.md](build
 cd yastationd
 # local.mk (gitignored): DEVICE = root@<speaker>, SSHKEY = <key> (optional), PLATFORM = <codename>
 make platform-info                                 # confirms derived <cfw> and helper arch
-make stage                                         # binary + init hook copy into <cfw> (no autostart)
-make deploy-spotter                                # profile selects build/<helper-arch>/spotter-host
-make deploy-sendspin                               # optional; profile selects helper architecture
+make stage                                         # creates <cfw>: binary + init hook copy (nothing starts)
 make sounds                                        # vendor sounds -> <cfw>/sounds/*.wav
 make vqe-models [VQE_MODEL=<model_call.nnet>]      # intercom: the call-mode NR model (from the unit's firmware, else the file; orion has none yet)
 make clips                                         # firmware 0.369 only: its binary clock clips -> <cfw>/clips/*.scled
@@ -163,8 +161,8 @@ ssh root@<speaker> '<cfw>/bin/yastationd -version'
 ```
 
 It must print the same `git describe` string that `make build` printed. `frametap_addr` for one
-needs v0.8.1 or newer ([led-preview.md](led-preview.md)); drop the key, or `make deploy`, until
-they match.
+needs v0.8.1 or newer ([led-preview.md](led-preview.md)); drop the key, or update the binary
+(`tools/deploy.sh`), until they match.
 
 **Time.** The Minis have no RTC: the clock starts at 1970 and every TLS and timestamped thing
 waits for a sync (Station 3's RTC is battery-backed, `platform.rtc_backed`; it still syncs). The egress lock (§0) drops the vendor's `ntp.yantp.net`, and plenty of
@@ -186,10 +184,9 @@ Dry run in the foreground before autostart. Ring and clock will light up:
 ssh root@<speaker> '<cfw>/bin/yastationd -config <cfw>/yastationd.conf'   # Ctrl-C to stop
 ```
 
-Expect `board profile=<name>`, `mqtt connected`, `wyoming listening`, `health state=online`, and
-`wake: spotter ready` if the wake word is on. Lines that are *not* an error but people read as one:
-`wake word disabled: spotter binary missing` (no `spotter-host` deployed — see §1) and
-`music player disabled: sendspin-host missing` (nothing built, or `sendspin` left off).
+Expect `board profile=<name>`, `mqtt connected`, `wyoming listening`, `health state=online`. At
+this point `wake word disabled: spotter binary missing` and `music player disabled: sendspin-host
+missing` are expected: the helpers come with the deploy below.
 
 On the ring, a **red pulse after ~40 s** means the first connection did not happen
 (`boot_connect_timeout`): the broker is not reachable, or HA has not taken the Wyoming satellite
@@ -201,15 +198,20 @@ Then:
 
 ```sh
 make install-initd                                 # copies the hook into /etc/init.d (remount rw/ro)
-ssh root@<speaker> /etc/init.d/S52zyastationd start
+DROPBEAR=1 ../tools/deploy.sh <hosts-file>         # this speaker's line (§4)
 ```
+
+The deploy builds everything in docker, ships the helpers (`spotter-host`, `sendspin-host` when
+built, `hostapd`), starts the daemon through the hook and checks that it runs; `DROPBEAR=1` also
+puts our SSH server in (§4, optional). Now `wake: spotter ready` shows in the log if the wake word
+is on.
 
 Reboot once (with the user's OK) and check that it all comes back on its own. On pickle, the first
 start after boot fails once (the ring LEDs appear late) and the supervisor restarts it 2 s later
 (one crash, far below the rollback threshold).
 
 The hook in `/etc/init.d` changes rarely (the supervisor logic lives in `<cfw>/init.d/`), but when
-it does, run `make install-initd` again: `make deploy` updates only `<cfw>`.
+it does, run `make install-initd` again: a deploy updates only `<cfw>`.
 
 ## 3. Home Assistant side
 
@@ -246,16 +248,19 @@ traffic.
 
 ## 4. Updating
 
-One speaker, daemon only: `make deploy` (build, upload aside along with `supervise.sh` and
-`diag.sh`, stop → keep the old binary as `.prev` → swap → start, tail the log). It ships nothing
-else (no helpers, no dropbear) and does not check that the daemon came up: a quick iteration
-step. The full roll-out, for one speaker or several, is `tools/deploy.sh` with a
-`tools/deploy.hosts` list (see `tools/deploy.hosts.example`). Each line is `<ssh-target>
-<platform> [cfw-root override] [helper-arch override]`; the board profile supplies omitted
-values. The script also rolls out `spotter-host` (and `sendspin-host` when built, and `hostapd` — a local build, else the newest recorded one in `$VENDOR/builds/hostapd/`; a speaker left without one gets a warning) and stops at
-the first failing speaker.
+`tools/deploy.sh` with a `tools/deploy.hosts` list (see `tools/deploy.hosts.example`); for some
+of the speakers, a hosts file with just their lines. Each line is `<ssh-target> <platform>
+[cfw-root override] [helper-arch override]`; the board profile supplies omitted values.
 
-**dropbear.** On a first deploy (no `yastationd` on the speaker yet), or with `DROPBEAR=1`,
+It builds once in docker (yastationd, and per userland arch `spotter-host` and `sendspin-host`;
+`hostapd` is a local build, else the newest recorded one in `$VENDOR/builds/hostapd/`, and a
+speaker left without one gets a warning). Then, one speaker at a time, it uploads aside (the
+daemon, `supervise.sh`, `diag.sh`, the helpers), stops → keeps the old binary as `.prev` → swaps →
+starts, checks that the daemon runs and prints its new WARN/ERROR lines, and `ok`. It stops at the
+first failing speaker, so a broken build never reaches the rest.
+
+**dropbear.** On a first deploy (no `yastationd` on the speaker yet; after `make stage` there is
+one, hence `DROPBEAR=1` in §2), or with `DROPBEAR=1`,
 `tools/deploy.sh` also replaces the speaker's SSH server with ours (`dropbear/`), where it runs from
 `<cfw>/bin/dropbearmulti`. The swap cannot lock you out on its own: the new binary first runs as a
 test server on port 2222 with the live listener's arguments (same host key); only a login through
@@ -319,7 +324,7 @@ tweaks without a rebuild: `<cfw>/board.conf` (+ restart).
   design (a typo must not be silently ignored). The supervisor counts five crashes in a row, moves
   the old binary back from `yastationd.prev` (which is just as old) and keeps retrying every 5 min;
   `touch <cfw>/yastationd_off` stops that. Fix the pair, don't edit around it: `yastationd -version`
-  tells you the binary, and `make deploy` (or `tools/deploy.sh`) brings it up to the source. Known
+  tells you the binary, and `tools/deploy.sh` brings it up to the source. Known
   dates: `frametap_addr` and the `video_*` keys need v0.8.1+, and anything merged since the last tag
   exists only in a build from `main`. Both examples in `configs/` follow the current source, so an
   old binary plus a fresh example is exactly this failure.
@@ -330,7 +335,7 @@ tweaks without a rebuild: `<cfw>/board.conf` (+ restart).
   timestamps is wrong.
 - **`wake word disabled: spotter binary missing path=<cfw>/bin/spotter-host`.** The helper was never
   built or deployed; the daemon deliberately runs on (push-to-talk still works). Build it against a
-  sysroot from `<vendor-repo>` and `make deploy-spotter` (§1, §2). Same story for
+  sysroot from `<vendor-repo>` and deploy (`tools/deploy.sh` ships it; §1, §4). Same story for
   `sendspin-host` and music, and for `hostapd` and the Wi-Fi setup mode.
 - **Music does not play although HA shows the player.** Check the helper first:
   `<cfw>/bin/sendspin-host` exists (`sendspin = true` without it does nothing) and

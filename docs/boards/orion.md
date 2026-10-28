@@ -454,8 +454,8 @@ the other project's scope):
   spotter, `yandex` and `yasmina` as 2-channel (omni + raw-mic), `command` as 1-channel.
   The pristine alisa model, verifier included, therefore loads on device; detection
   quality is still to be tested with sound.
-- Install (same day): `make deploy-egress` (IPv4 and IPv6 locked), `stage`, `deploy-spotter`,
-  `deploy-sendspin`, `sounds`, `install-initd`; the reboot brings everything back on its own
+- Install (same day): `make deploy-egress` (IPv4 and IPv6 locked), `stage`, the helpers
+  (`spotter-host`, `sendspin-host`), `sounds`, `install-initd`; the reboot brings everything back on its own
   (no maind, no led-play). Wake on with the stock alisa model: `wake: spotter ready`. A TTS
   announcement plays cleanly. `make vqe-models` finds no call-mode model: this firmware has only
   `vqe_models/noise_reducer/model.nnet` (no `model_call.nnet`), so the intercom's call mode needs

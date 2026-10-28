@@ -71,7 +71,10 @@ in the pinned builder container (needs docker). Port and toggles:
 ## Deploy
 
 Full guide (first install, HA side, updates, removal, checks):
-[`../docs/deploying.md`](../docs/deploying.md). Device address, SSH key and `PLATFORM` come from
+[`../docs/deploying.md`](../docs/deploying.md). Updating speakers, one or many:
+`../tools/deploy.sh` (hosts list in `../tools/deploy.hosts`): it builds in docker, ships the
+daemon and its helpers, and checks each speaker. The make targets below are the one-off install
+steps and dev tools. Device address, SSH key and `PLATFORM` come from
 `local.mk` (gitignored; see `local.mk.example`) or the command line. The platform profile supplies
 `DESTDIR` and `HELPER_ARCH`; either can still be overridden explicitly.
 For Orion bring-up, copy `configs/orion.conf.example` to a gitignored local file, replace its
@@ -86,13 +89,10 @@ make build-fbleddemo # -> build/fbleddemo (front-screen dev tool; not part of st
 make stage-fbleddemo # throwaway fbleddemo in /tmp — shows the clock or UwU
 make stage           # first install: binary + init hook copy -> $(DEVICE):$(DESTDIR), no autostart
 make install-initd   # copy the init hook into /etc/init.d (remounts / rw then ro)
-make deploy          # update a running install: upload aside, stop -> swap -> start, tail the log
-make deploy-spotter  # install a spotter-host build (SPOTTER=path)
 make sounds          # decode the vendor voice lines into $(DESTDIR)/sounds/*.wav
 ```
 
-Several speakers at once: `../tools/deploy.sh` (hosts list in `../tools/deploy.hosts`). The init
-hook runs `<cfw>/init.d/supervise.sh`: restarts with a backoff, rolls back to `bin/yastationd.prev`
+The init hook runs `<cfw>/init.d/supervise.sh`: restarts with a backoff, rolls back to `bin/yastationd.prev`
 (kept by every deploy) after a crash loop, rotates the log at 1 MB. `touch <cfw>/yastationd_off`
 disables it without a rootfs write.
 

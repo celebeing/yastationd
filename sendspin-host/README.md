@@ -22,8 +22,8 @@ glibc (≤ 2.30 armhf, ≤ 2.34 aarch64), libasound and libdl/libpthread from th
 
 ## Install
 
-`make deploy-sendspin SENDSPIN=../sendspin-host/build/<arch>/sendspin-host` in `../yastationd`,
-or `tools/deploy.sh` with the arch column set. Then `sendspin = true` in yastationd.conf.
+`tools/deploy.sh` builds it and ships it to every speaker in its hosts list (per userland arch).
+Then `sendspin = true` in yastationd.conf.
 
 ## Interface
 

@@ -26,11 +26,13 @@
 # toolchain, ship the helpers as they are). Speakers are updated one at a time; the script stops
 # at the first failure so a broken build never reaches the rest.
 #
-# What it does per speaker (the same as `make deploy`): upload the binary next to the live one
-# (and the supervisor script, and bin/diag.sh), then run stop -> swap -> start as a script on stdin, keeping the
-# old binary as yastationd.prev for the supervisor's crash-loop rollback. Keep it that way: the init hook's stop
-# matches processes by the binary's path, and an ssh command line that mentions the path would be
-# killed along with the daemon.
+# `make deploy` in yastationd/ runs this script for local.mk's one speaker.
+#
+# What it does per speaker: upload the binary next to the live one (and the supervisor script,
+# bin/diag.sh and the helpers), then run stop -> swap -> start as a script on stdin, keeping the
+# old binary as yastationd.prev for the supervisor's crash-loop rollback. Keep it that way: the
+# init hook's stop matches processes by the binary's path, and an ssh command line that mentions
+# the path would be killed along with the daemon.
 set -eu
 
 here=$(cd "$(dirname "$0")/.." && pwd)

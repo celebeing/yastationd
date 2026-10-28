@@ -20,8 +20,8 @@ ssh root@<speaker-ip> '<cfw>/bin/diag.sh -' > diag.tar.gz    # straight to the h
 ssh root@<speaker-ip> 'sh -s -- -' < yastationd/scripts/diag.sh > diag.tar.gz   # a unit without it
 ```
 
-`tools/deploy.sh` and `make deploy` upload it to `<cfw>/bin/diag.sh` with every deploy; nothing
-runs it on its own. The third form needs nothing installed (a CFW older than the script, or a broken deploy).
+`tools/deploy.sh` uploads it to `<cfw>/bin/diag.sh` with every deploy; nothing runs it on its
+own. The third form needs nothing installed (a CFW older than the script, or a broken deploy).
 
 | Flag | |
 |---|---|

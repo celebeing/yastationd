@@ -1,5 +1,7 @@
-# yastationd — build, stage and deploy (guide: docs/deploying.md). A CGO-free static armv7 binary
-# runs on every supported userland (armhf, and aarch64 kernels with 32-bit EL0 support).
+# yastationd — build, test, and the one-off install steps (guide: docs/deploying.md). Updating a
+# speaker is tools/deploy.sh; `make deploy` is a shortcut to it for the one speaker set here.
+# A CGO-free static armv7 binary runs on every supported userland (armhf, and aarch64 kernels with
+# 32-bit EL0 support).
 BIN      := yastationd
 OUT      := build/$(BIN)
 PKG      := ./cmd/yastationd
@@ -26,7 +28,7 @@ VERSION  := $(shell git describe --tags --match 'v*' --dirty --always 2>/dev/nul
 GOFLAGS  := -trimpath -ldflags="-s -w -X github.com/celebeing/yastationd/yastationd/internal/version.Version=$(VERSION)"
 GOENV    := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: web webui-dist all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds vqe-models deploy deploy-spotter deploy-sendspin clips deploy-egress ota-block video video-convert
+.PHONY: web webui-dist all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds vqe-models deploy clips deploy-egress ota-block video video-convert
 
 
 all: test build
@@ -217,29 +219,10 @@ clips:
 	  echo "  $$n"; \
 	done; rm -rf build/clips
 
-# Upgrade a running install in place: upload aside, then stop -> swap -> start. The swap runs as a
-# script on stdin (`sh -s`) so no process command line contains the binary's path — the init
-# hook's stop matches processes by path, and an ssh command mentioning it would be killed with them.
-# The running binary is kept as .prev: the supervisor swaps it back in if the new one crash-loops.
-deploy: build
-	$(SSH) 'cat > $(DESTDIR)/bin/$(BIN).upload' < $(OUT)
-	$(SSH) 'mkdir -p $(DESTDIR)/init.d && cat > $(DESTDIR)/init.d/supervise.sh.new && mv $(DESTDIR)/init.d/supervise.sh.new $(DESTDIR)/init.d/supervise.sh' < init.d/supervise.sh
-	$(SSH) 'cat > $(DESTDIR)/bin/diag.sh.new && chmod 755 $(DESTDIR)/bin/diag.sh.new && mv $(DESTDIR)/bin/diag.sh.new $(DESTDIR)/bin/diag.sh' < scripts/diag.sh
-	printf '%s\n' 'set -e' 'D=$(DESTDIR)' 'chmod +x $$D/bin/$(BIN).upload' \
-	  '/etc/init.d/S52zyastationd stop >/dev/null 2>&1 || true' 'sleep 1' \
-	  '[ -f $$D/bin/$(BIN) ] && cp -p $$D/bin/$(BIN) $$D/bin/$(BIN).prev' \
-	  'mv $$D/bin/$(BIN).upload $$D/bin/$(BIN)' '/etc/init.d/S52zyastationd start' \
-	  'sleep 8' 'tail -5 /tmp/yastationd.log' | $(SSH) 'sh -s'
-
-# Install a sendspin-host build (../sendspin-host, `make ARCH=<arch>` there, matching the device's
-# userland). Like spotter-host it takes effect when yastationd next starts it.
-SENDSPIN ?= ../sendspin-host/build/$(HELPER_ARCH)/sendspin-host
-deploy-sendspin:
-	$(SSH) 'cat > $(DESTDIR)/bin/sendspin-host.upload && chmod +x $(DESTDIR)/bin/sendspin-host.upload && mv $(DESTDIR)/bin/sendspin-host.upload $(DESTDIR)/bin/sendspin-host' < $(SENDSPIN)
-
-# Install a spotter-host build (spotter-host/build.sh, ARCH matching the device's userland). The
-# running child keeps the old file; it takes effect when yastationd next starts it — restart the
-# daemon (make deploy, or the init hook's restart).
-SPOTTER ?= ../spotter-host/build/$(HELPER_ARCH)/spotter-host
-deploy-spotter:
-	$(SSH) 'cat > $(DESTDIR)/bin/spotter-host.upload && chmod +x $(DESTDIR)/bin/spotter-host.upload && mv $(DESTDIR)/bin/spotter-host.upload $(DESTDIR)/bin/spotter-host' < $(SPOTTER)
+# A shortcut for tools/deploy.sh with the one speaker set here (DEVICE, PLATFORM, DESTDIR,
+# HELPER_ARCH): the same docker build, helpers, swap and checks. Several speakers, or anything
+# beyond a plain update: tools/deploy.sh itself (docs/deploying.md §4).
+deploy:
+	@mkdir -p build
+	@printf '%s %s %s %s\n' '$(DEVICE)' '$(PLATFORM)' '$(DESTDIR)' '$(HELPER_ARCH)' > build/deploy.hosts
+	SSHKEY='$(SSHKEY)' ../tools/deploy.sh $(CURDIR)/build/deploy.hosts
