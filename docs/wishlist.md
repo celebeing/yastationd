@@ -81,14 +81,47 @@ fight a running daemon over the LEDs, and must keep working when the daemon bina
 
 ## An activity blinker
 
-**Status:** idea (2026-10-28), a party trick first, a debugging aid second; to discuss.
+**Status:** idea, thought through 2026-10-28 (no code); on the shelf.
 
-Something on the speaker that blinks when traffic of a chosen kind goes by, like the lights of an
-old modem or a hard drive. Sources to pick from: MQTT messages in and out (a sync, a state change,
-an arbitration claim), Wyoming audio to and from HA, the music stream, the logs going out, network
-traffic in general, the mic hearing speech. Where it could show: on Station 3 a free pixel row of
-the screen (a dot per message, or a running trace), on the Minis the colon or the minus segment,
-on any speaker one dim pixel of the ring. Off by default; a setting picks the source and the place.
+Something on the speaker that blinks when things happen, for people whom blinking lights calm,
+like an old modem's.
+
+**What there is to show** (measured on the fleet, 2026-10-28): plain MQTT is thin. Idle, a speaker
+publishes ~6 messages a minute, almost all timer-driven telemetry (uptime every 30 s, the sound
+sensors and lux every minute): a metronome, not activity. Messages *to* it are zero when idle and
+only come when something happens (an HA command or automation, a shared setting, a neighbour's
+arbitration claim). So the sources worth mixing:
+
+| Source | Rate | What it says |
+|---|---|---|
+| commands from HA (MQTT in) | rare, in bursts | "HA is touching me" |
+| our telemetry (MQTT out) | ~6/min, timers | a pulse: alive |
+| the mic hears speech (the room sound's frames) | continuous while people talk | "I hear the room": an honest live-mic light |
+| SUBHIT: the spotter almost heard «Алиса» | a few an hour | fun, and shows near false accepts |
+| other speakers' arbitration claims | every «Алиса» in the home | "someone called Alice in another room" |
+| log lines | a few a minute, bursts on events | "the daemon did something" (nearly every event logs) |
+| Wi-Fi bytes | always some (mDNS, ARP) | modem-like twinkle, noisy, says little |
+| Wyoming / music audio | 50/s while flowing | the screen is busy with faces or music then anyway |
+
+**On the Station 3** (the screen's outer columns, 12 px each, light well):
+- left column: what comes in (HA's commands, speech, neighbours, SUBHITs); right column: what goes
+  out (telemetry, logs);
+- colour by source, 3–4 at most (HA in the accent, speech warm white, a near «Алиса» amber, the
+  pulse dim grey);
+- an event lights a random free pixel of its column, which fades in ~0.8 s; streaming sources
+  (speech, network) are shown as a level every 250 ms (pixels lit ∝ log of the rate) so they
+  shimmer instead of flooding; at most ~8 lights a second per column;
+- off while something uses the full width (marquee, animations, video, the music display);
+- follows the display brightness, and goes dark in quiet hours or when someone sleeps in the room
+  (see "Someone is asleep here");
+- off by default; a setting picks the sources (down to "MQTT only").
+
+**On the Minis** no free pixels: the colon is taken (blinking = clock not synced), the minus
+segment or one dim ring LED would do for a pulse at most, and the ring is the voice indicator.
+Probably the pulse only, or nothing.
+
+Judgement: MQTT alone becomes wallpaper quickly; "HA touches me" + "I hear speech" + "almost
+heard Alice" is what makes the blinking tell you what the speaker perceives.
 
 ## Asset kinds and packs
 
