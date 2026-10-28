@@ -114,9 +114,16 @@ Generic detector limits and the bergamot instance: docs/wakeword-mic-array.md §
 “Vendor bad-mic detector”.
 
 - CPU cost of the stock 96 kHz plug chain: arecord via `mroute` 13ch **110 jiffies / 5 s
-  ≈ 2.2 %** of one core vs **60 jiffies ≈ 1.2 %** at 48 kHz (measured; =13 % of a CPU on
-  the 4×A55). On top, in-process 6× decimation costs ~0.2-0.3 % per the Go Decimator's
+  ≈ 22 %** of one core vs **60 jiffies ≈ 12 %** at 48 kHz (measured; re-measured 2026-10-28:
+  23 % of a core, against 13 % for the Mini's arecord). Reading the hw device directly instead of
+  `mroute` would save ~5 % of the whole CPU; not needed. On top, in-process 6× decimation costs ~0.2-0.3 % per the Go Decimator's
   48 kHz numbers — well within budget.
+- **The load average sits 1.0 higher than the CPU use** (2026-10-28: LA ~2.4 against ~1.1 cores
+  busy; a Mini's LA ≈ its busy cores): the stock kernel's `vmap_thread` (pid 36) waits in
+  `msleep` in the D state for good, and Linux counts D tasks in the load. It used ~0.03 % CPU in
+  9 h. Nothing to fix (the kernel stays); read load as CPU% from `/proc/stat`, not LA. The real
+  load matches a Mini's: spotter-host ~0.75 core, arecord 0.23, yastationd 0.12; 70 % idle,
+  SoC 36 °C.
 - hw:0,2 "PDM-dummy-mics" is **not dead, only exclusive**: the A5's audio DDR manager
   offers a single PDM `tddrs[0]` slot, and the loopback (fed from PDM) claims it whenever
   the vendor audiod runs - direct hw:0,2 then fails ENXIO (`snd_pdm: failed to claim
