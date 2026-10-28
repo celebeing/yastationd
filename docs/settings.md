@@ -52,6 +52,9 @@ writing, so a later diff doesn't mistake their keys for changes needing a restar
 - **Config:** the restart keys, changed together and applied with one "Apply and restart"; the
   advanced keys folded away; "Edit the config file" opens the raw text (whose save takes the same
   path: runtime changes apply live, others restart).
+- **Changed settings stand out:** a key the file sets to something other than its value when
+  unset — the default, or the board profile's for the hardware overrides, the mic calibration and
+  the brightness curve (`board` in the API) — is marked and has a Reset (back to unset).
 - Secrets (`mqtt_pass`, `intercom_secret`, `wifi_setup_psk`) are never sent back: a mask stands for
   a set one, and the mask sent back leaves it unchanged.
 - **Moments** sit with the settings and have a share switch per moment.

@@ -76,29 +76,44 @@ export function ShareSwitch(p: { sync: SyncState | null; kind: SyncKind; item: s
   )
 }
 
-function Row(p: { label: string; doc: string; control: any; share?: any; note?: any }) {
+function Row(p: { label: string; doc: string; control: any; share?: any; note?: any; changed?: boolean; onReset?: () => void }) {
   return (
-    <div class="setting">
+    <div class={'setting' + (p.changed ? ' changed' : '')}>
       <div class="srow">
-        <span class="sname">{p.label}</span>
+        <span class="sname">
+          {p.label}
+          {p.changed && <span class="tag">changed</span>}
+        </span>
         <span class="sctl">{p.control}</span>
         {p.share || <span />}
       </div>
       <p class="sdoc">
         {p.doc}
         {p.note}
+        {p.changed && p.onReset && (
+          <>
+            {' '}
+            <button type="button" class="linklike" onClick={p.onReset}>
+              Reset
+            </button>
+          </>
+        )}
       </p>
     </div>
   )
 }
 
-const isDefault = (k: SettingKey, v: string[]) => v.join('\n') === k.default.join('\n')
+// ref: the value in force when the key is unset — the board's where it has one, else the default.
+const ref = (k: SettingKey) => k.board ?? k.default
+const same = (a: string[], b: string[]) => a.join('\n') === b.join('\n')
+const isDefault = (k: SettingKey, v: string[]) => same(v, ref(k))
 
-// defaultNote: the default, shown only when the value differs from it.
-function defaultNote(k: SettingKey) {
-  if (k.kind === 'secret' || !k.default.length || k.default.join('') === '' || isDefault(k, k.value)) return null
-  const d = k.kind === 'bool' ? (k.default[0] === 'true' ? 'on' : 'off') : k.default.join(', ') + (k.unit ? ' ' + k.unit : '')
-  return <span class="muted"> Default: {d}.</span>
+// defaultNote: what the key is when unset, shown when the value differs from it.
+function defaultNote(k: SettingKey, changed: boolean) {
+  if (!changed || k.kind === 'secret') return null
+  const r = ref(k)
+  const shown = r.join('') === '' ? 'empty' : k.kind === 'bool' ? (r[0] === 'true' ? 'on' : 'off') : r.join(', ') + (k.unit ? ' ' + k.unit : '')
+  return <span class="muted"> {k.board ? "The board's value" : 'Default'}: {shown}.</span>
 }
 
 /** KeyControl edits one key; commit gets its new lines ([] = back to the default). */
@@ -182,7 +197,7 @@ export function SettingsTab(p: Ctx & { ents: Entity[]; reload: () => void }) {
   async function commit(k: SettingKey, v: string[]) {
     setErr('')
     try {
-      await api.putSettings(p.peer.id, p.base, { [k.name]: isDefault(k, v) && !k.set ? [] : v })
+      await api.putSettings(p.peer.id, p.base, { [k.name]: v.length && isDefault(k, v) && !k.set ? [] : v })
       setSaved(k.label)
       setTimeout(() => setSaved(''), 1500)
       await load()
@@ -233,7 +248,9 @@ export function SettingsTab(p: Ctx & { ents: Entity[]; reload: () => void }) {
             <Row
               label={k.label}
               doc={k.doc}
-              note={defaultNote(k)}
+              note={defaultNote(k, k.changed)}
+              changed={k.changed}
+              onReset={() => commit(k, [])}
               control={<KeyControl k={k} value={k.value} commit={(v) => commit(k, v)} />}
               share={k.sync && <ShareSwitch sync={sync} kind="setting" item={k.name} onShare={share} />}
             />
@@ -275,12 +292,17 @@ export function ConfigTab(p: Ctx) {
     }
   }
   const row = (k: SettingKey) => {
-    const v = pending[k.name] ?? k.value
+    const p0 = pending[k.name]
+    const v = p0 ?? k.value
+    // pending [] = back to unset; a pending value counts as set
+    const changed = p0 ? p0.length > 0 && !isDefault(k, p0) : k.changed
     return (
       <Row
-        label={k.label + (pending[k.name] ? ' •' : '')}
+        label={k.label + (p0 ? ' •' : '')}
         doc={k.doc}
-        note={defaultNote(k)}
+        note={defaultNote(k, changed)}
+        changed={changed}
+        onReset={() => setPending({ ...pending, [k.name]: [] })}
         control={<KeyControl k={k} value={v} commit={(nv) => setPending({ ...pending, [k.name]: nv })} />}
         share={k.sync && <ShareSwitch sync={sync} kind="setting" item={k.name} onShare={share} />}
       />

@@ -6,9 +6,11 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/celebeing/yastationd/yastationd/internal/board"
 	"github.com/celebeing/yastationd/yastationd/internal/config"
 )
 
@@ -101,10 +103,43 @@ type settingView struct {
 	Runtime  bool     `json:"runtime"`
 	Sync     bool     `json:"sync"`
 	Advanced bool     `json:"advanced,omitempty"`
-	Value    []string `json:"value"`   // secrets: [secretMask] when set
-	Default  []string `json:"default"` //
-	Set      bool     `json:"set"`     // the file sets it (else the default rules)
+	Value    []string `json:"value"`           // secrets: [secretMask] when set
+	Default  []string `json:"default"`         //
+	Board    []string `json:"board,omitempty"` // the board profile's value, where it stands in for the default
+	Set      bool     `json:"set"`             // the file sets it (else the default rules)
+	Changed  bool     `json:"changed"`         // set to something other than the default (or the board's)
 }
+
+// boardValues: what this board's profile has for the keys where it, not the config's default,
+// is the value in force when the key is unset — the hardware overrides, the mic calibration, the
+// brightness curve (its first level is the board's dimmest).
+func (a *App) boardValues() map[string][]string {
+	c := a.cfg()
+	p, err := board.Load(c.SysRoot, a.prof.Name, c.BoardFile)
+	if err != nil {
+		return nil
+	}
+	one := func(s string) []string { return []string{s} }
+	num := func(n int) []string { return one(strconv.Itoa(n)) }
+	def := config.Default()
+	return map[string][]string{
+		"aplay_device":          one(p.Audio.Playback),
+		"amixer_card":           one(p.Audio.Card),
+		"unmute":                append([]string{}, p.Audio.Unmute...),
+		"mic_pdm_gain":          num(p.Audio.MicGainValue),
+		"mic_device":            one(p.Mic.Device),
+		"mic_channels":          num(p.Mic.Channels),
+		"mic_rate":              num(p.Mic.Rate),
+		"mic_channel":           num(p.Mic.Voice),
+		"wake_model":            one(p.Wake.Model),
+		"command_model":         one(p.Wake.CommandModel),
+		"spotter_libs":          one(p.Wake.Libs),
+		"mic_spl_offset":        one(strconv.FormatFloat(p.Mic.SPLOffset, 'f', -1, 64)),
+		"auto_brightness_curve": one(config.CurveString(brightnessCurve(def, p))),
+	}
+}
+
+func sameLines(a, b []string) bool { return strings.Join(a, "\n") == strings.Join(b, "\n") }
 
 // secretMask stands for a secret's value both ways: shown for a set secret, and sent back
 // unchanged it leaves the secret as it is.
@@ -112,6 +147,7 @@ const secretMask = "••••••••"
 
 func (a *App) settingViews() []settingView {
 	c := a.cfg()
+	boardVals := a.boardValues()
 	out := []settingView{}
 	for _, k := range config.Keys {
 		if k.Hidden {
@@ -126,6 +162,12 @@ func (a *App) settingViews() []settingView {
 		if v.Default == nil {
 			v.Default = []string{}
 		}
+		v.Board = boardVals[k.Name]
+		ref := v.Default
+		if v.Board != nil {
+			ref = v.Board
+		}
+		v.Changed = v.Set && !sameLines(v.Value, ref) && !(k.Name == "mic_spl_offset" && sameLines(v.Value, []string{"0"}))
 		if k.Kind == "secret" {
 			v.Default = []string{}
 			if len(v.Value) == 1 && v.Value[0] != "" {

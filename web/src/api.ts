@@ -246,7 +246,9 @@ export type SettingKey = {
   advanced?: boolean
   value: string[]
   default: string[]
+  board?: string[]
   set: boolean
+  changed: boolean
 }
 export type Settings = { groups: { ID: string; Title: string }[]; keys: SettingKey[]; trial: boolean }
 export const settings = (id: string, base: string) => authed<Settings>(id, base, '/api/settings')

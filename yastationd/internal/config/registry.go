@@ -197,7 +197,7 @@ func init() {
 	reg(Key{Name: "auto_brightness_curve", Group: "display", Label: "Auto brightness curve", Runtime: true, Sync: true,
 		Doc: "Light (lux) to clock brightness (0–255) points, interpolated between them: lux:level, lux:level, … The first point's level is replaced by the board's dimmest readable level unless the curve is set here."},
 		value{kind: "text",
-			get: func(c *Config) []string { return one(curveString(c.BrightnessCurve)) },
+			get: func(c *Config) []string { return one(CurveString(c.BrightnessCurve)) },
 			set: func(c *Config, v string) (err error) { c.BrightnessCurve, err = parseCurve(v); return }})
 	reg(Key{Name: "clock_brightness", Group: "display", Label: "Clock brightness at first start", Advanced: true,
 		Doc: "Only the value a new speaker starts with; afterwards the Clock brightness option rules."},
@@ -583,7 +583,8 @@ func nonEmpty(v string) error {
 	return nil
 }
 
-func curveString(c []CurvePoint) string {
+// CurveString prints a brightness curve as the config writes it.
+func CurveString(c []CurvePoint) string {
 	parts := make([]string, len(c))
 	for i, p := range c {
 		parts[i] = strconv.FormatFloat(p.Lux, 'f', -1, 64) + ":" + strconv.Itoa(p.Level)

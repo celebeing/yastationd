@@ -196,3 +196,6 @@ details.advanced summary { cursor: pointer; color: var(--muted); margin-bottom: 
 @media (max-width: 760px) { .srow { grid-template-columns: 1fr auto; } .srow button.share { grid-column: 1 / -1; justify-self: start; } }
 .spctl .vol { min-width: 2.2rem; text-align: right; font-variant-numeric: tabular-nums; }
 .spctl .ctl { flex-wrap: wrap; }
+.setting.changed { border-left: 3px solid var(--accent); padding-left: 0.6rem; background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.tag { margin-left: 0.5rem; font-size: 0.7rem; font-weight: 500; padding: 0.05rem 0.4rem; border-radius: 6px; color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); vertical-align: middle; }

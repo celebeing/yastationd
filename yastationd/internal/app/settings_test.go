@@ -134,6 +134,22 @@ func TestWebSettingsKinds(t *testing.T) {
 	if b, _ := os.ReadFile(a.cfg().File); !strings.Contains(string(b), "intercom_secret = 0123456789abcdef") {
 		t.Fatalf("the mask changed the secret: %q", b)
 	}
+	// Changed: set, and other than the default — or, for a hardware override, the board's value.
+	call(t, "PUT", srv.URL+"/api/settings", tok, `{"changes":{"volume_step":["2"],"volume_max":["100"]}}`)
+	if get("volume_step")["changed"] != true || get("volume_max")["changed"] != false || get("arbitration")["changed"] != false {
+		t.Fatal("changed against the default")
+	}
+	a.prof.Name = "bergamot"
+	board := get("mic_channel")["board"].([]any)
+	text = []byte("device_id = t1\nmic_channel = " + board[0].(string) + "\nmic_device = hw:9,9\n")
+	os.WriteFile(a.cfg().File, text, 0o600)
+	a.adoptConfig(text)
+	if get("mic_channel")["changed"] != false || get("mic_device")["changed"] != true {
+		t.Fatalf("changed against the board: %v %v", get("mic_channel"), get("mic_device"))
+	}
+	if c := get("auto_brightness_curve"); c["board"] == nil || c["changed"] != false {
+		t.Fatalf("the curve's board value: %v", c)
+	}
 	// Flags as the pages need them.
 	if k := get("volume_step"); k["runtime"] != true || k["sync"] != true {
 		t.Fatalf("volume_step flags: %v", k)
@@ -141,7 +157,7 @@ func TestWebSettingsKinds(t *testing.T) {
 	if k := get("device_name"); k["runtime"] != false || k["sync"] != false {
 		t.Fatalf("device_name flags: %v", k)
 	}
-	if k := get("mic_channel"); k["value"].([]any)[0] != "" || k["advanced"] != true {
+	if k := get("mic_rate"); k["value"].([]any)[0] != "" || k["advanced"] != true {
 		t.Fatalf("an unset override shows empty: %v", k)
 	}
 }
