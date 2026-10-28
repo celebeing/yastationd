@@ -7,7 +7,10 @@ toolchain.
 
 ## The builders
 
-One image per toolchain, in `docker/` (built on first use, then cached by docker):
+One image per toolchain, in `docker/`. Each carries its Dockerfile's hash as a label; `build.sh`
+builds an image only when it is missing or its Dockerfile changed, with the progress shown, and
+otherwise never calls `docker build` (a broken docker build cache once made a builder rebuild the
+zig image on every target; if a build of an image keeps failing, `docker builder prune`):
 
 | Image | Dockerfile | Builds | Pins |
 |---|---|---|---|

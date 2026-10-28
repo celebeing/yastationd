@@ -35,8 +35,18 @@ cache=${XDG_CACHE_HOME:-$HOME/.cache}/yastation-build
 mkdir -p "$cache/go" "$cache/gomod" "$cache/zig"
 
 # image NAME: build (or reuse) yastation-<name> from docker/<name>.Dockerfile.
+# The image carries its Dockerfile's hash as a label and is rebuilt only when that changed: a
+# build never depends on docker's layer cache telling it nothing changed (a broken cache made a
+# builder rebuild the image on every target, downloading zig each time). A rebuild shows its
+# progress; when it fails, `docker builder prune` clears a broken cache.
 image() {
-	docker build -q -t "yastation-$1" -f "$here/docker/$1.Dockerfile" "$here/docker" >/dev/null
+	df=$here/docker/$1.Dockerfile
+	sum=$(sha256sum "$df" | cut -c1-16)
+	have=$(docker image inspect -f '{{ index .Config.Labels "yastation.dockerfile" }}' "yastation-$1" 2>/dev/null || true)
+	[ "$have" = "$sum" ] && return 0
+	echo "== image yastation-$1 (docker/$1.Dockerfile changed or missing: building it once)"
+	docker build -t "yastation-$1" --label "yastation.dockerfile=$sum" -f "$df" "$here/docker" ||
+		{ echo "build.sh: building the yastation-$1 image failed; if it keeps failing, try: docker builder prune" >&2; exit 1; }
 }
 
 # run NAME DIR CMD [extra docker args via $RUN_ARGS]: CMD in DIR (relative to the repo).
