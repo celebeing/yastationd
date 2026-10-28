@@ -3,6 +3,31 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.20.3 — 2026-10-28
+
+A review pass over the whole repository (the larger findings are in `docs/backlog.md`).
+
+**Fixes**
+- The light level reaches HA in the dark: 0 lx was never published, so HA kept the last
+  non-zero value.
+- The LED viewer (`/tap/`) no longer puts its `?src=` into the page as markup.
+- Scripts that run on a speaker no longer dump every mixer control or read
+  `/proc/net/wireless` (the commands that froze a Mini 3): `tools/board-survey.sh`,
+  `tools/orion-verify.sh` (only with `FULL_MIXER=1`), `diag.sh -x`.
+- HA's Wyoming integration shows the speaker's own model, not always "Station Mini 3".
+- Assets: when the speaker cannot tell its free space, uploads are no longer refused.
+- spotter-host: unchecked allocations, a leaked buffer.
+
+**Web app**
+- A visible focus ring for keyboard use, labels on every control; the Wi-Fi "connected" badge
+  is green again; the delete button stays readable in the dark theme; uptimes read the same
+  everywhere. The Wi-Fi portal and the LED viewer take the current palette.
+
+**Inside**
+- Dead code removed, repeated code behind helpers, magic numbers named, missing doc comments
+  added; `docs/` brought in line with the code (API table, intercom end reasons, the Station 3's
+  CFW path, both example configs list every key — a test keeps it so).
+
 ## v0.20.2 — 2026-10-28
 
 **Home Assistant**
