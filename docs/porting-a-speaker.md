@@ -169,6 +169,12 @@ as webrtc AEC3 + an open wake-word engine) means a new host binary that speaks t
    daemon. Check recall at 1 m and 3 m, then false accepts over hours of normal room audio. Stock
    thresholds assume extra vendor stages we don't run (counteractivation, server re-validation),
    so expect more false accepts. Tune by copying a model dir and editing `thresholds` in `flags.txt`.
+6. **Where «Алиса» ends** (`wake.preroll_ms`): each model fires its own time after the word ends.
+   Turn `wake_capture` on, say «Алиса, сколько времени?» a dozen times at different speeds, label
+   the captures (Vosk, see [wake-word-boundary.md](wake-word-boundary.md)), and set the profile's
+   `wake.preroll_ms` a little above the median gap between the word's end and the WAKE (bergamot:
+   ~110 ms → 150). Without it the CFW's default (300 ms) applies, which leaves the end of the wake
+   word in HA's transcript.
 
 ## 5. When the profile is not enough
 

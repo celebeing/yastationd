@@ -3,6 +3,14 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Voice**
+- `preroll_ms` defaults to the board's value, measured for its wake word model
+  (`wake.preroll_ms`): 150 ms on the Mini 3, where «Алиса» ends ~110 ms before the spotter fires
+  (real recordings: the wake word left HA's transcripts, 9 of 9). Other boards keep 300 until
+  measured. The key is no longer shared between speakers.
+
 ## v0.20.0 — 2026-10-28
 
 **Web app**

@@ -87,7 +87,7 @@ type Config struct {
 	// Wake word: spotter-host serve (vendor spotter + VQE) as a child process.
 	WakeEnabled bool
 	SpotterBin  string
-	PrerollMs   int // VQE audio sent to HA from before the WAKE point (the wake word cut off)
+	PrerollMs   int // VQE audio sent to HA from before the WAKE point (the wake word cut off); 0 = the board's
 	// WakeWordInStream: the audio for HA starts WakeWordLead before the WAKE point instead, with
 	// the wake word in it. WakeCapture saves the audio around each WAKE (docs/wake-word-boundary.md).
 	WakeWordInStream bool
@@ -335,7 +335,6 @@ func Default() Config {
 		ReplyTimeout:        90 * time.Second,
 		BootConnectTimeout:  40 * time.Second,
 		WakeWhileWaiting:    "interrupt",
-		PrerollMs:           300,
 		TimeSync:            true,
 		ChronyConf:          "/etc/chrony.conf",
 		HeartbeatFile:       "/tmp/yastationd.heartbeat",

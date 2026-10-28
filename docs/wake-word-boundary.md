@@ -170,6 +170,8 @@ always held the audio):
   ms (the default before) 3 of 4 transcripts began with «Алиса», and those went to the LLM.
 - The slowest «Алиса» (ending 230 ms before the WAKE) lost ~80 ms of the next word: HA heard
   «Сколько время?», still understood. So 150 trades a rare clipped first syllable for no wake word.
+- Taken as bergamot's default: the profile's `wake.preroll_ms = 150` (the config's `preroll_ms`
+  overrides it; it is no longer shared between speakers, since the right value is the board's).
 - Still to measure: a Station 3 (orion's model has a second-stage verifier: likely later WAKEs, so a
   larger offset), more voices and distances, a pause after «Алиса».
 

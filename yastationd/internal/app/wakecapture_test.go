@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestSaveCaptureKeepsNewest(t *testing.T) {
@@ -25,5 +26,20 @@ func TestSaveCaptureKeepsNewest(t *testing.T) {
 	b, _ := os.ReadFile(wavs[0])
 	if len(b) != 44+64 || string(b[:4]) != "RIFF" || string(b[36:40]) != "data" {
 		t.Fatalf("wav header: %q", b[:44])
+	}
+}
+
+func TestPrerollLead(t *testing.T) {
+	a, _ := newWebApp(t)
+	if a.prerollLead() != defaultPrerollMs*time.Millisecond {
+		t.Fatalf("no board value, no config: %v", a.prerollLead())
+	}
+	a.prof.Wake.PrerollMs = 150
+	if a.prerollLead() != 150*time.Millisecond {
+		t.Fatalf("the board's: %v", a.prerollLead())
+	}
+	a.cfg().PrerollMs = 220
+	if a.prerollLead() != 220*time.Millisecond {
+		t.Fatalf("the config's wins: %v", a.prerollLead())
 	}
 }

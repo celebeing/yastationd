@@ -298,8 +298,8 @@ func init() {
 	reg(Key{Name: "wake_word_in_stream", Group: "voice", Label: "Send the wake word too", Runtime: true, Sync: true,
 		Doc: "Off, the audio Home Assistant gets starts just before the point where the wake word was heard (Audio before the wake word), so the transcript is the request alone. On, it starts 1.3 s earlier and carries «Алиса» too: for a speech-to-text or a voice recognition on the HA side that wants the wake word."},
 		boolV(func(c *Config) *bool { return &c.WakeWordInStream }))
-	reg(Key{Name: "preroll_ms", Group: "voice", Label: "Audio before the wake word", Runtime: true, Sync: true, Advanced: true,
-		Doc: "Where the audio for Home Assistant starts, counted back from the point where the wake word was heard (with the wake word left out). That point is near the end of the word, a little after it in a room. Too little and the first word of the request is clipped; too much and the end of the wake word lands in the transcript. For the voice key and follow-ups: the audio from before the session started."},
+	reg(Key{Name: "preroll_ms", Group: "voice", Label: "Audio before the wake word", Runtime: true, Advanced: true,
+		Doc: "Where the audio for Home Assistant starts, counted back from the point where the wake word was heard (with the wake word left out). That point is near the end of the word, a little after it in a room. Too little and the first word of the request is clipped; too much and the end of the wake word lands in the transcript. Empty or 0: the board's value, measured for its wake word model (not shared between speakers for that reason). For the voice key and follow-ups: the audio from before the session started."},
 		value{kind: "int", min: 0, max: 2000, unit: "ms",
 			get: func(c *Config) []string { return one(strconv.Itoa(c.PrerollMs)) },
 			set: func(c *Config, v string) (err error) { c.PrerollMs, err = atoiRange(v, 0, 2000); return }})

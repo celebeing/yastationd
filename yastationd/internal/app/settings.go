@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"io"
@@ -152,6 +153,7 @@ func (a *App) boardValues() map[string][]string {
 		"mic_spl_offset":        one(strconv.FormatFloat(p.Mic.SPLOffset, 'f', -1, 64)),
 		"auto_brightness_curve": one(config.CurveString(brightnessCurve(def, p))),
 		"auto_brightness_min":   num(max(p.Matrix.MinBrightness, 1)),
+		"preroll_ms":            num(cmp.Or(p.Wake.PrerollMs, defaultPrerollMs)),
 	}
 }
 
@@ -167,7 +169,7 @@ func (a *App) boardHas(needs string) bool {
 }
 
 // zeroIsBoard: keys whose 0 means "the board's value".
-var zeroIsBoard = map[string]bool{"mic_spl_offset": true, "auto_brightness_min": true}
+var zeroIsBoard = map[string]bool{"mic_spl_offset": true, "auto_brightness_min": true, "preroll_ms": true}
 
 func sameLines(a, b []string) bool { return strings.Join(a, "\n") == strings.Join(b, "\n") }
 

@@ -245,6 +245,10 @@ type WakeSpec struct {
 	Model        string // activation («Алиса») model dir
 	CommandModel string // command model dir ("" = none)
 	Libs         string // vendor libs dir (LD_LIBRARY_PATH)
+	// PrerollMs: how far before the WAKE point the audio for HA starts, for this board's model
+	// (it fires a model-specific time after the word ends; docs/wake-word-boundary.md); 0 = the
+	// CFW's default. The config's preroll_ms overrides it.
+	PrerollMs int
 }
 
 // PowerSpec: the USB-C PD sink (power_supply name, "" = none), the lowest contract voltage that
@@ -435,6 +439,8 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Wake.CommandModel = v
 	case k == "wake.libs":
 		p.Wake.Libs = v
+	case k == "wake.preroll_ms":
+		p.Wake.PrerollMs, err = strconv.Atoi(v)
 	case k == "power.pd":
 		p.Power.PD = v
 	case k == "power.min_mv":

@@ -182,6 +182,21 @@ func isStop(phrase string) bool {
 	return false
 }
 
+// defaultPrerollMs: preroll_ms when neither the config nor the board profile sets one.
+const defaultPrerollMs = 300
+
+// prerollLead: the config's preroll_ms, else the board's (wake.preroll_ms), else the default.
+func (a *App) prerollLead() time.Duration {
+	ms := a.cfg().PrerollMs
+	if ms <= 0 {
+		ms = a.prof.Wake.PrerollMs
+	}
+	if ms <= 0 {
+		ms = defaultPrerollMs
+	}
+	return time.Duration(ms) * time.Millisecond
+}
+
 // WakeWordLead: with wake_word_in_stream, how far before the WAKE point the audio for HA starts.
 // The spotter fires 0.55-0.7 s after the word starts (up to 1.3 s for a drawn-out one,
 // docs/wake-word-boundary.md).
@@ -193,7 +208,7 @@ const wakeWordLead = 1300 * time.Millisecond
 func (a *App) wakeAudio(ev *wake.Event, fn func([]byte)) (unsubscribe func()) {
 	if a.spot != nil && a.spot.Running() {
 		c := a.cfg()
-		lead := time.Duration(c.PrerollMs) * time.Millisecond
+		lead := a.prerollLead()
 		if ev == nil {
 			return a.spot.SubscribeVQE(lead, fn)
 		}
