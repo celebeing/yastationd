@@ -3,6 +3,29 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.21.0 — 2026-10-29
+
+**Themes and asset packs** ([docs/asset-packs.md](docs/asset-packs.md))
+- Everything the speaker does when something happens is a moment you can change: the faces, the
+  ring, every sound, and the status lights too (booting, HA lost, mute, calls, the timer's alarm,
+  Wi-Fi setup). The default theme does what the CFW did before.
+- A moment's sequence step can light the ring (any colour and period), show an animation or text
+  and play a sound at once: mixed over everything, or said as speech. Steps run one after another;
+  an empty step is a pause, a held one repeats its sound (ring tones).
+- New moments, silent by default, for the places assistants beep: the wake word (`listening`), a
+  volume key at its end, a timer started, mic unmuted, HA back, a missed call, and more.
+- **Assets → Packs**: install packs of animations, sounds and moments (a .zip, checked on the
+  speaker), order them as a theme (shared like a setting), copy a pack's moments into your own,
+  save your own as a pack. **Assets → Sounds**: play, add (any audio, converted in the browser)
+  and replace sounds. The Moments tab shows which pack sets a moment.
+- `make pack PACK=<dir>` (`cmd/packtool`) builds and checks a pack on the host.
+
+**Changed**
+- The Display faces switch is gone: the theme decides what the front display shows. A config that
+  still sets `display_faces` loads as before (the line is ignored); HA drops the entity.
+- The board profiles no longer carry sound paths (the stock sounds are played by name from
+  `<cfw>/sounds`); an old `board.conf` with them still loads.
+
 ## v0.20.4 — 2026-10-28
 
 **Deploying**
