@@ -304,8 +304,21 @@ the retained centroids with them.
 
 - CPU on the Mini 3 (A53, armhf): `body` every 0.48 s while listening, `head` at the end. Measure
   in phase 1; if it is heavy, run `body` only on the held audio and at the end.
-- What HA does with a run the satellite aborts mid-speech: drop it, or act on the part it already
-  transcribed. Decides between the zero-latency abort and hold and release.
+- ~~What HA does with a run the satellite aborts mid-speech.~~ Read in HA 2026.9's code
+  (`wyoming/assist_satellite.py`, `assist_satellite/entity.py`, `assist_pipeline/pipeline.py`),
+  not yet confirmed on a live run:
+  - **Dropping the connection while audio streams is a clean cancel.** The read loop sees the
+    socket close, ends the audio queue and at once calls `cancel()` on the pipeline task, before
+    the STT stage gets to run again. The STT call gets `CancelledError`, so there is no
+    transcript and no intent. HA reconnects ~3 s later.
+  - **`audio-stop` is not a cancel:** HA ends the stream, the STT transcribes the part it got,
+    and the intent runs on it.
+  - **Too late once the speech has ended:** if HA's own VAD has closed the STT stage before our
+    verdict, the intent is running, and cancelling does not undo actions
+    ([voice-slow-replies.md](voice-slow-replies.md)).
+  - **Simplest of all: judge on the wake word alone and never send `run-pipeline` for a guest.**
+    HA sees nothing and nothing reconnects. This is how the phone assistants verify (on the
+    hotword); the open question below decides whether «Алиса» is enough.
 - How well the wake word alone («Алиса», ~0.6 s) separates voices, and two similar voices (two men
   of one household) in particular: needs voiceprints collected on a unit, since HA's recordings
   start after the wake word.
