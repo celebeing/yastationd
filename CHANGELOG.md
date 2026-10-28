@@ -3,7 +3,7 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.20.0 — 2026-10-28
 
 **Web app**
 - **Assets → Videos** (speakers with a pixel screen): a library of clips for the video mode.
