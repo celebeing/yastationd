@@ -266,7 +266,7 @@ findings: [`../docs/music-sendspin.md`](../docs/music-sendspin.md).
     blinks. The display re-renders every frame, so the step shows at once.
 11. **The wake word in the STT transcript** («Алиса, …») — fixed 2026-10-28: the stream starts
     `preroll_ms` before the WAKE's own sample in vqe_0 (spotter-host's `AT` line), not before "now",
-    and the value is the board's, measured from real recordings (bergamot 150 ms; others 300 until
+    and the value is the board's, measured from real recordings (bergamot 150 ms, orion 220; pickle 300 until
     measured). `docs/wake-word-boundary.md`.
 12. **Room sound sensors — added 2026-10-26** (the inputs for "someone is asleep here",
     docs/wishlist.md): `Sound floor`, `Sound level` (dBFS) and `Sound activity` (%), once a

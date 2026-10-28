@@ -8,8 +8,9 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
 **Voice**
 - `preroll_ms` defaults to the board's value, measured for its wake word model
   (`wake.preroll_ms`): 150 ms on the Mini 3, where «Алиса» ends ~110 ms before the spotter fires
-  (real recordings: the wake word left HA's transcripts, 9 of 9). Other boards keep 300 until
-  measured. The key is no longer shared between speakers.
+  (real recordings: the wake word left HA's transcripts, 9 of 9), 220 ms on the Station 3 (its
+  verifier fires ~170 ms after the word ends); the Mini 3 Pro keeps 300 until measured. The key is
+  no longer shared between speakers.
 
 ## v0.20.0 — 2026-10-28
 

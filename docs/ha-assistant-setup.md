@@ -115,7 +115,7 @@ failure.
   misses.
 - **The wake word can end up in the transcript.** The speaker starts the stream a little before the
   point where the spotter heard the wake word (`preroll_ms`, by default the board's value: 150 ms on
-  the Mini 3, 300 elsewhere until measured; the spotter fires near
+  the Mini 3, 220 on the Station 3, 300 on the Mini 3 Pro until measured; the spotter fires near
   the word's end, see [wake-word-boundary.md](wake-word-boundary.md)) so the first syllable isn't
   cut. `wake_word_in_stream = true` sends the whole wake word on purpose. When it is still in it, STT
   returns "<wake word>, turn on the light", the built-in matcher misses, and simple commands go to

@@ -172,8 +172,24 @@ always held the audio):
   «Сколько время?», still understood. So 150 trades a rare clipped first syllable for no wake word.
 - Taken as bergamot's default: the profile's `wake.preroll_ms = 150` (the config's `preroll_ms`
   overrides it; it is no longer shared between speakers, since the right value is the board's).
-- Still to measure: a Station 3 (orion's model has a second-stage verifier: likely later WAKEs, so a
-  larger offset), more voices and distances, a pause after «Алиса».
+- Still to measure: more voices and distances, a pause after «Алиса», pickle.
+
+## Station 3 (orion), the same evening
+
+Same voice and phrase, eight wakes, `preroll_ms` 300 (the default then), the speaker about as far:
+
+| | median | range |
+|---|---|---|
+| «алиса» starts | −500 ms | −620 … −470 |
+| «алиса» ends | **−170 ms** | −200 … −110 |
+| the command starts | −170 ms | −200 … +10 |
+
+- **orion fires ~170 ms after the word ends**, 60 ms later than bergamot: its model has a
+  second-stage verifier, and the WAKE is its accept.
+- At 300 ms the stream started ~130 ms before the word's end, yet all eight transcripts were the
+  request alone: this STT drops a short «-са» tail. 150 ms would have clipped 20–50 ms of most
+  commands here, so orion's profile takes **220 ms** (`wake.preroll_ms`): before every command
+  start seen, with less of the wake word than 300.
 
 ## Validation plan (real recordings)
 
