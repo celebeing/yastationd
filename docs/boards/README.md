@@ -44,6 +44,8 @@ Models we have no unit of and don't plan to port; a contributor with the speaker
 - **Station Midi** (`cucumber`): see [cucumber.md](cucumber.md); start from orion's profile.
 - **Station 2** (`yandexmidi`): see [yandexmidi.md](yandexmidi.md); needs a front `display.Front`
   for its 89×1 checkerboard panel.
+- pulsar's `AGENTS.md` ([pulsar](https://github.com/Morvex885/pulsar), a C++ daemon for the Midi,
+  Lite 2 and Mini 2) has hardware notes for those models; its "Midi" is `cucumber`.
 
 ## Procedure for a new station
 

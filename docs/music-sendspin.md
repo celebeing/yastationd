@@ -207,6 +207,9 @@ until it has played. **Not tested on the device yet.**
 8. The display features by eye on a speaker: whether a pause in MA reaches us as the group
    stopping, the title on track changes, the spectrum's range on Station 3 — checked on Station 3
    (2026-10-26); the Minis' pause clip not yet seen.
+9. Local commands right after the music stops: pulsar keeps its command spotter on for a minute
+   after a pause, so «продолжи» works without the wake word; ours is armed only while we play.
+10. The ambilight's music effects tuned by eye ([ambilight-stream.md](ambilight-stream.md)).
 
 ## Group sync by measurement (plan)
 

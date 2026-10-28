@@ -2,8 +2,7 @@
 
 When several speakers hear one «Алиса», only the loudest — the nearest — answers. Built
 2026-10-26 (`internal/app/arbitration.go`); on by default, `arbitration = false` turns it off.
-Background and other projects' lessons: [wishlist.md](wishlist.md) (the former "Nearest speaker
-answers" entry).
+Background and other projects' lessons: "Background" below.
 
 ## How it works
 
@@ -60,6 +59,45 @@ instead of a near one, look at the round's spread in the logs before raising it.
 every phase: while it listens (the connection is dropped before HA turns the speech into a
 request — a lone "Stop." was taken for "cancel the timers"), while HA thinks (the pending reply
 is cancelled), while it speaks (playback stops and no follow-up opens).
+
+## Background: what it was designed from
+
+The idea as it was weighed in the wishlist (2026-10-25). When several speakers hear the wake word, only the closest should answer. Without arbitration HA's
+own `duplicate_wake_up_detected` (first phrase per ~2 s wins across satellites) picks whichever
+request arrives first, not the nearest speaker.
+
+pulsar's scheme, for reference:
+- On a wake word each speaker broadcasts a UDP claim (`<name> <wake word> <busy> <level dB>`, three
+  copies 40 ms apart, since Wi-Fi broadcast has no retries) and decides 250 ms later. A busy speaker
+  (talking, announcing, ringing a timer) wins; otherwise the louder claim wins; ties go by name. Mic
+  audio is buffered during the window, so nothing said right after the wake word is lost. Losers
+  blink and stay silent.
+- **The level must come from a VQE output without AGC** (they use `VQE_OMNI`), not from the
+  gain-normalized channel the spotter hears, which erases the distance. They average the 8 loudest
+  of the last 1.5 s of frames.
+- HA's `duplicate_wake_up_detected` error is then handled silently (no error ring or sound).
+
+Refinements from another DIY multi-speaker project (where several speakers on custom firmware
+share one apartment), each one found on a real failure:
+- **A quiet first claim waits for louder ones.** A fixed window favoured the far speaker: it
+  claimed first, and the room it was in got the command (the wrong room's light was switched).
+  A quiet claim (low level) now waits up to ~1.5 s for a louder one; a loud claim decides at once.
+  For us that is an adaptive window instead of pulsar's fixed 250 ms: short when the claim is
+  loud, long when it is quiet.
+- **Claims that arrive together are one round,** even if the speakers' timestamps for the phrase
+  start differ by seconds. They do differ, because of a different number of segments or an
+  utterance opened by loud music. Decided phrases are remembered in a ring for ~1 min, not as a
+  single "last" that the next claim overwrites, and a round's timer never closes another round.
+  Log every claim (`claim: <speaker> <level> <decision>`); without that, double answers can't be
+  explained afterwards.
+- **A neighbour's reply is not a new command.** A speaker that hears the next room's spoken
+  answer («включил свет на кухне») can take it as a command. Their filter: a phrase is an echo of
+  a reply only if it has no long word the reply didn't have. For us this matters less, since we
+  need a wake word before every command, but it applies to HA's `continue_conversation` reopening
+  the mic.
+
+We went with MQTT claims instead of UDP broadcast (the broker already connects the speakers), the
+raw voice mic for the level, and the adaptive wait above.
 
 ## Not done
 

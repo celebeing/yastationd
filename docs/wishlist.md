@@ -1,60 +1,18 @@
 # Wishlist — ideas under consideration
 
-Things we may want, with what is known about them. Nothing here is planned or committed. An item
-moves into a design doc (and out of this list) once we decide to build it (so far: the intercom,
-[intercom.md](intercom.md)). Several came from
-reviewing [pulsar](https://github.com/Morvex885/pulsar) (fork with the Mini 2 port:
-[ste4ik/pulsar](https://github.com/ste4ik/pulsar)). pulsar is a C++ daemon for the Station Midi /
-Lite 2 / Mini 2 that speaks the ESPHome Native API to HA. It's a useful reference, but it lets the
-vendor stack start at every boot and expects internet access (GitHub updates), so its solutions
-need checking against our doctrine before reuse. Both projects are MIT.
-
-## Nearest speaker answers (wake-word arbitration)
-
-**Status:** built 2026-10-26 — [wake-arbitration.md](wake-arbitration.md). The notes below are
-the background it was designed from.
-
-When several speakers hear the wake word, only the closest should answer. Without arbitration HA's
-own `duplicate_wake_up_detected` (first phrase per ~2 s wins across satellites) picks whichever
-request arrives first, not the nearest speaker.
-
-pulsar's scheme, for reference:
-- On a wake word each speaker broadcasts a UDP claim (`<name> <wake word> <busy> <level dB>`, three
-  copies 40 ms apart, since Wi-Fi broadcast has no retries) and decides 250 ms later. A busy speaker
-  (talking, announcing, ringing a timer) wins; otherwise the louder claim wins; ties go by name. Mic
-  audio is buffered during the window, so nothing said right after the wake word is lost. Losers
-  blink and stay silent.
-- **The level must come from a VQE output without AGC** (they use `VQE_OMNI`), not from the
-  gain-normalized channel the spotter hears, which erases the distance. They average the 8 loudest
-  of the last 1.5 s of frames.
-- HA's `duplicate_wake_up_detected` error is then handled silently (no error ring or sound).
-
-Refinements from another DIY multi-speaker project (where several speakers on custom firmware
-share one apartment), each one found on a real failure:
-- **A quiet first claim waits for louder ones.** A fixed window favoured the far speaker: it
-  claimed first, and the room it was in got the command (the wrong room's light was switched).
-  A quiet claim (low level) now waits up to ~1.5 s for a louder one; a loud claim decides at once.
-  For us that is an adaptive window instead of pulsar's fixed 250 ms: short when the claim is
-  loud, long when it is quiet.
-- **Claims that arrive together are one round,** even if the speakers' timestamps for the phrase
-  start differ by seconds. They do differ, because of a different number of segments or an
-  utterance opened by loud music. Decided phrases are remembered in a ring for ~1 min, not as a
-  single "last" that the next claim overwrites, and a round's timer never closes another round.
-  Log every claim (`claim: <speaker> <level> <decision>`); without that, double answers can't be
-  explained afterwards.
-- **A neighbour's reply is not a new command.** A speaker that hears the next room's spoken
-  answer («включил свет на кухне») can take it as a command. Their filter: a phrase is an echo of
-  a reply only if it has no long word the reply didn't have. For us this matters less, since we
-  need a wake word before every command, but it applies to HA's `continue_conversation` reopening
-  the mic.
-
-For us: it is protocol-independent and would fit next to the Wyoming satellite. Open questions: how
-much the near/far level gap really is on our units (not measured anywhere), and whether the
-on-device firewall and the access point pass LAN broadcast.
+Things we may want, with what is known about them. Nothing here is planned or committed. When an
+item is built, it leaves this list: what is worth keeping goes into the doc of its area (built so
+far from here: the intercom, wake-word arbitration, slow replies, the music player and its effects,
+auto-brightness, the screen's own font, the logs off the speaker and the metrics, settings shared
+between speakers). Several ideas came from reviewing [pulsar](https://github.com/Morvex885/pulsar)
+(fork with the Mini 2 port: [ste4ik/pulsar](https://github.com/ste4ik/pulsar)), a C++ daemon for the
+Station Midi / Lite 2 / Mini 2 that speaks the ESPHome Native API to HA. It's a useful reference,
+but it lets the vendor stack start at every boot and expects internet access (GitHub updates), so
+its solutions need checking against our doctrine before reuse. Both projects are MIT.
 
 ## Voice pipeline robustness
 
-**Status:** note; unclear we need it.
+**Status:** note; unclear we need it. (Slow replies are done: [voice-slow-replies.md](voice-slow-replies.md).)
 
 Ideas from pulsar:
 - A watchdog per phase: a dialog with no pipeline event for 30 s while listening or 120 s while
@@ -63,30 +21,6 @@ Ideas from pulsar:
   run it replaced and are dropped.
 - With several API clients, the voice pipeline goes back to the previous subscriber when the latest
   one leaves, so a test client never strands HA.
-
-### Slow replies
-
-**Status:** done — see [voice-slow-replies.md](voice-slow-replies.md).
-
-## Music
-
-**Status:** the Sendspin player is built — see [music-sendspin.md](music-sendspin.md). What
-remains here is the wider picture.
-
-- The speaker has no internet access, so only LAN sources qualify: Music Assistant or HA serving the
-  stream, never a cloud URL fetched by the speaker.
-- pulsar plays HTTP streams through the vendor's GStreamer (`libquasar_gstreamer.so`, dlopen'ed
-  into its daemon). It is also a [Sendspin](https://www.sendspin-audio.com/) player for Music
-  Assistant: FLAC over the LAN, with group sync in the protocol. For us, vendor code would have to
-  run in a helper process like `spotter-host`, never inside the agent.
-- Local commands for music: pulsar keeps the command spotter on for a minute after music stops, so
-  «продолжи» works after a pause.
-- This also covers open item 3 in `yastationd/README.md` (remote-URL announcements).
-- Music on the front display: done for pause / resume, the title and the spectrum
-  ([music-sendspin.md](music-sendspin.md#on-the-display)); next / previous and like / dislike are
-  deferred there. No level meter on seg7: it would look poor next to the clock.
-- Music effects on Station 3's rear strip: done ([ambilight-stream.md](ambilight-stream.md),
-  with a DDP receiver for LedFx); tuning them by eye is open.
 
 ## "Someone is asleep here" detection
 
@@ -134,14 +68,6 @@ Open: thresholds differ per room and per sensor behind the grille (calibrate fro
 Illuminance history, like `auto_brightness_curve`); a TV or a fan at night breaks "quiet" —
 the light and the time window must carry the decision then.
 
-## Other models
-
-pulsar's `AGENTS.md` has hardware notes for the Midi (`cucumber`: aarch64, glibc 2.36), the Lite 2
-(`plum`) and the Mini 2. Their Midi did not match our firmware-only profile (`yandexmidi`: armhf,
-glibc 2.30) because those are two models: `yandexmidi` is the retail Station 2 and the retail Midi is
-`cucumber` ([boards/README.md](boards/README.md)). We don't port models without a unit in hand:
-ports are for contributors who have the speaker (candidates: boards/README.md, "Possible ports").
-
 ## The supervisor draws a dead daemon
 
 **Status:** idea, to do separately (higher durability bar than the daemon itself).
@@ -153,10 +79,16 @@ sysfs, board-agnostic: trigger `none` and a low brightness on every `/sys/class/
 the face's segments on `*clock*` (the clip LED order, docs/display-expressions.md). It must never
 fight a running daemon over the LEDs, and must keep working when the daemon binary is broken.
 
+## An activity blinker
 
-## Smoother auto-brightness
+**Status:** idea (2026-10-28), a party trick first, a debugging aid second; to discuss.
 
-**Status:** done 2026-10-26 (yastationd/README.md, item 5; orion dims through its backlight).
+Something on the speaker that blinks when traffic of a chosen kind goes by, like the lights of an
+old modem or a hard drive. Sources to pick from: MQTT messages in and out (a sync, a state change,
+an arbitration claim), Wyoming audio to and from HA, the music stream, the logs going out, network
+traffic in general, the mic hearing speech. Where it could show: on Station 3 a free pixel row of
+the screen (a dot per message, or a running trace), on the Minis the colon or the minus segment,
+on any speaker one dim pixel of the ring. Off by default; a setting picks the source and the place.
 
 ## Orion's ultrasound rig
 
@@ -237,18 +169,6 @@ the earlier idx-5 spike was transient; two-pass tests on both units cleared it, 
 does not block array-phase work. The first experiment will still tell us whether
 `raw_mic` channels see the carrier at all.
 
-## Orion: a colour sensor for the ambilight?
-
-**Status:** answered 2026-10-26: **no colour sensor** — the ltr308 is the only light sensor in orion's device tree and has one broadband channel ([boards/orion.md](boards/orion.md), "Sensors survey"). Kept for the record; the rest of this entry is the question as it was asked.
-
-If orion senses the colour of the light around it, not only its level, the rear ambilight could
-follow the room (warm in the evening, matching a lamp). What we know so far is against it: the one
-light sensor found is an ltr308 (`light-sensor-top`, I2C 1-0053; [boards/orion.md](boards/orion.md),
-"Lux / power"), a single-channel ambient light sensor with only `in_intensity_*`. Worth checking
-before giving up: the rest of the I2C buses and the device tree for an RGB/colour part (e.g. a
-TCS34xx, an APDS-99xx, an ltr381), what the vendor's ambilight settings in `quasar.cfg` and maind's
-strings depend on, and whether the ltr308 driver exposes more channels than the IIO node shows.
-
 ## The mics' frequency response: a speaker as a measurement mic
 
 **Status:** idea (2026-10-26); nothing measured.
@@ -273,31 +193,17 @@ firmwares tune the amp differently, docs/deploying.md §7). What we have and lac
   at 96 kHz, bergamot and pickle at 48 kHz — enough for the audio band. The capture's own
   high-pass in `hw.Mic` (150 Hz) applies only to our 16 kHz path, not to `arecord` itself.
 
-## Logs that survive, and observability from outside
+## Persistent logs on the speaker
 
-**Status:** partly built 2026-10-26: syslog to a LAN server with a flash spool during outages
-(`log_remote`) and a network watchdog ([storage.md](storage.md)). Still open: persistent logs on
-the speaker itself, the Prometheus exporter.
+**Status:** idea. Built already: syslog to a LAN server with a flash spool while it is
+unreachable (`log_remote`), the network watchdog ([storage.md](storage.md)), and Prometheus
+metrics at `/metrics` ([web-ui.md](web-ui.md)).
 
-Today every log is on tmpfs and a hang ends in a power cycle, so the evidence is gone
-(the Mini 3 Wi-Fi hang of 2026-10-26, yastationd/README.md item 7). Options, not exclusive:
-
-- **Persistent logs on the speaker.** orion: the full daemon log and syslog on its unused `/data`
-  (2.6 GB eMMC) with size-capped rotation. Minis: only WARN/ERROR and the supervisor's lines,
-  appended to a capped file on `<cfw>` every few minutes (negligible NAND wear, storage.md).
-- **Syslog streamed off the speaker.** busybox `syslogd` can send to a LAN host (`-R host:port`,
-  with `-L` to keep the local copy); the daemon would log into syslog too (or send its own lines
-  over UDP). Nothing to store on the speaker, and the lines up to the moment the network dies are
-  kept elsewhere. LAN only, so the egress lock stays as it is; the receiver (e.g. the homelab's
-  Loki) is the user's side.
-- **A Prometheus exporter.** A `/metrics` endpoint in yastationd (configurable address, off by
-  default, LAN only): uptime, CPU and memory, Wi-Fi signal and bit rate (`/proc/net/wireless`,
-  the driver's station info), mic capture restarts, spotter input drops, wake detections, volume,
-  health state, flash wear (UBI `max_ec`, eMMC `life_time`), the room sensors. It would have shown
-  the rate collapse before the hang from the speaker's side; a scrape gap itself marks the hang.
-
-Open: which of these the homelab already collects best (the router's MKTXP metrics covered the
-Wi-Fi side this time), and whether a remote syslog receiver must be set up first.
+Logs on the speaker itself are on tmpfs, so a hang that ends in a power cycle loses them when the
+log server could not be reached either. orion could keep the full daemon log and syslog on its
+unused `/data` (2.6 GB eMMC) with size-capped rotation; the Minis only WARN/ERROR and the
+supervisor's lines, appended to a capped file on `<cfw>` every few minutes (negligible NAND wear,
+storage.md).
 
 ## Orion: swipe gestures over the top
 
@@ -321,24 +227,14 @@ passing by, whether polling at 50 Hz disturbs the chip's own touch handling, and
 chip's sensitivity (its register settings) could be raised for more range without breaking the
 ring.
 
-## Orion: text on the screen in our own font
-
-**Status:** done 2026-10-26 ([display-expressions.md](display-expressions.md), "Text on the pixel
-screen").
-
-## Station 3: MQTT activity on the screen
-
-A party trick, to discuss later: show the broker traffic live on a free pixel row of orion's
-screen (a dot per message in or out, or a running trace), the way old modems blinked their lights.
-
 ## Station 3: the power budget with the white channel on
 
 The firmware keeps the rear strip's framebuffer without white (`ledfb-rgb48`); we switch it to
-RGBW at runtime ([ambilight-stream.md](ambilight-stream.md)). If the reason was power: load
-everything at once — music at full volume, the SoC busy, the strip RGBW at 255 — and watch the
-USB-C PD supply (`ya_pd`: voltage, the supply sensor in HA), thermal throttling, and whether the
-sound sags or the speaker resets. Until then the music effects stay dim (brightness 64) and do not
-use white by default.
+RGBW at runtime ([ambilight-stream.md](ambilight-stream.md)), and since v0.18.0 the music effects
+use the white LEDs by default. If the firmware left white off for power, it shows under load: play
+music at full volume with the SoC busy and the strip RGBW at 255, and watch the USB-C PD supply
+(`ya_pd`: voltage, the supply sensor in HA), thermal throttling, and whether the sound sags or the
+speaker resets. Until that is measured the effects stay dim (brightness 64).
 
 ## Wake arbitration vs the context-dependent spotters
 
@@ -353,11 +249,12 @@ arbitrated only among speakers in the same context).
 
 ## Automated tests: CI and the gaps
 
-State on 2026-10-27: the Go tests (17 packages) pass with `-race`, but nothing runs them on a
+State on 2026-10-28: the Go tests (17 packages) pass with `-race`, but nothing runs them on a
 push: only `build.sh` and manual runs do (GitHub has the release action only). Coverage is uneven:
-`web` 96 %, `ddp` 94 %, `intercom` 86 %, `board` 85 %, `display` 81 %; thin in `app` 42 % (the MQTT
-command handlers, the voice pipeline), `mqtt` 29 %, `wyoming` 43 %, `wifisetup` 47 %, `config`
-50 %. The web app, the C helpers (`spotter-host`, `sendspin-host`) and the shell tools have none.
+`web` 96 %, `ddp` 94 %, `config` 92 % (the settings registry), `intercom` 86 %, `board` 85 %,
+`display` 81 %; thin in `app` 48 % (the MQTT command handlers, the voice pipeline; the settings
+and their sync are covered), `mqtt` 28 %, `wyoming` 43 %, `wifisetup` 47 %. The web app, the C
+helpers (`spotter-host`, `sendspin-host`) and the shell tools have none.
 In order of value:
 
 1. **CI on every push:** `go vet`, `go test -race`, a gofmt check, the web app's `tsc` build,
