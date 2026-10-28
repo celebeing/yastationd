@@ -103,9 +103,9 @@ HA, from single expressions to timed scenarios across the ring and the display.
   every speaker on the LAN in one list, found by itself; per speaker its sensors, the runtime
   controls HA has (display, expressions, brightness, volume…), a live LED preview, the moments
   (what it shows for each event, with an editor), the saved Wi-Fi networks (add one), its logs, a light-sensor
-  calibration against a lux meter, every setting with an explanation (most apply at once, without
-  a restart), the config file with a validated save that rolls itself back if the speaker gets
-  worse, the login, and an update check. Prometheus metrics at `/metrics`.
+  calibration against a lux meter, every setting by topic with an explanation (most apply at once;
+  where a restart is needed it is on trial and rolls itself back if the speaker gets worse), the
+  login, and an update check. Prometheus metrics at `/metrics`.
 - One switch makes a setting, option or moment shared by every speaker: they take this speaker's
   value and change together from then on; a speaker that was off catches up when it is back.
   Details: [docs/web-ui.md](docs/web-ui.md), [docs/settings.md](docs/settings.md).

@@ -4,7 +4,7 @@ import type { Entity, Features, Peer } from './api'
 import { CalibrationTab, LedTab, LogTab, WifiTab } from './extra'
 import { MomentsTab } from './moments'
 import { Control, name } from './controls'
-import { ConfigTab, SettingsTab } from './settings'
+import { ConfigPage } from './settings'
 
 // The app (docs/web-ui.md): the speakers on the LAN, and per speaker its sensors, runtime
 // controls, config and login. It is served by every speaker; the one it came from is "home" and
@@ -215,12 +215,12 @@ function About({ list, latest }: { list: Peer[]; latest: { tag: string; url: str
 }
 
 // Two levels: a group, then its tabs (docs/web-ui.md).
-type Tab = 'overview' | 'log' | 'controls' | 'led' | 'settings' | 'moments' | 'config' | 'calibration' | 'wifi' | 'account'
+type Tab = 'overview' | 'log' | 'controls' | 'led' | 'general' | 'voice' | 'moments' | 'home' | 'music' | 'intercom' | 'calibration' | 'wifi' | 'account' | 'advanced'
 
 const GROUPS: { id: string; name: string; tabs: Tab[] }[] = [
   { id: 'status', name: 'Status', tabs: ['overview', 'log'] },
   { id: 'controls', name: 'Controls', tabs: ['controls', 'led'] },
-  { id: 'settings', name: 'Settings', tabs: ['settings', 'moments', 'config', 'calibration', 'wifi', 'account'] },
+  { id: 'configuration', name: 'Configuration', tabs: ['general', 'voice', 'moments', 'home', 'music', 'intercom', 'calibration', 'wifi', 'account', 'advanced'] },
 ]
 
 const TAB_NAMES: Record<Tab, string> = {
@@ -228,11 +228,15 @@ const TAB_NAMES: Record<Tab, string> = {
   log: 'Log',
   controls: 'Display and voice',
   led: 'LED',
-  settings: 'Settings',
+  general: 'General',
+  voice: 'Voice',
   moments: 'Moments',
-  config: 'Config',
+  home: 'Home integration',
+  music: 'Music Assistant',
+  intercom: 'Intercom',
   calibration: 'Calibration',
   wifi: 'Wi-Fi',
+  advanced: 'Advanced',
   account: 'Login',
 }
 
@@ -241,7 +245,8 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
   // The open section is in the address (#options), so it can be linked and survives a reload.
   const fromHash = () => {
     const h = location.hash.slice(1)
-    if (h === 'options') return 'settings' // the tab's old name
+    if (h === 'options' || h === 'settings') return 'general' // old names
+    if (h === 'config') return 'advanced'
     return h in TAB_NAMES ? (h as Tab) : 'overview'
   }
   const [tab, setTabState] = useState<Tab>(fromHash)
@@ -312,13 +317,19 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
       {!ents && <p class="muted">…</p>}
       {ents && tab === 'overview' && <Overview ents={ents} />}
       {ents && tab === 'controls' && <Controls which="runtime" ents={ents} peer={peer} base={base} reload={load} />}
-      {ents && tab === 'settings' && <SettingsTab ents={ents} peer={peer} base={base} reload={load} />}
+      {ents && (tab === 'general' || tab === 'voice') && <ConfigPage key={tab} page={tab} ents={ents} peer={peer} base={base} reload={load} />}
+      {(['home', 'music', 'intercom', 'advanced'] as Tab[]).includes(tab) && <ConfigPage key={tab} page={tab as any} peer={peer} base={base} />}
       {tab === 'calibration' && <CalibrationTab peer={peer} base={base} />}
       {tab === 'moments' && <MomentsTab peer={peer} base={base} />}
       {tab === 'led' && <LedTab peer={peer} base={base} />}
       {tab === 'wifi' && <WifiTab peer={peer} base={base} />}
+      {tab === 'wifi' && (
+        <section class="card">
+          <h3>Wi-Fi setup mode</h3>
+          <ConfigPage page="wifi" peer={peer} base={base} />
+        </section>
+      )}
       {tab === 'log' && <LogTab peer={peer} base={base} />}
-      {tab === 'config' && <ConfigTab peer={peer} base={base} />}
       {tab === 'account' && <Account peer={peer} base={base} />}
         </div>
       </div>

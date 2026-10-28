@@ -8,8 +8,10 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
 **Settings**
 - The web app's settings are rebuilt on one registry of config keys: every setting has an
   explanation, and most apply at once — the config is reloaded live, a restart (on trial) only
-  for keys that need one. **Settings** holds what applies at once, **Config** what needs a
-  restart, with the raw file one click away; Moments moved next to them.
+  for keys that need one (marked; one floating "Apply and restart"). The **Configuration** group
+  is by topic: General, Voice, Moments, Home integration, Music Assistant, Intercom, Calibration, Wi-Fi,
+  Login, Advanced. The raw config editor is gone from the app (every key is on a page; the API
+  stays).
 - **Share with every speaker:** a switch on each setting, option and moment gives all speakers
   this speaker's value and keeps them in step (retained MQTT topics; a speaker that was off
   catches up; moments go to speakers with the same kind of display).

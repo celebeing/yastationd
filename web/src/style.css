@@ -199,3 +199,6 @@ details.advanced summary { cursor: pointer; color: var(--muted); margin-bottom: 
 .setting.changed { border-left: 3px solid var(--accent); padding-left: 0.6rem; background: color-mix(in srgb, var(--accent) 5%, transparent); }
 .tag { margin-left: 0.5rem; font-size: 0.7rem; font-weight: 500; padding: 0.05rem 0.4rem; border-radius: 6px; color: var(--accent);
   border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); vertical-align: middle; }
+.tag.quiet { color: var(--muted); border-color: var(--line); }
+.settings .applybar { position: sticky; bottom: 0.75rem; top: auto; z-index: 2; margin-top: 1rem; padding: 0.7rem 0.9rem;
+  border: 1px solid var(--accent); border-radius: 12px; background: var(--card); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12); }

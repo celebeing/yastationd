@@ -3,10 +3,9 @@ import * as api from './api'
 import type { Entity, Peer, SettingKey, Settings, SyncKind, SyncState } from './api'
 import { Control, name } from './controls'
 
-// Settings (docs/settings.md). Two pages over one registry of config keys: "Settings" holds what
-// applies at once (saved as you change it), "Config" what needs a restart (changed together, then
-// applied by a restart on trial), with the raw file one click away. Each row: the name, the
-// control, a share switch that makes every speaker take the value, and a paragraph on what it does.
+// Configuration (docs/settings.md): pages over one registry of config keys, by topic. Each row:
+// the name, the control, a share switch that makes every speaker take the value, and a paragraph
+// on what it does.
 
 // The HA config entities kept in the speaker's state (not the config file), with their place and
 // explanation on the settings page.
@@ -76,12 +75,13 @@ export function ShareSwitch(p: { sync: SyncState | null; kind: SyncKind; item: s
   )
 }
 
-function Row(p: { label: string; doc: string; control: any; share?: any; note?: any; changed?: boolean; onReset?: () => void }) {
+function Row(p: { label: string; doc: string; control: any; share?: any; note?: any; changed?: boolean; onReset?: () => void; tag?: string }) {
   return (
     <div class={'setting' + (p.changed ? ' changed' : '')}>
       <div class="srow">
         <span class="sname">
           {p.label}
+          {p.tag && <span class="tag quiet">{p.tag}</span>}
           {p.changed && <span class="tag">changed</span>}
         </span>
         <span class="sctl">{p.control}</span>
@@ -190,50 +190,123 @@ function groupsOf(s: Settings, pick: (k: SettingKey) => boolean) {
     .filter((g) => g.keys.length > 0)
 }
 
-/** The settings that apply at once: the HA options and the runtime config keys. */
-export function SettingsTab(p: Ctx & { ents: Entity[]; reload: () => void }) {
+// The configuration pages: which groups of keys each shows. Every page mixes keys that apply at
+// once (saved as they change) with keys that need a restart (marked; their changes wait in a
+// floating bar for one "Apply and restart").
+export type ConfigPageID = 'general' | 'voice' | 'home' | 'music' | 'intercom' | 'wifi' | 'advanced'
+
+const PAGES: Record<ConfigPageID, { groups: string[]; intro: string; options?: boolean }> = {
+  general: { groups: ['display', 'sound', 'web', 'video'], options: true, intro: 'How the speaker looks and sounds.' },
+  voice: { groups: ['voice'], options: true, intro: 'The wake word, the dialog with Home Assistant, and which speaker answers.' },
+  home: {
+    groups: ['identity', 'ha', 'network'],
+    intro: 'Fitting the speaker into your home: its name, Home Assistant, the network. Usually set once.',
+  },
+  music: { groups: ['music'], intro: 'The speaker as a Music Assistant player (Sendspin).' },
+  intercom: { groups: ['intercom'], intro: 'Calls between the speakers.' },
+  wifi: { groups: ['wifi_setup'], intro: '' },
+  advanced: { groups: [], intro: 'Paths, ports, test hooks, hardware overrides and first-start values. Rarely needed.' },
+}
+
+export function ConfigPage(p: Ctx & { page: ConfigPageID; ents?: Entity[]; reload?: () => void }) {
   const { s, sync, err, setErr, load, share } = useSettings(p)
-  const [saved, setSaved] = useState('')
+  const [pending, setPending] = useState<Record<string, string[]>>({})
+  const [msg, setMsg] = useState('')
+  const [busy, setBusy] = useState(false)
+  const page = PAGES[p.page]
+  if (!s) return err ? <p class="err">{err}</p> : <p class="muted">…</p>
+
+  function flash(m: string) {
+    setMsg(m)
+    setTimeout(() => setMsg(''), 2500)
+  }
+  // A key that applies at once is saved now; one that needs a restart waits for Apply.
   async function commit(k: SettingKey, v: string[]) {
     setErr('')
+    if (!k.runtime) {
+      setPending({ ...pending, [k.name]: v })
+      return
+    }
     try {
       await api.putSettings(p.peer.id, p.base, { [k.name]: v.length && isDefault(k, v) && !k.set ? [] : v })
-      setSaved(k.label)
-      setTimeout(() => setSaved(''), 1500)
-      await load()
+      flash(`Saved: ${k.label}.`)
     } catch (e: any) {
       setErr(`${k.label}: ${e.message || e}`)
+    }
+    await load()
+  }
+  async function apply() {
+    setBusy(true)
+    setErr('')
+    setMsg('')
+    try {
+      const r = await api.putSettings(p.peer.id, p.base, pending)
+      setPending({})
+      if (r.restarting) {
+        setMsg('The speaker restarts with the new settings on trial…')
+        await waitBack(p.base)
+        await api.tryLogin(p.peer.id, p.base)
+        flash('Back up. The new settings are on trial for a minute: they stay if the speaker is as healthy as before, else the old ones come back by themselves.')
+      } else flash(r.changed.length ? 'Applied.' : 'No changes.')
       await load()
+    } catch (e: any) {
+      setErr(e.message || String(e))
+    } finally {
+      setBusy(false)
     }
   }
   async function send(e: Entity, payload: string) {
     setErr('')
     try {
       await api.control(p.peer.id, p.base, e.object, payload)
-      setTimeout(p.reload, 300)
+      setTimeout(() => p.reload?.(), 300)
     } catch (x: any) {
       setErr(`${name(e)}: ${x.message || x}`)
     }
   }
-  if (!s) return err ? <p class="err">{err}</p> : <p class="muted">…</p>
-  const opts = p.ents.filter((e) => e.writable && e.config.entity_category === 'config')
-  const groups = groupsOf(s, (k) => k.runtime && !k.advanced)
-  const optGroups = new Set(opts.map((e) => OPTIONS[e.object]?.group || 'display'))
-  for (const id of optGroups)
-    if (!groups.some((g) => g.id === id)) groups.unshift({ id, title: s.groups.find((g) => g.ID === id)?.Title || id, keys: [] })
+
+  const row = (k: SettingKey) => {
+    const p0 = pending[k.name]
+    const v = p0 ?? k.value
+    const changed = p0 ? p0.length > 0 && !isDefault(k, p0) : k.changed
+    return (
+      <Row
+        label={k.label + (p0 ? ' •' : '')}
+        tag={k.runtime ? undefined : 'restart'}
+        doc={k.doc}
+        note={defaultNote(k, changed)}
+        changed={changed}
+        onReset={() => commit(k, [])}
+        control={<KeyControl k={k} value={v} commit={(nv) => commit(k, nv)} />}
+        share={k.sync && <ShareSwitch sync={sync} kind="setting" item={k.name} onShare={share} />}
+      />
+    )
+  }
+  const adv = p.page === 'advanced'
+  const groups = groupsOf(s, (k) => (adv ? !!k.advanced : !k.advanced && page.groups.includes(k.group)))
+  const opts = page.options
+    ? (p.ents || []).filter((e) => e.writable && e.config.entity_category === 'config' && page.groups.includes(OPTIONS[e.object]?.group || 'display'))
+    : []
+  for (const e of opts) {
+    const id = OPTIONS[e.object]?.group || 'display'
+    if (!groups.some((g) => g.id === id)) groups.push({ id, title: s.groups.find((g) => g.ID === id)?.Title || id, keys: [] })
+  }
   const order = s.groups.map((g) => g.ID)
   groups.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))
+  const n = Object.keys(pending).length
   return (
     <div class="settings">
-      <p class="muted small">
-        These apply at once. Settings that need a restart are on the Config page.
-        {saved && <span class="ok"> Saved: {saved}.</span>}
-      </p>
+      {page.intro && (
+        <p class="muted small">
+          {page.intro}
+        </p>
+      )}
+      {s.trial && <p class="small"><span class="badge">on trial</span> The last settings are on trial: they stay if the speaker is as healthy as before.</p>}
       {err && <p class="err">{err}</p>}
       {sync && !sync.connected && <p class="muted small">No MQTT broker: sharing with the other speakers is off.</p>}
       {groups.map((g) => (
         <section>
-          <h3>{g.title}</h3>
+          {groups.length > 1 || p.page === 'general' ? <h3>{g.title}</h3> : null}
           {opts
             .filter((e) => (OPTIONS[e.object]?.group || 'display') === g.id)
             .map((e) => (
@@ -244,180 +317,25 @@ export function SettingsTab(p: Ctx & { ents: Entity[]; reload: () => void }) {
                 share={sync?.option_ids.includes(e.object) && <ShareSwitch sync={sync} kind="option" item={e.object} onShare={share} />}
               />
             ))}
-          {g.keys.map((k) => (
-            <Row
-              label={k.label}
-              doc={k.doc}
-              note={defaultNote(k, k.changed)}
-              changed={k.changed}
-              onReset={() => commit(k, [])}
-              control={<KeyControl k={k} value={k.value} commit={(v) => commit(k, v)} />}
-              share={k.sync && <ShareSwitch sync={sync} kind="setting" item={k.name} onShare={share} />}
-            />
-          ))}
-        </section>
-      ))}
-    </div>
-  )
-}
-
-/** The settings that need a restart: changed together, applied by one restart on trial. */
-export function ConfigTab(p: Ctx) {
-  const { s, sync, err, setErr, load, share } = useSettings(p)
-  const [pending, setPending] = useState<Record<string, string[]>>({})
-  const [text, setText] = useState(false)
-  const [msg, setMsg] = useState('')
-  const [busy, setBusy] = useState(false)
-  if (text) return <ConfigEditor peer={p.peer} base={p.base} onClose={() => (setText(false), load())} />
-  if (!s) return err ? <p class="err">{err}</p> : <p class="muted">…</p>
-  const n = Object.keys(pending).length
-  async function apply() {
-    setBusy(true)
-    setErr('')
-    setMsg('')
-    try {
-      const r = await api.putSettings(p.peer.id, p.base, pending)
-      setPending({})
-      if (r.restarting) {
-        setMsg('Saved. The speaker restarts with the new settings on trial…')
-        await waitBack(p.base)
-        await api.tryLogin(p.peer.id, p.base)
-        setMsg('Back up. The new settings are on trial for a minute: they stay if the speaker is as healthy as before, else the old ones come back by themselves.')
-      } else setMsg(r.changed.length ? 'Applied.' : 'No changes.')
-      await load()
-    } catch (e: any) {
-      setErr(e.message || String(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-  const row = (k: SettingKey) => {
-    const p0 = pending[k.name]
-    const v = p0 ?? k.value
-    // pending [] = back to unset; a pending value counts as set
-    const changed = p0 ? p0.length > 0 && !isDefault(k, p0) : k.changed
-    return (
-      <Row
-        label={k.label + (p0 ? ' •' : '')}
-        doc={k.doc}
-        note={defaultNote(k, changed)}
-        changed={changed}
-        onReset={() => setPending({ ...pending, [k.name]: [] })}
-        control={<KeyControl k={k} value={v} commit={(nv) => setPending({ ...pending, [k.name]: nv })} />}
-        share={k.sync && <ShareSwitch sync={sync} kind="setting" item={k.name} onShare={share} />}
-      />
-    )
-  }
-  return (
-    <div class="settings">
-      <div class="applybar">
-        <span class="small">
-          {n ? `${n} change${n > 1 ? 's' : ''} to apply. ` : ''}These need a restart: the speaker restarts on trial and rolls back by itself if it is worse off.
-          {s.trial && <span class="badge">on trial</span>}
-        </span>
-        <span class="row tight">
-          <button class="primary" disabled={!n || busy} onClick={apply}>
-            Apply and restart
-          </button>
-          <button class="ghost" disabled={!n || busy} onClick={() => setPending({})}>
-            Discard
-          </button>
-          <button class="ghost" disabled={busy} onClick={() => setText(true)}>
-            Edit the config file
-          </button>
-        </span>
-      </div>
-      {err && <p class="err">{err}</p>}
-      {msg && <p class="ok">{msg}</p>}
-      {groupsOf(s, (k) => !k.runtime && !k.advanced).map((g) => (
-        <section>
-          <h3>{g.title}</h3>
           {g.keys.map(row)}
         </section>
       ))}
-      <details class="advanced">
-        <summary>Advanced: paths, ports, test hooks, hardware overrides</summary>
-        {groupsOf(s, (k) => !!k.advanced).map((g) => (
-          <section>
-            <h3>{g.title}</h3>
-            {g.keys.map(row)}
-          </section>
-        ))}
-      </details>
+      {(n > 0 || msg || busy) && (
+        <div class="applybar" role="status">
+          <span class="small">{n > 0 ? `${n} change${n > 1 ? 's' : ''} need${n > 1 ? '' : 's'} a restart. It is on trial: a speaker worse off rolls back by itself.` : msg}</span>
+          {n > 0 && (
+            <span class="row tight">
+              <button class="primary" disabled={busy} onClick={apply}>
+                Apply and restart
+              </button>
+              <button class="ghost" disabled={busy} onClick={() => setPending({})}>
+                Discard
+              </button>
+            </span>
+          )}
+        </div>
+      )}
     </div>
-  )
-}
-
-function ConfigEditor({ peer, base, onClose }: Ctx & { onClose: () => void }) {
-  const [text, setText] = useState<string | null>(null)
-  const [orig, setOrig] = useState('')
-  const [meta, setMeta] = useState<{ file: string; trial: boolean } | null>(null)
-  const [msg, setMsg] = useState('')
-  const [err, setErr] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  async function load() {
-    try {
-      const c = await api.getConfig(peer.id, base)
-      setText(c.text)
-      setOrig(c.text)
-      setMeta({ file: c.file, trial: c.trial })
-    } catch (e: any) {
-      setErr(e.message || String(e))
-    }
-  }
-  useEffect(() => {
-    load()
-  }, [peer.id])
-
-  async function save() {
-    if (text === null) return
-    setBusy(true)
-    setErr('')
-    setMsg('')
-    try {
-      const r = await api.putConfig(peer.id, base, text)
-      if (!r.restarting) {
-        setMsg(r.changed?.length ? `Applied without a restart: ${r.changed.join(', ')}.` : 'Saved; nothing to apply.')
-        await load()
-        return
-      }
-      setMsg('Saved. The speaker restarts with the new config on trial…')
-      await waitBack(base)
-      setMsg('Back up. The new config is on trial for a minute: it stays if the speaker is as healthy as before, else the old one comes back by itself.')
-      // the restart dropped our token
-      await api.tryLogin(peer.id, base)
-      await load()
-    } catch (e: any) {
-      setErr(e.message || String(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  if (text === null) return err ? <p class="err">{err}</p> : <p class="muted">…</p>
-  return (
-    <section class="card">
-      <h3>
-        Config <span class="muted small">{meta?.file}</span>
-        {meta?.trial && <span class="badge">on trial</span>}
-      </h3>
-      <textarea class="config" spellcheck={false} value={text} onInput={(e) => setText(e.currentTarget.value)} />
-      <div class="row">
-        <button onClick={save} disabled={busy || text === orig}>
-          Save
-        </button>
-        <button class="ghost" onClick={() => setText(orig)} disabled={busy || text === orig}>
-          Revert
-        </button>
-        <button class="ghost" onClick={onClose} disabled={busy}>
-          Back to the form
-        </button>
-      </div>
-      <p class="muted small">Changes to settings that apply at once take effect without a restart; any other change restarts the speaker on trial.</p>
-      {err && <p class="err">{err}</p>}
-      {msg && <p class="ok">{msg}</p>}
-    </section>
   )
 }
 

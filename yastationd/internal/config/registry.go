@@ -197,7 +197,7 @@ func init() {
 			_, err := time.LoadLocation(v)
 			return err
 		}))
-	reg(Key{Name: "auto_brightness_curve", Group: "display", Label: "Auto brightness curve", Runtime: true, Sync: true,
+	reg(Key{Name: "auto_brightness_curve", Group: "display", Label: "Auto brightness curve", Runtime: true, Sync: true, Advanced: true,
 		Doc: "Light (lux) to clock brightness (0–255) points, interpolated between them: lux:level, lux:level, … The first point's level is replaced by the board's dimmest readable level unless the curve is set here."},
 		value{kind: "text",
 			get: func(c *Config) []string { return one(CurveString(c.BrightnessCurve)) },
@@ -240,7 +240,7 @@ func init() {
 	reg(Key{Name: "marquee_speed", Group: "display", Label: "Running text speed", Runtime: true, Sync: true,
 		Doc: "How fast running lines move, as a multiple of the default pace."},
 		floatV(0.25, 4, func(c *Config) *float64 { return &c.MarqueeSpeed }))
-	reg(Key{Name: "ddp_port", Group: "display", Label: "DDP port", Sync: true, Needs: "ambilight",
+	reg(Key{Name: "ddp_port", Group: "display", Label: "DDP port", Sync: true, Needs: "ambilight", Advanced: true,
 		Doc: "Boards with an ambilight: the UDP port for LED frames from LedFx or WLED tools; 0 turns it off."},
 		intV(0, 65535, func(c *Config) *int { return &c.DDPPort }))
 	reg(Key{Name: "ambilight_fx_white", Group: "display", Label: "Ambilight effects: white LED", Runtime: true, Sync: true, Needs: "ambilight",
@@ -268,7 +268,7 @@ func init() {
 	reg(Key{Name: "wake_enabled", Group: "voice", Label: "Wake word", Sync: true,
 		Doc: "Listen for «Алиса». Off, only the voice key starts a request."},
 		boolV(func(c *Config) *bool { return &c.WakeEnabled }))
-	reg(Key{Name: "preroll_ms", Group: "voice", Label: "Audio before the wake word", Runtime: true, Sync: true,
+	reg(Key{Name: "preroll_ms", Group: "voice", Label: "Audio before the wake word", Runtime: true, Sync: true, Advanced: true,
 		Doc: "How much audio from before the wake word goes to Home Assistant, so the first word is not cut. Too much and the wake word itself lands in the transcript."},
 		value{kind: "int", min: 0, max: 2000, unit: "ms",
 			get: func(c *Config) []string { return one(strconv.Itoa(c.PrerollMs)) },
@@ -282,13 +282,13 @@ func init() {
 	reg(Key{Name: "arbitration", Group: "voice", Label: "Nearest speaker answers", Runtime: true, Sync: true,
 		Doc: "Speakers that hear the same «Алиса» agree that only the loudest answers."},
 		boolV(func(c *Config) *bool { return &c.Arbitration }))
-	reg(Key{Name: "arbitration_wait_ms", Group: "voice", Label: "Arbitration wait", Runtime: true, Sync: true,
+	reg(Key{Name: "arbitration_wait_ms", Group: "voice", Label: "Arbitration wait", Runtime: true, Sync: true, Advanced: true,
 		Doc: "The longest a quiet claim waits for louder speakers to speak up."},
 		durV(100, 3000, time.Millisecond, func(c *Config) *time.Duration { return &c.ArbitrationWait }))
-	reg(Key{Name: "boot_connect_timeout", Group: "voice", Label: "First connection deadline", Sync: true,
+	reg(Key{Name: "boot_connect_timeout", Group: "voice", Label: "First connection deadline", Sync: true, Advanced: true,
 		Doc: "After boot, how long the broker and Home Assistant's link may take before the speaker shows that the first connection failed."},
 		durV(1, 600, time.Second, func(c *Config) *time.Duration { return &c.BootConnectTimeout }))
-	reg(Key{Name: "wyoming_port", Group: "voice", Label: "Wyoming port",
+	reg(Key{Name: "wyoming_port", Group: "ha", Label: "Wyoming port", Advanced: true,
 		Doc: "The port Home Assistant's Wyoming integration connects to; 0 turns the satellite off."},
 		intV(0, 65535, func(c *Config) *int { return &c.WyomingPort }))
 
@@ -305,7 +305,7 @@ func init() {
 	reg(Key{Name: "sendspin_volume", Group: "music", Label: "Music volume", Sync: true,
 		Doc: "linked: the player's volume in Music Assistant is the speaker's volume; separate: a music-only level under it."},
 		enumV([]string{"linked", "separate"}, func(c *Config) *string { return &c.SendspinVolume }))
-	reg(Key{Name: "sendspin_unpaired", Group: "music", Label: "Unpaired servers may play", Sync: true,
+	reg(Key{Name: "sendspin_unpaired", Group: "music", Label: "Unpaired servers may play", Sync: true, Advanced: true,
 		Doc: "Let a Music Assistant server play before it is paired."},
 		boolV(func(c *Config) *bool { return &c.SendspinUnpaired }))
 	reg(Key{Name: "music_duck_db", Group: "music", Label: "Music under the assistant", Unit: "dB", Runtime: true, Sync: true,
@@ -391,7 +391,7 @@ func init() {
 	reg(Key{Name: "discovery_prefix", Group: "ha", Label: "Discovery prefix", Advanced: true,
 		Doc: "Home Assistant's MQTT discovery prefix."},
 		textV(func(c *Config) *string { return &c.DiscoveryPrefix }, nonEmpty))
-	reg(Key{Name: "probe", Group: "ha", Label: "Health probes",
+	reg(Key{Name: "probe", Group: "ha", Label: "Health probes", Advanced: true,
 		Doc: "Reachability checks for the health state, one per line: name=host:port@role, role broker, pipeline or lan."},
 		listV(func(c *Config) *[]string { return &c.Probes }))
 
@@ -399,7 +399,7 @@ func init() {
 	reg(Key{Name: "net_watchdog_min", Group: "network", Label: "Reboot when offline for", Sync: true,
 		Doc: "Reboot when the default gateway has been unreachable this long (doubling after each such reboot, up to 4 h); 0 turns it off."},
 		durV(0, 1440, time.Minute, func(c *Config) *time.Duration { return &c.NetWatchdog }))
-	reg(Key{Name: "net_wifi_recovery", Group: "network", Label: "Wi-Fi recovery", Sync: true,
+	reg(Key{Name: "net_wifi_recovery", Group: "network", Label: "Wi-Fi recovery", Sync: true, Advanced: true,
 		Doc: "Before rebooting, bring the Wi-Fi back as the stock firmware does: reload the Wi-Fi config, then reset the controller."},
 		boolV(func(c *Config) *bool { return &c.NetWifiRecovery }))
 	reg(Key{Name: "net_wifi_reconfigure_min", Group: "network", Label: "Reload Wi-Fi config after", Sync: true, Advanced: true,
@@ -408,7 +408,7 @@ func init() {
 		Doc: "0 skips this step."}, durV(0, 1440, time.Minute, func(c *Config) *time.Duration { return &c.NetWifiReset }))
 	reg(Key{Name: "net_wifi_reset_every_min", Group: "network", Label: "Reset Wi-Fi again every", Sync: true, Advanced: true,
 		Doc: "0 resets only once."}, durV(0, 1440, time.Minute, func(c *Config) *time.Duration { return &c.NetWifiResetEvery }))
-	reg(Key{Name: "time_sync", Group: "network", Label: "Clock sync", Sync: true,
+	reg(Key{Name: "time_sync", Group: "network", Label: "Clock sync", Sync: true, Advanced: true,
 		Doc: "Set the clock over NTP when the firmware runs no time daemon."},
 		boolV(func(c *Config) *bool { return &c.TimeSync }))
 	reg(Key{Name: "ntp_server", Group: "network", Label: "NTP servers", Sync: true,
@@ -443,7 +443,7 @@ func init() {
 			}
 			return nil
 		}))
-	reg(Key{Name: "wifi_setup_channel", Group: "wifi_setup", Label: "Channel", Sync: true,
+	reg(Key{Name: "wifi_setup_channel", Group: "wifi_setup", Label: "Channel", Sync: true, Advanced: true,
 		Doc: "The access point's Wi-Fi channel."}, intV(1, 13, func(c *Config) *int { return &c.WifiSetupChannel }))
 	reg(Key{Name: "wifi_setup_address", Group: "wifi_setup", Label: "Address", Advanced: true,
 		Doc: "The speaker's address on its access point, in a /24."},
@@ -463,7 +463,7 @@ func init() {
 		Doc: "Empty uses the running wpa_supplicant's -c."}, textV(func(c *Config) *string { return &c.WPAConf }, nil))
 
 	// --- web ---
-	reg(Key{Name: "http_addr", Group: "web", Label: "Web server address",
+	reg(Key{Name: "http_addr", Group: "ha", Label: "Web server address", Advanced: true,
 		Doc: "[host]:port of this web app and its API; empty turns it off."},
 		textV(func(c *Config) *string { return &c.HTTPAddr }, func(v string) error {
 			if v == "" {
@@ -485,7 +485,7 @@ func init() {
 			}
 			return nil
 		}))
-	reg(Key{Name: "led_preview", Group: "web", Label: "LED preview", Sync: true,
+	reg(Key{Name: "led_preview", Group: "web", Label: "LED preview", Sync: true, Advanced: true,
 		Doc: "The LED tab: what the screen, the ring and the ambilight show, live."},
 		boolV(func(c *Config) *bool { return &c.LEDPreview }))
 	reg(Key{Name: "frametap_addr", Group: "web", Label: "Frame tap address", Advanced: true,
@@ -497,7 +497,7 @@ func init() {
 		Doc: "The video mode's frames file (made by cmd/videoconv)."}, textV(func(c *Config) *string { return &c.VideoFrames }, nil))
 	reg(Key{Name: "video_audio", Group: "video", Label: "Video sound", Advanced: true, Needs: "pixels",
 		Doc: "The video mode's WAV."}, textV(func(c *Config) *string { return &c.VideoAudio }, nil))
-	reg(Key{Name: "video_av_offset_ms", Group: "video", Label: "Picture offset", Runtime: true, Needs: "pixels",
+	reg(Key{Name: "video_av_offset_ms", Group: "video", Label: "Picture offset", Runtime: true, Needs: "pixels", Advanced: true,
 		Doc: "Shifts the picture against the sound; positive shows it later."},
 		durV(-2000, 2000, time.Millisecond, func(c *Config) *time.Duration { return &c.VideoAVOffset }))
 

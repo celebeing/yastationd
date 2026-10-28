@@ -119,7 +119,7 @@ A subproject: TypeScript, Preact, Vite (versions pinned exactly), built into
 
 - The speakers list (from `/api/peers`): name, room, board, version, online, a login state.
 - Per speaker: a card on top (name, address, status, volume, mute, display), sensors, runtime
-  controls (from `/api/state`, rendered by kind), the settings pages and the config editor
+  controls (from `/api/state`, rendered by kind), the configuration pages
   ([settings.md](settings.md)), the password, the frame tap's preview.
 - Logins: one per speaker; the app tries the last credentials that worked on the others first.
 
@@ -127,7 +127,7 @@ A subproject: TypeScript, Preact, Vite (versions pinned exactly), built into
 
 Per speaker, a section menu beside the content: the groups as captions, their sections under
 them (a scrolling row on narrow screens). The open section is in the address (`#options`), so it
-can be linked (the old `#options` opens Settings). Lists of settings and controls are settings pages — one narrow column, a name and
+can be linked (the old `#options` and `#settings` open General, `#config` Advanced). Lists of settings and controls are settings pages — one narrow column, a name and
 its control on one line — while sensors, the log, the LED preview and the config file use the
 window's width.
 
@@ -135,7 +135,7 @@ window's width.
 |---|---|
 | Status | Sensors (and diagnostics), Log |
 | Controls | Display and voice (the runtime controls HA has: lights, display, expressions, volume…), LED |
-| Settings | Settings (what applies at once: HA's options and the runtime keys), Moments, Config (what needs a restart, and the raw file), Calibration, Wi-Fi, Login |
+| Configuration | General, Voice, Moments, Home integration, Music Assistant, Intercom, Calibration, Wi-Fi, Login, Advanced — [settings.md](settings.md) |
 
 ## Calibration
 

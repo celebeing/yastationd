@@ -47,18 +47,30 @@ writing, so a later diff doesn't mistake their keys for changes needing a restar
 
 ## The pages (`web/src/settings.tsx`)
 
-- **Settings:** HA's option entities and the runtime keys, by group; each row a name, a control, a
-  share switch, and the paragraph under it (with the default when the value differs). A change is
-  saved at once.
-- **Config:** the restart keys, changed together and applied with one "Apply and restart"; the
-  advanced keys folded away; "Edit the config file" opens the raw text (whose save takes the same
-  path: runtime changes apply live, others restart).
+The Configuration group, by topic rather than by mechanism:
+
+| Tab | Holds |
+|---|---|
+| General | how the speaker looks and sounds: HA's display options, the display and sound keys |
+| Voice | the wake word, the dialog with HA (follow-up, the reply deadline, a wake word while waiting), which speaker answers |
+| Moments | what it shows for each event (display-expressions.md) |
+| Home integration | fitting it into the home, usually once: name and ID, Home Assistant (MQTT), the network (watchdog, NTP, syslog) |
+| Music Assistant | the Sendspin player |
+| Intercom | calls between speakers |
+| Calibration, Wi-Fi, Login | as before; Wi-Fi also holds the setup mode's settings |
+| Advanced | every key marked `Advanced` (rarely touched: ports, paths, test hooks, timing knobs, hardware overrides, first-start values) |
+
+- Every page mixes keys that apply at once with keys that need a restart. The first are saved as
+  they change; the second carry a "restart" tag and their changes wait in a floating bar for one
+  "Apply and restart" (on trial).
+- Each row: a name, a control, a share switch, and the paragraph under it.
 - **Changed settings stand out:** a key the file sets to something other than its value when
   unset — the default, or the board profile's for the hardware overrides, the mic calibration and
   the brightness curve (`board` in the API) — is marked and has a Reset (back to unset).
 - Secrets (`mqtt_pass`, `intercom_secret`, `wifi_setup_psk`) are never sent back: a mask stands for
   a set one, and the mask sent back leaves it unchanged.
-- **Moments** sit with the settings and have a share switch per moment.
+- Every key is on a page, so the app has no raw-file editor any more; `GET`/`PUT /api/config`
+  stays for scripts and takes the same path on save (runtime changes live, others restart).
 - **The speaker card** above every tab: the name, the address, the model and version, status chips
   (health, HA's voice pipeline, mic muted, power, light, uptime), and the everyday controls (volume
   with mute, display mode, faces). Mute sets the volume to 0; the level before is kept in the
