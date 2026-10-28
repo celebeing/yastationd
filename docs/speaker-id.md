@@ -295,3 +295,7 @@ Step 1 is done on the dev box (§2). Next:
   the desk"): the main user's requests sit at cosine 0.7–0.95 to his centroid, the other household
   member's at 0.01–0.17 (gender classifier 0.85+), a video's voice at ≈0.5, non-speech at 0.2–0.3.
   The recording is still on (revert as above when done).
+- **2026-10-28 — ready-made proxies surveyed.** Several community Wyoming speaker-ID proxies now
+  exist (Murdock, assist-speaker-id and others), so `wyoming-voiceid` need not be written from
+  scratch; how big assistants enroll voices is compared in the same place:
+  [voice-id.md](voice-id.md), "Ready-made proxies" and "How the big assistants do it".

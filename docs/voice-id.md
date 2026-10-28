@@ -146,6 +146,70 @@ phrase) and blocks a guest more cleanly. They do not exclude each other: the HA 
 same with either behind them, and a speaker could even send its wake-word voiceprint along for the
 server to combine.
 
+### A server proxy does more than one job
+
+The proxy sits on the path HA → STT. Three things can live there at once:
+
+- **Voice ID** for every satellite, ESPHome included, with no CFW changes.
+- **One store.** The voiceprints, the log and the groups are on the server, so the sync problem of
+  the album UX below is gone: there is nothing to sync between speakers.
+- **STT routing and fallback.** The proxy picks the STT backend and falls back to a second one
+  when the first is down, e.g. a GPU box first, then a CPU server. Otherwise that job needs a TCP
+  failover proxy (HAProxy) of its own.
+
+The cost is that the firmware's own models stay unused, except perhaps the gender classifier.
+
+### Ready-made proxies (surveyed 2026-10-28)
+
+Writing our own is not needed: several community projects put a speaker-ID proxy in front of a
+Wyoming STT. All are from 2026 and young, so pin a commit and read the code before running it.
+
+| Project | Stars / last push | What it has | Catches |
+|---|---|---|---|
+| [Murdock](https://github.com/BobMcGlobus/Murdock), a fork of [wyoming-voice-match](https://github.com/jxlarrea/wyoming-voice-match) (91 stars) | 2 / 2026-10-11 | The closest to the album UX: an "Unknown voices" tab with cluster review and assignment, a recognition log, a 2-D voice map, profile health and drift. Platt-scaled scores, per-satellite thresholds and same-mic profiles, auto-enrollment from confident matches. Wyoming and OpenAI-style STT upstreams with a fallback STT. MQTT-discovered sensors, ZIP backup | Blocks unknown voices by default (guests need it off). WeSpeaker CAM++, whose ONNX exports scored badly in our desk test ([speaker-id.md](speaker-id.md) §1); its Platt scaling may fix that. One global "current speaker" sensor. Browser recording does not work through HA ingress |
+| [home-assistant-assist-speaker-id](https://github.com/witold-gren/home-assistant-assist-speaker-id) | 0 / 2026-10-25, 5 commits | Our pick of model (3D-Speaker CAM++ via sherpa-onnx). The speaker is tied to the pipeline run, not to a global sensor. An agent wrapper, requests run as the speaker's HA user. `speaker_id.calibrate` suggests thresholds. Voice-guided enrollment through a satellite | Days old. No view of unlabelled voices, no merge |
+| [speaker-recognition](https://github.com/conorod1992/speaker-recognition), a fork of [EuleMitKeule's](https://github.com/EuleMitKeule/speaker-recognition) (56 stars) | 3 / 2026-10-25 | A sidebar panel in HA. A log of decisions you mark correct / wrong speaker / missed, and thresholds suggested from those marks. Per-turn correlation | Resemblyzer, an older and weaker model than CAM++ |
+| [ha-addon-wyoming-speaker-id](https://github.com/olegchumakov/ha-addon-wyoming-speaker-id) | 0 / 2026-10-27 | An add-on, ReDimNet2 by default, a web UI for people | Prefixes the transcript (`[speaker: Anna] …`), which breaks local intents. Unsuitable |
+
+The cheap next check needs no new voices: replay the HA recordings already collected through
+Murdock and assist-speaker-id on a desk machine and compare with our desk check.
+
+## How the big assistants do it
+
+Alexa, Google, Siri and Alice all recognise voices, and all of them need an explicit enrollment.
+Owners rarely notice because it is folded into setup:
+
+| Assistant | Enrollment | Who a voice belongs to |
+|---|---|---|
+| Alexa (Voice ID) | "Alexa, learn my voice", or the Alexa app; a few phrases. Alexa may later ask to repeat commands on other Echo devices | the person's Amazon profile in the household |
+| Google (Voice Match) | the Home app: a few phrases with "Hey Google"; up to six people per home | each person's Google account |
+| Siri (HomePod, "Recognize My Voice") | a switch in the Home app; as far as we know it reuses the "Hey Siri" training from that person's iPhone; up to six people | each person's Apple ID |
+| Alice (Yandex) | since 2019 "Алиса, запомни мой голос" and a few phrases repeated after her; now in the app ("Мой голос"), each family member with their own Yandex account, per station | the account. Early on only the owner's voice; others counted as guests |
+
+What they share:
+
+- **The identity is the account, so there is no naming step.** A person enrolls from their own
+  phone and account; the assistant never asks "who is this?" afterwards.
+- **No grouping of strangers.** Unenrolled voices are not collected or clustered; they are guests.
+  Biometric privacy laws (Illinois' BIPA has been used against voice assistants) make collecting
+  voiceprints without consent a legal risk, which is a reason vendors don't build an album.
+- **Calibration is the vendor's.** Thresholds are tuned on fleet data and shipped fixed; owners
+  see no slider. When unsure, the assistant falls back to the household default or asks; HomePod
+  sends sensitive requests to the iPhone for confirmation, and Alexa purchases use a voice code.
+  Voice alone never authorises anything security-relevant.
+- **Some features need no enrollment:** a child's voice switching Alice into the kids' mode
+  (reported by users, not documented in Yandex' help) is a classifier like the firmware's age model.
+
+What this means for us:
+
+- **Guided enrollment is the main path,** as owners know it from their phones: "Алиса, запомни мой
+  голос" on the speaker, or "Enroll a voice" in the web app, five phrases, a name or an HA person
+  picked from a list. HA persons stand in for the vendors' accounts.
+- **The album is the advanced view,** for the household that wants to check or fix things, not a
+  step everyone must go through.
+- **One default threshold that works,** the slider and the preview under "advanced". Unsure means
+  guest, and voice never gates locks or alarms.
+
 ## Calibration and debugging: voices like faces in a photo album
 
 Nobody should need a week of HA debug recordings, and nobody should label requests one by one.
