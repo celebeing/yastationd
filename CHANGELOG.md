@@ -3,6 +3,15 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Web app**
+- **Assets → Videos** (speakers with a pixel screen): a library of clips for the video mode.
+  Convert a video file right in the browser (frames and a WAV, no ffmpeg) or upload what
+  `cmd/videoconv` made; play one now, pick the one the mode plays, delete
+  ([docs/assets.md](docs/assets.md)).
+- The speaker card's controls lose Faces (it stays under Display and voice).
+
 ## v0.19.0 — 2026-10-28
 
 **Voice**

@@ -5,6 +5,7 @@ import { CalibrationTab, LedTab, LogTab, WifiTab } from './extra'
 import { MomentsTab } from './moments'
 import { Control, name } from './controls'
 import { ConfigPage } from './settings'
+import { VideosTab } from './assets'
 
 // The app (docs/web-ui.md): the speakers on the LAN, and per speaker its sensors, runtime
 // controls, config and login. It is served by every speaker; the one it came from is "home" and
@@ -218,11 +219,12 @@ function About({ list, latest }: { list: Peer[]; latest: { tag: string; url: str
 }
 
 // Two levels: a group, then its tabs (docs/web-ui.md).
-type Tab = 'overview' | 'log' | 'controls' | 'led' | 'general' | 'voice' | 'moments' | 'home' | 'music' | 'intercom' | 'calibration' | 'wifi' | 'account'
+type Tab = 'overview' | 'log' | 'controls' | 'led' | 'videos' | 'general' | 'voice' | 'moments' | 'home' | 'music' | 'intercom' | 'calibration' | 'wifi' | 'account'
 
 const GROUPS: { id: string; name: string; tabs: Tab[] }[] = [
   { id: 'status', name: 'Status', tabs: ['overview', 'log'] },
   { id: 'controls', name: 'Controls', tabs: ['controls', 'led'] },
+  { id: 'assets', name: 'Assets', tabs: ['videos'] },
   { id: 'configuration', name: 'Configuration', tabs: ['general', 'voice', 'moments', 'home', 'music', 'intercom', 'calibration', 'wifi', 'account'] },
 ]
 
@@ -231,6 +233,7 @@ const TAB_NAMES: Record<Tab, string> = {
   log: 'Log',
   controls: 'Display and voice',
   led: 'LED',
+  videos: 'Videos',
   general: 'General',
   voice: 'Voice',
   moments: 'Moments',
@@ -281,7 +284,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
   }, [peer.id])
 
   const available = (t: Tab) =>
-    t === 'led' ? !!features.led_preview : t === 'moments' ? !!features.moments : true
+    t === 'led' ? !!features.led_preview : t === 'moments' ? !!features.moments : t === 'videos' ? !!features.videos : true
 
   if (props.status === 'offline') return <div class="card">{peer.name} does not answer at {peer.url}.</div>
   if (needLogin || props.status === 'login')
@@ -303,7 +306,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
       <SpeakerCard peer={peer} base={base} ents={ents} reload={load} />
       <div class="sp-body">
         <nav class="pnav" aria-label="Speaker sections">
-          {GROUPS.map((g) => (
+          {GROUPS.filter((g) => g.tabs.some(available)).map((g) => (
             <div class="pgroup">
               <div class="pcap">{g.name}</div>
               {g.tabs.filter(available).map((t) => (
@@ -325,6 +328,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
       {tab === 'calibration' && <ConfigPage page="calibration" peer={peer} base={base} />}
       {tab === 'moments' && <MomentsTab peer={peer} base={base} />}
       {tab === 'led' && <LedTab peer={peer} base={base} />}
+      {tab === 'videos' && <VideosTab peer={peer} base={base} reload={load} />}
       {tab === 'wifi' &&
         (features.wifi ? (
           <WifiTab peer={peer} base={base} />
@@ -393,7 +397,6 @@ function SpeakerCard(p: { peer: Peer; base: string; ents: Entity[] | null; reloa
     }
   }
   const mode = ent('display_mode')
-  const faces = ent('display_faces')
   return (
     <header class="spcard">
       <div class="spid">
@@ -432,12 +435,6 @@ function SpeakerCard(p: { peer: Peer; base: string; ents: Entity[] | null; reloa
           <div class="ctl">
             <span class="ctl-name">Display</span>
             <Control e={mode} send={(v) => send('display_mode', v)} />
-          </div>
-        )}
-        {faces && (
-          <div class="ctl">
-            <span class="ctl-name">Faces</span>
-            <Control e={faces} send={(v) => send('display_faces', v)} />
           </div>
         )}
         {err && <p class="err small">{err}</p>}

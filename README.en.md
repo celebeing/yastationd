@@ -108,6 +108,8 @@ HA, from single expressions to timed scenarios across the ring and the display.
   calibration against a lux meter, every setting by topic with an explanation (most apply at once;
   where a restart is needed it is on trial and rolls itself back if the speaker gets worse), the
   login, and an update check. Prometheus metrics at `/metrics`.
+- On a Station 3, **Assets → Videos**: your own clips for its screen (like Bad Apple). A video file
+  is converted right in the browser and uploaded, no ffmpeg needed ([docs/assets.md](docs/assets.md)).
 - One switch makes a setting, option or moment shared by every speaker: they take this speaker's
   value and change together from then on; a speaker that was off catches up when it is back.
   Details: [docs/web-ui.md](docs/web-ui.md), [docs/settings.md](docs/settings.md).

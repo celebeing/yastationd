@@ -140,6 +140,38 @@ export async function tryLogin(id: string, base: string): Promise<boolean> {
 
 export const peers = (id: string, base: string) => authed<Peer[]>(id, base, '/api/peers')
 export const state = (id: string, base: string) => authed<State>(id, base, '/api/state')
+export type VideoAsset = { name: string; frames_bytes: number; audio_bytes: number; current: boolean; modified: number }
+export type Assets = {
+  videos: { supported: boolean; screen: [number, number]; items: VideoAsset[]; current: string; max_frames: number; max_audio: number }
+  free: number
+}
+export const assets = (id: string, base: string) => authed<Assets>(id, base, '/api/assets')
+export const useVideo = (id: string, base: string, name: string) =>
+  authed<{ ok: boolean }>(id, base, '/api/assets/videos/' + name + '/use', { method: 'POST' })
+export const deleteVideo = (id: string, base: string, name: string) =>
+  authed<{ ok: boolean }>(id, base, '/api/assets/videos/' + name, { method: 'DELETE' })
+
+/** uploadAsset PUTs a file to the speaker with progress (fetch has no upload progress). */
+export function uploadAsset(id: string, base: string, path: string, body: Blob, onProgress: (sent: number) => void): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest()
+    x.open('PUT', base + path)
+    const tok = tokenFor(id)
+    if (tok) x.setRequestHeader('Authorization', 'Bearer ' + tok)
+    x.upload.onprogress = (e) => onProgress(e.loaded)
+    x.onload = () => {
+      let b: any = null
+      try {
+        b = JSON.parse(x.responseText)
+      } catch {}
+      if (x.status >= 200 && x.status < 300) resolve(b)
+      else reject(new ApiError(x.status, (b && b.error) || x.statusText))
+    }
+    x.onerror = () => reject(new ApiError(0, 'нет связи'))
+    x.send(body)
+  })
+}
+
 export const control = (id: string, base: string, object: string, payload: string) =>
   authed<{ ok: boolean }>(id, base, '/api/control/' + encodeURIComponent(object), { method: 'POST', body: payload, headers: { 'Content-Type': 'text/plain' } })
 export const getConfig = (id: string, base: string) => authed<{ file: string; text: string; trial: boolean }>(id, base, '/api/config')
@@ -151,7 +183,7 @@ export async function setPassword(id: string, base: string, user: string, passwo
   setCred(user, password)
 }
 
-export type Features = { wifi?: boolean; led_preview?: boolean; moments?: boolean }
+export type Features = { wifi?: boolean; led_preview?: boolean; moments?: boolean; videos?: boolean }
 export type Net = { id: number; ssid: string; security: string; priority: number; disabled: boolean; hidden: boolean }
 /** A moment's candidate: a reference ("wink", "anim:media/Like", "scenario:startup") or a sequence. */
 export type Step = { express?: string; anim?: string; matrix?: string; ring?: string; text?: string; ms?: number; hold?: boolean }

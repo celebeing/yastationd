@@ -229,3 +229,19 @@ details.advanced summary { cursor: pointer; color: var(--muted); margin-bottom: 
 .tag.quiet { color: var(--muted); border-color: var(--line); }
 .settings .applybar { position: sticky; bottom: 0.75rem; top: auto; z-index: 2; margin-top: 1rem; padding: 0.7rem 0.9rem;
   border: 1px solid var(--accent); border-radius: 12px; background: var(--card); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12); }
+
+/* Assets (assets.tsx): the library list, the two ways to add, the upload progress. */
+.assets .card + .card { margin-top: 1rem; }
+.assetlist { width: 100%; border-collapse: collapse; margin: 0.5rem 0; }
+.assetlist td { padding: 0.6rem 0.2rem; border-top: 1px solid var(--line); vertical-align: middle; }
+.assetlist tr.current td:first-child { box-shadow: inset 3px 0 0 var(--accent); padding-left: 0.7rem; }
+.assetlist .actions { text-align: right; white-space: nowrap; }
+.assetlist .actions > * { margin-left: 0.4rem; }
+.segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin: 0.25rem 0 0.5rem; }
+.segmented button { border: 0; border-radius: 0; background: transparent; color: var(--fg); }
+.segmented button.on { background: var(--accent); color: var(--on-accent); }
+.progress { margin-top: 0.6rem; }
+.progress .gauge { display: block; height: 6px; margin-top: 0.3rem; border-radius: 3px; background: color-mix(in srgb, var(--fg) 9%, transparent); overflow: hidden; }
+.progress .gauge i { display: block; height: 100%; background: var(--accent); transition: width 0.3s ease; }
+button.danger { background: var(--err); border-color: var(--err); color: #fff; }
+@media (max-width: 760px) { .assetlist .actions { white-space: normal; text-align: left; } .assetlist tr { display: grid; } }

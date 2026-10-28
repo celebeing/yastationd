@@ -90,6 +90,19 @@ traffic in general, the mic hearing speech. Where it could show: on Station 3 a 
 the screen (a dot per message, or a running trace), on the Minis the colon or the minus segment,
 on any speaker one dim pixel of the ring. Off by default; a setting picks the source and the place.
 
+## Asset kinds and packs
+
+**Status:** idea (2026-10-28); the Assets group exists with one kind, videos ([assets.md](assets.md)).
+
+More kinds of the owner's media, each its own section on the Assets page: **sounds** (the chimes,
+the timer's alarm, the wake and error earcons — today fixed files under `<cfw>/sounds`),
+**animations** (ring and screen clips the moments can pick, today the firmware's and our embedded
+ones), maybe **fonts** for the pixel screen. Then **packs**: one archive with a manifest that
+carries several assets (a theme: sounds + animations + moments that use them), installed and
+removed as a whole, shareable between speakers of the same display kind (the sync could carry a
+pack's name, not its bytes). Needs first: a place for user assets each consumer looks in before its
+built-ins, and names that don't collide with the firmware's.
+
 ## Orion's ultrasound rig
 
 **Status:** idea (2026-10-25); nothing is planned or decided. Hardware exists on orion;

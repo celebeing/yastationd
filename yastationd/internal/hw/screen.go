@@ -67,6 +67,10 @@ type DotMatrix struct {
 	scratch []byte
 }
 
+// SizedDotMatrix is a w×h screen with no device behind it, for tests: it has a size, nothing
+// to draw on.
+func SizedDotMatrix(w, h int) *DotMatrix { return &DotMatrix{w: w, h: h} }
+
 // OpenDotMatrix opens dev (e.g. /dev/fb1) and reads its layout. The pixel format must be
 // 8-bit-per-channel (24/32 bpp); packed 16-bit colour needs a real backend decision.
 func OpenDotMatrix(dev string) (*DotMatrix, error) {

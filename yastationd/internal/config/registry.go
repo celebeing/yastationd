@@ -266,10 +266,10 @@ func init() {
 		listV(func(c *Config) *[]string { return &c.Unmute }))
 
 	// --- video ---
-	reg(Key{Name: "video_frames", Group: "video", Label: "Video frames", Advanced: true, Needs: "pixels",
-		Doc: "The video mode's frames file (made by cmd/videoconv)."}, textV(func(c *Config) *string { return &c.VideoFrames }, nil))
-	reg(Key{Name: "video_audio", Group: "video", Label: "Video sound", Advanced: true, Needs: "pixels",
-		Doc: "The video mode's WAV."}, textV(func(c *Config) *string { return &c.VideoAudio }, nil))
+	reg(Key{Name: "video_frames", Group: "video", Label: "Video frames", Runtime: true, Advanced: true, Needs: "pixels",
+		Doc: "The video mode's frames file (made by cmd/videoconv, or picked on the Assets page)."}, textV(func(c *Config) *string { return &c.VideoFrames }, nil))
+	reg(Key{Name: "video_audio", Group: "video", Label: "Video sound", Runtime: true, Advanced: true, Needs: "pixels",
+		Doc: "The video mode's WAV (picked with the frames on the Assets page)."}, textV(func(c *Config) *string { return &c.VideoAudio }, nil))
 	reg(Key{Name: "video_av_offset_ms", Group: "video", Label: "Picture offset", Runtime: true, Needs: "pixels", Advanced: true,
 		Doc: "Shifts the picture against the sound; positive shows it later."},
 		durV(-2000, 2000, time.Millisecond, func(c *Config) *time.Duration { return &c.VideoAVOffset }))

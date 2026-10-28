@@ -120,6 +120,8 @@ func (a *App) webHandler() http.Handler {
 	api.HandleFunc("/api/log", a.authed(a.apiLog))
 	api.HandleFunc("/api/vitals", a.authed(a.apiVitals))
 	api.HandleFunc("/api/diag", a.authed(a.apiDiag))
+	api.HandleFunc("/api/assets", a.authed(a.apiAssets))
+	api.HandleFunc("/api/assets/", a.authed(a.apiAssets))
 	api.HandleFunc("/api/calibrate/light", a.authed(a.apiLightCal))
 
 	mux := http.NewServeMux()
