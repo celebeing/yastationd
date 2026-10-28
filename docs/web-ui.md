@@ -57,6 +57,7 @@ to the binary. Flash is written only when the config is saved.
 | `POST /api/control/<object>` | set a control: the body is the same payload as its MQTT command |
 | `GET /api/config`, `PUT /api/config` | the config file's text; a save is validated, then applied live or by a trial restart (below, and [settings.md](settings.md)) |
 | `GET /api/assets`, `PUT /api/assets/videos/<name>/frames\|audio`, `POST …/use`, `DELETE /api/assets/videos/<name>` | the owner's media, by kind ([assets.md](assets.md)) |
+| `GET\|PUT /api/packs`, `PUT /api/packs/stack`, `POST /api/packs/<id>/apply\|import`, `DELETE /api/packs/<id>`, `GET /api/packs/custom/export`, `PUT\|DELETE /api/packs/custom/sounds\|anims/<name>` | asset packs and the theme stack; the owner's own sounds and animations ([asset-packs.md](asset-packs.md)) |
 | `GET /api/diag[?raw=1]` | the diagnostics archive (tar.gz) from `<cfw>/bin/diag.sh`, redacted unless raw ([diagnostics.md](diagnostics.md)) |
 | `GET /api/vitals` | the speaker card's vitals: the speaker's and the daemon's uptime, load and cores, memory (total, available, the daemon's), the flash under the CFW, every thermal zone |
 | `GET /api/settings`, `PUT /api/settings` | the config keys with their descriptions; set some ([settings.md](settings.md)) |

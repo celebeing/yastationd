@@ -15,6 +15,7 @@ top-level [README](../README.md) is the feature list, [CHANGELOG](../CHANGELOG.m
 cmd/yastationd        main: flags, config, signal handling, tzdata embed
 cmd/ringdemo          dev tool: real ring effects (make build-ringdemo / make stage-ringdemo; stop yastationd first)
 cmd/fbleddemo         dev tool: front-screen `-clock`/`-uwu` smoke modes (make build-fbleddemo / make stage-fbleddemo; stop yastationd first)
+cmd/packtool          host tool: zip a pack directory and check it as a speaker would (make pack PACK=<dir>; docs/asset-packs.md)
 internal/board        board profiles: hardware, CFW root, helper architecture, device-tree detection
 internal/config       <cfw>/yastationd.conf parser (<cfw> = /bkupgrade/cfw on bergamot/orion, /data/cfw on pickle)
 internal/hw           sysfs LEDs (ring, matrix), evdev input, amixer/aplay, IIO lux

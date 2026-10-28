@@ -174,7 +174,7 @@ func (a *App) momentDefault(name string) []show {
 
 // momentCandidates lists what a moment may show on this speaker, in order.
 func (a *App) momentCandidates(name string) []show {
-	if c, ok := a.userMomentMap()[name]; ok {
+	if c, _, ok := a.themeMoment(name); ok {
 		return c
 	}
 	return a.momentDefault(name)

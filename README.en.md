@@ -120,6 +120,12 @@ HA, from single expressions to timed scenarios across the ring and the display.
   login, and an update check.
 - On a Station 3, **Assets → Videos**: your own clips for its screen (like Bad Apple). A video file
   is converted right in the browser and uploaded, no ffmpeg needed ([docs/assets.md](docs/assets.md)).
+- **Themes and asset packs**: everything the speaker does when something happens (the faces, the
+  ring, every sound, the status lights) is a moment you can change, sounds included, together or
+  one after another. **Assets → Packs** installs packs of animations, sounds and moments (a
+  .zip; packs live in their own repositories) and orders them as a theme, top first; **Assets →
+  Sounds** plays, adds and replaces sounds; your own changes can be saved as a pack
+  ([docs/asset-packs.md](docs/asset-packs.md)).
 - One switch makes a setting, option or moment shared by every speaker: they take this speaker's
   value and change together from then on; a speaker that was off catches up when it is back.
   Details: [docs/web-ui.md](docs/web-ui.md), [docs/settings.md](docs/settings.md).

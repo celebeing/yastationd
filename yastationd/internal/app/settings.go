@@ -114,6 +114,7 @@ func (a *App) adoptConfig(data []byte) {
 	next, _ := config.ParseLenient(strings.NewReader(string(data)))
 	next.File = a.cfg().File
 	a.conf.Store(&next)
+	a.refreshPackAnims() // the theme key may have moved
 }
 
 // settingView is one config key as the settings page shows it.

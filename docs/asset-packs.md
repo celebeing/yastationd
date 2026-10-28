@@ -1,7 +1,8 @@
 # Asset packs and themes
 
-Status (2026-10-29): phase 1 (every reaction a moment, sounds in moments) built and tested on
-the desk; phases 2–3 designed.
+Status (2026-10-29): phases 1–3 built and tested on the desk (Go tests), deployed to the dev
+units; not yet tried with a real pack on a unit. Still open: a converter for animations
+(GIF/PNG → `.led` / `.scled`), ring animations from files, a pack catalogue.
 
 What the owner wants: download extra animations and sounds (an anime pack that swaps every face
 for anime emotes; a Half-Life sound pack), apply them in one go as a preset, and save their own.
@@ -82,21 +83,36 @@ front for an animation the display lacks. The catalogue lists the sounds this sp
 
 ## Phase 2: the theme stack and packs on the speaker
 
-- `themes` (list, shared, runtime): pack ids, top first. Empty = the default theme alone.
+`internal/app/packs.go`.
+
+- `theme` (a list, shared, runtime): pack ids, top first. Empty = the default theme alone.
 - `<cfw>/packs/<id>/pack.json` + files. The lookups (moments, sounds, animations) read the stack
   at the point of use; an animation in a pack overrides by its exact name, before the stock
   candidates of a semantic name (`listening` in a pack beats the firmware's `alice_listening`).
-- `<cfw>/moments.json` (the owner's moments today) becomes the `custom` pack's moments, placed on
-  top of the stack once, so nothing changes for a speaker that has them.
+- The owner's own pack, `custom`, keeps its moments in `<cfw>/moments.json` (the Moments tab, as
+  before) and its sounds and animations under `<cfw>/packs/custom/`. Not named in `theme`, it
+  sits just above the default theme, so a speaker with its own moments sees no change; a pack
+  applied on top overrides it.
+- A pack's animation directories feed the front display's pack layer (`display.Seg7Front.Packs`,
+  `PixelFront.PackPatterns`), re-pointed when the theme key changes or a pack is installed.
 - A speaker that lacks a pack the shared stack names skips it (the web app says which and offers
   the upload).
 
 ## Phase 3: packs in the web app
 
-Assets → Packs: upload an archive (`.zip`), see what it carries and which displays it supports,
-order the stack (drag or up/down), remove; import a pack's moments into `custom`; export `custom`
-as an archive. Assets → Sounds: the sounds by name (stock, from packs, the owner's uploads), play
-one, upload a WAV into `custom`.
+Assets → Packs (`web/src/packs.tsx`): the theme stack (up/down, take out), the installed packs
+(what each has for this speaker; Apply = on top, Copy moments = into `custom` to edit, Remove),
+upload a `.zip` (checked on the speaker), save `custom` as a pack archive. Assets → Sounds: every
+sound by name and where it comes from, Play (on the speaker), add one (any audio the browser
+decodes, converted to WAV there) or remove the owner's. The Moments tab marks a moment a pack
+sets, and says when an edit sits under a pack.
+
+API (behind the login): `GET /api/packs` → `{packs: [{id, name, version, author, source,
+license, displays, moments, sounds, anims, fits, bytes, position}], stack, display, missing,
+free, max_bytes}`; `PUT /api/packs` (the zip, ≤ 32 MB, ≤ 64 MB unpacked); `PUT
+/api/packs/stack {"stack": [ids]}`; `POST /api/packs/<id>/apply`, `/import`; `DELETE
+/api/packs/<id>`; `GET /api/packs/custom/export?id=&name=`; `PUT|DELETE
+/api/packs/custom/sounds|anims/<name>`.
 
 ## The pack format
 
@@ -123,8 +139,9 @@ path outside the pack or an archive over the size limit refuses the pack. The pa
 should be prefixed (`hl_`, `anime_`) where they are new, so two packs don't collide; a name that
 matches a stock one replaces it on purpose.
 
-`cmd/packtool` (phase 3): build and check a pack on the host (GIF/PNG frames → `.led` / `.scled`,
-mp3/ogg → WAV via ffmpeg, validate, zip).
+`cmd/packtool` builds and checks a pack on the host with the speaker's own checks: `make pack
+PACK=<dir>` zips a pack directory (dot files left out) and checks it; `make pack PACK=x.zip`
+checks an archive. To come: GIF/PNG frames → `.led` / `.scled`, mp3/ogg → WAV.
 
 ## Open
 

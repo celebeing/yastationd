@@ -246,3 +246,8 @@ button.danger { background: var(--err); border-color: var(--err); color: var(--o
 
 /* docs/design.md: motion only answers an action, and none at all when the system asks. */
 @media (prefers-reduced-motion: reduce) { .switch span, .switch span::before, .vitals .gauge i, .progress .gauge i { transition: none; } }
+
+/* Assets → Packs: the theme stack, top first. */
+ol.stack { list-style: none; margin: 0.6rem 0 0; padding: 0; }
+ol.stack li { margin-top: 0; padding: 0.35rem 0; border-top: 1px solid var(--line); }
+.warn-text { color: var(--warn); }

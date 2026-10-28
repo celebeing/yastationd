@@ -2,6 +2,8 @@ package display
 
 import (
 	"fmt"
+	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -80,6 +82,8 @@ type Front interface {
 // Seg7Front is a 4-digit 7-segment display; its animations are the stock clock clips.
 type Seg7Front struct {
 	Clips *ClipLibrary
+	// Packs are the theme stack's clips (docs/asset-packs.md): looked up by the exact name first.
+	Packs *ClipLibrary
 }
 
 func (Seg7Front) Kind() string { return "seg7" }
@@ -154,6 +158,11 @@ var seg7Anims = map[string][]string{
 }
 
 func (f Seg7Front) Anim(name string) (Anim, bool) {
+	if f.Packs != nil {
+		if c, ok := f.Packs.Load(name); ok { // a theme's clip by the exact name wins
+			return c, true
+		}
+	}
 	if f.Clips == nil {
 		return nil, false
 	}
@@ -178,10 +187,20 @@ func pickAnim[A Anim](table map[string][]string, name string, load func(...strin
 }
 
 func (f Seg7Front) Anims() []string {
-	if f.Clips == nil {
-		return nil
+	var out []string
+	if f.Packs != nil {
+		out = f.Packs.Names()
 	}
-	return f.Clips.Names()
+	if f.Clips != nil {
+		out = append(out, f.Clips.Names()...)
+	}
+	return uniqueSorted(out)
+}
+
+// uniqueSorted sorts names and drops repeats.
+func uniqueSorted(names []string) []string {
+	sort.Strings(names)
+	return slices.Compact(names)
 }
 
 // PixelFront is a dot-matrix screen. Its animations are the firmware's own screen patterns; the
@@ -192,7 +211,9 @@ type PixelFront struct {
 	Seg7Front
 	W, H     int
 	Patterns *PixelLibrary
-	Gamma    float64 // the screen's gamma for our own drawings (the patterns carry their own)
+	// PackPatterns are the theme stack's patterns (docs/asset-packs.md), by the exact name first.
+	PackPatterns *PixelLibrary
+	Gamma        float64 // the screen's gamma for our own drawings (the patterns carry their own)
 	// TextLines is the text layout (pixeltext.go): 0 auto, 1 one line, 2 two lines.
 	TextLines int
 }
@@ -231,6 +252,11 @@ var pixelAnims = map[string][]string{
 }
 
 func (f PixelFront) Anim(name string) (Anim, bool) {
+	if f.PackPatterns != nil {
+		if c, ok := f.PackPatterns.Load(name); ok { // a theme's pattern by the exact name wins
+			return c, true
+		}
+	}
 	if f.Patterns == nil {
 		return nil, false
 	}
@@ -238,10 +264,14 @@ func (f PixelFront) Anim(name string) (Anim, bool) {
 }
 
 func (f PixelFront) Anims() []string {
-	if f.Patterns == nil {
-		return nil
+	var out []string
+	if f.PackPatterns != nil {
+		out = f.PackPatterns.Names()
 	}
-	return f.Patterns.Names()
+	if f.Patterns != nil {
+		out = append(out, f.Patterns.Names()...)
+	}
+	return uniqueSorted(out)
 }
 
 // ScreenPixels draws a front frame on a pixel screen: its own pixels, or the 7-segment picture via

@@ -178,7 +178,7 @@ export async function setPassword(id: string, base: string, user: string, passwo
   setCred(user, password)
 }
 
-export type Features = { wifi?: boolean; led_preview?: boolean; moments?: boolean; videos?: boolean }
+export type Features = { wifi?: boolean; led_preview?: boolean; moments?: boolean; videos?: boolean; packs?: boolean }
 export type Net = { id: number; ssid: string; security: string; priority: number; disabled: boolean; hidden: boolean }
 /** A moment's candidate: a reference ("wink", "anim:media/Like", "scenario:startup") or a sequence. */
 /** A step of a sequence (docs/asset-packs.md): what it shows and plays at once; a step with none is a pause. */
@@ -198,7 +198,8 @@ export type Step = {
 }
 export type Show = string | { steps: Step[] }
 /** custom: the owner's candidates (null = the defaults); shows: the index of the one shown here (-1 none). */
-export type Moment = { name: string; when: string; default: Show[]; custom: Show[] | null; shows: number }
+/** from: the pack whose candidates are in force ("" = the defaults); current: those candidates. */
+export type Moment = { name: string; when: string; default: Show[]; custom: Show[] | null; shows: number; from?: string; current?: Show[] }
 export type MomentCatalog = {
   display: string
   expressions: string[] | null
@@ -225,13 +226,14 @@ export const calibrateLight = (id: string, base: string, lux: number) =>
   authed<LightCal>(id, base, '/api/calibrate/light', { method: 'POST', body: JSON.stringify({ lux }) }, 40000)
 export const removeLightCal = (id: string, base: string) => authed<LightCal>(id, base, '/api/calibrate/light', { method: 'DELETE' })
 /** diag fetches the speaker's diagnostics archive (docs/diagnostics.md): redacted unless raw. */
-export async function diag(id: string, base: string, raw: boolean): Promise<{ blob: Blob; name: string }> {
+/** download GETs a file behind the login: its bytes and the name the speaker gives it. */
+async function download(id: string, base: string, path: string, fallback: string, timeoutMs = 30000): Promise<{ blob: Blob; name: string }> {
   const ctl = new AbortController()
-  const timer = setTimeout(() => ctl.abort(), 150000) // the script takes up to ~2 min on a busy speaker
+  const timer = setTimeout(() => ctl.abort(), timeoutMs)
   let r: Response
   try {
     const tok = tokenFor(id)
-    r = await fetch(base + '/api/diag' + (raw ? '?raw=1' : ''), { headers: tok ? { Authorization: 'Bearer ' + tok } : {}, signal: ctl.signal })
+    r = await fetch(base + path, { headers: tok ? { Authorization: 'Bearer ' + tok } : {}, signal: ctl.signal })
   } catch {
     throw new ApiError(0, NO_LINK)
   } finally {
@@ -245,9 +247,39 @@ export async function diag(id: string, base: string, raw: boolean): Promise<{ bl
     if (r.status === 401) setToken(id, null)
     throw new ApiError(r.status, msg)
   }
-  const name = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') || '')?.[1] || `diag-${id}.tar.gz`
+  const name = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') || '')?.[1] || fallback
   return { blob: await r.blob(), name }
 }
+
+/** diag: the speaker's diagnostics archive (the script takes up to ~2 min on a busy speaker). */
+export const diag = (id: string, base: string, raw: boolean) => download(id, base, '/api/diag' + (raw ? '?raw=1' : ''), `diag-${id}.tar.gz`, 150000)
+
+/** An installed asset pack as the Packs page sees it (docs/asset-packs.md). */
+export type Pack = {
+  id: string
+  name: string
+  version?: string
+  author?: string
+  source?: string
+  license?: string
+  displays?: string[]
+  moments: string[] | null
+  sounds: string[] | null
+  anims: string[] | null
+  fits: boolean
+  bytes: number
+  position: number
+}
+export type Packs = { packs: Pack[]; stack: string[]; display: string; missing: string[] | null; free: number; max_bytes: number }
+export const packs = (id: string, base: string) => authed<Packs>(id, base, '/api/packs')
+export const packStack = (id: string, base: string, stack: string[]) => authed<Packs>(id, base, '/api/packs/stack', { method: 'PUT', body: JSON.stringify({ stack }) })
+export const packAction = (id: string, base: string, pack: string, what: 'apply' | 'import') =>
+  authed<Packs>(id, base, `/api/packs/${encodeURIComponent(pack)}/${what}`, { method: 'POST' })
+export const deletePack = (id: string, base: string, pack: string) => authed<Packs>(id, base, '/api/packs/' + encodeURIComponent(pack), { method: 'DELETE' })
+export const deleteCustomAsset = (id: string, base: string, kind: 'sounds' | 'anims', name: string) =>
+  authed<Packs>(id, base, `/api/packs/custom/${kind}/${encodeURIComponent(name)}`, { method: 'DELETE' })
+export const exportTheme = (id: string, base: string, pack: string, name: string) =>
+  download(id, base, `/api/packs/custom/export?id=${encodeURIComponent(pack)}&name=${encodeURIComponent(name)}`, pack + '.zip')
 
 export const log = (id: string, base: string, source: string, lines: number) =>
   authed<{ source: string; lines: string[] }>(id, base, `/api/log?source=${encodeURIComponent(source)}&lines=${lines}`)

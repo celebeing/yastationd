@@ -6,6 +6,7 @@ import { MomentsTab } from './moments'
 import { Control, name } from './controls'
 import { ConfigPage } from './settings'
 import { VideosTab } from './assets'
+import { PacksTab, SoundsTab } from './packs'
 
 // The app (docs/web-ui.md): the speakers on the LAN, and per speaker its sensors, runtime
 // controls, config and login. It is served by every speaker; the one it came from is "home" and
@@ -219,12 +220,12 @@ function About({ list, latest }: { list: Peer[]; latest: api.Release | null }) {
 }
 
 // Two levels: a group, then its tabs (docs/web-ui.md).
-type Tab = 'overview' | 'log' | 'controls' | 'led' | 'videos' | 'general' | 'voice' | 'moments' | 'home' | 'music' | 'intercom' | 'calibration' | 'wifi' | 'account'
+type Tab = 'overview' | 'log' | 'controls' | 'led' | 'packs' | 'sounds' | 'videos' | 'general' | 'voice' | 'moments' | 'home' | 'music' | 'intercom' | 'calibration' | 'wifi' | 'account'
 
 const GROUPS: { id: string; name: string; tabs: Tab[] }[] = [
   { id: 'status', name: 'Status', tabs: ['overview', 'log'] },
   { id: 'controls', name: 'Controls', tabs: ['controls', 'led'] },
-  { id: 'assets', name: 'Assets', tabs: ['videos'] },
+  { id: 'assets', name: 'Assets', tabs: ['packs', 'sounds', 'videos'] },
   { id: 'configuration', name: 'Configuration', tabs: ['general', 'voice', 'moments', 'home', 'music', 'intercom', 'calibration', 'wifi', 'account'] },
 ]
 
@@ -233,6 +234,8 @@ const TAB_NAMES: Record<Tab, string> = {
   log: 'Log',
   controls: 'Display and voice',
   led: 'LED',
+  packs: 'Packs',
+  sounds: 'Sounds',
   videos: 'Videos',
   general: 'General',
   voice: 'Voice',
@@ -284,7 +287,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
   }, [peer.id])
 
   const available = (t: Tab) =>
-    t === 'led' ? !!features.led_preview : t === 'moments' ? !!features.moments : t === 'videos' ? !!features.videos : true
+    t === 'led' ? !!features.led_preview : t === 'moments' ? !!features.moments : t === 'videos' ? !!features.videos : t === 'packs' || t === 'sounds' ? !!features.packs : true
 
   if (props.status === 'offline') return <div class="card">{peer.name} does not answer at {peer.url}.</div>
   if (needLogin || props.status === 'login')
@@ -328,6 +331,8 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
       {tab === 'calibration' && <ConfigPage page="calibration" peer={peer} base={base} />}
       {tab === 'moments' && <MomentsTab peer={peer} base={base} />}
       {tab === 'led' && <LedTab peer={peer} base={base} />}
+      {tab === 'packs' && <PacksTab peer={peer} base={base} />}
+      {tab === 'sounds' && <SoundsTab peer={peer} base={base} />}
       {tab === 'videos' && <VideosTab peer={peer} base={base} reload={load} />}
       {tab === 'wifi' &&
         (features.wifi ? (

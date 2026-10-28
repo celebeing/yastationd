@@ -28,7 +28,7 @@ VERSION  := $(shell git describe --tags --match 'v*' --dirty --always 2>/dev/nul
 GOFLAGS  := -trimpath -ldflags="-s -w -X github.com/celebeing/yastationd/yastationd/internal/version.Version=$(VERSION)"
 GOENV    := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: web webui-dist all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds vqe-models deploy clips deploy-egress ota-block video video-convert
+.PHONY: web webui-dist all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds vqe-models deploy clips deploy-egress ota-block video video-convert pack
 
 
 all: test build
@@ -190,6 +190,13 @@ vqe-models:
 # (-fit crop, -fps 25). Third-party media: never stored in the repo.
 VIDEO ?=
 VIDEO_FLAGS ?=
+# Build and check an asset pack (docs/asset-packs.md): make pack PACK=<pack dir or .zip> [PACK_OUT=x.zip]
+PACK ?=
+PACK_OUT ?=
+pack:
+	@test -n "$(PACK)" || { echo "usage: make pack PACK=<pack dir or .zip> [PACK_OUT=out.zip]"; exit 2; }
+	go run ./cmd/packtool $(if $(PACK_OUT),-o $(PACK_OUT)) "$(PACK)"
+
 video-convert:
 	@test -n "$(VIDEO)" || { echo "usage: make video VIDEO=<local video file>"; exit 2; }
 	go build -o build/videoconv ./cmd/videoconv

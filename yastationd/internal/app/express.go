@@ -134,6 +134,7 @@ func (a *App) unexpress(slot string) {
 }
 
 // newFront picks the front display's scene catalogue by its kind. Animations are searched in the
+// theme stack's packs by their exact name (refreshPackAnims), then by the semantic map in the
 // CFW's clips directory, then the firmware's (then, on seg7, among our embedded clips).
 func (a *App) newFront() display.Front {
 	dirs := []string{a.cfg().Path(a.cfg().ClipsDir)}
@@ -144,9 +145,10 @@ func (a *App) newFront() display.Front {
 	case a.screen != nil:
 		w, h := a.screen.Size()
 		return display.PixelFront{W: w, H: h, Gamma: a.prof.Matrix.Gamma, TextLines: a.cfg().TextLines,
-			Patterns: &display.PixelLibrary{Dirs: dirs, W: w, H: h, Gamma: a.prof.Matrix.Gamma}}
+			Patterns:     &display.PixelLibrary{Dirs: dirs, W: w, H: h, Gamma: a.prof.Matrix.Gamma},
+			PackPatterns: &display.PixelLibrary{W: w, H: h, Gamma: a.prof.Matrix.Gamma}}
 	case a.matrix != nil:
-		return display.Seg7Front{Clips: &display.ClipLibrary{Dirs: dirs}}
+		return display.Seg7Front{Clips: &display.ClipLibrary{Dirs: dirs}, Packs: &display.ClipLibrary{NoBuiltin: true}}
 	}
 	return nil
 }

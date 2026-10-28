@@ -16,9 +16,10 @@ import (
 // soundName is what a sound may be called: it is a file name in every sound directory.
 var soundName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,39}$`)
 
-// soundDirs are the directories a sound name is looked up in, first match wins.
+// soundDirs are the directories a sound name is looked up in, first match wins: the theme
+// stack's packs, then the decoded stock sounds.
 func (a *App) soundDirs() []string {
-	return []string{a.cfwFile("sounds")}
+	return append(a.packSoundDirs(), a.cfwFile("sounds"))
 }
 
 // soundPath is the WAV a sound name plays; "" when no directory has it. A name may list

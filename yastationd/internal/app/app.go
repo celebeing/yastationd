@@ -110,6 +110,7 @@ type App struct {
 	luxSmooth   atomic.Uint64                     // smoothed light in lux (float64 bits), published to HA
 	luxKnown    atomic.Bool                       // luxSmooth holds a reading (0 lux in the dark is one)
 	yields      sync.Map                          // slot -> func() bool: its layers see-through (sequence.go)
+	packs       atomic.Pointer[map[string]*pack]  // the installed asset packs (packs.go)
 	luxReading  atomic.Uint64                     // the same reading before the calibration (float64 bits)
 	userMoments atomic.Pointer[map[string][]show] // <cfw>/moments.json (moments.go)
 	luxUnitCal  atomic.Pointer[[]luxcal.Point]    // set from the web app (lightcal.go); nil = the config's
@@ -240,6 +241,7 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 
 	a.ringStack = display.NewStack(a.ringBase)
 	a.matrixStack = display.NewStack(a.matrixBase)
+	a.loadPacks()
 	if err := a.loadMoments(); err != nil {
 		a.log.Warn("moments: the owner's file is ignored", "err", err)
 	}

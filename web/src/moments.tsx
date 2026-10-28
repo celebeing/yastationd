@@ -129,12 +129,13 @@ export function MomentsTab({ peer, base }: { peer: Peer; base: string }) {
       {list && cat && (
         <div class="moments">
           {list.map((m) => {
-            const cur = m.custom ?? m.default
+            const cur = m.current ?? m.custom ?? m.default
+            const theme = m.from && m.from !== 'custom' ? m.from : ''
             return (
               <div class={'moment' + (open === m.name ? ' open' : '')} key={m.name}>
                 <div class="mhead">
                   <div class="mname">
-                    <b>{m.name}</b> {m.custom && <span class="badge">custom</span>}
+                    <b>{m.name}</b> {theme ? <span class="badge" title={m.custom ? 'Your own is below this pack in the theme' : ''}>{theme}</span> : m.custom && <span class="badge">custom</span>}
                     <div class="muted small">{m.when}</div>
                   </div>
                   <div class="mshows small">
@@ -150,6 +151,12 @@ export function MomentsTab({ peer, base }: { peer: Peer; base: string }) {
                     </button>
                   </div>
                 </div>
+                {open === m.name && theme && (
+                  <p class="small warn-text">
+                    The pack {theme} sets this moment and sits above your own: what you save here shows once “Your own” is above it (Assets → Packs),
+                    or start from the pack's version there with “Copy moments”.
+                  </p>
+                )}
                 {open === m.name && (
                   <MomentEditor
                     m={m}

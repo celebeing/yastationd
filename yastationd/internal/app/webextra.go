@@ -25,6 +25,7 @@ func (a *App) features() map[string]bool {
 		"led_preview": a.tap != nil && a.cfg().LEDPreview,
 		"moments":     true,
 		"videos":      a.screen != nil, // the Assets page's videos (assets.go)
+		"packs":       true,            // the Assets page's packs and sounds (packs.go)
 	}
 }
 
@@ -77,6 +78,8 @@ type momentView struct {
 	Default []show `json:"default"`
 	Custom  []show `json:"custom"`
 	Shows   int    `json:"shows"`
+	From    string `json:"from,omitempty"` // the pack whose candidates are in force ("" = the defaults)
+	Current []show `json:"current"`        // the candidates in force
 }
 
 // momentCatalogView is what a moment can be made of on this speaker.
@@ -102,6 +105,8 @@ func (a *App) momentViews() []momentView {
 	var out []momentView
 	for _, m := range momentCatalog {
 		v := momentView{momentInfo: m, Default: a.momentDefault(m.Name), Custom: custom[m.Name], Shows: -1}
+		_, v.From, _ = a.themeMoment(m.Name)
+		v.Current = a.momentCandidates(m.Name)
 		for i, c := range a.momentCandidates(m.Name) {
 			if a.available(c) {
 				v.Shows = i

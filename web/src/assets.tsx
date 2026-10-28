@@ -357,13 +357,7 @@ export async function convertVideo(
     progress('Converting the sound', 0)
     let audio: Blob | null = null
     try {
-      const decoded = await new OfflineAudioContext(2, 1, 48000).decodeAudioData(await file.arrayBuffer())
-      const off = new OfflineAudioContext(2, Math.ceil(decoded.duration * 48000), 48000)
-      const src = off.createBufferSource()
-      src.buffer = decoded // a mono track is spread to both channels
-      src.connect(off.destination)
-      src.start()
-      audio = wav(await off.startRendering())
+      audio = await toWav(file)
     } catch {
       audio = null // no sound track, or one the browser cannot decode: the video plays silently
     }
@@ -372,6 +366,17 @@ export async function convertVideo(
   } finally {
     URL.revokeObjectURL(url)
   }
+}
+
+/** toWav decodes any audio the browser can (MP3, OGG, a video's track) into a 48 kHz stereo WAV. */
+export async function toWav(file: Blob): Promise<Blob> {
+  const decoded = await new OfflineAudioContext(2, 1, 48000).decodeAudioData(await file.arrayBuffer())
+  const off = new OfflineAudioContext(2, Math.ceil(decoded.duration * 48000), 48000)
+  const src = off.createBufferSource()
+  src.buffer = decoded // a mono track is spread to both channels
+  src.connect(off.destination)
+  src.start()
+  return wav(await off.startRendering())
 }
 
 /** wav: an AudioBuffer as a 16-bit PCM WAV, the format the speaker plays (aplay). */

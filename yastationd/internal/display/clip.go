@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -262,9 +263,18 @@ var ownClips embed.FS
 // one is looked up again next time (`make clips` may have run since).
 type ClipLibrary struct {
 	Dirs []string
+	// NoBuiltin leaves our embedded clips out (a library of packs only).
+	NoBuiltin bool
 
 	mu    sync.Mutex
 	cache map[string]Clip
+}
+
+// SetDirs replaces the directories and drops the cache (the theme stack or a pack changed).
+func (l *ClipLibrary) SetDirs(dirs []string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.Dirs, l.cache = slices.Clone(dirs), nil
 }
 
 // Load returns the first clip found among names (aliases across firmware versions) that lights
@@ -300,6 +310,9 @@ func (l *ClipLibrary) find(name string) (Clip, error) {
 			}
 		}
 	}
+	if l.NoBuiltin {
+		return Clip{}, fmt.Errorf("clip %q not found", name)
+	}
 	f, err := ownClips.Open("clips/" + name + ".scled")
 	if err != nil {
 		return Clip{}, err
@@ -310,6 +323,8 @@ func (l *ClipLibrary) find(name string) (Clip, error) {
 
 // Names lists every clip available: the directories' and ours, sorted, without duplicates.
 func (l *ClipLibrary) Names() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	seen := map[string]bool{}
 	var out []string
 	add := func(n string) {
@@ -324,9 +339,11 @@ func (l *ClipLibrary) Names() []string {
 			add(strings.TrimSuffix(filepath.Base(p), ".scled"))
 		}
 	}
-	m, _ := fs.Glob(ownClips, "clips/*.scled")
-	for _, p := range m {
-		add(strings.TrimSuffix(filepath.Base(p), ".scled"))
+	if !l.NoBuiltin {
+		m, _ := fs.Glob(ownClips, "clips/*.scled")
+		for _, p := range m {
+			add(strings.TrimSuffix(filepath.Base(p), ".scled"))
+		}
 	}
 	sort.Strings(out)
 	return out

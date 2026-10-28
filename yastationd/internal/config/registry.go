@@ -48,6 +48,7 @@ type Key struct {
 // marked Advanced are folded at the bottom of their page.
 var Groups = []struct{ ID, Title, Page string }{
 	{"display", "Display", "general"},
+	{"theme", "Theme", "general"},
 	{"ambilight", "Ambilight", "general"},
 	{"sound", "Sound", "general"},
 	{"video", "Video", "general"},
@@ -281,6 +282,9 @@ func init() {
 	reg(Key{Name: "auto_brightness", Group: "initial", Label: "Auto brightness", Advanced: true,
 		Doc: "Only the value a new speaker starts with; afterwards the Auto brightness option rules."},
 		boolV(func(c *Config) *bool { return &c.AutoBrightness }))
+	reg(Key{Name: "theme", Group: "theme", Label: "Theme packs", Runtime: true, Sync: true,
+		Doc: "The asset packs in force, one id per line, the top one first (docs/asset-packs.md): a moment, a sound or an animation comes from the first pack that has it, else from the default theme. Your own moments are the pack custom; not listed, it sits just above the default theme. A pack this speaker does not have is skipped. Assets → Packs sets it."},
+		listV(func(c *Config) *[]string { return &c.Themes }))
 	reg(Key{Name: "display_faces", Group: "initial", Label: "Faces", Advanced: true,
 		Doc: "Only the value a new speaker starts with; afterwards the Display faces option rules."},
 		boolV(func(c *Config) *bool { return &c.DisplayFaces }))

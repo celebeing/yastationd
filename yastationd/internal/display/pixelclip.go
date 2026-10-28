@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -195,6 +196,13 @@ type PixelLibrary struct {
 	cache map[string]PixelClip
 }
 
+// SetDirs replaces the directories and drops the cache (the theme stack or a pack changed).
+func (l *PixelLibrary) SetDirs(dirs []string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.Dirs, l.cache = slices.Clone(dirs), nil
+}
+
 // Load returns the first pattern found among names that lights something.
 func (l *PixelLibrary) Load(names ...string) (PixelClip, bool) {
 	l.mu.Lock()
@@ -249,6 +257,8 @@ func (l *PixelLibrary) find(name string) (PixelClip, error) {
 
 // Names lists every pattern in the directories (relative names), sorted, without duplicates.
 func (l *PixelLibrary) Names() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	seen := map[string]bool{}
 	var out []string
 	for _, d := range l.Dirs {
