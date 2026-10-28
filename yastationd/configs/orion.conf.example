@@ -125,7 +125,6 @@ log_level = debug
 # boot_connect_timeout = 40
 # Asset packs in force, top first, one per line (docs/asset-packs.md; Assets → Packs sets it):
 # theme = <pack id>
-# display_faces = true          (voice expressions on the screen at first start)
 # announce_chime = true         (a chime before an HA announcement; needs `make sounds`)
 # Music Assistant player (docs/music-sendspin.md). Off by default.
 # sendspin          = true

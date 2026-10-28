@@ -267,7 +267,7 @@ func (a *App) play(slot, name string, shows []show, ttl time.Duration, prio int)
 		if e.ring == "" || stepsHaveRing(steps) {
 			e.ring = ""
 		}
-		a.runSteps(slot, steps, ttl, prio, stepRingPrio(prio), e.ring, e.ringPrio)
+		a.runSteps(slot, steps, ttl, prio, display.PrioScenario, e.ring, e.ringPrio)
 		return true
 	}
 	return false
@@ -285,7 +285,9 @@ func (a *App) fire(name string) (shown bool, soundEnd time.Duration) {
 	m := momentByName[name]
 	slot := cmp.Or(m.slot, "moment:"+name)
 	prio := cmp.Or(m.prio, display.PrioExpression)
-	ringPrio := cmp.Or(m.ringPrio, stepRingPrio(prio))
+	// a step's ring: under the voice stages in an ordinary moment (as a scenario's), at the
+	// moment's own priority in a status one (booting, a call, the alarm)
+	ringPrio := cmp.Or(m.ringPrio, m.prio, display.PrioScenario)
 	if m.yield != nil {
 		a.setYield(slot, func() bool { return m.yield(a) })
 	} else {
@@ -301,6 +303,9 @@ func (a *App) fire(name string) (shown bool, soundEnd time.Duration) {
 		}
 		a.runSteps(slot, steps, m.ttl, prio, ringPrio, "", 0)
 		return true, a.soundEnd(steps)
+	}
+	if m.slot != "" {
+		a.unexpress(slot) // nothing here: what the shared slot showed ends anyway (a voice stage)
 	}
 	return false, 0
 }

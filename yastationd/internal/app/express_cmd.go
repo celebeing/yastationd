@@ -7,7 +7,7 @@ import (
 )
 
 // HA side of the expressions (docs/display-expressions.md): the Expression select, the
-// expression and scenario command topics, the Display faces switch and the capabilities.
+// expression and scenario command topics and the capabilities.
 
 const haSlot = "ha"
 
@@ -95,17 +95,6 @@ func (a *App) cmdScenario(payload []byte) {
 	}
 }
 
-func (a *App) cmdFaces(payload []byte) {
-	on := strings.EqualFold(strings.TrimSpace(string(payload)), "ON")
-	a.store.update(func(s *persistState) { s.Faces = on })
-	if !on {
-		for _, slot := range []string{"voice", haSlot, scenarioSlot, "boot"} {
-			a.matrixStack.Remove(slot)
-		}
-	}
-	a.publish(a.topics.State("display_faces"), onOff(on))
-}
-
 // displayCaps tells HA scripts and an LLM agent what this speaker can show.
 func (a *App) displayCaps() string {
 	front := "none"
@@ -119,13 +108,9 @@ func (a *App) displayCaps() string {
 		"expressions": a.expressionOptions()[1:],
 		"scenarios":   a.scenarioNames(),
 	}
-	if a.frontClipsPossible() {
+	if a.frontClips() {
 		m["clips"] = a.front.Anims()
 	}
 	b, _ := json.Marshal(m)
 	return string(b)
 }
-
-// frontClipsPossible: the board has a front display to play animations on (whatever the faces
-// switch says).
-func (a *App) frontClipsPossible() bool { return a.front != nil }

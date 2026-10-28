@@ -319,7 +319,7 @@ func (a *App) onIntercomState(st intercom.Status) {
 	case intercom.Ringing:
 		a.hook("call_incoming")
 	case intercom.InCall:
-		a.hook("call_connected")
+		a.icConnected()
 		a.icFront(a.icInCallFront(time.Now()))
 		a.icStartAudio()
 	case intercom.Idle:
@@ -344,6 +344,13 @@ func (a *App) onIntercomState(st intercom.Status) {
 // its stages on the ring) and below the local reflexes, so the volume bubble stays readable.
 const prioCallFront = display.PrioExpression + 2
 
+// icConnected fires call_connected; without a sound of its own the announce chime rings it in.
+func (a *App) icConnected() {
+	if _, sound := a.fire("call_connected"); sound == 0 {
+		a.announceChime()
+	}
+}
+
 // icFront shows a reading of the call on the front display (its duration); nil takes it off.
 func (a *App) icFront(r display.RenderFunc[display.FrontFrame]) {
 	if r == nil {
@@ -353,9 +360,9 @@ func (a *App) icFront(r display.RenderFunc[display.FrontFrame]) {
 	a.matrixStack.Push("intercom-time", prioCallFront, 0, r)
 }
 
-// icYield: the call's moments let an Assist session in the call, or the listening window after
-// «Алиса», show instead.
-func (a *App) icYield() bool { return a.sat.inDialog() || a.icWindow() }
+// icInCallYield: the in-call ring lets an Assist session in the call, or the listening window
+// after «Алиса», show instead; the ringing ring only that window.
+func (a *App) icInCallYield() bool { return a.sat.inDialog() || a.icWindow() }
 
 // icInCallFront shows the call's duration (m:ss).
 func (a *App) icInCallFront(start time.Time) display.RenderFunc[display.FrontFrame] {
@@ -626,6 +633,9 @@ func (a *App) icWoke() {
 
 // icWindow: «Алиса» was heard during this call just now.
 func (a *App) icWindow() bool {
+	if a.ic == nil {
+		return false
+	}
 	a.ic.mu.Lock()
 	defer a.ic.mu.Unlock()
 	return time.Since(a.ic.wokeAt) < icWakeCommandWindow

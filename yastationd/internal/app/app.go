@@ -438,7 +438,6 @@ func (a *App) Run(ctx context.Context) error {
 	b.HasAmbilight = a.ambilight != nil
 	b.HasAmbilightFx = a.ambilightFxOn()
 	b.AmbilightFx = musicFxNames
-	b.HasFaces = a.frontClipsPossible()
 	b.HARingLight = a.cfg().HARingLight
 	b.DisplayModes = a.displayModes()
 	b.Intercom = a.ic != nil
@@ -719,9 +718,6 @@ func (a *App) publishAllState() {
 	a.publish(a.topics.State("expression"), animOff)
 	a.publish(a.topics.State("display_caps"), a.displayCaps())
 	a.publishVersion()
-	if a.frontClipsPossible() {
-		a.publish(a.topics.State("display_faces"), onOff(s.Faces))
-	}
 	a.publishAmbilightFx()
 	a.publish(a.topics.State("follow_up"), s.FollowUp)
 	a.publish(a.topics.State("text_duration"), strconv.Itoa(s.TextSecs))

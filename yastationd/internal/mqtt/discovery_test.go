@@ -101,7 +101,6 @@ func TestIntercomInfoID(t *testing.T) {
 
 func TestEntitiesForHA(t *testing.T) {
 	b := NewBuilder(NewTopics("yastation", "homeassistant", "t1"), Device{Name: "t"})
-	b.HasFaces = true
 	has := func(obj string) bool {
 		for _, e := range b.Entities() {
 			if e.Object == obj {

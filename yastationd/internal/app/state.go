@@ -37,7 +37,6 @@ type persistState struct {
 	// it false: with auto on, its level was unused, so it becomes 255 (auto reached that).
 	ClockMax    bool `json:"clock_bright_is_max,omitempty"`
 	MusicVolume int  `json:"music_volume"` // Music Assistant player volume 0..100 (volume "separate")
-	Faces       bool `json:"faces"`        // voice expressions on the front display
 }
 
 func defaultState(ringBright, ambilightBright, clockBright int, clockAuto bool) persistState {
@@ -67,7 +66,6 @@ func defaultState(ringBright, ambilightBright, clockBright int, clockAuto bool) 
 // initialState is the first-start state from the config's initial values.
 func initialState(cfg config.Config, prof board.Profile) persistState {
 	s := defaultState(cfg.RingBrightness, cfg.AmbilightBrightness, cfg.ClockBrightness, cfg.AutoBrightness)
-	s.Faces = cfg.DisplayFaces
 	if m := prof.Matrix.DefaultMode; m != "" {
 		s.Mode = m
 	}

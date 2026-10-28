@@ -40,9 +40,6 @@ func (a *App) commands() map[string]func([]byte) {
 		c["ambilight_fx_brightness"] = a.cmdAmbilightFxBrightness
 		c["ambilight_fx_effect"] = a.cmdAmbilightFxEffect
 	}
-	if a.frontClipsPossible() {
-		c["display_faces"] = a.cmdFaces
-	}
 	a.shareOptions(c)
 	return c
 }

@@ -12,7 +12,6 @@ import { Control, name } from './controls'
 const OPTIONS: Record<string, { group: string; doc: string }> = {
   auto_brightness: { group: 'display', doc: "The clock's brightness follows the light sensor." },
   clock_brightness: { group: 'display', doc: 'The fixed brightness while auto brightness is off; with it on, the brightest it goes in bright light.' },
-  display_faces: { group: 'display', doc: 'Faces and clips on the front display while the assistant listens, thinks and talks.' },
   text_duration: { group: 'display', doc: 'How long a message from Home Assistant stays on the display.' },
   animation_duration: { group: 'display', doc: 'How long an expression or ring animation started from Home Assistant plays.' },
   ambilight_fx_brightness: { group: 'ambilight', doc: "The ambilight's brightness under the music effects." },

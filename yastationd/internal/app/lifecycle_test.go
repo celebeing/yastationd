@@ -9,7 +9,7 @@ import (
 )
 
 func TestLifecycle(t *testing.T) {
-	a := newExpressApp(t, true)
+	a := newExpressApp(t)
 	a.cfg().WyomingPort = 10700
 	a.cfg().BootConnectTimeout = 300 * time.Millisecond
 	a.cfg().StateFile = t.TempDir() + "/state" // greeting marker lives under cfg.Path too

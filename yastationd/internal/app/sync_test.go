@@ -291,7 +291,7 @@ func TestSyncOptions(t *testing.T) {
 }
 
 func momentSpeaker(t *testing.T, id string) *App {
-	a := newExpressApp(t, true)
+	a := newExpressApp(t)
 	a.topics = mqtt.NewTopics("yastation", "homeassistant", id)
 	c := a.cfg()
 	c.DeviceID = id

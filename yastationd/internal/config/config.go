@@ -68,7 +68,6 @@ type Config struct {
 
 	VolumeBeep    bool   // tick the board's volume sound on a volume key press
 	AnnounceChime bool   // chime before an announcement (audio from HA with no dialog going on)
-	DisplayFaces  bool   // voice expressions (faces, clips) on the front display at first start (later: HA switch)
 	ClipsDir      string // our converted stock clips (`make clips`), searched before the firmware's
 	ScenariosDir  string // the user's scenarios (*.json), next to the built-in ones
 	VolumeStep    int    // volume curve steps (5 % each) per key press; a voice «громче»/«тише» is 2 presses
@@ -300,7 +299,6 @@ func Default() Config {
 		VolumeMax:           100,
 		VolumeBeep:          true,
 		AnnounceChime:       true,
-		DisplayFaces:        true,
 		ClipsDir:            cfw + "/clips",
 		ScenariosDir:        cfw + "/scenarios",
 		VideoFrames:         cfw + "/media/video.led",
@@ -440,6 +438,9 @@ func (c *Config) set(k, v string) error {
 	c.present[k] = true
 	key := keyIndex[k]
 	if key == nil {
+		if _, ok := Retired[k]; ok {
+			return nil
+		}
 		return fmt.Errorf("unknown key")
 	}
 	return key.set(c, v)

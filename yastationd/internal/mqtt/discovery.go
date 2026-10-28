@@ -33,8 +33,6 @@ type builder struct {
 	// HasAmbilightFx adds the switch and brightness of effects streamed to the ambilight (DDP).
 	HasAmbilightFx bool
 	AmbilightFx    []string // the music effect select's options
-	// HasFaces adds the Display faces switch (a front display that takes expression clips).
-	HasFaces bool
 	// DisplayModes are the Display select's options (nil = clock, off, message).
 	DisplayModes []string
 	// HARingLight adds the ring as an HA light (ha_ring_light); without it automations drive the
@@ -241,17 +239,7 @@ func (b *builder) Entities() []Entity {
 			"icon":                  "mdi:led-strip-variant",
 		}}}, entities...)
 	}
-	if b.HasFaces {
-		entities = append(entities, Entity{"switch", "display_faces", map[string]any{
-			"name":            "Display faces",
-			"state_topic":     t.State("display_faces"),
-			"command_topic":   t.Command("display_faces"),
-			"payload_on":      "ON",
-			"payload_off":     "OFF",
-			"entity_category": "config",
-			"icon":            "mdi:emoticon-happy-outline",
-		}})
-	}
+
 	if b.Intercom {
 		b.mu.Lock()
 		peers := b.intercomPeers
@@ -349,11 +337,12 @@ func (b *builder) Entities() []Entity {
 
 // WebOnly: entities the speaker's web app shows (they are its settings) that HA's device card
 // does not get. The web app lists them with the rest (Entities), Publish keeps them out of HA.
-var WebOnly = map[string]bool{"text_duration": true, "animation_duration": true, "display_faces": true, "follow_up": true}
+var WebOnly = map[string]bool{"text_duration": true, "animation_duration": true, "follow_up": true}
 
 // retired: entities HA got from earlier versions; Publish clears them so HA drops them. Their
 // MQTT command topics stay for automations (ring_animation/set, expression/set).
-var retired = []Entity{{Component: "select", Object: "ring_animation"}, {Component: "select", Object: "expression"}}
+var retired = []Entity{{Component: "select", Object: "ring_animation"}, {Component: "select", Object: "expression"},
+	{Component: "switch", Object: "display_faces"}}
 
 // Publish sends every entity's discovery config (retained), and an empty one for each entity HA
 // should not have (web-only, retired, the ring light when off), which removes it from HA.

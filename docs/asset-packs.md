@@ -52,7 +52,8 @@ ends: the ring tones. A name may list fallbacks, `calls_ringing_incoming|notific
 
 **Hooks.** Every event the CFW reacts to is a moment in the catalogue (`momentCatalog`,
 `internal/app/defaulttheme.go`), with its slot, its front and ring priorities, its TTL and,
-for a call, when it yields to an Assist session in the call. Code calls `hook(name)` (the voice
+for a call, when its ring yields to the voice stages (ringing: the listening window after
+«Алиса»; in a call: that and an Assist session in the call). Code calls `hook(name)` (the voice
 stages: `moment()`), and `endHook(name)` for a held one. The default theme (`defaultTheme`, and
 `momentDefaults` per display kind) does what the CFW always did, so nothing changes until a theme
 says otherwise; events the CFW reacted to with nothing get a moment too, empty by default: the
@@ -69,13 +70,18 @@ places other assistants beep.
 | `mic_muted` (held) / `mic_unmuted` | the amber ring / nothing |
 | `ha_lost` (held) / `ha_back` | a dim red pulse / nothing |
 | `power_problem` | phrase `no_power` |
-| `call_outgoing`, `call_incoming`, `call_connected` (held) | green comet, green blink, blue breath; the call animations; ring tones `calls_ringing_*` (incoming else `notification_sound`), `calls_connected` |
+| `call_outgoing`, `call_incoming`, `call_connected` (held) | green comet, green blink, blue breath; the call animations; ring tones `calls_ringing_*` (incoming else `notification_sound`), `calls_connected` (else the announce chime, as before) |
 | `call_ended`, `call_cancelled`, `call_missed`, `call_busy`, `call_failed` | a white flash and `calls_ended`; the flash; nothing; `error` and `calls_busy`; `error` |
 | `timer_started` / `timer_finished` (held) | nothing / the amber blink, `ringing` (else a blinking 00:00) and the built-in beep, unless the show has a sound of its own |
 | `wifi_setup` (held), `wifi_setup_failed` | the yellow comet and the setup scene; `error` |
 
 Station 3's profile keeps its old silence: `moment.volume_change`, `moment.announce` empty and
 `moment.voice_unavailable = ring:unavailable` (orion.conf).
+
+**Regression.** `internal/app/regress_test.go` pins every reaction moved into moments to what the
+code before did (slot, priorities, TTL, the effect's colour and period, the clip or its
+fallback, the sound and how it plays, the conditions), with no packs and no owner's moments; a
+change to the default theme must keep it green or change it on purpose.
 
 **The web app:** a sound or a ring effect as a candidate; in a sequence, a sound (or speech)
 beside any step, sound and pause steps, a colour and period for the ring shapes, and a fallback

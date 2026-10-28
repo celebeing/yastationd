@@ -231,15 +231,6 @@ func (a *App) showStep(slot string, prio, ringPrio int, st scenarioStep, d time.
 	}
 }
 
-// stepRingPrio: a step's ring sits under the voice stages in an ordinary moment (as a scenario),
-// at the moment's own priority in a status one (booting, a call, the alarm).
-func stepRingPrio(prio int) int {
-	if prio == display.PrioExpression {
-		return display.PrioScenario
-	}
-	return prio
-}
-
 // elseFront is a step's front when its animation is not on this display: "blank" (a dark front:
 // the time is unknown while booting), "setup" (the display's setup-mode scene), "alarm" (a
 // blinking 00:00). nil for an unknown one or no front display.
@@ -265,14 +256,14 @@ func (a *App) elseFront(name string) display.RenderFunc[display.FrontFrame] {
 	return nil
 }
 
-// pushRing and pushFront put a moment's layer on a surface; in a slot that yields (setYield) the
-// layer turns see-through while the slot yields.
+// pushRing and pushFront put a moment's layer on a surface; in a slot that yields (setYield) its
+// ring turns see-through while the slot yields (the front never does).
 func (a *App) pushRing(slot string, prio int, ttl time.Duration, r display.RenderFunc[display.RingFrame]) {
 	a.ringStack.Push(slot, prio, ttl, yielding(a.yieldOf(slot), r))
 }
 
 func (a *App) pushFront(slot string, prio int, ttl time.Duration, r display.RenderFunc[display.FrontFrame]) {
-	a.matrixStack.Push(slot, prio, ttl, yielding(a.yieldOf(slot), r))
+	a.matrixStack.Push(slot, prio, ttl, r)
 }
 
 func yielding[F any](yield func() bool, r display.RenderFunc[F]) display.RenderFunc[F] {
@@ -287,8 +278,8 @@ func yielding[F any](yield func() bool, r display.RenderFunc[F]) display.RenderF
 	}
 }
 
-// setYield makes slot's layers see-through while yield is true (nil: never): a call's moments
-// under the voice stages of an Assist session in the call.
+// setYield makes slot's ring see-through while yield is true (nil: never): a call's ring under
+// the voice stages (the listening window after «Алиса», an Assist session in the call).
 func (a *App) setYield(slot string, yield func() bool) {
 	if yield == nil {
 		a.yields.Delete(slot)

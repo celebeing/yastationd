@@ -19,8 +19,8 @@ The parser (`config.Parse`) goes through the same table, so a key cannot be pars
 differently. Hardware overrides print empty unless the file sets them (`Config.Has`): the board
 profile's value rules then.
 
-**First-start seeds.** `clock_brightness`, `auto_brightness`, `display_faces`, `ring_brightness`
-and `ambilight_brightness` only give a new speaker its first values; the live ones are HA's
+**First-start seeds.** `clock_brightness`, `auto_brightness`, `ring_brightness` and
+`ambilight_brightness` only give a new speaker its first values; the live ones are HA's
 entities, kept in the state file (`yastationd.state`). They stay there: HA and automations change
 them often, and the state file is written debounced, not the config with its comments.
 
@@ -152,3 +152,11 @@ the login and calibration writers; the API's kinds, lists, secrets, flags), `int
 (an in-memory broker with retained topics and in-order delivery: two speakers converge, both change
 at once, a late speaker, unsharing, a restart key, options pulling each other, moments by display
 kind, the API).
+
+## Retired keys
+
+A key a newer version drops is listed in `config.Retired` (registry.go): a config file that still
+sets it loads as before, the line ignored, so an update never fails on an old config. The board
+profiles do the same for their keys (`retiredKeys`, board.go). Retired so far: `display_faces`
+(themes decide what the front shows); the profile keys `audio.volume_sound`,
+`audio.announce_sound`, `audio.error_sound`, `power.alert_sound` (the sounds are moments).

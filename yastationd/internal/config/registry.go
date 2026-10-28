@@ -66,6 +66,12 @@ var Groups = []struct{ ID, Title, Page string }{
 	{"calibration", "Mic", "calibration"},
 }
 
+// Retired are keys earlier versions had: a config file that still sets one keeps working (the
+// line is accepted and ignored), so an update never fails on an old config.
+var Retired = map[string]string{
+	"display_faces": "the faces switch is gone; themes decide what the front display shows (docs/asset-packs.md)",
+}
+
 // Keys is every config key, in the settings UI's order within each group.
 var Keys []*Key
 
@@ -285,9 +291,6 @@ func init() {
 	reg(Key{Name: "theme", Group: "theme", Label: "Theme packs", Runtime: true, Sync: true,
 		Doc: "The asset packs in force, one id per line, the top one first (docs/asset-packs.md): a moment, a sound or an animation comes from the first pack that has it, else from the default theme. Your own moments are the pack custom; not listed, it sits just above the default theme. A pack this speaker does not have is skipped. Assets → Packs sets it."},
 		listV(func(c *Config) *[]string { return &c.Themes }))
-	reg(Key{Name: "display_faces", Group: "initial", Label: "Faces", Advanced: true,
-		Doc: "Only the value a new speaker starts with; afterwards the Display faces option rules."},
-		boolV(func(c *Config) *bool { return &c.DisplayFaces }))
 	reg(Key{Name: "ring_brightness", Group: "initial", Label: "Ring brightness", Advanced: true,
 		Doc: "Only the value a new speaker starts with; afterwards Home Assistant's light entity rules."},
 		intV(0, 255, func(c *Config) *int { return &c.RingBrightness }))

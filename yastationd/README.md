@@ -124,9 +124,10 @@ intercom_target (the other speakers) · `button` intercom_call (also answers) ·
 intercom_hangup ([docs/intercom.md](../docs/intercom.md)).
 
 **Not on HA's device card** (2026-10-28): the speaker's own settings — `text_duration`,
-`animation_duration`, `display_faces`, `follow_up` — are in the web app only (still entities of
-its API; `mqtt.WebOnly`), and the `ring_animation` and `expression` selects are gone (the LED page
-plays both). Their MQTT topics stay for automations: `<prefix>/<id>/ring_animation/set` (an
+`animation_duration`, `follow_up` — are in the web app only (still entities of its API;
+`mqtt.WebOnly`), and the `ring_animation` and `expression` selects are gone (the LED page plays
+both). The Display faces switch is gone (v0.21): what the front display shows is the theme's
+([asset-packs.md](../docs/asset-packs.md)). Their MQTT topics stay for automations: `<prefix>/<id>/ring_animation/set` (an
 effect name, plays `animation_duration` seconds), `expression/set`, `express`, `ring/set`, and the
 capabilities in `display_caps/state`. Discovery publishes an empty config for each, so HA drops
 the entities it had.

@@ -186,3 +186,17 @@ func TestOrionVolumeCurve(t *testing.T) {
 		}
 	}
 }
+
+// A board.conf from an earlier version still loads: its retired keys (the sound paths) are
+// accepted and ignored.
+func TestRetiredBoardKeysStillLoad(t *testing.T) {
+	root := t.TempDir()
+	var lines []string
+	for k := range retiredKeys {
+		lines = append(lines, k+" = /bkupgrade/cfw/sounds/x.wav")
+	}
+	os.WriteFile(filepath.Join(root, "board.conf"), []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	if _, err := Load(root, "bergamot", "board.conf"); err != nil {
+		t.Fatal(err)
+	}
+}

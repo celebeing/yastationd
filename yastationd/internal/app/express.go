@@ -59,10 +59,8 @@ func ringHolds(name string) bool {
 var expressionNames = []string{"listening", "thinking", "speaking", "happy", "sad", "angry", "wink", "eyes",
 	"blink", "sleep", "ringing", "pause", "next", "previous", "error"}
 
-// frontClips: the front display takes animation layers (it has one, and the faces switch is on).
-func (a *App) frontClips() bool {
-	return a.front != nil && a.store.get().Faces
-}
+// frontClips: there is a front display to play animations on.
+func (a *App) frontClips() bool { return a.front != nil }
 
 // frontAnim resolves name to the front display's own animation (display.Front.Anim).
 func (a *App) frontAnim(name string) (display.Anim, bool) {

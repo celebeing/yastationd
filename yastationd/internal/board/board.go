@@ -455,10 +455,18 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 			p.Moments = map[string][]string{}
 		}
 		p.Moments[name] = splitList(v) // empty = no picture for this moment on this board
+	case retiredKeys[k]:
+		// a key of an earlier version: accepted and ignored, so an old board.conf still loads
 	default:
 		return fmt.Errorf("unknown key")
 	}
 	return err
+}
+
+// retiredKeys are profile keys earlier versions had. The sound paths became moments of the default
+// theme, played by name from <cfw>/sounds (docs/asset-packs.md).
+var retiredKeys = map[string]bool{
+	"audio.volume_sound": true, "audio.announce_sound": true, "audio.error_sound": true, "power.alert_sound": true,
 }
 
 func setCode(m *map[int]string, code, action string) error {

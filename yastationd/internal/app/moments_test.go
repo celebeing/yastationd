@@ -12,7 +12,7 @@ import (
 )
 
 func TestMomentCandidates(t *testing.T) {
-	a := newExpressApp(t, true)
+	a := newExpressApp(t)
 	if c := a.momentCandidates("dialog_end"); !reflect.DeepEqual(c, refs([]string{"wink"})) {
 		t.Errorf("seg7 dialog_end = %v", c)
 	}
@@ -33,7 +33,7 @@ func TestMomentCandidates(t *testing.T) {
 }
 
 func TestMomentShows(t *testing.T) {
-	a := newExpressApp(t, true)
+	a := newExpressApp(t)
 	// seg7: dialog_end -> our embedded wink clip on the front
 	if !a.moment("voice", "dialog_end", 0) || !a.matrixStack.Has("voice") {
 		t.Fatal("dialog_end showed nothing on seg7")
@@ -70,7 +70,7 @@ func TestShowJSON(t *testing.T) {
 }
 
 func TestOwnerMoments(t *testing.T) {
-	a := newExpressApp(t, true)
+	a := newExpressApp(t)
 	a.cfg().SysRoot = t.TempDir()
 	a.prof.Platform.CFWRoot = "/cfw"
 	os.MkdirAll(a.cfg().SysRoot+"/cfw", 0o755)
@@ -112,7 +112,7 @@ func TestOwnerMoments(t *testing.T) {
 }
 
 func TestVoiceStageKeepsRing(t *testing.T) {
-	a := newExpressApp(t, true)
+	a := newExpressApp(t)
 	a.cfg().SysRoot = t.TempDir()
 	os.MkdirAll(a.cfg().SysRoot+"/cfw", 0o755)
 	a.prof.Platform.CFWRoot = "/cfw"
@@ -132,7 +132,7 @@ func TestVoiceStageKeepsRing(t *testing.T) {
 
 // newMomentApp is newExpressApp with a CFW root for moments.json.
 func newMomentApp(t *testing.T) *App {
-	a := newExpressApp(t, true)
+	a := newExpressApp(t)
 	a.cfg().SysRoot = t.TempDir()
 	a.prof.Platform.CFWRoot = "/cfw"
 	os.MkdirAll(a.cfg().SysRoot+"/cfw", 0o755)

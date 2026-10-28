@@ -105,3 +105,11 @@ The Makefiles and `spotter-host/build.sh` are the recipes the containers run; wi
 versions installed by hand they work on a host (`make -C yastationd test build`,
 `make -C sendspin-host`, `make -C hostapd`, `spotter-host/build.sh`). Check `go version`,
 `zig version`, `<arch>-linux-gnu*-gcc --version` before blaming the sources.
+
+## Host tools
+
+Not shipped to a speaker; they run on the host with the Go toolchain: `cmd/packtool` builds and
+checks an asset pack (`make -C yastationd pack PACK=<dir or .zip>`,
+[asset-packs.md](asset-packs.md)), `cmd/videoconv` converts a video (`make video-convert`,
+[video-mode.md](video-mode.md)), `cmd/ledsim` and `cmd/demoreel` simulate the LEDs
+([led-preview.md](led-preview.md)).

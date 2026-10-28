@@ -13,10 +13,9 @@ import (
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
 )
 
-func newExpressApp(t *testing.T, faces bool) *App {
+func newExpressApp(t *testing.T) *App {
 	t.Helper()
 	st := defaultState(128, 128, 128, false)
-	st.Faces = faces
 	a := &App{
 		log:         slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ringStack:   display.NewStack(func(time.Time) display.RingFrame { return display.Blank(6) }),
@@ -29,7 +28,7 @@ func newExpressApp(t *testing.T, faces bool) *App {
 }
 
 func TestExpressSurfaces(t *testing.T) {
-	a := newExpressApp(t, true)
+	a := newExpressApp(t)
 	if !a.express("voice", "listening", 0) {
 		t.Fatal("listening showed nothing")
 	}
@@ -54,16 +53,8 @@ func TestExpressSurfaces(t *testing.T) {
 	}
 }
 
-func TestExpressFacesOff(t *testing.T) {
-	a := newExpressApp(t, false)
-	a.express("voice", "speaking", 0)
-	if a.matrixStack.Has("voice") || !a.ringStack.Has("voice") {
-		t.Fatal("faces off: front must stay clear, ring must still show the stage")
-	}
-}
-
 func TestExpressOneShotRingEnds(t *testing.T) {
-	a := newExpressApp(t, true)
+	a := newExpressApp(t)
 	a.express("boot", "happy", 0) // one-shot clip + ring effect
 	clip, _ := a.front.Anim("happy")
 	now := time.Now()
@@ -77,7 +68,7 @@ func TestExpressOneShotRingEnds(t *testing.T) {
 }
 
 func TestExpressWinkClearsRingAndHolds(t *testing.T) {
-	a := newExpressApp(t, true)
+	a := newExpressApp(t)
 	a.express("voice", "speaking", 0)
 	a.express("voice", "wink", 5*time.Second)
 	if a.ringStack.Has("voice") || !a.matrixStack.Has("voice") {
@@ -102,7 +93,7 @@ func TestExpressPixelFront(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "oknix", "06-answer-loop.led"), []byte("loop\n"+frame), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	a := newExpressApp(t, true)
+	a := newExpressApp(t)
 	a.matrix = nil
 	a.front = display.PixelFront{W: 21, H: 12, Patterns: &display.PixelLibrary{Dirs: []string{dir}, W: 21, H: 12}}
 	if !a.express("voice", "speaking", 0) || !a.matrixStack.Has("voice") {

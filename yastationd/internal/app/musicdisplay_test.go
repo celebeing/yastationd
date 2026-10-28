@@ -24,7 +24,7 @@ func newMusicApp(t *testing.T) *App {
 			t.Fatal(err)
 		}
 	}
-	a := newExpressApp(t, true)
+	a := newExpressApp(t)
 	a.matrix = nil
 	dc := config.Default()
 	a.conf.Store(&dc)

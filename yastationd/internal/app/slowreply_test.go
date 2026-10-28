@@ -48,7 +48,7 @@ func TestSlowReplyConfig(t *testing.T) {
 }
 
 func TestPendingReplyTimesOut(t *testing.T) {
-	a := newExpressApp(t, true)
+	a := newExpressApp(t)
 	a.cfg().ReplyTimeout = 50 * time.Millisecond
 	a.sat = &satellite{a: a}
 	a.sat.setAwaiting(true)

@@ -149,3 +149,15 @@ func TestIntercomKeys(t *testing.T) {
 		t.Fatal("a short secret was accepted")
 	}
 }
+
+// A config from an earlier version still loads: its retired keys are accepted and ignored.
+func TestRetiredKeysStillLoad(t *testing.T) {
+	for k := range Retired {
+		if _, err := Parse(strings.NewReader(k + " = true\n")); err != nil {
+			t.Errorf("%s: %v", k, err)
+		}
+		if Lookup(k) != nil {
+			t.Errorf("%s: retired and in the registry", k)
+		}
+	}
+}
