@@ -3,7 +3,7 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.18.1 — 2026-10-28
 
 **Fixes and operations**
 - `tools/build.sh` builds a builder image only when it is missing or its Dockerfile changed
