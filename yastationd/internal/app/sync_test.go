@@ -218,6 +218,51 @@ func TestSyncSettingNeedingRestart(t *testing.T) {
 	}
 }
 
+// A new speaker joins a household that shares several restart keys: it takes them all, and a
+// rollback of the trial would bring back its config from before the first of them.
+func TestSyncNewSpeakerTakesAll(t *testing.T) {
+	b := newBroker()
+	s1 := speaker(t, "s1")
+	b.attach(s1)
+	s1.quit = func() {}
+	setKey(t, s1, "volume_step", "3")
+	setKey(t, s1, "wake_enabled", "false")
+	setKey(t, s1, "room_sound", "false")
+	text, _ := os.ReadFile(s1.cfg().File) // as after s1's restart
+	s1.adoptConfig(text)
+	for _, k := range []string{"volume_step", "wake_enabled", "room_sound"} {
+		s1.publishShared("setting", k, true)
+	}
+	b.flush()
+
+	s2 := speaker(t, "s2")
+	before, _ := os.ReadFile(s2.cfg().File)
+	var quits atomic.Int32
+	s2.quit = func() { quits.Add(1) }
+	b.attach(s2)
+	got, _ := os.ReadFile(s2.cfg().File)
+	for _, line := range []string{"volume_step = 3", "wake_enabled = false", "room_sound = false"} {
+		if !strings.Contains(string(got), line) {
+			t.Fatalf("new speaker lacks %q: %q", line, got)
+		}
+	}
+	// (runtime keys taken before the first restart key were applied live and may be in it)
+	if bak, _ := os.ReadFile(s2.cfg().File + ".bak"); !strings.HasPrefix(string(bak), string(before)) ||
+		strings.Contains(string(bak), "wake_enabled") || strings.Contains(string(bak), "room_sound") {
+		t.Fatalf(".bak is not the config from before the restart keys: %q", bak)
+	}
+	// After its restart the same retained values change nothing.
+	text, _ = os.ReadFile(s2.cfg().File)
+	s2.adoptConfig(text)
+	s2.restartPending.Store(false)
+	os.Remove(s2.trialMarker())
+	os.Remove(s2.cfg().File + ".bak")
+	b.attach(s2)
+	if _, err := os.Stat(s2.cfg().File + ".bak"); err == nil {
+		t.Fatal("rewritten after the restart")
+	}
+}
+
 func TestSyncOptions(t *testing.T) {
 	b := newBroker()
 	s1, s2 := speaker(t, "s1"), speaker(t, "s2")

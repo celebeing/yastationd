@@ -538,6 +538,15 @@ func (a *App) apiConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) saveConfigTrial(old, data []byte) error {
+	// A restart already pending (several shared keys arriving at once): the .bak and the marker
+	// keep the config and the health from before the first change, so a rollback goes all the way.
+	if _, err := os.Stat(a.trialMarker()); err == nil && a.restartPending.Load() {
+		tmp := a.cfg().File + ".new"
+		if err := os.WriteFile(tmp, data, 0o600); err != nil {
+			return err
+		}
+		return os.Rename(tmp, a.cfg().File)
+	}
 	if err := os.WriteFile(a.cfg().File+".bak", old, 0o600); err != nil {
 		return err
 	}
@@ -549,6 +558,7 @@ func (a *App) saveConfigTrial(old, data []byte) error {
 	if err := os.WriteFile(a.trialMarker(), []byte(strconv.Itoa(int(a.hmon.State()))), 0o644); err != nil {
 		return err
 	}
+	a.restartPending.Store(true)
 	return os.Rename(tmp, a.cfg().File)
 }
 

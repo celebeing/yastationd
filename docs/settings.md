@@ -86,8 +86,13 @@ An item the owner shares lives in one retained topic, `<prefix>/shared/<kind>/<i
   publishes nothing, which is what stops loops.
 - **Two changes at once:** every speaker takes the messages in the broker's order and ends on the
   last one. No timestamps decide, no leader is needed.
-- **Offline speakers** get the retained values when they connect; a new speaker inherits the
-  household's shared settings.
+- **Offline speakers** get the retained values when they connect.
+- **A new speaker** (once it has the broker in its config) gets every shared item on its first
+  connect and takes them: runtime keys and options at once, moments if its display is of the same
+  kind, and the restart keys written together with one restart on trial. Its `.bak` and the
+  trial's health mark stay those from before the first restart key, so a rollback undoes them all.
+  After the restart the same retained values change nothing. It never sends its own values for
+  items already shared; its unshared settings and its own keys (name, ID, calibrations) stay.
 - Options are checked together after any option change: a manual clock brightness turns auto
   brightness off, and both go out.
 - Values cross the broker in the clear, secrets included (the intercom secret is a natural one to
