@@ -3,7 +3,7 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.18.0 — 2026-10-28
 
 **Settings**
 - The web app's settings are rebuilt on one registry of config keys: every setting has an
@@ -29,6 +29,13 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
   `tools/build.sh` uses a lone tree there by itself, and `tools/deploy.sh` fetches one from the
   first speaker of an arch that has none — a fresh checkout deploys with nothing set up. A
   variable set in the environment now wins over `tools/build.env`.
+- A config line this version refuses (a value an older build took, an unknown key) no longer
+  keeps the speaker from starting: it is logged and skipped, its key keeps the default, and the
+  web app shows it.
+- The zig builder image takes the zig build for the host's own arch (aarch64 hosts too), checked
+  by sha256; source downloads retry.
+- Research notes: voice ID with the firmware's own models, ready-made server proxies, and how the
+  big assistants enroll voices (docs/voice-id.md).
 
 ## v0.17.0 — 2026-10-27
 
