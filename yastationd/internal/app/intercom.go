@@ -57,7 +57,7 @@ type icInfo struct {
 }
 
 func (a *App) newIntercom() *icState {
-	c := a.cfg
+	c := a.cfg()
 	if !c.Intercom {
 		return nil
 	}
@@ -84,7 +84,7 @@ func (a *App) newIntercom() *icState {
 }
 
 func intercomOptions(a *App, send func(to string, payload []byte)) intercom.Options {
-	c := a.cfg
+	c := a.cfg()
 	return intercom.Options{
 		ID: c.DeviceID, Name: a.ic.name, Secret: c.IntercomSecret, Port: c.IntercomPort,
 		JitterMs: c.IntercomJitterMs, RingTimeout: c.IntercomRing, MaxDuration: c.IntercomMax,
@@ -132,9 +132,9 @@ func (a *App) intercomSubscribe() {
 		a.publish(t.IntercomInfo(), "") // clear a stale entry from when it was on
 		return
 	}
-	info, _ := json.Marshal(icInfo{ID: a.cfg.DeviceID, Name: a.ic.name, Port: a.cfg.IntercomPort, V: 1})
+	info, _ := json.Marshal(icInfo{ID: a.cfg().DeviceID, Name: a.ic.name, Port: a.cfg().IntercomPort, V: 1})
 	a.publish(t.IntercomInfo(), string(info))
-	a.mqtt.Subscribe(t.IntercomSig(a.cfg.DeviceID), a.ic.m.Handle)
+	a.mqtt.Subscribe(t.IntercomSig(a.cfg().DeviceID), a.ic.m.Handle)
 	a.mqtt.SubscribeTopic(t.IntercomInfoAll(), a.onIntercomInfo)
 	a.mqtt.Subscribe(t.Command("intercom"), a.cmdIntercom)
 	a.mqtt.Subscribe(t.IntercomCall(), a.cmdIntercomCall)
@@ -148,7 +148,7 @@ func (a *App) intercomSubscribe() {
 // turns the intercom off (or a test peer leaves).
 func (a *App) onIntercomInfo(topic string, payload []byte) {
 	id := a.topics.IntercomInfoID(topic)
-	if id == "" || id == a.cfg.DeviceID {
+	if id == "" || id == a.cfg().DeviceID {
 		return
 	}
 	var in icInfo
@@ -413,7 +413,7 @@ func (a *App) icInCallRing(now time.Time, below display.RingFrame) (display.Ring
 
 // icSoundPath is a decoded vendor sound (make sounds) under <cfw>/sounds; "" when not there.
 func (a *App) icSoundPath(name string) string {
-	p := a.cfg.Path(a.prof.Platform.CFWRoot + "/sounds/" + name + ".wav")
+	p := a.cfg().Path(a.prof.Platform.CFWRoot + "/sounds/" + name + ".wav")
 	if _, err := os.Stat(p); err != nil {
 		return ""
 	}
@@ -441,7 +441,7 @@ func (a *App) icTone(name string) bool {
 	if name != "" {
 		path = a.icSoundPath(name)
 	} else if path != "" {
-		path = a.cfg.Path(path)
+		path = a.cfg().Path(path)
 	}
 	if path == "" {
 		return false
@@ -484,7 +484,7 @@ func (a *App) icListenIfRinging() {
 	if a.ic == nil || a.ic.m.Status().State != intercom.Ringing || a.sat.inDialog() || a.playing.Load() {
 		return
 	}
-	if a.cfg.WyomingPort > 0 {
+	if a.cfg().WyomingPort > 0 {
 		a.sat.startListening(srcFollow)
 	}
 }
@@ -496,7 +496,7 @@ func (a *App) icStartAudio() {
 	// The switch takes effect when spotter-host reports it (the first one loads the model), so
 	// both streams are taken and each frame comes from the one that fits the mode right now.
 	callMode := a.spot != nil && a.spot.Running() && a.spot.CallMode(true)
-	g := &intercom.Guard{UpGainDB: a.cfg.IntercomGainDB}
+	g := &intercom.Guard{UpGainDB: a.cfg().IntercomGainDB}
 	out, err := hw.StartLiveOut(a.prof.Audio.Playback, icPlayRate)
 	if err != nil {
 		a.log.Error("intercom: playout", "err", err)
@@ -539,7 +539,7 @@ func (a *App) icStartAudio() {
 	// mic-array capture as arecord gives it (to replay it through the VQE in other modes).
 	var rec, recMics *os.File
 	unsubMics := func() {}
-	if d := a.cfg.IntercomRecordDir; d != "" {
+	if d := a.cfg().IntercomRecordDir; d != "" {
 		stamp := time.Now().UTC().Format("20060102-150405")
 		if rec, err = os.Create(filepath.Join(d, "intercom-up-"+stamp+".raw")); err != nil {
 			a.log.Warn("intercom: record", "err", err)
@@ -778,9 +778,9 @@ func (a *App) icCommand(phrase string) bool {
 		}
 		switch {
 		case p == "громче":
-			a.nudgeVolume(+2 * a.cfg.VolumeStep)
+			a.nudgeVolume(+2 * a.cfg().VolumeStep)
 		case p == "тише":
-			a.nudgeVolume(-2 * a.cfg.VolumeStep)
+			a.nudgeVolume(-2 * a.cfg().VolumeStep)
 		case intercom.IsDeclineCommand(p):
 			a.log.Info("intercom: hung up by voice", "phrase", phrase)
 			a.ic.m.Hangup("by voice")

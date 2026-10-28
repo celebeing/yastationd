@@ -20,13 +20,13 @@ import (
 )
 
 func newWebApp(t *testing.T) (*App, *httptest.Server) {
-	cfg := config.Default()
-	cfg.DeviceID = "t1"
+	cfg, _ := config.Parse(strings.NewReader("device_id = t1\n")) // as the file below
 	cfg.File = filepath.Join(t.TempDir(), "yastationd.conf")
 	os.WriteFile(cfg.File, []byte("device_id = t1\n"), 0o600)
-	a := &App{cfg: cfg, log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	a := &App{log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		topics: mqtt.NewTopics("yastation", "homeassistant", "t1"),
 		store:  newStateStore("", defaultState(128, 128, 128, false))}
+	a.conf.Store(&cfg)
 	a.builder = mqtt.NewBuilder(a.topics, mqtt.Device{Name: "t"})
 	a.hmon = health.New("", nil)
 	a.web.tokens.TTL = tokenTTL
@@ -111,7 +111,7 @@ func TestWebLoginStateControl(t *testing.T) {
 	if code, _ := call(t, "GET", srv.URL+"/api/state", tok, ""); code != 401 {
 		t.Fatal("old token revoked")
 	}
-	b, _ := os.ReadFile(a.cfg.File)
+	b, _ := os.ReadFile(a.cfg().File)
 	if !strings.Contains(string(b), "web_password = pbkdf2-sha256$") {
 		t.Fatalf("config: %s", b)
 	}
@@ -122,11 +122,11 @@ func TestWebLoginStateControl(t *testing.T) {
 
 func TestWebMetricsAndInfo(t *testing.T) {
 	a, srv := newWebApp(t)
-	a.cfg.SysRoot = t.TempDir()
-	os.MkdirAll(filepath.Join(a.cfg.SysRoot, "proc"), 0o755)
-	os.WriteFile(filepath.Join(a.cfg.SysRoot, "proc/meminfo"), []byte("MemTotal:  243908 kB\nMemFree:  97604 kB\nMemAvailable:  157196 kB\n"), 0o644)
-	os.WriteFile(filepath.Join(a.cfg.SysRoot, "proc/loadavg"), []byte("1.27 1.23 1.24 1/143 5748\n"), 0o644)
-	tz := filepath.Join(a.cfg.SysRoot, "sys/class/thermal/thermal_zone0")
+	a.cfg().SysRoot = t.TempDir()
+	os.MkdirAll(filepath.Join(a.cfg().SysRoot, "proc"), 0o755)
+	os.WriteFile(filepath.Join(a.cfg().SysRoot, "proc/meminfo"), []byte("MemTotal:  243908 kB\nMemFree:  97604 kB\nMemAvailable:  157196 kB\n"), 0o644)
+	os.WriteFile(filepath.Join(a.cfg().SysRoot, "proc/loadavg"), []byte("1.27 1.23 1.24 1/143 5748\n"), 0o644)
+	tz := filepath.Join(a.cfg().SysRoot, "sys/class/thermal/thermal_zone0")
 	os.MkdirAll(tz, 0o755)
 	os.WriteFile(filepath.Join(tz, "type"), []byte("soc_thermal\n"), 0o644)
 	os.WriteFile(filepath.Join(tz, "temp"), []byte("48000\n"), 0o644)
@@ -152,7 +152,7 @@ func TestWebMetricsAndInfo(t *testing.T) {
 
 func TestWebConfigTrial(t *testing.T) {
 	a, srv := newWebApp(t)
-	a.prof.Platform.CFWRoot = filepath.Dir(a.cfg.File)
+	a.prof.Platform.CFWRoot = filepath.Dir(a.cfg().File)
 	quit := make(chan struct{})
 	a.quit = func() { close(quit) }
 	_, out := call(t, "POST", srv.URL+"/api/login", "", `{"user":"admin","password":"yastation"}`)
@@ -165,16 +165,16 @@ func TestWebConfigTrial(t *testing.T) {
 	if code, out := call(t, "PUT", srv.URL+"/api/config", tok, `{"text":"volume_max = 300\n"}`); code != 422 || !strings.Contains(out["error"].(string), "line 1") {
 		t.Fatalf("a bad config is refused with its line: %d %v", code, out)
 	}
-	if b, _ := os.ReadFile(a.cfg.File); string(b) != "device_id = t1\n" {
+	if b, _ := os.ReadFile(a.cfg().File); string(b) != "device_id = t1\n" {
 		t.Fatal("nothing written on a refusal")
 	}
 	if code, out := call(t, "PUT", srv.URL+"/api/config", tok, `{"text":"device_id = t2\n"}`); code != 200 || out["restarting"] != true {
 		t.Fatalf("save: %d %v", code, out)
 	}
-	if b, _ := os.ReadFile(a.cfg.File); string(b) != "device_id = t2\n" {
+	if b, _ := os.ReadFile(a.cfg().File); string(b) != "device_id = t2\n" {
 		t.Fatalf("saved: %q", b)
 	}
-	if b, _ := os.ReadFile(a.cfg.File + ".bak"); string(b) != "device_id = t1\n" {
+	if b, _ := os.ReadFile(a.cfg().File + ".bak"); string(b) != "device_id = t1\n" {
 		t.Fatalf("bak: %q", b)
 	}
 	if _, err := os.Stat(a.trialMarker()); err != nil {
@@ -188,11 +188,66 @@ func TestWebConfigTrial(t *testing.T) {
 	// A failing trial (a server that cannot listen) puts the old config back.
 	a.quit = func() {}
 	a.trialFailed("test")
-	if b, _ := os.ReadFile(a.cfg.File); string(b) != "device_id = t1\n" {
+	if b, _ := os.ReadFile(a.cfg().File); string(b) != "device_id = t1\n" {
 		t.Fatalf("rolled back: %q", b)
 	}
 	if _, err := os.Stat(a.trialMarker()); err == nil {
 		t.Fatal("marker removed")
+	}
+}
+
+func TestWebSettings(t *testing.T) {
+	a, srv := newWebApp(t)
+	a.prof.Platform.CFWRoot = filepath.Dir(a.cfg().File)
+	quit := make(chan struct{})
+	a.quit = func() { close(quit) }
+	_, out := call(t, "POST", srv.URL+"/api/login", "", `{"user":"admin","password":"yastation"}`)
+	tok := out["token"].(string)
+
+	code, out := call(t, "GET", srv.URL+"/api/settings", tok, "")
+	keys, _ := out["keys"].([]any)
+	if code != 200 || len(keys) < 50 {
+		t.Fatalf("get: %d, %d keys", code, len(keys))
+	}
+	for _, k := range keys {
+		if n := k.(map[string]any)["name"]; n == "web_password" || n == "lux_calibration" {
+			t.Fatalf("%s is set elsewhere, not listed", n)
+		}
+	}
+	// A runtime key applies at once and stays in the file, the comments kept.
+	os.WriteFile(a.cfg().File, []byte("# mine\ndevice_id = t1\n"), 0o600)
+	code, out = call(t, "PUT", srv.URL+"/api/settings", tok, `{"changes":{"volume_step":["3"],"intercom_secret":["••••••••"]}}`)
+	if code != 200 || out["restarting"] != false || a.cfg().VolumeStep != 3 {
+		t.Fatalf("runtime key: %d %v, step %d", code, out, a.cfg().VolumeStep)
+	}
+	if b, _ := os.ReadFile(a.cfg().File); !strings.HasPrefix(string(b), "# mine\ndevice_id = t1\n") || !strings.Contains(string(b), "volume_step = 3") {
+		t.Fatalf("file: %q", b)
+	}
+	// The config editor takes the same path: a runtime change, no restart.
+	b, _ := os.ReadFile(a.cfg().File)
+	text, _ := json.Marshal(map[string]string{"text": strings.Replace(string(b), "volume_step = 3", "volume_step = 2", 1)})
+	if code, out := call(t, "PUT", srv.URL+"/api/config", tok, string(text)); code != 200 || out["restarting"] != false || a.cfg().VolumeStep != 2 {
+		t.Fatalf("editor, runtime: %d %v", code, out)
+	}
+	// Out of range: refused, nothing written.
+	if code, _ := call(t, "PUT", srv.URL+"/api/settings", tok, `{"changes":{"volume_step":["9"]}}`); code != 422 || a.cfg().VolumeStep != 2 {
+		t.Fatalf("range: %d", code)
+	}
+	if code, _ := call(t, "PUT", srv.URL+"/api/settings", tok, `{"changes":{"web_password":["x"]}}`); code != 422 {
+		t.Fatalf("hidden key: %d", code)
+	}
+	// A restart key: saved on trial, the daemon restarts.
+	code, out = call(t, "PUT", srv.URL+"/api/settings", tok, `{"changes":{"device_name":["Kitchen"]}}`)
+	if code != 200 || out["restarting"] != true {
+		t.Fatalf("restart key: %d %v", code, out)
+	}
+	select {
+	case <-quit:
+	case <-time.After(3 * time.Second):
+		t.Fatal("no restart")
+	}
+	if b, _ := os.ReadFile(a.cfg().File); !strings.Contains(string(b), "device_name = Kitchen") {
+		t.Fatalf("file: %q", b)
 	}
 }
 
@@ -230,7 +285,7 @@ func TestWebMomentsAndTapLogin(t *testing.T) {
 func TestWebLog(t *testing.T) {
 	a, srv := newWebApp(t)
 	root := t.TempDir()
-	a.cfg.SysRoot = root
+	a.cfg().SysRoot = root
 	os.MkdirAll(filepath.Join(root, "tmp"), 0o755)
 	os.MkdirAll(filepath.Join(root, "var/log"), 0o755)
 	var b strings.Builder
@@ -266,7 +321,7 @@ func TestWebMomentsEdit(t *testing.T) {
 	a, srv := newWebApp(t)
 	m := newMomentApp(t) // the surfaces and a CFW root
 	a.ringStack, a.matrixStack, a.matrix, a.front, a.store = m.ringStack, m.matrixStack, m.matrix, m.front, m.store
-	a.cfg.SysRoot, a.prof = m.cfg.SysRoot, m.prof
+	a.cfg().SysRoot, a.prof = m.cfg().SysRoot, m.prof
 	_, out := call(t, "POST", srv.URL+"/api/login", "", `{"user":"admin","password":"yastation"}`)
 	tok := out["token"].(string)
 	moment := func(name string) map[string]any {

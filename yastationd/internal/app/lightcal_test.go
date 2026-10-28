@@ -50,14 +50,14 @@ func TestWebLightCalibration(t *testing.T) {
 	if got := luxcal.Lux(a.luxCalibration(), 12.5); got != 250 {
 		t.Fatalf("not live: %v", got)
 	}
-	b, _ := os.ReadFile(a.cfg.File)
+	b, _ := os.ReadFile(a.cfg().File)
 	if !strings.Contains(string(b), "lux_calibration = 12.5:250") || !strings.Contains(string(b), "device_id = t1") {
 		t.Fatalf("config file:\n%s", b)
 	}
 	if code, out = call(t, "DELETE", srv.URL+"/api/calibrate/light", tok, ""); code != 200 || out["source"] == "unit" {
 		t.Fatalf("remove: %d %v", code, out)
 	}
-	if b, _ = os.ReadFile(a.cfg.File); strings.Contains(string(b), "lux_calibration =") {
+	if b, _ = os.ReadFile(a.cfg().File); strings.Contains(string(b), "lux_calibration =") {
 		t.Fatalf("key left:\n%s", b)
 	}
 }

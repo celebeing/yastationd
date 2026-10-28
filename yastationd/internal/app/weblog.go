@@ -20,9 +20,9 @@ const (
 // logSources: what the view can show, by name.
 func (a *App) logSources() map[string][]string {
 	return map[string][]string{
-		"daemon": {a.cfg.Path("/tmp/yastationd.log")},
+		"daemon": {a.cfg().Path("/tmp/yastationd.log")},
 		// busybox syslogd rotates messages into messages.0; the older one first.
-		"system": {a.cfg.Path("/var/log/messages.0"), a.cfg.Path("/var/log/messages")},
+		"system": {a.cfg().Path("/var/log/messages.0"), a.cfg().Path("/var/log/messages")},
 	}
 }
 

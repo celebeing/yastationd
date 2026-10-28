@@ -8,7 +8,6 @@ import (
 	"github.com/celebeing/yastationd/yastationd/internal/luxcal"
 	"github.com/celebeing/yastationd/yastationd/internal/web"
 	"io"
-	"net"
 	"os"
 	"sort"
 	"strconv"
@@ -367,292 +366,15 @@ func Parse(r io.Reader) (Config, error) {
 }
 
 func (c *Config) set(k, v string) error {
-	var err error
 	if c.present == nil {
 		c.present = map[string]bool{}
 	}
 	c.present[k] = true
-	switch k {
-	case "device_id":
-		c.DeviceID = v
-	case "device_name":
-		c.DeviceName = v
-	case "mqtt_host":
-		c.MQTTHost = v
-	case "mqtt_port":
-		c.MQTTPort, err = strconv.Atoi(v)
-	case "mqtt_user":
-		c.MQTTUser = v
-	case "mqtt_pass":
-		c.MQTTPass = v
-	case "topic_prefix":
-		c.TopicPrefix = v
-	case "discovery_prefix":
-		c.DiscoveryPrefix = v
-	case "sysroot":
-		c.SysRoot = v
-	case "board":
-		c.Board = v
-	case "board_file":
-		c.BoardFile = v
-	case "lux_path":
-		c.LuxPath = v
-	case "clock_brightness":
-		c.ClockBrightness, err = atoiRange(v, 0, 255)
-	case "ring_brightness":
-		c.RingBrightness, err = atoiRange(v, 0, 255)
-	case "ambilight_brightness":
-		c.AmbilightBrightness, err = atoiRange(v, 0, 255)
-	case "ddp_port":
-		c.DDPPort, err = atoiRange(v, 0, 65535)
-	case "ambilight_fx_white":
-		c.AmbilightFxWhite, err = strconv.ParseBool(v)
-	case "auto_brightness":
-		c.AutoBrightness, err = strconv.ParseBool(v)
-	case "lux_calibration":
-		c.LuxCalibration, err = luxcal.Parse(v)
-	case "auto_brightness_curve":
-		c.BrightnessCurve, err = parseCurve(v)
-	case "tz":
-		c.TZ = v
-	case "amixer_card":
-		c.AmixerCard = v
-	case "mic_device":
-		c.MicDevice = v
-	case "mic_channels":
-		c.MicChannels, err = atoiRange(v, 1, 16)
-	case "mic_rate":
-		c.MicRate, err = atoiRange(v, 16000, 96000)
-	case "wake_enabled":
-		c.WakeEnabled, err = strconv.ParseBool(v)
-	case "spotter_bin":
-		c.SpotterBin = v
-	case "spotter_libs":
-		c.SpotterLibs = v
-	case "wake_model":
-		c.WakeModel = v
-	case "command_model":
-		c.CommandModel = v
-	case "boot_connect_timeout":
-		var n int
-		n, err = atoiRange(v, 1, 600)
-		c.BootConnectTimeout = time.Duration(n) * time.Second
-	case "reply_timeout":
-		var n int
-		n, err = atoiRange(v, 10, 600)
-		c.ReplyTimeout = time.Duration(n) * time.Second
-	case "wake_while_waiting":
-		if v != "interrupt" && v != "ignore" {
-			return fmt.Errorf("want interrupt or ignore")
-		}
-		c.WakeWhileWaiting = v
-	case "preroll_ms":
-		c.PrerollMs, err = atoiRange(v, 0, 2000)
-	case "mic_spl_offset":
-		c.MicSPLOffset, err = strconv.ParseFloat(v, 64)
-	case "mic_pdm_gain":
-		c.MicPDMGain, err = atoiRange(v, -1, 48)
-	case "mic_channel":
-		c.MicChannel, err = atoiRange(v, 0, 15)
-	case "wyoming_port":
-		c.WyomingPort, err = atoiRange(v, 0, 65535)
-	case "frametap_addr":
-		c.FrameTapAddr = v
-	case "led_preview":
-		c.LEDPreview, err = strconv.ParseBool(v)
-	case "marquee_speed":
-		c.MarqueeSpeed, err = strconv.ParseFloat(v, 64)
-		if err == nil && (c.MarqueeSpeed < 0.25 || c.MarqueeSpeed > 4) {
-			err = fmt.Errorf("want 0.25..4")
-		}
-	case "text_lines":
-		switch v {
-		case "auto":
-			c.TextLines = 0
-		case "1", "2":
-			c.TextLines = int(v[0] - '0')
-		default:
-			err = fmt.Errorf("want auto, 1 or 2")
-		}
-	case "room_sound":
-		c.RoomSound, err = strconv.ParseBool(v)
-	case "http_addr":
-		if v != "" {
-			_, port, perr := net.SplitHostPort(v)
-			n, aerr := strconv.Atoi(port)
-			if perr != nil || aerr != nil || n < 1 || n > 65535 {
-				err = fmt.Errorf("want [host]:port, e.g. :80")
-			}
-		}
-		c.HTTPAddr = v
-	case "web_user":
-		if v == "" {
-			err = fmt.Errorf("empty")
-		}
-		c.WebUser = v
-	case "web_password":
-		if !web.ValidHash(v) {
-			err = fmt.Errorf("want a pbkdf2-sha256$… hash (set it from the web UI)")
-		}
-		c.WebPassword = v
-	case "arbitration":
-		c.Arbitration, err = strconv.ParseBool(v)
-	case "arbitration_wait_ms":
-		var n int
-		n, err = atoiRange(v, 100, 3000)
-		c.ArbitrationWait = time.Duration(n) * time.Millisecond
-	case "log_remote":
-		c.LogRemote = v
-	case "log_spool_kb":
-		c.LogSpoolKB, err = atoiRange(v, 64, 65536)
-	case "net_wifi_recovery":
-		c.NetWifiRecovery, err = strconv.ParseBool(v)
-	case "net_wifi_reconfigure_min", "net_wifi_reset_min", "net_wifi_reset_every_min":
-		var n int
-		if n, err = atoiRange(v, 0, 1440); err == nil {
-			d := time.Duration(n) * time.Minute
-			switch k {
-			case "net_wifi_reconfigure_min":
-				c.NetWifiReconfigure = d
-			case "net_wifi_reset_min":
-				c.NetWifiReset = d
-			default:
-				c.NetWifiResetEvery = d
-			}
-		}
-	case "net_watchdog_min":
-		var n int
-		n, err = atoiRange(v, 0, 1440)
-		c.NetWatchdog = time.Duration(n) * time.Minute
-	case "video_frames":
-		c.VideoFrames = v
-	case "video_audio":
-		c.VideoAudio = v
-	case "video_av_offset_ms":
-		var n int
-		n, err = atoiRange(v, -2000, 2000)
-		c.VideoAVOffset = time.Duration(n) * time.Millisecond
-	case "sendspin":
-		c.Sendspin, err = strconv.ParseBool(v)
-	case "sendspin_bin":
-		c.SendspinBin = v
-	case "sendspin_name":
-		c.SendspinName = v
-	case "sendspin_port":
-		c.SendspinPort, err = atoiRange(v, 1, 65535)
-	case "sendspin_server":
-		c.SendspinServer = v
-	case "sendspin_unpaired":
-		c.SendspinUnpaired, err = strconv.ParseBool(v)
-	case "sendspin_state":
-		c.SendspinState = v
-	case "music_title":
-		c.MusicTitle, err = strconv.ParseBool(v)
-	case "music_clips":
-		c.MusicClips, err = strconv.ParseBool(v)
-	case "music_levels":
-		c.MusicLevels, err = strconv.ParseBool(v)
-	case "sendspin_volume":
-		if v != "linked" && v != "separate" {
-			return fmt.Errorf("want linked or separate")
-		}
-		c.SendspinVolume = v
-	case "wifi_setup":
-		c.WifiSetup, err = strconv.ParseBool(v)
-	case "wifi_setup_ssid":
-		if l := len(v); l == 0 || l > 32 {
-			return fmt.Errorf("want 1..32 bytes")
-		}
-		c.WifiSetupSSID = v
-	case "wifi_setup_psk":
-		if l := len(v); l < 8 || l > 63 {
-			return fmt.Errorf("want 8..63 characters")
-		}
-		c.WifiSetupPSK = v
-	case "wifi_setup_channel":
-		c.WifiSetupChannel, err = atoiRange(v, 1, 13)
-	case "wifi_setup_address":
-		ip, n, perr := net.ParseCIDR(v)
-		if perr != nil {
-			return perr
-		}
-		if ones, _ := n.Mask.Size(); ip.To4() == nil || ones != 24 {
-			return fmt.Errorf("want an IPv4 address in a /24, e.g. 10.42.0.1/24")
-		}
-		c.WifiSetupAddress = v
-	case "hostapd_bin":
-		c.HostapdBin = v
-	case "wpa_conf":
-		c.WPAConf = v
-	case "intercom":
-		c.Intercom, err = strconv.ParseBool(v)
-	case "intercom_secret":
-		if len(v) < 16 {
-			return fmt.Errorf("want at least 16 characters")
-		}
-		c.IntercomSecret = v
-	case "intercom_name":
-		c.IntercomName = v
-	case "intercom_port":
-		c.IntercomPort, err = atoiRange(v, 1, 65535)
-	case "intercom_auto_answer":
-		c.IntercomAutoAnswer, err = strconv.ParseBool(v)
-	case "intercom_ring_secs":
-		var n int
-		n, err = atoiRange(v, 5, 300)
-		c.IntercomRing = time.Duration(n) * time.Second
-	case "intercom_max_secs":
-		var n int
-		n, err = atoiRange(v, 0, 24*3600)
-		c.IntercomMax = time.Duration(n) * time.Second
-	case "vqe_models":
-		c.VQEModels = v
-	case "intercom_gain_db":
-		var n int
-		n, err = atoiRange(v, 0, 50)
-		c.IntercomGainDB = float64(n)
-	case "intercom_record_dir":
-		c.IntercomRecordDir = v
-	case "intercom_jitter_ms":
-		c.IntercomJitterMs, err = atoiRange(v, 20, 160)
-	case "music_duck_db":
-		c.MusicDuckDB, err = atoiRange(v, -60, 0)
-	case "aplay_device":
-		c.AplayDevice = v
-	case "display_faces":
-		c.DisplayFaces, err = strconv.ParseBool(v)
-	case "clips_dir":
-		c.ClipsDir = v
-	case "scenarios_dir":
-		c.ScenariosDir = v
-	case "announce_chime":
-		c.AnnounceChime, err = strconv.ParseBool(v)
-	case "volume_beep":
-		c.VolumeBeep, err = strconv.ParseBool(v)
-	case "volume_step":
-		c.VolumeStep, err = atoiRange(v, 1, 4)
-	case "volume_max":
-		c.VolumeMax, err = atoiRange(v, 5, 100)
-	case "unmute":
-		c.Unmute = append(c.Unmute, v)
-	case "time_sync":
-		c.TimeSync, err = strconv.ParseBool(v)
-	case "ntp_server":
-		c.NTPServers = append(c.NTPServers, v)
-	case "chrony_conf":
-		c.ChronyConf = v
-	case "probe":
-		c.Probes = append(c.Probes, v)
-	case "heartbeat_file":
-		c.HeartbeatFile = v
-	case "state_file":
-		c.StateFile = v
-	case "log_level":
-		c.LogLevel = v
-	default:
+	key := keyIndex[k]
+	if key == nil {
 		return fmt.Errorf("unknown key")
 	}
-	return err
+	return key.set(c, v)
 }
 
 func atoiRange(v string, lo, hi int) (int, error) {
@@ -727,6 +449,27 @@ func EditNote(data []byte, changes map[string][]string, note string) []byte {
 		for _, v := range changes[k] {
 			added = append(added, k+" = "+v+"\n")
 		}
+	}
+	// A note left last (its keys removed since) goes, or takes the new keys under it, so
+	// repeated edits don't pile notes up.
+	end := len(out)
+	for end > 0 && strings.TrimSpace(out[end-1]) == "" {
+		end--
+	}
+	block := end // the last note's keys run to the end: new keys join them
+	for block > 0 && !strings.HasPrefix(strings.TrimSpace(out[block-1]), "#") && strings.TrimSpace(out[block-1]) != "" {
+		block--
+	}
+	if len(added) > 0 && block > 0 && out[block-1] == "# "+note+"\n" {
+		out = append(out[:end], added...)
+		return []byte(strings.Join(out, ""))
+	}
+	if end > 0 && out[end-1] == "# "+note+"\n" {
+		end--
+		for end > 0 && strings.TrimSpace(out[end-1]) == "" {
+			end--
+		}
+		out = out[:end]
 	}
 	if len(added) > 0 {
 		out = append(out, "\n# "+note+"\n")

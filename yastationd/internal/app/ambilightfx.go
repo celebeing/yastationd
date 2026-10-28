@@ -55,7 +55,7 @@ func (a *App) feedMusicFx(bands []float64, now time.Time) {
 }
 
 // ambilightFxOn: this speaker takes effects (a strip, a DDP port).
-func (a *App) ambilightFxOn() bool { return a.ambilight != nil && a.cfg.DDPPort > 0 }
+func (a *App) ambilightFxOn() bool { return a.ambilight != nil && a.cfg().DDPPort > 0 }
 
 func (a *App) startAmbilightFx(ctx context.Context) {
 	if !a.ambilightFxOn() {
@@ -63,7 +63,7 @@ func (a *App) startAmbilightFx(ctx context.Context) {
 	}
 	a.fx.kick = make(chan struct{}, 1)
 	go func() {
-		err := ddp.Listen(ctx, ddp.Addr(a.cfg.DDPPort), a.ambilight.Pixels(), a.log, a.onDDPFrame)
+		err := ddp.Listen(ctx, ddp.Addr(a.cfg().DDPPort), a.ambilight.Pixels(), a.log, a.onDDPFrame)
 		if err != nil {
 			a.log.Warn("ddp: receiver stopped", "err", err)
 		}
@@ -107,7 +107,7 @@ func (a *App) ambilightShown(now time.Time) []hw.RGBW {
 	if s.AmbilightFx && a.ambilightFxOn() && a.musicLevelsFresh(now) {
 		if fx := a.musicEffect(); fx != nil {
 			f := fx.frame(now, a.ambilight.Pixels())
-			if !a.cfg.AmbilightFxWhite {
+			if !a.cfg().AmbilightFxWhite {
 				foldWhite(f)
 			}
 			return scaleFrame(f, s.AmbilightFxBright)

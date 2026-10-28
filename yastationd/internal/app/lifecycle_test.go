@@ -10,10 +10,10 @@ import (
 
 func TestLifecycle(t *testing.T) {
 	a := newExpressApp(t, true)
-	a.cfg.WyomingPort = 10700
-	a.cfg.BootConnectTimeout = 300 * time.Millisecond
-	a.cfg.StateFile = t.TempDir() + "/state" // greeting marker lives under cfg.Path too
-	a.cfg.SysRoot = t.TempDir()
+	a.cfg().WyomingPort = 10700
+	a.cfg().BootConnectTimeout = 300 * time.Millisecond
+	a.cfg().StateFile = t.TempDir() + "/state" // greeting marker lives under cfg.Path too
+	a.cfg().SysRoot = t.TempDir()
 	a.sat = &satellite{a: a}
 	a.hmon = health.New("", nil) // never online: once ready, the speaker shows degraded
 	stop := make(chan struct{})

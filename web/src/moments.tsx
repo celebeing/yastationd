@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import * as api from './api'
-import type { Moment, MomentCatalog, Peer, Show, Step } from './api'
+import type { Moment, MomentCatalog, Peer, Show, Step, SyncKind, SyncState } from './api'
+import { ShareSwitch } from './settings'
 
 // The Moments tab: what the speaker shows when something happens, and an editor for it
 // (docs/display-expressions.md, "Moments"). A moment is a list of candidates, the first one this
@@ -53,13 +54,29 @@ export function MomentsTab({ peer, base }: { peer: Peer; base: string }) {
   const [cat, setCat] = useState<MomentCatalog | null>(null)
   const [open, setOpen] = useState('')
   const [err, setErr] = useState('')
+  const [sync, setSyncState] = useState<SyncState | null>(null)
   const fail = (e: any) => setErr(e.message || String(e))
-  useEffect(() => {
-    api.moments(peer.id, base).then((r) => {
+  async function loadAll() {
+    try {
+      const [r, sy] = await Promise.all([api.moments(peer.id, base), api.syncState(peer.id, base)])
       setList(r.moments)
       setCat(r.catalog)
-    }, fail)
+      setSyncState(sy)
+    } catch (e: any) {
+      fail(e)
+    }
+  }
+  useEffect(() => {
+    loadAll()
   }, [peer.id])
+  async function share(kind: SyncKind, item: string, on: boolean) {
+    setErr('')
+    try {
+      setSyncState(await api.setSync(peer.id, base, kind, item, on))
+    } catch (e: any) {
+      fail(e)
+    }
+  }
 
   async function play(name: string, draft?: Show[]) {
     setErr('')
@@ -86,7 +103,8 @@ export function MomentsTab({ peer, base }: { peer: Peer; base: string }) {
       <h3>Moments</h3>
       <p class="muted small">
         What the speaker shows when something happens. Each moment has a list of candidates; the first one this speaker has plays.
-        Changes are saved on the speaker and apply at once.
+        Changes are saved on the speaker and apply at once. A moment on every speaker is shared by the speakers with the same
+        kind of display ({cat?.display || '…'}).
       </p>
       {err && <p class="err">{err}</p>}
       {(!list || !cat) && <p class="muted">…</p>}
@@ -105,6 +123,7 @@ export function MomentsTab({ peer, base }: { peer: Peer; base: string }) {
                     {m.shows >= 0 ? describe(cur[m.shows], cat) : <span class="muted">nothing on this speaker</span>}
                   </div>
                   <div class="mbtns">
+                    <ShareSwitch sync={sync} kind="moment" item={m.name} onShare={share} />
                     <button disabled={m.shows < 0} onClick={() => play(m.name)}>
                       Play
                     </button>

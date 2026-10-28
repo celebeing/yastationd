@@ -13,7 +13,7 @@ import (
 
 // newSpotter builds the spotter if enabled and its binary is present; nil otherwise.
 func (a *App) newSpotter() *wake.Spotter {
-	c := a.cfg
+	c := a.cfg()
 	if !c.WakeEnabled {
 		return nil
 	}
@@ -82,7 +82,7 @@ func (a *App) onWakeEvent(ev wake.Event) {
 			a.log.Info("wake: ignored while playing", "phrase", ev.Phrase)
 		case a.sat.awaitingReply():
 			// A run-pipeline now would wedge HA's satellite; see interruptForWake.
-			if a.cfg.WakeWhileWaiting == "interrupt" {
+			if a.cfg().WakeWhileWaiting == "interrupt" {
 				a.log.Info("wake: interrupting the pending reply", "phrase", ev.Phrase)
 				a.publishButton("wake_word")
 				a.sat.interruptForWake()
@@ -156,9 +156,9 @@ func (a *App) onCommand(phrase string) {
 		a.stopAlarm()
 		a.player.Stop()
 	case p == "громче":
-		a.nudgeVolume(+2 * a.cfg.VolumeStep)
+		a.nudgeVolume(+2 * a.cfg().VolumeStep)
 	case p == "тише":
-		a.nudgeVolume(-2 * a.cfg.VolumeStep)
+		a.nudgeVolume(-2 * a.cfg().VolumeStep)
 	default:
 		a.log.Info("command not mapped", "phrase", phrase)
 	}
@@ -176,7 +176,7 @@ func isStop(phrase string) bool {
 // else the raw mic channel.
 func (a *App) wakeAudio(fn func([]byte)) (unsubscribe func()) {
 	if a.spot != nil && a.spot.Running() {
-		return a.spot.SubscribeVQE(time.Duration(a.cfg.PrerollMs)*time.Millisecond, fn)
+		return a.spot.SubscribeVQE(time.Duration(a.cfg().PrerollMs)*time.Millisecond, fn)
 	}
 	return a.mic.Subscribe(fn)
 }

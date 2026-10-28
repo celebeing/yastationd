@@ -41,7 +41,7 @@ func (a *App) connected() bool {
 	if a.mqtt != nil && !a.hmon.BrokerConnected() {
 		return false
 	}
-	if a.cfg.WyomingPort > 0 {
+	if a.cfg().WyomingPort > 0 {
 		a.sat.mu.Lock()
 		up := a.sat.main != nil
 		a.sat.mu.Unlock()
@@ -76,9 +76,9 @@ func (a *App) statusLoop(stop <-chan struct{}) {
 					a.hmon.Recheck(2 * time.Second) // its last probe may predate the broker
 					continue
 				}
-				if state == lifeBooting && now.Sub(start) >= a.cfg.BootConnectTimeout {
+				if state == lifeBooting && now.Sub(start) >= a.cfg().BootConnectTimeout {
 					state = lifeBootFailed
-					a.log.Warn("status: no connection to HA yet", "after", a.cfg.BootConnectTimeout)
+					a.log.Warn("status: no connection to HA yet", "after", a.cfg().BootConnectTimeout)
 					a.showLife(state)
 				}
 			case lifeReady:
@@ -137,7 +137,7 @@ func (a *App) showDegraded(on bool) {
 const bootMarker = "/tmp/yastationd.boot-shown"
 
 func (a *App) greetOncePerBoot() {
-	marker := a.cfg.Path(bootMarker)
+	marker := a.cfg().Path(bootMarker)
 	if _, err := os.Stat(marker); err == nil {
 		return
 	}
@@ -153,10 +153,10 @@ func (a *App) voiceUnavailable() {
 	if snd == "" {
 		return
 	}
-	if _, err := os.Stat(a.cfg.Path(snd)); err != nil {
+	if _, err := os.Stat(a.cfg().Path(snd)); err != nil {
 		return
 	}
-	a.announce(a.cfg.Path(snd))
+	a.announce(a.cfg().Path(snd))
 }
 
 // rtcSaneAfter: a clock before this is an RTC that lost its time (a pcf8563 that lost power

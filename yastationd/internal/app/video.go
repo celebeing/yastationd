@@ -99,7 +99,7 @@ func (a *App) videoActive() bool {
 
 func (a *App) playVideo(r *videoRun) {
 	w, h := a.screen.Size()
-	frames := a.cfg.Path(a.cfg.VideoFrames)
+	frames := a.cfg().Path(a.cfg().VideoFrames)
 	v, err := display.LoadVideo(frames, w, h, a.prof.Matrix.Gamma)
 	if err != nil {
 		a.log.Warn("video: no frames", "path", frames, "err", err)
@@ -114,7 +114,7 @@ func (a *App) playVideo(r *videoRun) {
 
 	var done <-chan error // nil = silent
 	stopAudio := func() {}
-	if audio := a.cfg.Path(a.cfg.VideoAudio); fileExists(audio) {
+	if audio := a.cfg().Path(a.cfg().VideoAudio); fileExists(audio) {
 		a.unmute()
 		d, stop, err := a.player.Start(audio)
 		if err != nil {
@@ -125,7 +125,7 @@ func (a *App) playVideo(r *videoRun) {
 	} else {
 		a.log.Warn("video: no audio file, playing silently", "path", audio)
 	}
-	start := time.Now().Add(a.cfg.VideoAVOffset)
+	start := time.Now().Add(a.cfg().VideoAVOffset)
 	a.video.mu.Lock()
 	cur := a.video.run == r
 	if cur {

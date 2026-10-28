@@ -3,6 +3,8 @@ import * as api from './api'
 import type { Entity, Features, Peer } from './api'
 import { CalibrationTab, LedTab, LogTab, WifiTab } from './extra'
 import { MomentsTab } from './moments'
+import { Control, name } from './controls'
+import { ConfigTab, SettingsTab } from './settings'
 
 // The app (docs/web-ui.md): the speakers on the LAN, and per speaker its sensors, runtime
 // controls, config and login. It is served by every speaker; the one it came from is "home" and
@@ -213,24 +215,24 @@ function About({ list, latest }: { list: Peer[]; latest: { tag: string; url: str
 }
 
 // Two levels: a group, then its tabs (docs/web-ui.md).
-type Tab = 'overview' | 'log' | 'controls' | 'moments' | 'led' | 'options' | 'calibration' | 'wifi' | 'config' | 'account'
+type Tab = 'overview' | 'log' | 'controls' | 'led' | 'settings' | 'moments' | 'config' | 'calibration' | 'wifi' | 'account'
 
 const GROUPS: { id: string; name: string; tabs: Tab[] }[] = [
   { id: 'status', name: 'Status', tabs: ['overview', 'log'] },
-  { id: 'controls', name: 'Controls', tabs: ['controls', 'moments', 'led'] },
-  { id: 'settings', name: 'Settings', tabs: ['options', 'calibration', 'wifi', 'config', 'account'] },
+  { id: 'controls', name: 'Controls', tabs: ['controls', 'led'] },
+  { id: 'settings', name: 'Settings', tabs: ['settings', 'moments', 'config', 'calibration', 'wifi', 'account'] },
 ]
 
 const TAB_NAMES: Record<Tab, string> = {
   overview: 'Sensors',
   log: 'Log',
   controls: 'Display and voice',
-  moments: 'Moments',
   led: 'LED',
-  options: 'Options',
+  settings: 'Settings',
+  moments: 'Moments',
+  config: 'Config',
   calibration: 'Calibration',
   wifi: 'Wi-Fi',
-  config: 'Config file',
   account: 'Login',
 }
 
@@ -238,8 +240,9 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
   const { peer, base } = props
   // The open section is in the address (#options), so it can be linked and survives a reload.
   const fromHash = () => {
-    const h = location.hash.slice(1) as Tab
-    return h in TAB_NAMES ? h : 'overview'
+    const h = location.hash.slice(1)
+    if (h === 'options') return 'settings' // the tab's old name
+    return h in TAB_NAMES ? (h as Tab) : 'overview'
   }
   const [tab, setTabState] = useState<Tab>(fromHash)
   const setTab = (t: Tab) => {
@@ -290,17 +293,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
 
   return (
     <div>
-      <header class="sp-head">
-        <div>
-          <h2>{peer.name}</h2>
-          <div class="muted small">
-            {peer.model} ({peer.board}) · {peer.version} · <a href={peer.url}>{peer.url}</a> ·{' '}
-            <a href={(base || '') + '/metrics'} target="_blank">
-              metrics
-            </a>
-          </div>
-        </div>
-      </header>
+      <SpeakerCard peer={peer} base={base} ents={ents} reload={load} />
       <div class="sp-body">
         <nav class="pnav" aria-label="Speaker sections">
           {GROUPS.map((g) => (
@@ -319,13 +312,13 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
       {!ents && <p class="muted">…</p>}
       {ents && tab === 'overview' && <Overview ents={ents} />}
       {ents && tab === 'controls' && <Controls which="runtime" ents={ents} peer={peer} base={base} reload={load} />}
-      {ents && tab === 'options' && <Controls which="options" ents={ents} peer={peer} base={base} reload={load} />}
+      {ents && tab === 'settings' && <SettingsTab ents={ents} peer={peer} base={base} reload={load} />}
       {tab === 'calibration' && <CalibrationTab peer={peer} base={base} />}
       {tab === 'moments' && <MomentsTab peer={peer} base={base} />}
       {tab === 'led' && <LedTab peer={peer} base={base} />}
       {tab === 'wifi' && <WifiTab peer={peer} base={base} />}
       {tab === 'log' && <LogTab peer={peer} base={base} />}
-      {tab === 'config' && <ConfigEditor peer={peer} base={base} />}
+      {tab === 'config' && <ConfigTab peer={peer} base={base} />}
       {tab === 'account' && <Account peer={peer} base={base} />}
         </div>
       </div>
@@ -333,7 +326,142 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
   )
 }
 
-const name = (e: Entity) => e.config.name || e.object
+// SpeakerCard: the top of the speaker panel, the same on every tab — who it is and where, how it
+// is doing, and the controls reached for most (volume, mute, the display).
+function SpeakerCard(p: { peer: Peer; base: string; ents: Entity[] | null; reload: () => void }) {
+  const { peer, base } = p
+  const ent = (o: string) => p.ents?.find((e) => e.object === o)
+  const host = (() => {
+    try {
+      return new URL(peer.url).host
+    } catch {
+      return peer.url
+    }
+  })()
+  const [err, setErr] = useState('')
+  async function send(o: string, payload: string) {
+    setErr('')
+    try {
+      await api.control(peer.id, base, o, payload)
+      setTimeout(p.reload, 300)
+    } catch (x: any) {
+      setErr(x.message || String(x))
+    }
+  }
+  const vol = ent('volume')
+  const health = ent('health')?.value
+  const ha = ent('pipeline_ok')?.value
+  const micOff = ent('mic_mute')?.value === 'ON'
+  const power = ent('power_problem')?.value === 'ON'
+  const lux = ent('lux')
+  const up = ent('uptime')
+  const chips: [string, string, string][] = [] // text, tone, title
+  if (health) chips.push([health, health === 'online' ? 'good' : health === 'degraded' ? 'warn' : 'bad', 'Broker, Home Assistant and the LAN as the speaker sees them'])
+  if (ha) chips.push([ha === 'ON' ? 'Voice pipeline up' : 'Voice pipeline down', ha === 'ON' ? 'good' : 'bad', "Home Assistant's link to this speaker"])
+  if (micOff) chips.push(['Mic off', 'warn', 'The mic mute key is on'])
+  if (power) chips.push(['Power problem', 'bad', 'The supply is too weak'])
+  if (lux?.value) chips.push([fmtValue(lux), '', 'Light at the speaker'])
+  if (up?.value) chips.push(['up ' + fmtValue(up), '', 'Since the daemon started'])
+  // Mute: volume 0, the level before kept in this browser to come back to.
+  const muteKey = 'yst.unmute.' + peer.id
+  const muted = vol?.value === '0'
+  function toggleMute() {
+    if (!vol) return
+    if (muted) {
+      let back = '30'
+      try {
+        back = localStorage.getItem(muteKey) || back
+      } catch {}
+      send('volume', back)
+    } else {
+      try {
+        localStorage.setItem(muteKey, vol.value || '30')
+      } catch {}
+      send('volume', '0')
+    }
+  }
+  const mode = ent('display_mode')
+  const faces = ent('display_faces')
+  return (
+    <header class="spcard">
+      <div class="spid">
+        <h2>{peer.name}</h2>
+        <div class="spaddr">
+          <a href={peer.url}>{host}</a>
+        </div>
+        <div class="muted small">
+          {peer.model} ({peer.board}) · {peer.version} ·{' '}
+          <a href={(base || '') + '/metrics'} target="_blank">
+            metrics
+          </a>
+        </div>
+        {chips.length > 0 && (
+          <div class="chips">
+            {chips.map(([t, tone, title]) => (
+              <span class={'chip ' + tone} title={title}>
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      <div class="spctl">
+        {vol && (
+          <div class="ctl">
+            <span class="ctl-name">Volume</span>
+            <VolumeSlider e={vol} send={(v) => send('volume', v)} />
+            <button class={'mute' + (muted ? ' on' : '')} aria-pressed={muted} onClick={toggleMute} title={muted ? 'Back to the volume before' : 'Volume 0'}>
+              {muted ? 'Unmute' : 'Mute'}
+            </button>
+          </div>
+        )}
+        {mode && (
+          <div class="ctl">
+            <span class="ctl-name">Display</span>
+            <Control e={mode} send={(v) => send('display_mode', v)} />
+          </div>
+        )}
+        {faces && (
+          <div class="ctl">
+            <span class="ctl-name">Faces</span>
+            <Control e={faces} send={(v) => send('display_faces', v)} />
+          </div>
+        )}
+        {err && <p class="err small">{err}</p>}
+      </div>
+    </header>
+  )
+}
+
+function VolumeSlider({ e, send }: { e: Entity; send: (v: string) => void }) {
+  const [v, setV] = useState(e.value || '0')
+  const dragging = useRef(false)
+  useEffect(() => {
+    if (!dragging.current) setV(e.value || '0')
+  }, [e.value])
+  return (
+    <span class="num">
+      <input
+        type="range"
+        aria-label="Volume"
+        min={e.config.min ?? 0}
+        max={e.config.max ?? 100}
+        step={e.config.step || 1}
+        value={v}
+        onInput={(x) => {
+          dragging.current = true
+          setV(x.currentTarget.value)
+        }}
+        onChange={(x) => {
+          dragging.current = false
+          send(x.currentTarget.value)
+        }}
+      />
+      <span class="vol">{v}</span>
+    </span>
+  )
+}
+
 const isSensor = (e: Entity) => ['sensor', 'binary_sensor', 'event'].includes(e.component)
 
 function fmtValue(e: Entity): string {
@@ -422,182 +550,6 @@ function Controls(props: { which: 'runtime' | 'options'; ents: Entity[]; peer: P
       ))}
     </div>
   )
-}
-
-function Control({ e, send }: { e: Entity; send: (p: string) => void }) {
-  const c = e.config
-  switch (e.component) {
-    case 'switch': {
-      const on = e.value === (c.payload_on || 'ON')
-      return (
-        <label class="switch">
-          <input type="checkbox" checked={on} onChange={(x) => send(x.currentTarget.checked ? c.payload_on || 'ON' : c.payload_off || 'OFF')} />
-          <span />
-        </label>
-      )
-    }
-    case 'select':
-      return (
-        <select value={e.value || ''} onChange={(x) => send(x.currentTarget.value)}>
-          {(c.options || []).map((o: string) => (
-            <option value={o}>{o}</option>
-          ))}
-        </select>
-      )
-    case 'number':
-      return <NumberControl e={e} send={send} />
-    case 'button':
-      return <button onClick={() => send(c.payload_press || 'PRESS')}>Press</button>
-    case 'text':
-    case 'notify':
-      return <TextControl e={e} send={send} />
-  }
-  return <span class="muted">{e.value}</span>
-}
-
-function NumberControl({ e, send }: { e: Entity; send: (p: string) => void }) {
-  const c = e.config
-  const [v, setV] = useState(e.value || '')
-  const editing = useRef(false)
-  useEffect(() => {
-    if (!editing.current) setV(e.value || '')
-  }, [e.value])
-  const commit = () => {
-    editing.current = false
-    if (v !== e.value) send(v)
-  }
-  const slider = c.mode !== 'box' && c.max - c.min <= 1000
-  return (
-    <span class="num">
-      {slider && (
-        <input
-          type="range"
-          min={c.min}
-          max={c.max}
-          step={c.step || 1}
-          value={v}
-          onInput={(x) => {
-            editing.current = true
-            setV(x.currentTarget.value)
-          }}
-          onChange={commit}
-        />
-      )}
-      <input
-        type="number"
-        min={c.min}
-        max={c.max}
-        step={c.step || 1}
-        value={v}
-        onInput={(x) => {
-          editing.current = true
-          setV(x.currentTarget.value)
-        }}
-        onChange={commit}
-      />
-      {c.unit_of_measurement && <span class="muted small">{c.unit_of_measurement}</span>}
-    </span>
-  )
-}
-
-function TextControl({ e, send }: { e: Entity; send: (p: string) => void }) {
-  const [v, setV] = useState(e.component === 'text' ? e.value || '' : '')
-  return (
-    <form
-      class="text"
-      onSubmit={(x) => {
-        x.preventDefault()
-        send(v)
-        if (e.component === 'notify') setV('')
-      }}
-    >
-      <input value={v} maxLength={e.config.max || 255} onInput={(x) => setV(x.currentTarget.value)} />
-      <button type="submit">{e.component === 'notify' ? 'Show' : 'Set'}</button>
-    </form>
-  )
-}
-
-function ConfigEditor({ peer, base }: { peer: Peer; base: string }) {
-  const [text, setText] = useState<string | null>(null)
-  const [orig, setOrig] = useState('')
-  const [meta, setMeta] = useState<{ file: string; trial: boolean } | null>(null)
-  const [msg, setMsg] = useState('')
-  const [err, setErr] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  async function load() {
-    try {
-      const c = await api.getConfig(peer.id, base)
-      setText(c.text)
-      setOrig(c.text)
-      setMeta({ file: c.file, trial: c.trial })
-    } catch (e: any) {
-      setErr(e.message || String(e))
-    }
-  }
-  useEffect(() => {
-    load()
-  }, [peer.id])
-
-  async function save() {
-    if (text === null) return
-    setBusy(true)
-    setErr('')
-    setMsg('')
-    try {
-      const r = await api.putConfig(peer.id, base, text)
-      if (!r.restarting) {
-        setMsg('No changes.')
-        return
-      }
-      setMsg('Saved. The speaker restarts with the new config on trial…')
-      await waitBack(base)
-      setMsg('Back up. The new config is on trial for a minute: it stays if the speaker is as healthy as before, else the old one comes back by itself.')
-      // the restart dropped our token
-      await api.tryLogin(peer.id, base)
-      await load()
-    } catch (e: any) {
-      setErr(e.message || String(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  if (text === null) return err ? <p class="err">{err}</p> : <p class="muted">…</p>
-  return (
-    <section class="card">
-      <h3>
-        Config <span class="muted small">{meta?.file}</span>
-        {meta?.trial && <span class="badge">on trial</span>}
-      </h3>
-      <textarea class="config" spellcheck={false} value={text} onInput={(e) => setText(e.currentTarget.value)} />
-      <div class="row">
-        <button onClick={save} disabled={busy || text === orig}>
-          Save and restart
-        </button>
-        <button class="ghost" onClick={() => setText(orig)} disabled={busy || text === orig}>
-          Revert
-        </button>
-        <a class="small" href="https://github.com/celebeing/yastationd/blob/main/yastationd/configs/yastationd.conf.example" target="_blank">
-          all keys
-        </a>
-      </div>
-      {err && <p class="err">{err}</p>}
-      {msg && <p class="ok">{msg}</p>}
-    </section>
-  )
-}
-
-async function waitBack(base: string) {
-  await new Promise((r) => setTimeout(r, 2000))
-  for (let i = 0; i < 30; i++) {
-    try {
-      await api.info(base)
-      return
-    } catch {
-      await new Promise((r) => setTimeout(r, 1000))
-    }
-  }
 }
 
 function Account({ peer, base }: { peer: Peer; base: string }) {

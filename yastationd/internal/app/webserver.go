@@ -73,16 +73,16 @@ func (a *App) ddpInfo() *ddpInfo {
 	if !a.ambilightFxOn() {
 		return nil
 	}
-	return &ddpInfo{Port: a.cfg.DDPPort, Pixels: a.ambilight.Pixels(), Order: "RGB", First: "top"}
+	return &ddpInfo{Port: a.cfg().DDPPort, Pixels: a.ambilight.Pixels(), Order: "RGB", First: "top"}
 }
 
 // startWeb listens (an error when it cannot) and serves until ctx ends.
 func (a *App) startWeb(ctx context.Context) error {
 	a.web.tokens.TTL = tokenTTL
-	a.web.user, a.web.password = a.cfg.WebUser, a.cfg.WebPassword
+	a.web.user, a.web.password = a.cfg().WebUser, a.cfg().WebPassword
 	a.web.secret = a.webSecret()
 	a.web.tokens.SetKey(web.TokenKey(a.web.secret, a.web.user, a.web.password))
-	ln, err := net.Listen("tcp", a.cfg.HTTPAddr)
+	ln, err := net.Listen("tcp", a.cfg().HTTPAddr)
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func (a *App) startWeb(ctx context.Context) error {
 		srv.Shutdown(sctx)
 	}()
 	go func() {
-		a.log.Info("web: listening", "addr", a.cfg.HTTPAddr)
+		a.log.Info("web: listening", "addr", a.cfg().HTTPAddr)
 		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			a.log.Warn("web: server stopped", "err", err)
 		}
@@ -111,6 +111,8 @@ func (a *App) webHandler() http.Handler {
 	api.HandleFunc("/api/control/", a.authed(a.apiControl))
 	api.HandleFunc("/api/password", a.authed(a.apiPassword))
 	api.HandleFunc("/api/config", a.authed(a.apiConfig))
+	api.HandleFunc("/api/settings", a.authed(a.apiSettings))
+	api.HandleFunc("/api/sync", a.authed(a.apiSync))
 	api.HandleFunc("/api/wifi", a.authed(a.apiWifi))
 	api.HandleFunc("/api/wifi/networks", a.authed(a.apiWifiAdd))
 	api.HandleFunc("/api/moments", a.authed(a.apiMoments))
@@ -177,7 +179,7 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 }
 
 func (a *App) selfInfo(r *http.Request) peerInfo {
-	return peerInfo{ID: a.cfg.DeviceID, Name: a.cfg.DeviceName, Board: a.prof.Name, Model: a.prof.Model,
+	return peerInfo{ID: a.cfg().DeviceID, Name: a.cfg().DeviceName, Board: a.prof.Name, Model: a.prof.Model,
 		Version: version.Version, URL: a.selfURL(r)}
 }
 
@@ -185,13 +187,13 @@ func (a *App) selfInfo(r *http.Request) peerInfo {
 // address the default route leaves from.
 func (a *App) selfURL(r *http.Request) string {
 	port := ""
-	if _, p, err := net.SplitHostPort(a.cfg.HTTPAddr); err == nil && p != "80" && p != "" {
+	if _, p, err := net.SplitHostPort(a.cfg().HTTPAddr); err == nil && p != "80" && p != "" {
 		port = ":" + p
 	}
 	if r != nil && r.Host != "" {
 		return "http://" + r.Host + "/"
 	}
-	if ip := outboundIP(a.cfg.Path("/proc/net/route")); ip != "" {
+	if ip := outboundIP(a.cfg().Path("/proc/net/route")); ip != "" {
 		return "http://" + ip + port + "/"
 	}
 	return ""
@@ -280,7 +282,7 @@ func (a *App) apiPassword(w http.ResponseWriter, r *http.Request) {
 // so a login survives restarts and redeploys. When it cannot be kept, a secret for this run only
 // (a restart logs everyone out, as before).
 func (a *App) webSecret() []byte {
-	path := a.cfg.Path(a.prof.Platform.CFWRoot + "/" + webSecretFile)
+	path := a.cfg().Path(a.prof.Platform.CFWRoot + "/" + webSecretFile)
 	if b, err := os.ReadFile(path); err == nil && len(b) >= 32 {
 		return b
 	}
@@ -294,10 +296,12 @@ func (a *App) webSecret() []byte {
 
 // editConfig changes keys in the config file in place (validated, the old file kept as .bak).
 func (a *App) editConfig(changes map[string][]string, note string) error {
-	if a.cfg.File == "" {
+	a.confMu.Lock()
+	defer a.confMu.Unlock()
+	if a.cfg().File == "" {
 		return errors.New("no config file")
 	}
-	old, err := os.ReadFile(a.cfg.File)
+	old, err := os.ReadFile(a.cfg().File)
 	if err != nil {
 		return err
 	}
@@ -305,14 +309,11 @@ func (a *App) editConfig(changes map[string][]string, note string) error {
 	if _, err := config.Parse(strings.NewReader(string(data))); err != nil {
 		return err
 	}
-	if err := os.WriteFile(a.cfg.File+".bak", old, 0o600); err != nil {
+	if err := writeConfigFile(a.cfg().File, old, data); err != nil {
 		return err
 	}
-	tmp := a.cfg.File + ".new"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, a.cfg.File)
+	a.adoptConfig(data)
+	return nil
 }
 
 // webEntity is a control or sensor as the app sees it.
@@ -403,7 +404,7 @@ func (a *App) apiControl(w http.ResponseWriter, r *http.Request) {
 // Discovery: our retained card on <prefix>/<id>/web/info, everyone's on <prefix>/+/web/info.
 
 func (a *App) publishWebInfo() {
-	if a.cfg.HTTPAddr == "" {
+	if a.cfg().HTTPAddr == "" {
 		return
 	}
 	b, _ := json.Marshal(a.selfInfo(nil))
@@ -442,7 +443,7 @@ func (a *App) apiPeers(w http.ResponseWriter, r *http.Request) {
 // process numbers. No login (read-only, the exporter convention).
 func (a *App) serveMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-	dev := a.cfg.DeviceID
+	dev := a.cfg().DeviceID
 	fmt.Fprintf(w, "# TYPE yastation_info gauge\nyastation_info{device=%q,board=%q,version=%q} 1\n", dev, a.prof.Name, version.Version)
 	fmt.Fprintf(w, "# TYPE yastation_uptime_seconds gauge\nyastation_uptime_seconds{device=%q} %d\n", dev, int(time.Since(a.start).Seconds()))
 	var ms runtime.MemStats
@@ -503,60 +504,44 @@ func metricName(s string) string {
 const configTrial = time.Minute
 
 func (a *App) trialMarker() string {
-	return a.cfg.Path(a.prof.Platform.CFWRoot + "/config.trial")
+	return a.cfg().Path(a.prof.Platform.CFWRoot + "/config.trial")
 }
 
 func (a *App) apiConfig(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		b, err := os.ReadFile(a.cfg.File)
+		b, err := os.ReadFile(a.cfg().File)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
 		_, terr := os.Stat(a.trialMarker())
-		writeJSON(w, http.StatusOK, map[string]any{"file": a.cfg.File, "text": string(b), "trial": terr == nil})
+		writeJSON(w, http.StatusOK, map[string]any{"file": a.cfg().File, "text": string(b), "trial": terr == nil})
 	case http.MethodPut:
 		var in struct{ Text string }
 		if json.NewDecoder(io.LimitReader(r.Body, 256<<10)).Decode(&in) != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad request"})
 			return
 		}
-		if _, err := config.Parse(strings.NewReader(in.Text)); err != nil {
+		restart, changed, err := a.applyConfigText([]byte(in.Text), "config editor")
+		if err != nil {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
 		}
-		old, err := os.ReadFile(a.cfg.File)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
+		if changed == nil {
+			changed = []string{}
 		}
-		if string(old) == in.Text {
-			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "restarting": false})
-			return
-		}
-		if err := a.saveConfigTrial(old, []byte(in.Text)); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
-		}
-		a.log.Info("web: config saved, restarting on trial", "bytes", len(in.Text))
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "restarting": true})
-		go func() {
-			time.Sleep(500 * time.Millisecond) // the reply goes out first
-			if a.quit != nil {
-				a.quit() // exits 0; the supervisor starts us again with the new config
-			}
-		}()
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "restarting": restart, "changed": changed})
 	default:
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "GET or PUT"})
 	}
 }
 
 func (a *App) saveConfigTrial(old, data []byte) error {
-	if err := os.WriteFile(a.cfg.File+".bak", old, 0o600); err != nil {
+	if err := os.WriteFile(a.cfg().File+".bak", old, 0o600); err != nil {
 		return err
 	}
-	tmp := a.cfg.File + ".new"
+	tmp := a.cfg().File + ".new"
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return err
 	}
@@ -564,7 +549,7 @@ func (a *App) saveConfigTrial(old, data []byte) error {
 	if err := os.WriteFile(a.trialMarker(), []byte(strconv.Itoa(int(a.hmon.State()))), 0o644); err != nil {
 		return err
 	}
-	return os.Rename(tmp, a.cfg.File)
+	return os.Rename(tmp, a.cfg().File)
 }
 
 // configTrialLoop judges a config on trial after configTrial: accepted when the speaker is at least
@@ -599,10 +584,10 @@ func (a *App) trialFailed(why string) {
 		return
 	}
 	a.log.Error("config: the config on trial fails, rolling back", "why", why)
-	if old, err := os.ReadFile(a.cfg.File + ".bak"); err == nil {
-		tmp := a.cfg.File + ".restore"
+	if old, err := os.ReadFile(a.cfg().File + ".bak"); err == nil {
+		tmp := a.cfg().File + ".restore"
 		if os.WriteFile(tmp, old, 0o600) == nil {
-			os.Rename(tmp, a.cfg.File)
+			os.Rename(tmp, a.cfg().File)
 		}
 	}
 	os.Remove(a.trialMarker())
@@ -613,7 +598,7 @@ func (a *App) trialFailed(why string) {
 
 // systemMetrics: the speaker's memory, load and temperatures (every thermal zone, by its type).
 func (a *App) systemMetrics(w io.Writer, dev string) {
-	if b, err := os.ReadFile(a.cfg.Path("/proc/meminfo")); err == nil {
+	if b, err := os.ReadFile(a.cfg().Path("/proc/meminfo")); err == nil {
 		fmt.Fprintf(w, "# TYPE yastation_memory_bytes gauge\n")
 		for _, l := range strings.Split(string(b), "\n") {
 			f := strings.Fields(l)
@@ -634,7 +619,7 @@ func (a *App) systemMetrics(w io.Writer, dev string) {
 			}
 		}
 	}
-	if b, err := os.ReadFile(a.cfg.Path("/proc/loadavg")); err == nil {
+	if b, err := os.ReadFile(a.cfg().Path("/proc/loadavg")); err == nil {
 		if f := strings.Fields(string(b)); len(f) >= 3 {
 			fmt.Fprintf(w, "# TYPE yastation_load gauge\n")
 			for i, span := range []string{"1m", "5m", "15m"} {
@@ -642,7 +627,7 @@ func (a *App) systemMetrics(w io.Writer, dev string) {
 			}
 		}
 	}
-	zones, _ := filepath.Glob(a.cfg.Path("/sys/class/thermal/thermal_zone*"))
+	zones, _ := filepath.Glob(a.cfg().Path("/sys/class/thermal/thermal_zone*"))
 	first := true
 	for _, z := range zones {
 		typ, err1 := os.ReadFile(filepath.Join(z, "type"))

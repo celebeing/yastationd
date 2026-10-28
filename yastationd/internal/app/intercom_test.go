@@ -39,13 +39,14 @@ func testIntercomApp(t *testing.T, id, name string) *App {
 	cfg.AnnounceChime = false
 	cfg.IntercomRing = 2 * time.Second
 	cfg.IntercomPort = freeUDPPort(t)
-	a := &App{cfg: cfg, log: log,
+	a := &App{log: log,
 		ringStack:   display.NewStack(func(time.Time) display.RingFrame { return display.Blank(12) }),
 		matrixStack: display.NewStack(func(time.Time) display.FrontFrame { return display.FrontFrame{} }),
 		mixer:       hw.NewMixer("0"),
 		mic:         &hw.Mic{Device: "fake", Channels: 1, Rate: 16000, Log: log},
 		store:       newStateStore(filepath.Join(t.TempDir(), "state"), defaultState(128, 128, 128, false)),
 	}
+	a.conf.Store(&cfg)
 	a.sat = &satellite{a: a}
 	a.ic = a.newIntercom()
 	return a
@@ -58,7 +59,7 @@ func TestIntercomVoiceScenario(t *testing.T) {
 	// signalling straight across instead of through a broker; peers as their info would announce
 	link := func(from, to *App) {
 		from.ic.m = intercom.NewManager(intercomOptions(from, func(dst string, b []byte) { go to.ic.m.Handle(b) }))
-		from.ic.peers[to.cfg.DeviceID] = intercom.Peer{ID: to.cfg.DeviceID, Name: to.ic.name}
+		from.ic.peers[to.cfg().DeviceID] = intercom.Peer{ID: to.cfg().DeviceID, Name: to.ic.name}
 	}
 	link(office, bedroom)
 	link(bedroom, office)
@@ -71,7 +72,7 @@ func TestIntercomVoiceScenario(t *testing.T) {
 				return
 			}
 		}
-		t.Fatalf("%s: %v, want %v", a.cfg.DeviceID, a.ic.m.Status(), want)
+		t.Fatalf("%s: %v, want %v", a.cfg().DeviceID, a.ic.m.Status(), want)
 	}
 
 	cmd := func(a *App, phrase string) { a.onWakeEvent(wake.Event{Kind: "CMD", Phrase: phrase}) }

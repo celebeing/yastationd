@@ -37,13 +37,13 @@ func newVideoApp(t *testing.T, frames int) *App {
 	os.WriteFile(cfg.VideoAudio, []byte("RIFF"), 0o644)
 	st := defaultState(128, 128, 255, false)
 	a := &App{
-		cfg:         cfg,
 		log:         slog.New(slog.NewTextHandler(io.Discard, nil)),
 		store:       newStateStore("", st),
 		screen:      hw.NewVirtualDotMatrix(2, 1),
 		front:       display.PixelFront{W: 2, H: 1},
 		matrixStack: display.NewStack(func(time.Time) display.FrontFrame { return display.FrontFrame{} }),
 	}
+	a.conf.Store(&cfg)
 	a.player = &hw.Player{Device: "default", OnState: a.onPlayState}
 	return a
 }
@@ -116,7 +116,7 @@ func TestVideoRefusalsAndFallbacks(t *testing.T) {
 	}
 
 	a = newVideoApp(t, 3) // 60 ms: the picture ends before the 10 s track, which is then cut
-	os.Remove(a.cfg.VideoAudio)
+	os.Remove(a.cfg().VideoAudio)
 	a.startVideo()
 	waitFor(t, "the end of a silent video", func() bool { return !a.videoActive() })
 

@@ -310,7 +310,7 @@ func (s *satellite) setAwaiting(on bool) {
 		s.mu.Unlock()
 		return
 	}
-	timeout := s.a.cfg.ReplyTimeout
+	timeout := s.a.cfg().ReplyTimeout
 	s.awaitUntil = time.Now().Add(timeout)
 	s.mu.Unlock()
 	still := func() bool {

@@ -52,7 +52,7 @@ func powerProblem(pd hw.PD, minMV int) bool {
 }
 
 func (a *App) powerAlert(pd hw.PD) {
-	marker := a.cfg.Path(powerAlertedMarker)
+	marker := a.cfg().Path(powerAlertedMarker)
 	if _, err := os.Stat(marker); err == nil {
 		return
 	}
@@ -63,9 +63,9 @@ func (a *App) powerAlert(pd hw.PD) {
 	if snd == "" {
 		return
 	}
-	if _, err := os.Stat(a.cfg.Path(snd)); err != nil {
+	if _, err := os.Stat(a.cfg().Path(snd)); err != nil {
 		a.log.Warn("power: alert sound missing", "path", snd)
 		return
 	}
-	a.announce(a.cfg.Path(snd))
+	a.announce(a.cfg().Path(snd))
 }

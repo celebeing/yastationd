@@ -144,7 +144,7 @@ export const control = (id: string, base: string, object: string, payload: strin
   authed<{ ok: boolean }>(id, base, '/api/control/' + encodeURIComponent(object), { method: 'POST', body: payload, headers: { 'Content-Type': 'text/plain' } })
 export const getConfig = (id: string, base: string) => authed<{ file: string; text: string; trial: boolean }>(id, base, '/api/config')
 export const putConfig = (id: string, base: string, text: string) =>
-  authed<{ ok: boolean; restarting: boolean }>(id, base, '/api/config', { method: 'PUT', body: JSON.stringify({ text }) })
+  authed<{ ok: boolean; restarting: boolean; changed?: string[] }>(id, base, '/api/config', { method: 'PUT', body: JSON.stringify({ text }) })
 export async function setPassword(id: string, base: string, user: string, password: string) {
   const r = await authed<{ token: string }>(id, base, '/api/password', { method: 'POST', body: JSON.stringify({ user, password }) })
   setToken(id, r.token)
@@ -229,3 +229,40 @@ export function behind(version: string, tag: string): boolean {
   for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] < b[i]
   return false
 }
+
+/** A config key as the settings pages show it (docs/settings.md). */
+export type SettingKey = {
+  name: string
+  group: string
+  label: string
+  doc: string
+  kind: 'bool' | 'int' | 'float' | 'enum' | 'text' | 'secret' | 'list'
+  min?: number
+  max?: number
+  unit?: string
+  options?: string[]
+  runtime: boolean
+  sync: boolean
+  advanced?: boolean
+  value: string[]
+  default: string[]
+  set: boolean
+}
+export type Settings = { groups: { ID: string; Title: string }[]; keys: SettingKey[]; trial: boolean }
+export const settings = (id: string, base: string) => authed<Settings>(id, base, '/api/settings')
+/** putSettings: key → its lines ([] = back to the default). restarting: a key needed a restart. */
+export const putSettings = (id: string, base: string, changes: Record<string, string[]>) =>
+  authed<{ ok: boolean; restarting: boolean; changed: string[] }>(id, base, '/api/settings', { method: 'PUT', body: JSON.stringify({ changes }) })
+
+export type SharedAt = { at: number; by: string }
+export type SyncState = {
+  connected: boolean
+  settings: Record<string, SharedAt>
+  options: Record<string, SharedAt>
+  moments: Record<string, SharedAt>
+  option_ids: string[]
+}
+export type SyncKind = 'setting' | 'option' | 'moment'
+export const syncState = (id: string, base: string) => authed<SyncState>(id, base, '/api/sync')
+export const setSync = (id: string, base: string, kind: SyncKind, item: string, on: boolean) =>
+  authed<SyncState>(id, base, '/api/sync', { method: 'POST', body: JSON.stringify({ kind, item, on }) })

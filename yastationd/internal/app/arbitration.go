@@ -52,13 +52,13 @@ type arbRound struct {
 }
 
 func (a *App) arbitrationOn() bool {
-	return a.cfg.Arbitration && a.mqtt != nil && a.mqtt.Connected() && a.room != nil
+	return a.cfg().Arbitration && a.mqtt != nil && a.mqtt.Connected() && a.room != nil
 }
 
 // onArbitrationClaim takes a claim from the topic (our own comes back too).
 func (a *App) onArbitrationClaim(payload []byte) {
 	var c arbClaim
-	if json.Unmarshal(payload, &c) != nil || c.ID == "" || c.ID == a.cfg.DeviceID {
+	if json.Unmarshal(payload, &c) != nil || c.ID == "" || c.ID == a.cfg().DeviceID {
 		return
 	}
 	now := time.Now()
@@ -85,13 +85,13 @@ func (a *App) arbitrateWake() {
 		a.startWake() // no levels yet: answer as before
 		return
 	}
-	mine := arbClaim{ID: a.cfg.DeviceID, Level: round1(level + a.splOffset()), At: time.Now().UnixMilli()}
+	mine := arbClaim{ID: a.cfg().DeviceID, Level: round1(level + a.splOffset()), At: time.Now().UnixMilli()}
 	r := &arbRound{mine: mine, at: time.Now(), held: &heldWake{}}
 	r.held.unsub = a.wakeAudio(r.held.add)
 	if b, err := json.Marshal(mine); err == nil {
 		a.publishEvent(a.topics.Arbitration(), string(b))
 	}
-	wait := a.cfg.ArbitrationWait
+	wait := a.cfg().ArbitrationWait
 	if over >= arbLoudOver {
 		wait = arbQuickWait
 	}

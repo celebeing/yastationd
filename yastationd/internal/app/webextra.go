@@ -21,7 +21,7 @@ import (
 func (a *App) features() map[string]bool {
 	return map[string]bool{
 		"wifi":        a.setup != nil,
-		"led_preview": a.tap != nil && a.cfg.LEDPreview,
+		"led_preview": a.tap != nil && a.cfg().LEDPreview,
 		"moments":     true,
 	}
 }
@@ -199,7 +199,7 @@ func (a *App) apiMoment(w http.ResponseWriter, r *http.Request) {
 // cannot send headers).
 func (a *App) tapHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if a.tap == nil || !a.cfg.LEDPreview {
+		if a.tap == nil || !a.cfg().LEDPreview {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "LED preview is off (led_preview = true)"})
 			return
 		}

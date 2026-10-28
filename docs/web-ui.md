@@ -55,7 +55,9 @@ to the binary. Flash is written only when the config is saved.
 | `GET /api/peers` | the speakers this one knows (below) |
 | `GET /api/state` | every web-exposed control and sensor: its metadata and current value |
 | `POST /api/control/<object>` | set a control: the body is the same payload as its MQTT command |
-| `GET /api/config`, `PUT /api/config` | the config file's text; a save is validated, then applied (below) |
+| `GET /api/config`, `PUT /api/config` | the config file's text; a save is validated, then applied live or by a trial restart (below, and [settings.md](settings.md)) |
+| `GET /api/settings`, `PUT /api/settings` | the config keys with their descriptions; set some ([settings.md](settings.md)) |
+| `GET /api/sync`, `POST /api/sync` | what is shared with the other speakers; share or stop sharing an item |
 | `POST /api/password` | change the login |
 
 ### One definition for MQTT and the web
@@ -77,8 +79,10 @@ publishes. The web uses the same three, nothing is described twice:
 
 1. The new text is parsed with the daemon's own parser; an error goes back to the app, nothing is
    written.
-2. The current file is kept as `yastationd.conf.bak`, the new one written atomically, and a trial
-   marker `<cfw>/config.trial` left; the daemon exits and the supervisor starts it again.
+2. The current file is kept as `yastationd.conf.bak` and the new one written atomically. When
+   every changed key is a runtime one it applies at once and that is all ([settings.md](settings.md));
+   otherwise a trial marker `<cfw>/config.trial` is left, the daemon exits and the supervisor starts
+   it again.
 3. The marker holds the speaker's health before the save. The new config is accepted after a
    minute only if the speaker is at least as healthy (broker, HA's pipeline); a server that cannot
    listen (the web, Wyoming) fails it at once. A failing trial puts the `.bak` back, removes the
@@ -114,23 +118,24 @@ A subproject: TypeScript, Preact, Vite (versions pinned exactly), built into
 `go build` without it still compiles; that binary serves a "built without its web app" page.
 
 - The speakers list (from `/api/peers`): name, room, board, version, online, a login state.
-- Per speaker: sensors, runtime controls (from `/api/state`, rendered by kind), the config editor,
-  the password, the frame tap's preview.
+- Per speaker: a card on top (name, address, status, volume, mute, display), sensors, runtime
+  controls (from `/api/state`, rendered by kind), the settings pages and the config editor
+  ([settings.md](settings.md)), the password, the frame tap's preview.
 - Logins: one per speaker; the app tries the last credentials that worked on the others first.
 
 ## Navigation
 
 Per speaker, a section menu beside the content: the groups as captions, their sections under
 them (a scrolling row on narrow screens). The open section is in the address (`#options`), so it
-can be linked. Lists of settings and controls are settings pages — one narrow column, a name and
+can be linked (the old `#options` opens Settings). Lists of settings and controls are settings pages — one narrow column, a name and
 its control on one line — while sensors, the log, the LED preview and the config file use the
 window's width.
 
 | Group | Tabs |
 |---|---|
 | Status | Sensors (and diagnostics), Log |
-| Controls | Display and voice (the runtime controls HA has: lights, display, expressions, volume…), Moments, LED |
-| Settings | Options (the settings HA keeps as config entities), Calibration, Wi-Fi, Config file, Login |
+| Controls | Display and voice (the runtime controls HA has: lights, display, expressions, volume…), LED |
+| Settings | Settings (what applies at once: HA's options and the runtime keys), Moments, Config (what needs a restart, and the raw file), Calibration, Wi-Fi, Login |
 
 ## Calibration
 

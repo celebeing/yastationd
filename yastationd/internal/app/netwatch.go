@@ -96,12 +96,12 @@ func (w *netWatch) step(now time.Time, up bool, uptime time.Duration) netAction 
 }
 
 func (a *App) netWatchLoop(stop <-chan struct{}) {
-	if a.cfg.NetWatchdog <= 0 {
+	if a.cfg().NetWatchdog <= 0 {
 		return
 	}
-	countFile := a.cfg.Path(a.prof.Platform.CFWRoot + "/" + netWatchCount)
+	countFile := a.cfg().Path(a.prof.Platform.CFWRoot + "/" + netWatchCount)
 	w := netWatch{}
-	if c := a.cfg; c.NetWifiRecovery {
+	if c := a.cfg(); c.NetWifiRecovery {
 		w.reconfigureAfter, w.resetEvery = c.NetWifiReconfigure, c.NetWifiResetEvery
 		if a.prof.Platform.WifiReset != "" {
 			w.resetAfter = c.NetWifiReset
@@ -110,7 +110,7 @@ func (a *App) netWatchLoop(stop <-chan struct{}) {
 	if b, err := os.ReadFile(countFile); err == nil {
 		w.count, _ = strconv.Atoi(strings.TrimSpace(string(b)))
 	}
-	w.limit = netWatchLimit(a.cfg.NetWatchdog, w.count)
+	w.limit = netWatchLimit(a.cfg().NetWatchdog, w.count)
 	t := time.NewTicker(netWatchEvery)
 	defer t.Stop()
 	for {
@@ -131,7 +131,7 @@ func (a *App) netWatchLoop(stop <-chan struct{}) {
 		}
 		if up && w.count > 0 && !w.upSince.IsZero() && now.Sub(w.upSince) >= netWatchReset {
 			w.count = 0
-			w.limit = a.cfg.NetWatchdog
+			w.limit = a.cfg().NetWatchdog
 			os.Remove(countFile)
 		}
 		switch w.step(now, up, uptime()) {
@@ -181,7 +181,7 @@ func (a *App) networkUp() bool {
 	if a.mqtt != nil && a.mqtt.Connected() {
 		return true
 	}
-	gw := timesync.DefaultGateway(a.cfg.Path("/proc/net/route"))
+	gw := timesync.DefaultGateway(a.cfg().Path("/proc/net/route"))
 	if gw == "" {
 		return false
 	}

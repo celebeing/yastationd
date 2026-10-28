@@ -106,7 +106,7 @@ func refs(names []string) []show {
 const momentFile = "moments.json"
 
 func (a *App) momentPath() string {
-	return a.cfg.Path(a.prof.Platform.CFWRoot + "/" + momentFile)
+	return a.cfg().Path(a.prof.Platform.CFWRoot + "/" + momentFile)
 }
 
 // loadMoments reads the owner's moments (none when the file is missing).
@@ -153,6 +153,7 @@ func (a *App) setMoment(name string, shows []show) error {
 		return err
 	}
 	a.userMoments.Store(&m)
+	a.shareChanged(a.momentKind(), name)
 	return nil
 }
 

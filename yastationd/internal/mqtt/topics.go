@@ -88,3 +88,21 @@ func (t Topics) StateObject(topic string) string {
 	}
 	return obj
 }
+
+// Shared (docs/settings.md, "Sync"): a value every speaker takes, one retained topic per item —
+// kind "setting" (a config key), "option" (an HA config entity) or "moment/<display kind>"
+// (a moment, shared by the speakers with that kind of front display). An empty payload: the
+// item is not shared.
+func (t Topics) Shared(kind, item string) string {
+	return fmt.Sprintf("%s/shared/%s/%s", t.prefix, kind, item)
+}
+func (t Topics) SharedAll(kind string) string { return fmt.Sprintf("%s/shared/%s/+", t.prefix, kind) }
+
+// SharedItem is the item of a Shared(kind, …) topic ("" if it isn't one).
+func (t Topics) SharedItem(kind, topic string) string {
+	item, ok := strings.CutPrefix(topic, fmt.Sprintf("%s/shared/%s/", t.prefix, kind))
+	if !ok || strings.Contains(item, "/") {
+		return ""
+	}
+	return item
+}

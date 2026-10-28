@@ -156,3 +156,43 @@ label.field input { width: 5.5rem; }
 input.ms { width: 5.5rem; }
 input.anim { min-width: 8rem; flex: 1; max-width: 22rem; }
 @media (max-width: 760px) { .mhead { grid-template-columns: 1fr; } .steps { margin-left: 0; } .steps .row { flex-wrap: wrap; } }
+
+/* The speaker card (app.tsx SpeakerCard): identity and status left, the everyday controls right. */
+.spcard { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 22rem); gap: 1rem 2rem; align-items: start;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1.1rem 1.25rem; margin-bottom: 1.25rem; }
+.spcard h2 { font-size: 1.7rem; line-height: 1.15; letter-spacing: -0.01em; }
+.spaddr { font: 600 1rem/1.4 ui-monospace, 'SF Mono', Menlo, Consolas, monospace; margin: 0.15rem 0 0.2rem; }
+.spaddr a { color: var(--fg); text-decoration: none; }
+.spaddr a:hover { color: var(--accent); }
+.chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.7rem; }
+.chip { font-size: 0.8rem; padding: 0.12rem 0.55rem; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+.chip.good { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+.chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.chip.bad { color: var(--err); border-color: color-mix(in srgb, var(--err) 45%, var(--line)); }
+.spctl .ctl { padding: 0.35rem 0; }
+.spctl .ctl:first-child { border-top: 0; }
+.spctl .ctl-name { min-width: 4.5rem; color: var(--muted); }
+.spctl input[type='range'] { width: 110px; }
+button.mute.on { background: var(--warn); border-color: var(--warn); color: #fff; }
+@media (max-width: 760px) { .spcard { grid-template-columns: 1fr; } }
+
+/* Settings rows (settings.tsx): name, control, share switch; the explanation under them. */
+.settings section { margin-bottom: 1.5rem; }
+.settings section h3 { margin: 0 0 0.25rem; }
+.setting { border-top: 1px solid var(--line); padding: 0.65rem 0.1rem 0.55rem; }
+.srow { display: grid; grid-template-columns: minmax(9rem, 1fr) auto auto; gap: 0.75rem; align-items: center; }
+.sname { font-weight: 500; }
+.sctl { display: flex; justify-content: flex-end; }
+.sdoc { margin: 0.3rem 0 0; font-size: 0.85rem; color: var(--muted); max-width: 38rem; }
+input.wide { width: 16rem; max-width: 100%; }
+textarea.lines { width: 18rem; max-width: 100%; font: 13px/1.4 ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+button.share { font-size: 0.78rem; padding: 0.15rem 0.55rem; border-radius: 99px; color: var(--muted); white-space: nowrap; }
+button.share.on { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--card)); }
+.applybar { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; justify-content: space-between;
+  background: var(--bg); padding: 0.6rem 0; margin-bottom: 0.5rem; border-bottom: 1px solid var(--line); }
+.row.tight { margin-top: 0; }
+details.advanced { margin-top: 1rem; }
+details.advanced summary { cursor: pointer; color: var(--muted); margin-bottom: 0.75rem; }
+@media (max-width: 760px) { .srow { grid-template-columns: 1fr auto; } .srow button.share { grid-column: 1 / -1; justify-self: start; } }
+.spctl .vol { min-width: 2.2rem; text-align: right; font-variant-numeric: tabular-nums; }
+.spctl .ctl { flex-wrap: wrap; }

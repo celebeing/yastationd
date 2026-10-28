@@ -69,7 +69,7 @@ type musicScreen struct {
 
 // musicLevelsWanted: the spectrum is on and this display can draw it.
 func (a *App) musicLevelsWanted() bool {
-	return a.cfg.MusicLevels && a.front != nil && a.front.HasLevels() && a.screen != nil
+	return a.cfg().MusicLevels && a.front != nil && a.front.HasLevels() && a.screen != nil
 }
 
 // musicLevelsNeeded: something draws the spectrum — the display or the ambilight's music
@@ -165,7 +165,7 @@ func (a *App) onMusicMeta(rest string) {
 
 // showMusicTitle runs s once over the music's screen.
 func (a *App) showMusicTitle(s string) {
-	if !a.cfg.MusicTitle || a.front == nil || strings.TrimSpace(s) == "" {
+	if !a.cfg().MusicTitle || a.front == nil || strings.TrimSpace(s) == "" {
 		return
 	}
 	ttl := min(max(a.front.MarqueeTime(s, a.marqueeStep()), musicTitleMin), musicTitleMax)
@@ -173,7 +173,7 @@ func (a *App) showMusicTitle(s string) {
 }
 
 func (a *App) musicMoment(name string) {
-	if a.cfg.MusicClips {
+	if a.cfg().MusicClips {
 		// Under the title: Music Assistant's stream restart after a skip looks like a short pause
 		// (the speed drops to 0 and back), and the new track's title covers it.
 		a.momentAt("music", name, 0, display.PrioMusicClip)

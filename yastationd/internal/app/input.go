@@ -46,7 +46,7 @@ func (a *App) inputLoop(stop <-chan struct{}, name string) {
 			return
 		default:
 		}
-		path, hasSwitch, err := hw.FindInputInfo(a.cfg.SysRoot, name)
+		path, hasSwitch, err := hw.FindInputInfo(a.cfg().SysRoot, name)
 		var f *os.File
 		if err == nil {
 			f, err = hw.OpenInput(path)
@@ -100,11 +100,11 @@ func (a *App) onInputEvent(f *os.File, hasSwitch bool, state *inputDeviceState, 
 		}
 		switch action {
 		case "volume_up":
-			a.nudgeVolume(+a.cfg.VolumeStep)
+			a.nudgeVolume(+a.cfg().VolumeStep)
 			a.volumeBeep()
 			a.publishButton("volume_up")
 		case "volume_down":
-			a.nudgeVolume(-a.cfg.VolumeStep)
+			a.nudgeVolume(-a.cfg().VolumeStep)
 			a.volumeBeep()
 			a.publishButton("volume_down")
 		case "voice":
@@ -112,7 +112,7 @@ func (a *App) onInputEvent(f *os.File, hasSwitch bool, state *inputDeviceState, 
 			if a.icVoiceKey() {
 				return
 			}
-			if a.cfg.WyomingPort > 0 {
+			if a.cfg().WyomingPort > 0 {
 				a.sat.startListening(srcKey)
 			}
 		case "panel_gesture":
@@ -290,10 +290,10 @@ func (a *App) nudgeVolume(n int) {
 // Not over music either: the music's own level is the feedback, and a tick on top of it sounds off.
 func (a *App) volumeBeep() {
 	snd := a.prof.Audio.VolumeSound
-	if !a.cfg.VolumeBeep || snd == "" || a.music.streaming.Load() {
+	if !a.cfg().VolumeBeep || snd == "" || a.music.streaming.Load() {
 		return
 	}
-	path := a.cfg.Path(snd)
+	path := a.cfg().Path(snd)
 	if _, err := os.Stat(path); err != nil { // not decoded onto this unit (make sounds)
 		return
 	}
@@ -306,10 +306,10 @@ func (a *App) volumeBeep() {
 // announceChime plays the board's announce sound and returns how long it lasts (0 = none).
 func (a *App) announceChime() time.Duration {
 	snd := a.prof.Audio.AnnounceSound
-	if !a.cfg.AnnounceChime || snd == "" {
+	if !a.cfg().AnnounceChime || snd == "" {
 		return 0
 	}
-	path := a.cfg.Path(snd)
+	path := a.cfg().Path(snd)
 	d, err := wavDuration(path)
 	if err != nil { // not decoded onto this unit (make sounds)
 		return 0
@@ -350,10 +350,10 @@ func wavDuration(path string) (time.Duration, error) {
 
 // volumeCap is the raw Master value at 100 %.
 func (a *App) volumeCap() int {
-	if a.cfg.VolumeMax <= 0 || a.cfg.VolumeMax >= 100 {
+	if a.cfg().VolumeMax <= 0 || a.cfg().VolumeMax >= 100 {
 		return a.prof.Audio.VolumeMax
 	}
-	return a.prof.Audio.RawFromPercent(a.cfg.VolumeMax)
+	return a.prof.Audio.RawFromPercent(a.cfg().VolumeMax)
 }
 
 // scaleVolume maps a raw value on the board's full curve to the capped one.

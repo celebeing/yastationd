@@ -71,9 +71,9 @@ func TestShowJSON(t *testing.T) {
 
 func TestOwnerMoments(t *testing.T) {
 	a := newExpressApp(t, true)
-	a.cfg.SysRoot = t.TempDir()
+	a.cfg().SysRoot = t.TempDir()
 	a.prof.Platform.CFWRoot = "/cfw"
-	os.MkdirAll(a.cfg.SysRoot+"/cfw", 0o755)
+	os.MkdirAll(a.cfg().SysRoot+"/cfw", 0o755)
 	if err := a.loadMoments(); err != nil {
 		t.Fatal(err)
 	}
@@ -113,8 +113,8 @@ func TestOwnerMoments(t *testing.T) {
 
 func TestVoiceStageKeepsRing(t *testing.T) {
 	a := newExpressApp(t, true)
-	a.cfg.SysRoot = t.TempDir()
-	os.MkdirAll(a.cfg.SysRoot+"/cfw", 0o755)
+	a.cfg().SysRoot = t.TempDir()
+	os.MkdirAll(a.cfg().SysRoot+"/cfw", 0o755)
 	a.prof.Platform.CFWRoot = "/cfw"
 	// the owner's listening is front-only: the voice ring stays under it
 	a.setMoment("listening", []show{{Steps: []scenarioStep{{Anim: "wink", Hold: true}}}})
@@ -133,9 +133,9 @@ func TestVoiceStageKeepsRing(t *testing.T) {
 // newMomentApp is newExpressApp with a CFW root for moments.json.
 func newMomentApp(t *testing.T) *App {
 	a := newExpressApp(t, true)
-	a.cfg.SysRoot = t.TempDir()
+	a.cfg().SysRoot = t.TempDir()
 	a.prof.Platform.CFWRoot = "/cfw"
-	os.MkdirAll(a.cfg.SysRoot+"/cfw", 0o755)
+	os.MkdirAll(a.cfg().SysRoot+"/cfw", 0o755)
 	return a
 }
 

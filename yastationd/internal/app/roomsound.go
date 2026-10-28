@@ -200,19 +200,19 @@ func (g *changeGate) due(v string, now time.Time) bool {
 // splOffset: dBFS -> dB SPL for the room sound levels (the unit's, else the board's; 0 = levels
 // stay in dBFS).
 func (a *App) splOffset() float64 {
-	if a.cfg.MicSPLOffset != 0 {
-		return a.cfg.MicSPLOffset
+	if a.cfg().MicSPLOffset != 0 {
+		return a.cfg().MicSPLOffset
 	}
 	return a.prof.Mic.SPLOffset
 }
 
 func (a *App) roomSoundEnabled() bool {
-	return a.cfg.RoomSound && a.prof.Mic.Device != ""
+	return a.cfg().RoomSound && a.prof.Mic.Device != ""
 }
 
 // micLevelsNeeded: the mic's levels feed the room sensors and the wake arbitration.
 func (a *App) micLevelsNeeded() bool {
-	return (a.cfg.RoomSound || a.cfg.Arbitration) && a.prof.Mic.Device != ""
+	return (a.cfg().RoomSound || a.cfg().Arbitration) && a.prof.Mic.Device != ""
 }
 
 // roomSoundLoop measures while it runs (it keeps the mic open) and publishes once a minute.

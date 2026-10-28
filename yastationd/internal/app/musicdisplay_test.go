@@ -26,7 +26,8 @@ func newMusicApp(t *testing.T) *App {
 	}
 	a := newExpressApp(t, true)
 	a.matrix = nil
-	a.cfg = config.Default()
+	dc := config.Default()
+	a.conf.Store(&dc)
 	a.front = display.PixelFront{W: 21, H: 12, Patterns: &display.PixelLibrary{Dirs: []string{dir}, W: 21, H: 12}}
 	return a
 }
@@ -83,7 +84,7 @@ func TestMusicTitleNotForTrackAlreadyPlaying(t *testing.T) {
 
 func TestMusicDisplayOff(t *testing.T) {
 	a := newMusicApp(t)
-	a.cfg.MusicTitle, a.cfg.MusicClips = false, false
+	a.cfg().MusicTitle, a.cfg().MusicClips = false, false
 	a.onMusicMeta(`{"title":"Song","duration_ms":200000,"progress_ms":0,"speed":1000}`)
 	a.onMusicPlayback(true)
 	a.onMusicMeta(`{"title":"Song","duration_ms":200000,"progress_ms":0,"speed":0}`)

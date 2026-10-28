@@ -49,7 +49,7 @@ func TestSlowReplyConfig(t *testing.T) {
 
 func TestPendingReplyTimesOut(t *testing.T) {
 	a := newExpressApp(t, true)
-	a.cfg.ReplyTimeout = 50 * time.Millisecond
+	a.cfg().ReplyTimeout = 50 * time.Millisecond
 	a.sat = &satellite{a: a}
 	a.sat.setAwaiting(true)
 	if !a.sat.awaitingReply() || !a.sat.inDialog() {

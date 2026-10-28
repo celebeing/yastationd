@@ -5,6 +5,16 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
 
 ## Unreleased
 
+**Settings**
+- The web app's settings are rebuilt on one registry of config keys: every setting has an
+  explanation, and most apply at once — the config is reloaded live, a restart (on trial) only
+  for keys that need one. **Settings** holds what applies at once, **Config** what needs a
+  restart, with the raw file one click away; Moments moved next to them.
+- **Share with every speaker:** a switch on each setting, option and moment gives all speakers
+  this speaker's value and keeps them in step (retained MQTT topics; a speaker that was off
+  catches up; moments go to speakers with the same kind of display).
+- A speaker card on top of every tab: name, address, status, volume with mute, display mode.
+
 **Fixes and operations**
 - `tools/fetch-vendor.sh <ssh-target> <board>` copies what the build needs off your own speaker
   (read-only): the sysroot spotter-host links against and the stock animations for the

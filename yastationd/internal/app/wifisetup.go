@@ -28,7 +28,7 @@ type keyCombo struct {
 }
 
 func (a *App) newWifiSetup() *wifisetup.Mode {
-	c := a.cfg
+	c := a.cfg()
 	if !c.WifiSetup {
 		return nil
 	}

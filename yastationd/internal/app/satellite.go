@@ -99,7 +99,7 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 	switch ev.Type {
 	case wyoming.TypeDescribe:
 		c.Send(wyoming.Info(wyoming.SatelliteInfo{
-			Name:        a.cfg.DeviceName,
+			Name:        a.cfg().DeviceName,
 			Description: "yastationd on a de-Yandexed Station Mini 3",
 			Version:     version.Version,
 		}))
@@ -398,7 +398,7 @@ func (s *satellite) voiceStage(name string) {
 	s.mu.Unlock()
 	ttl := stageTTL
 	if name == "thinking" { // lasts the whole wait: HA has no timeout, ours cancels it
-		ttl = s.a.cfg.ReplyTimeout
+		ttl = s.a.cfg().ReplyTimeout
 	}
 	if !playing {
 		s.a.moment("voice", name, ttl)

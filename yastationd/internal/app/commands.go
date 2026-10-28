@@ -43,6 +43,7 @@ func (a *App) commands() map[string]func([]byte) {
 	if a.frontClipsPossible() {
 		c["display_faces"] = a.cmdFaces
 	}
+	a.shareOptions(c)
 	return c
 }
 
@@ -58,6 +59,7 @@ func (a *App) subscribe() {
 	a.intercomSubscribe()
 	a.mqtt.Subscribe(t.Arbitration(), a.onArbitrationClaim)
 	a.mqtt.SubscribeTopic(t.WebInfoAll(), a.onWebInfo)
+	a.syncSubscribe()
 }
 
 // ring: HA JSON light schema {state, brightness, color:{r,g,b}, effect}.

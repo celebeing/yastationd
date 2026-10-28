@@ -42,11 +42,15 @@ const (
 )
 
 type App struct {
-	cfg   config.Config
-	prof  board.Profile // this station's hardware
-	log   *slog.Logger
-	loc   *time.Location
-	start time.Time
+	// conf: the config in force. Keys marked runtime in the registry (config.Keys) change while
+	// the daemon runs (applyConfig), so read it through cfg() at the point of use.
+	conf   atomic.Pointer[config.Config]
+	confMu sync.Mutex    // serialises writers of the config file
+	shared shared        // the items shared with the other speakers (sync.go)
+	prof   board.Profile // this station's hardware
+	log    *slog.Logger
+	loc    *time.Location
+	start  time.Time
 
 	ring      *hw.Ring
 	ambilight *hw.Ambilight
@@ -184,7 +188,6 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 		}
 	}
 	a := &App{
-		cfg:       cfg,
 		prof:      prof,
 		log:       log,
 		loc:       cfg.Location(),
@@ -198,6 +201,7 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 		store:     newStateStore(cfg.Path(cfg.StateFile), initialState(cfg, prof)),
 		luxPath:   cfg.LuxPath,
 	}
+	a.conf.Store(&cfg)
 	if screen != nil && prof.Matrix.Backlight != "" {
 		a.backlight = hw.NewBacklight(cfg.Path(prof.Matrix.Backlight))
 	}
@@ -237,7 +241,7 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 func (a *App) startFrameTap(ctx context.Context) {
 	cmds := a.commands()
 	info := frametap.Info{
-		Device: a.cfg.DeviceID, Name: a.cfg.DeviceName, Board: a.prof.Name, Model: a.prof.Model,
+		Device: a.cfg().DeviceID, Name: a.cfg().DeviceName, Board: a.prof.Name, Model: a.prof.Model,
 		Version: version.Version, Expressions: a.expressionOptions(), RingEffects: ringEffects,
 	}
 	if a.ring != nil {
@@ -268,9 +272,9 @@ func (a *App) startFrameTap(ctx context.Context) {
 		return ok
 	}, a.log)
 	a.tap.Start(ctx)
-	if a.cfg.FrameTapAddr != "" { // its own listener, no login (the host simulator, old configs)
+	if a.cfg().FrameTapAddr != "" { // its own listener, no login (the host simulator, old configs)
 		go func() {
-			if err := a.tap.Serve(ctx, a.cfg.FrameTapAddr); err != nil {
+			if err := a.tap.Serve(ctx, a.cfg().FrameTapAddr); err != nil {
 				a.log.Warn("frame tap", "err", err)
 			}
 		}()
@@ -279,6 +283,16 @@ func (a *App) startFrameTap(ctx context.Context) {
 
 // openScreen opens the board's dot-matrix framebuffer, or a virtual one for matrix.dev =
 // "virtual:WxH" (the host simulator, cmd/ledsim).
+// cfg is the config in force (see App.conf); the defaults when none was stored (tests).
+func (a *App) cfg() *config.Config {
+	if c := a.conf.Load(); c != nil {
+		return c
+	}
+	d := config.Default()
+	a.conf.CompareAndSwap(nil, &d)
+	return a.conf.Load()
+}
+
 func openScreen(cfg config.Config, prof board.Profile) (*hw.DotMatrix, error) {
 	dev := prof.Matrix.Dev
 	var w, h int
@@ -311,10 +325,10 @@ func stopVendorLeftovers(names []string, log *slog.Logger) {
 
 // marqueeStep is the running line's time per character, scaled by marquee_speed.
 func (a *App) marqueeStep() time.Duration {
-	if a.cfg.MarqueeSpeed <= 0 {
+	if a.cfg().MarqueeSpeed <= 0 {
 		return marqueeBaseStep
 	}
-	return time.Duration(float64(marqueeBaseStep) / a.cfg.MarqueeSpeed)
+	return time.Duration(float64(marqueeBaseStep) / a.cfg().MarqueeSpeed)
 }
 
 func (a *App) matrixBase(now time.Time) display.FrontFrame {
@@ -397,8 +411,8 @@ func (a *App) Run(ctx context.Context) error {
 	ctx, a.quit = context.WithCancel(ctx)
 	defer a.quit()
 	dev := mqtt.Device{
-		Identifiers:  []string{"yastation_" + a.cfg.DeviceID},
-		Name:         a.cfg.DeviceName,
+		Identifiers:  []string{"yastation_" + a.cfg().DeviceID},
+		Name:         a.cfg().DeviceName,
 		Model:        a.prof.Model + " (" + a.prof.Name + ")",
 		Manufacturer: "Yandex (de-Yandexed)",
 		SWVersion:    version.Version,
@@ -418,17 +432,17 @@ func (a *App) Run(ctx context.Context) error {
 	b.SoundSPL = a.splOffset() != 0
 	a.builder = b
 
-	a.hmon = health.New(a.cfg.Path(a.cfg.HeartbeatFile), a.onHealthChange)
-	for _, p := range a.cfg.Probes {
+	a.hmon = health.New(a.cfg().Path(a.cfg().HeartbeatFile), a.onHealthChange)
+	for _, p := range a.cfg().Probes {
 		name, addr, role := parseProbe(p)
 		a.hmon.AddProbe(name, addr, role)
 	}
 
-	if a.cfg.MQTTHost != "" {
+	if a.cfg().MQTTHost != "" {
 		a.mqtt = mqtt.New(mqtt.Options{
-			Host: a.cfg.MQTTHost, Port: a.cfg.MQTTPort,
-			User: a.cfg.MQTTUser, Pass: a.cfg.MQTTPass,
-			ClientID:  "yastationd-" + a.cfg.DeviceID,
+			Host: a.cfg().MQTTHost, Port: a.cfg().MQTTPort,
+			User: a.cfg().MQTTUser, Pass: a.cfg().MQTTPass,
+			ClientID:  "yastationd-" + a.cfg().DeviceID,
 			Topics:    a.topics,
 			Log:       a.log,
 			OnConnect: a.onMQTTConnect,
@@ -439,10 +453,10 @@ func (a *App) Run(ctx context.Context) error {
 		a.log.Warn("no mqtt_host configured; running local-only")
 	}
 	a.publishAllState() // fills the state mirror for the web too, broker or not
-	if a.cfg.HTTPAddr != "" {
+	if a.cfg().HTTPAddr != "" {
 		if err := a.startWeb(ctx); err != nil {
-			a.log.Warn("web: cannot listen", "addr", a.cfg.HTTPAddr, "err", err)
-			a.trialFailed("the web server cannot listen on " + a.cfg.HTTPAddr)
+			a.log.Warn("web: cannot listen", "addr", a.cfg().HTTPAddr, "err", err)
+			a.trialFailed("the web server cannot listen on " + a.cfg().HTTPAddr)
 		}
 	}
 
@@ -456,7 +470,7 @@ func (a *App) Run(ctx context.Context) error {
 		}
 	}
 
-	if a.cfg.FrameTapAddr != "" || (a.cfg.LEDPreview && a.cfg.HTTPAddr != "") {
+	if a.cfg().FrameTapAddr != "" || (a.cfg().LEDPreview && a.cfg().HTTPAddr != "") {
 		a.startFrameTap(ctx)
 	}
 
@@ -479,15 +493,15 @@ func (a *App) Run(ctx context.Context) error {
 	go a.telemetryLoop(stop)
 	go a.powerLoop(stop)
 	go a.luxLoop(stop)
-	if a.cfg.LogRemote != "" {
+	if a.cfg().LogRemote != "" {
 		cfw := a.prof.Platform.CFWRoot
-		a.ship = &logship.Shipper{Addr: a.cfg.LogRemote, Host: a.cfg.DeviceID, Log: a.log,
+		a.ship = &logship.Shipper{Addr: a.cfg().LogRemote, Host: a.cfg().DeviceID, Log: a.log,
 			Sources: []logship.Source{
-				{Path: a.cfg.Path("/tmp/yastationd.log"), App: "yastationd"},
-				{Path: a.cfg.Path("/var/log/messages"), App: "syslog"},
+				{Path: a.cfg().Path("/tmp/yastationd.log"), App: "yastationd"},
+				{Path: a.cfg().Path("/var/log/messages"), App: "syslog"},
 			},
-			Spool: a.cfg.Path(cfw + "/log-spool"), SpoolMax: a.cfg.LogSpoolKB << 10,
-			PosFile: a.cfg.Path("/tmp/yastationd.logship")}
+			Spool: a.cfg().Path(cfw + "/log-spool"), SpoolMax: a.cfg().LogSpoolKB << 10,
+			PosFile: a.cfg().Path("/tmp/yastationd.logship")}
 		go a.ship.Run(stop)
 	}
 	go a.netWatchLoop(stop)
@@ -511,10 +525,10 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	var wy *wyoming.Server
-	if a.cfg.WyomingPort > 0 {
+	if a.cfg().WyomingPort > 0 {
 		wy = &wyoming.Server{Handler: a.sat, Log: a.log}
 		go func() {
-			if err := wy.Serve(":" + strconv.Itoa(a.cfg.WyomingPort)); err != nil && ctx.Err() == nil {
+			if err := wy.Serve(":" + strconv.Itoa(a.cfg().WyomingPort)); err != nil && ctx.Err() == nil {
 				a.log.Error("wyoming server", "err", err)
 				a.trialFailed("the Wyoming server cannot listen")
 			}

@@ -123,7 +123,6 @@ func (a *App) luxLoop(stop <-chan struct{}) {
 		a.log.Warn("lux: configure", "err", err)
 	}
 	alpha := 1 - math.Exp(-float64(luxEvery)/float64(luxTau))
-	curve := brightnessCurve(a.cfg, a.prof)
 	var ema float64
 	var recent []float64
 	have := false
@@ -156,7 +155,7 @@ func (a *App) luxLoop(stop <-chan struct{}) {
 		a.luxReading.Store(math.Float64bits(reading))
 		lux := luxcal.Lux(a.luxCalibration(), reading) // read each time: the web app may set it
 		a.luxSmooth.Store(math.Float64bits(lux))
-		target := curveLevel(curve, math.Max(lux, 1e-6))
+		target := curveLevel(brightnessCurve(*a.cfg(), a.prof), math.Max(lux, 1e-6)) // the curve may change live
 		cur := math.Float64frombits(a.autoBright.Load())
 		if cur == 0 || moveBrightness(cur, target, a.backlight != nil) {
 			a.autoBright.Store(math.Float64bits(target))
@@ -181,7 +180,7 @@ func (a *App) unitLuxCalibration() []luxcal.Point {
 		}
 		return *p
 	}
-	return a.cfg.LuxCalibration
+	return a.cfg().LuxCalibration
 }
 
 // luxAttrs are the Illuminance sensor's attributes: the smoothed raw reading (what a

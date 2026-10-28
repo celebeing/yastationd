@@ -29,7 +29,7 @@ func (a *App) loadScenario(name string) (scenario, error) {
 	if name == "" || strings.ContainsAny(name, "/\\") || name[0] == '.' {
 		return scenario{}, fmt.Errorf("bad scenario name %q", name)
 	}
-	b, err := os.ReadFile(filepath.Join(a.cfg.Path(a.cfg.ScenariosDir), name+".json"))
+	b, err := os.ReadFile(filepath.Join(a.cfg().Path(a.cfg().ScenariosDir), name+".json"))
 	if err != nil {
 		if b, err = ownScenarios.ReadFile("scenarios/" + name + ".json"); err != nil {
 			return scenario{}, fmt.Errorf("no scenario %q", name)
@@ -57,7 +57,7 @@ func (a *App) scenarioNames() []string {
 	for _, e := range m {
 		add(e.Name())
 	}
-	f, _ := filepath.Glob(filepath.Join(a.cfg.Path(a.cfg.ScenariosDir), "*.json"))
+	f, _ := filepath.Glob(filepath.Join(a.cfg().Path(a.cfg().ScenariosDir), "*.json"))
 	for _, p := range f {
 		add(p)
 	}

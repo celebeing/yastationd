@@ -39,7 +39,7 @@ type musicState struct {
 const musicEchoQuiet = 1500 * time.Millisecond
 
 func (a *App) newMusic() *sendspin.Host {
-	c := a.cfg
+	c := a.cfg()
 	if !c.Sendspin {
 		return nil
 	}
@@ -81,7 +81,7 @@ func (a *App) newMusic() *sendspin.Host {
 	return h
 }
 
-func (a *App) linkedVolume() bool { return a.cfg.SendspinVolume == "linked" }
+func (a *App) linkedVolume() bool { return a.cfg().SendspinVolume == "linked" }
 
 // musicVolume is the player volume announced to the server at start: the speaker's volume when
 // linked, else the last music volume the server set.
@@ -164,7 +164,6 @@ func (a *App) assistantBusy() bool {
 
 // duckLoop ducks the music while the assistant is busy and brings it back duckHold after.
 func (a *App) duckLoop(stop <-chan struct{}) {
-	low := float32(math.Pow(10, float64(a.cfg.MusicDuckDB)/20))
 	t := time.NewTicker(duckTick)
 	defer t.Stop()
 	var last time.Time
@@ -178,7 +177,7 @@ func (a *App) duckLoop(stop <-chan struct{}) {
 				last = now
 			}
 			if !last.IsZero() && now.Sub(last) < duckHold {
-				level = low
+				level = float32(math.Pow(10, float64(a.cfg().MusicDuckDB)/20)) // may change live
 			}
 			if prev := math.Float32frombits(a.music.duck.Swap(math.Float32bits(level))); prev != level {
 				a.music.host.Send("duck %.3f", level)

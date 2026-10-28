@@ -171,7 +171,9 @@ func mergeLightPoint(old []luxcal.Point, p luxcal.Point) []luxcal.Point {
 // saveLuxCalibration applies pts live and writes them into the config file as lux_calibration
 // (nil removes the key). No restart: the light loop reads the calibration on every reading.
 func (a *App) saveLuxCalibration(pts []luxcal.Point) error {
-	old, err := os.ReadFile(a.cfg.File)
+	a.confMu.Lock()
+	defer a.confMu.Unlock()
+	old, err := os.ReadFile(a.cfg().File)
 	if err != nil {
 		return err
 	}
@@ -184,13 +186,14 @@ func (a *App) saveLuxCalibration(pts []luxcal.Point) error {
 	if _, err := config.Parse(strings.NewReader(string(data))); err != nil {
 		return err
 	}
-	tmp := a.cfg.File + ".tmp"
+	tmp := a.cfg().File + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return err
 	}
-	if err := os.Rename(tmp, a.cfg.File); err != nil {
+	if err := os.Rename(tmp, a.cfg().File); err != nil {
 		return err
 	}
+	a.adoptConfig(data)
 	if pts == nil {
 		pts = []luxcal.Point{}
 	}
