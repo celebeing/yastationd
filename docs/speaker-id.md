@@ -4,6 +4,9 @@ Status: research + a desk experiment, 2026-10-22. Nothing deployed; no changes t
 the speakers. HA facts were read from the running container (HA 2026.9.0, `wyoming` 1.10.0).
 The experiment ran on the dev box (WSL), with scripts and models kept in the session scratchpad.
 
+The on-device alternative — the speakers' own firmware biometry models, run by the CFW — and a
+comparison of the two: [voice-id.md](voice-id.md).
+
 ## 0. Recommendation (TL;DR)
 
 1. **Model:** **3D-Speaker CAM++ `zh_en_16k-common_advanced`**. It is 7.2 M params, a 28 MB ONNX file and
@@ -287,3 +290,8 @@ Step 1 is done on the dev box (§2). Next:
   Wyoming satellite reconnected on its own). Target: ~1 week of normal use, ≥20 commands each from Петя
   and Аня per satellite. **Revert after collection** (raw audio of every request): remove the
   `assist_pipeline:` block (or restore the backup), restart HA, and delete/archive `/config/assist_debug`.
+- **2026-10-28 — 6 days of recordings: 252 requests (12 min, 20 MB) from four satellites.** Used
+  for a desk check of the firmware's own biometry models ([voice-id.md](voice-id.md), "Checked on
+  the desk"): the main user's requests sit at cosine 0.7–0.95 to his centroid, the other household
+  member's at 0.01–0.17 (gender classifier 0.85+), a video's voice at ≈0.5, non-speech at 0.2–0.3.
+  The recording is still on (revert as above when done).

@@ -38,6 +38,7 @@ This is the index of project documentation. Read the relevant doc here **before*
 | [ha-intercom-setup.md](ha-intercom-setup.md) | **Guide:** the intercom with HA — speaker config, the entities, the "call a room" script for «Алиса, позвони в спальню», voice control during a call, automation ideas |
 | [wishlist.md](wishlist.md) | Ideas under consideration, not planned: nearest-speaker arbitration (with refinements from another multi-speaker project), pipeline robustness, music, "someone is asleep here" detection, orion's ultrasound sonar rig; notes from reviewing pulsar |
 | [speaker-id.md](speaker-id.md) | Speaker identification design (who is talking) for the HA voice pipeline, with a status log |
+| [voice-id.md](voice-id.md) | Voice ID on the speaker with the firmware's own biometry models (ECAPA voiceprint, gender, age): what they are, the desk check on real requests, the design — HA sensors (who, gender, known), ignoring guests, arbitration, calibration from normal use |
 
 Also: [`../yastationd/README.md`](../yastationd/README.md) (daemon usage, entities, open items) and
 [`../spotter-host/README.md`](../spotter-host/README.md) (vendor spotter/VQE host, on-device results).
