@@ -28,9 +28,10 @@ scripts branch on its existence.
 | `<cfw>/scenarios/*.json` | your own display/ring scenarios (optional) |
 | `<cfw>/bin/yastationd.prev` | the previous agent, kept by every update; the supervisor swaps it back in if the new one crash-loops (the bad one is then kept as `.bad`) |
 | `<cfw>/egress.sh` | the egress lock, IPv4 + IPv6 (`make deploy-egress`; §0); `<cfw>/iptables/` = a bundled iptables-legacy where the firmware has none |
-| `<cfw>/yastationd.conf.bak`, `<cfw>/config.trial` | the config before the last save from the web app, and its trial marker while the new one is on trial ([web-ui.md](web-ui.md)) |
+| `<cfw>/yastationd.conf.bak`, `<cfw>/config.trial` | the config before the last change (web app, sync, calibration), and the trial marker while a change that needed a restart is on trial ([settings.md](settings.md)) |
 | `<cfw>/moments.json` (+ `.bak`) | the owner's moments, written by the web app's Moments tab ([display-expressions.md](display-expressions.md)) |
 | `<cfw>/web.secret` | the web app's token secret: 32 random bytes, written once, 0600 (a login then survives restarts; deleting it logs everyone out) |
+| `<cfw>/sync.pending`, `<cfw>/sync.rejected` | shared settings a running trial came from, and those whose trial failed here and are not taken again until they change ([settings.md](settings.md), "Sync") |
 | `<cfw>/log-spool` | log lines waiting for the log server while it is unreachable (`log_remote`, [storage.md](storage.md)) |
 | `<cfw>/yastationd.conf` `frametap_addr` | optional, development only: the LED preview stream on its own port without a login (the host simulator); the web app has the same preview behind its login ([led-preview.md](led-preview.md)) |
 | runtime device-tree overlay `yastationd-ambilight` | orion: applied at start to give the ambilight framebuffer a white channel (configfs, until the next boot; nothing on flash; [ambilight-stream.md](ambilight-stream.md)) |
