@@ -430,6 +430,7 @@ func (a *App) Run(ctx context.Context) error {
 	b.AmbilightFx = musicFxNames
 	b.Expressions = a.expressionOptions()
 	b.HasFaces = a.frontClipsPossible()
+	b.HARingLight = a.cfg().HARingLight
 	b.DisplayModes = a.displayModes()
 	b.Intercom = a.ic != nil
 	b.RoomSound = a.roomSoundEnabled()

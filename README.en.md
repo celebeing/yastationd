@@ -58,14 +58,17 @@ HA, from single expressions to timed scenarios across the ring and the display.
   once per boot; `ringing` for a timer or alarm. Our own faces add happy, sad, angry, wink and sleep.
 - Smooth per-segment transitions everywhere: back-to-back animations join without a blank, the
   volume digits morph, the clock fades back in after a face.
-- From HA: an `Expression` select, `express` and `scenario` topics (built-in or your own timed
-  scenarios over the ring and the display), raw frames, and a `Display faces` switch. The speaker
-  publishes what it can show, so scripts and an LLM agent can adapt to each model.
+- From HA's automations: the `expression`, `express` and `scenario` MQTT topics (built-in or
+  your own timed scenarios over the ring and the display) and raw frames; the web app's LED page
+  tries them all, and its settings turn the faces on or off. The speaker publishes what it can
+  show (`display_caps`), so scripts and an LLM agent can adapt to each model.
   Details: [docs/display-expressions.md](docs/display-expressions.md).
 
 **Controls and sensors (HA MQTT Discovery, one device per speaker)**
-- LED ring as an HA `light` with effects (pulse, comet, blink, rainbow, voice-state presets), plus
-  timed ring animations that Assist can trigger.
+- LED ring effects (pulse, comet, blink, rainbow, voice-state presets) and timed ring animations
+  for automations over MQTT (`ring/set`, `ring_animation/set`); as an HA `light` entity only with
+  `ha_ring_light = true`. The speaker's own settings (durations, faces, the dialog follow-up) live
+  in its web app, not on HA's device card.
 - Station 3's rear strip as an RGBW `light`, and a DDP receiver for it: point
   [LedFx](https://www.ledfx.app/) (or WLED tools) at the speaker as a 12-pixel DDP device and its
   effects play on the strip; without it, our own music effects (rain, VU, spectrum, energy,

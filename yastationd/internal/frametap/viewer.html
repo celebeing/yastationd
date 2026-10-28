@@ -186,6 +186,45 @@ function dot(ctx, x, y, r, R, G, B, glow) {
   ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
 }
 
+// The ring as the board's LEDs look (as in web/src/extra.tsx): a belt round the body, blended
+// from pixel to pixel — a circle on the round pickle, a square on the box-shaped orion (bigger) —
+// or bergamot's small disc of sectors (a pie, half the size); others as dots. Index 0 at the top,
+// clockwise, as on the units.
+function drawRing(c, board, n, col, cx, cy, rr, dotR, glow) {
+  const ang = k => -Math.PI / 2 + 2 * Math.PI * k / n, half = Math.PI / n;
+  const css = v => (v[0] | v[1] | v[2]) ? `rgb(${v[0]},${v[1]},${v[2]})` : "#0b0c0e";
+  c.shadowBlur = 0;
+  const belt = (radius, square, width) => {
+    const M = 360;
+    const at = t => { const x = Math.cos(t), y = Math.sin(t), m = square ? Math.max(Math.abs(x), Math.abs(y)) : 1;
+      return [cx + radius * x / m, cy + radius * y / m]; };
+    c.lineWidth = width; c.lineCap = "square";
+    for (let j = 0; j < M; j++) {
+      const t0 = -Math.PI / 2 + 2 * Math.PI * j / M, u = j / M * n, k = Math.floor(u) % n, fr = u - Math.floor(u);
+      const a = col(k), b = col((k + 1) % n), v = a.map((x, q) => Math.round(x + (b[q] - x) * fr));
+      c.strokeStyle = css(v);
+      if (glow && (v[0] | v[1] | v[2])) { c.shadowColor = css(v); c.shadowBlur = width; } else c.shadowBlur = 0;
+      const [x0, y0] = at(t0), [x1, y1] = at(t0 + 2 * Math.PI / M);
+      c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+    }
+    c.shadowBlur = 0;
+  };
+  if (board === "pickle") belt(rr, false, dotR * 0.9);
+  else if (board === "orion") belt(rr * 0.9, true, dotR * 1.4);
+  else if (board === "bergamot") {
+    for (let k = 0; k < n; k++) {
+      const v = col(k);
+      if (glow && (v[0] | v[1] | v[2])) { c.shadowColor = css(v); c.shadowBlur = dotR; } else c.shadowBlur = 0;
+      c.fillStyle = css(v); c.beginPath(); c.moveTo(cx, cy);
+      c.arc(cx, cy, rr / 2, ang(k) - half + 0.05, ang(k) + half - 0.05); c.closePath(); c.fill();
+    }
+    c.shadowBlur = 0;
+  } else for (let k = 0; k < n; k++) {
+    const v = col(k);
+    dot(c, cx + rr * Math.cos(ang(k)), cy + rr * Math.sin(ang(k)), dotR, v[0], v[1], v[2], glow);
+  }
+}
+
 function draw(s, f) {
   if (!s.info || !f) return;
   s.cur = f;
@@ -215,11 +254,8 @@ function draw(s, f) {
   }
   if (f.ring && s.info.ring) {
     const px = unhex(f.ring), n = s.info.ring;
-    for (let i = 0; i < n; i++) { // index 0 at the top, clockwise (as on the unit)
-      const a = -Math.PI / 2 + 2 * Math.PI * i / n;
-      dot(c, g.rx + g.rr * Math.cos(a), g.ry + g.rr * Math.sin(a), Math.min(9, g.rr * Math.PI / n * 0.7),
-          show(px[i * 3]), show(px[i * 3 + 1]), show(px[i * 3 + 2]), glow);
-    }
+    const col = k => [show(px[k * 3]), show(px[k * 3 + 1]), show(px[k * 3 + 2])];
+    drawRing(c, s.info.board, n, col, g.rx, g.ry, g.rr, Math.min(9, g.rr * Math.PI / n * 0.7), glow);
   }
   if (f.ambilight && s.info.ambilight) {
     const px = unhex(f.ambilight), n = s.info.ambilight, step = (g.ay1 - g.ay0) / n;

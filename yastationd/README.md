@@ -109,19 +109,26 @@ plays, the white "thinking" comet while it waits for audio, and nothing once apl
 
 ## Entities (HA MQTT Discovery)
 
-`light` ring (with `effect_list`: none/pulse/comet/blink/rainbow + voice presets) · optional
-`light` ambilight (rear RGBW strip, on boards that declare one) · `select` display_mode
-(clock/off/message, clock_date and video on pixel screens — docs/video-mode.md; long messages scroll) · `text` display_message · `number` volume ·
-`notify` show_text + `number` text_duration (s) · `select` ring_animation + `number`
-animation_duration (s) · `binary_sensor` mic_mute (On/Off) · `sensor` lux (calibrated lux, the raw
-`reading` as an attribute)/health/uptime/version · `sensor` sound_floor/sound_level (dB SPL with a
-mic calibration, else dBFS)/sound_activity (%) · `sensor` supply_voltage + `binary_sensor`
-power_problem · `switch` auto_brightness + `number` clock_brightness · `select` follow_up ·
-`binary_sensor` pipeline_ok · `event` button (volume_up/down, voice_command, panel_gesture, wake_word) ·
-`select` expression (attributes: the display capabilities) · `switch` display_faces ·
-with `intercom = true`: `sensor` intercom (idle/calling/ringing/in_call; attributes peer, ended) ·
-`select` intercom_target (the other speakers) · `button` intercom_call (also answers) ·
-`button` intercom_hangup ([docs/intercom.md](../docs/intercom.md)).
+Optional `light` ring (`ha_ring_light = true`; with `effect_list`: none/pulse/comet/blink/rainbow
++ voice presets) · optional `light` ambilight (rear RGBW strip, on boards that declare one) ·
+`select` display_mode (clock/off/message, clock_date and video on pixel screens —
+docs/video-mode.md; long messages scroll) · `text` display_message · `number` volume · `notify`
+show_text · `binary_sensor` mic_mute (On/Off) · `sensor` lux (calibrated lux, the raw `reading` as
+an attribute)/health/uptime/version · `sensor` sound_floor/sound_level (dB SPL with a mic
+calibration, else dBFS)/sound_activity (%) · `sensor` supply_voltage + `binary_sensor`
+power_problem · `switch` auto_brightness + `number` clock_brightness · `binary_sensor` pipeline_ok ·
+`event` button (volume_up/down, voice_command, panel_gesture, wake_word) · with `intercom = true`:
+`sensor` intercom (idle/calling/ringing/in_call; attributes peer, ended) · `select`
+intercom_target (the other speakers) · `button` intercom_call (also answers) · `button`
+intercom_hangup ([docs/intercom.md](../docs/intercom.md)).
+
+**Not on HA's device card** (2026-10-28): the speaker's own settings — `text_duration`,
+`animation_duration`, `display_faces`, `follow_up` — are in the web app only (still entities of
+its API; `mqtt.WebOnly`), and the `ring_animation` and `expression` selects are gone (the LED page
+plays both). Their MQTT topics stay for automations: `<prefix>/<id>/ring_animation/set` (an
+effect name, plays `animation_duration` seconds), `expression/set`, `express`, `ring/set`, and the
+capabilities in `display_caps/state`. Discovery publishes an empty config for each, so HA drops
+the entities it had.
 
 Timed overlays (show_text, ring_animation, display/cmd) light the ring/matrix over whatever is
 underneath — even with the ring light off — and fall back when the time is up, without touching the

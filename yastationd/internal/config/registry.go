@@ -364,6 +364,9 @@ func init() {
 	reg(Key{Name: "room_sound", Group: "ha", Label: "Room sound sensors", Sync: true,
 		Doc: "Sound floor, level and activity sensors in Home Assistant: mic levels once a minute, never audio. They keep the mic open even with the wake word off."},
 		boolV(func(c *Config) *bool { return &c.RoomSound }))
+	reg(Key{Name: "ha_ring_light", Group: "ha", Label: "Ring as a light in Home Assistant", Sync: true, Advanced: true,
+		Doc: "Show the LED ring as a light entity on the speaker's device in Home Assistant. Off, the ring still answers automations on its MQTT topic (yastation/<id>/ring/set); the web app's LED page plays its animations."},
+		boolV(func(c *Config) *bool { return &c.HARingLight }))
 	reg(Key{Name: "wyoming_port", Group: "ha", Label: "Wyoming port", Advanced: true,
 		Doc: "The port Home Assistant's Wyoming integration connects to; 0 turns the satellite off."},
 		intV(0, 65535, func(c *Config) *int { return &c.WyomingPort }))

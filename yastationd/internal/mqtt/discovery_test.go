@@ -98,3 +98,28 @@ func TestIntercomInfoID(t *testing.T) {
 		}
 	}
 }
+
+func TestEntitiesForHA(t *testing.T) {
+	b := NewBuilder(NewTopics("yastation", "homeassistant", "t1"), Device{Name: "t"})
+	b.HasFaces = true
+	has := func(obj string) bool {
+		for _, e := range b.Entities() {
+			if e.Object == obj {
+				return true
+			}
+		}
+		return false
+	}
+	if has("ring") || has("ring_animation") || has("expression") {
+		t.Fatal("the ring light is opt-in; the animation and expression selects are gone")
+	}
+	for obj := range WebOnly {
+		if !has(obj) {
+			t.Fatalf("web-only %s missing from the entities the web app lists", obj)
+		}
+	}
+	b.HARingLight = true
+	if !has("ring") {
+		t.Fatal("ha_ring_light on: no ring light")
+	}
+}

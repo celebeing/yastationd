@@ -30,6 +30,11 @@ go run ./cmd/ledsim -patterns ../dumps/orion/quasar/ledpatterns/screen   # any c
 stock clips from `-patterns <…>/ledpatterns/clock`. `tools/fetch-vendor.sh <ssh-target> <board>`
 copies a speaker's `ledpatterns/` into `vendor-local/` and prints the command line.
 
+The ring is drawn as each model's LEDs look (here and in the web app's LED page, `drawRing`): a
+belt round the body, each pixel blended into the next — a circle on the round Mini 3 Pro (16 px),
+a square on the box-shaped Station 3 (36 px, drawn big) — and the Mini 3's six pixels as a small
+pie of sectors, half the size, like its 12 mm logo ring.
+
 Flags: `-board` (default `orion`), `-screen WxH` (the virtual screen, default `21x12`), `-addr`
 (default `localhost:8930`), `-dir` (keep the sysroot, including `yastationd.state`, between runs),
 `-http <addr>` (also serve the web app, e.g. `localhost:8940`, login admin / yastation: the Moments editor, the LED tab and the rest against the simulator), `-media <dir>` (the video mode's `video.led[.gz]` and `video.wav`, e.g. `build/media` from

@@ -109,6 +109,7 @@ type TapInfo = {
   ring: number
   ambilight: number
   expressions?: string[]
+  ring_effects?: string[] | null
   patterns?: string[]
   commands?: string[]
 }
@@ -211,7 +212,9 @@ function Playground({ peer, base, info, onErr }: { peer: Peer; base: string; inf
   async function cmd(name: string, payload: unknown) {
     onErr('')
     try {
-      const r = await fetch(api.tapURL(peer.id, base, '/cmd/' + name), { method: 'POST', body: JSON.stringify(payload) })
+      // the body is the MQTT payload: JSON for most commands, the plain value for a select's
+      const body = typeof payload === 'string' ? payload : JSON.stringify(payload)
+      const r = await fetch(api.tapURL(peer.id, base, '/cmd/' + name), { method: 'POST', body })
       if (!r.ok) onErr(`${name}: ${(await r.text()) || r.statusText}`)
     } catch (e: any) {
       onErr(`${name}: ${e.message || e}`)
@@ -236,6 +239,17 @@ function Playground({ peer, base, info, onErr }: { peer: Peer; base: string; inf
             Play
           </button>
           <button onClick={() => cmd('display', { surface: 'matrix', op: 'clear' })}>Clear</button>
+        </div>
+      )}
+      {has('ring_animation') && info.ring > 0 && (info.ring_effects || []).length > 0 && (
+        <div class="row">
+          <span class="k">Ring</span>
+          {info.ring_effects!
+            .filter((n) => n !== 'none')
+            .map((n) => (
+              <button onClick={() => cmd('ring_animation', n)}>{n}</button>
+            ))}
+          <button onClick={() => cmd('ring_animation', 'off')}>Stop</button>
         </div>
       )}
       {has('express') && (info.expressions || []).length > 0 && (
@@ -283,6 +297,62 @@ function weaveTile(kind: 'grid' | 'stripes') {
     }
   c.putImageData(img, 0, 0)
   return (tiles[kind] = t)
+}
+
+/** drawRing draws a ring as the board's LEDs look: a belt round the body, blended from pixel to
+ * pixel — a circle on the round pickle (Mini 3 Pro), a square on the box-shaped orion (Station 3,
+ * drawn bigger) — or bergamot's small disc of sectors (Mini 3: a pie, half the size); others as
+ * dots. Index 0 at the top, clockwise, as on the units. col(k) is pixel k's shown RGB. */
+function drawRing(ctx: CanvasRenderingContext2D, board: string, n: number, col: (k: number) => number[], cx: number, cy: number, rr: number, dotR: number) {
+  const ang = (k: number) => -Math.PI / 2 + (2 * Math.PI * k) / n
+  const css = (c: number[]) => (c[0] | c[1] | c[2] ? `rgb(${c[0]},${c[1]},${c[2]})` : '#0b0c0e')
+  const half = Math.PI / n
+  const belt = (radius: number, square: boolean, width: number) => {
+    const M = 360
+    const at = (t: number) => {
+      const c = Math.cos(t),
+        s = Math.sin(t),
+        m = square ? Math.max(Math.abs(c), Math.abs(s)) : 1
+      return [cx + (radius * c) / m, cy + (radius * s) / m]
+    }
+    ctx.lineWidth = width
+    ctx.lineCap = 'square'
+    for (let j = 0; j < M; j++) {
+      const t0 = -Math.PI / 2 + (2 * Math.PI * j) / M
+      const u = (j / M) * n,
+        k = Math.floor(u) % n,
+        fr = u - Math.floor(u)
+      const a = col(k),
+        b = col((k + 1) % n)
+      ctx.strokeStyle = css(a.map((v, q) => Math.round(v + (b[q] - v) * fr)))
+      const [x0, y0] = at(t0),
+        [x1, y1] = at(t0 + (2 * Math.PI) / M)
+      ctx.beginPath()
+      ctx.moveTo(x0, y0)
+      ctx.lineTo(x1, y1)
+      ctx.stroke()
+    }
+  }
+  if (board === 'pickle') belt(rr, false, dotR * 0.9)
+  else if (board === 'orion') belt(rr * 0.9, true, dotR * 1.4)
+  else if (board === 'bergamot') {
+    const r = rr / 2
+    for (let k = 0; k < n; k++) {
+      ctx.fillStyle = css(col(k))
+      ctx.beginPath()
+      ctx.moveTo(cx, cy)
+      ctx.arc(cx, cy, r, ang(k) - half + 0.05, ang(k) + half - 0.05)
+      ctx.closePath()
+      ctx.fill()
+    }
+  } else {
+    for (let k = 0; k < n; k++) {
+      ctx.fillStyle = css(col(k))
+      ctx.beginPath()
+      ctx.arc(cx + rr * Math.cos(ang(k)), cy + rr * Math.sin(ang(k)), dotR, 0, 2 * Math.PI)
+      ctx.fill()
+    }
+  }
 }
 
 function draw(c: HTMLCanvasElement | null, i: TapInfo, f: Frame, perceived: boolean) {
@@ -370,10 +440,8 @@ function draw(c: HTMLCanvasElement | null, i: TapInfo, f: Frame, perceived: bool
   }
   if (f.ring && i.ring) {
     const px = unhex(f.ring)
-    for (let k = 0; k < i.ring; k++) {
-      const a = -Math.PI / 2 + (2 * Math.PI * k) / i.ring // index 0 at the top, clockwise
-      dot(rx + rr * Math.cos(a), ry + rr * Math.sin(a), Math.min(8, ((rr * Math.PI) / i.ring) * 0.7), show(px[k * 3]), show(px[k * 3 + 1]), show(px[k * 3 + 2]))
-    }
+    const col = (k: number) => [show(px[k * 3]), show(px[k * 3 + 1]), show(px[k * 3 + 2])]
+    drawRing(ctx, i.board, i.ring, col, rx, ry, rr, Math.min(8, ((rr * Math.PI) / i.ring) * 0.7))
   }
   if (f.ambilight && i.ambilight) {
     const px = unhex(f.ambilight),

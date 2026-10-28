@@ -40,6 +40,9 @@ type builder struct {
 	HasFaces    bool
 	// DisplayModes are the Display select's options (nil = clock, off, message).
 	DisplayModes []string
+	// HARingLight adds the ring as an HA light (ha_ring_light); without it automations drive the
+	// ring through its MQTT topics only.
+	HARingLight bool
 	// Intercom adds the call entities; their target select lists the other speakers, which
 	// change at runtime (SetIntercomPeers, then Publish again).
 	Intercom bool
@@ -87,17 +90,6 @@ func (b *builder) build(e Entity) (topic string, payload []byte) {
 func (b *builder) Entities() []Entity {
 	t := b.t
 	entities := []Entity{
-		{"light", "ring", map[string]any{
-			"name":                  "Ring",
-			"schema":                "json",
-			"state_topic":           t.State("ring"),
-			"command_topic":         t.Command("ring"),
-			"brightness":            true,
-			"supported_color_modes": []string{"rgb"},
-			"effect":                len(b.RingEffects) > 0,
-			"effect_list":           b.RingEffects,
-			"icon":                  "mdi:led-strip-variant",
-		}},
 		{"select", "display_mode", map[string]any{
 			"name":          "Display",
 			"state_topic":   t.State("display_mode"),
@@ -150,13 +142,6 @@ func (b *builder) Entities() []Entity {
 			"entity_category":     "config",
 			"icon":                "mdi:timer-outline",
 		}},
-		{"select", "ring_animation", map[string]any{
-			"name":          "Ring animation",
-			"state_topic":   t.State("ring_animation"),
-			"command_topic": t.Command("ring_animation"),
-			"options":       b.Animations,
-			"icon":          "mdi:animation-play",
-		}},
 		{"number", "animation_duration", map[string]any{
 			"name":          "Animation duration",
 			"state_topic":   t.State("animation_duration"),
@@ -172,14 +157,6 @@ func (b *builder) Entities() []Entity {
 			"json_attributes_topic": t.State("version_info"),
 			"entity_category":       "diagnostic",
 			"icon":                  "mdi:tag-outline",
-		}},
-		{"select", "expression", map[string]any{
-			"name":                  "Expression",
-			"state_topic":           t.State("expression"),
-			"command_topic":         t.Command("expression"),
-			"options":               b.Expressions,
-			"json_attributes_topic": t.State("display_caps"),
-			"icon":                  "mdi:emoticon-outline",
 		}},
 		{"select", "follow_up", map[string]any{
 			"name":            "Dialog follow-up",
@@ -251,6 +228,19 @@ func (b *builder) Entities() []Entity {
 			"event_types": []string{"volume_up", "volume_down", "voice_command", "panel_gesture", "wake_word"},
 			"icon":        "mdi:gesture-tap-button",
 		}},
+	}
+	if b.HARingLight {
+		entities = append([]Entity{{"light", "ring", map[string]any{
+			"name":                  "Ring",
+			"schema":                "json",
+			"state_topic":           t.State("ring"),
+			"command_topic":         t.Command("ring"),
+			"brightness":            true,
+			"supported_color_modes": []string{"rgb"},
+			"effect":                len(b.RingEffects) > 0,
+			"effect_list":           b.RingEffects,
+			"icon":                  "mdi:led-strip-variant",
+		}}}, entities...)
 	}
 	if b.HasFaces {
 		entities = append(entities, Entity{"switch", "display_faces", map[string]any{
@@ -358,10 +348,30 @@ func (b *builder) Entities() []Entity {
 	return entities
 }
 
-// Publish sends every entity's discovery config (retained).
+// WebOnly: entities the speaker's web app shows (they are its settings) that HA's device card
+// does not get. The web app lists them with the rest (Entities), Publish keeps them out of HA.
+var WebOnly = map[string]bool{"text_duration": true, "animation_duration": true, "display_faces": true, "follow_up": true}
+
+// retired: entities HA got from earlier versions; Publish clears them so HA drops them. Their
+// MQTT command topics stay for automations (ring_animation/set, expression/set).
+var retired = []Entity{{Component: "select", Object: "ring_animation"}, {Component: "select", Object: "expression"}}
+
+// Publish sends every entity's discovery config (retained), and an empty one for each entity HA
+// should not have (web-only, retired, the ring light when off), which removes it from HA.
 func (b *builder) Publish(c *Client) {
+	gone := append([]Entity(nil), retired...)
+	if !b.HARingLight {
+		gone = append(gone, Entity{Component: "light", Object: "ring"})
+	}
 	for _, e := range b.Entities() {
+		if WebOnly[e.Object] {
+			gone = append(gone, e)
+			continue
+		}
 		topic, payload := b.build(e)
 		c.Publish(topic, string(payload))
+	}
+	for _, e := range gone {
+		c.Publish(b.t.Discovery(e.Component, e.Object), "")
 	}
 }

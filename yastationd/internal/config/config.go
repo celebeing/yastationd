@@ -104,6 +104,7 @@ type Config struct {
 
 	// Wyoming satellite server port for HA's Wyoming integration (10700 is the convention); 0 = off.
 	WyomingPort int
+	HARingLight bool // the ring as an HA light entity (ha_ring_light); off: MQTT topics only
 
 	// Frame tap: an HTTP listen address (":8930") that streams the LED surfaces and takes commands,
 	// for the browser preview (docs/led-preview.md). "" = off. No authentication: LAN only.

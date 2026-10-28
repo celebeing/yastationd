@@ -3,6 +3,20 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Home Assistant**
+- HA's device card loses what the web app does better: the Ring animation and Expression selects
+  (the web app's LED page plays both), and the speaker's own settings (Text duration, Animation
+  duration, Display faces, Dialog follow-up), which stay on the web app's settings pages. Their
+  MQTT topics stay for automations. HA drops the entities by itself (an empty discovery config).
+- The ring as an HA light is opt-in: `ha_ring_light` (default off); its MQTT topic works either way.
+
+**Web app**
+- The LED page plays the ring's effects, and draws each ring as it looks: a blended circle
+  (Mini 3 Pro), a blended square along the Station 3's edge, a small pie of sectors (Mini 3); the
+  same in `cmd/ledsim`.
+
 ## v0.20.1 — 2026-10-28
 
 **Voice**
