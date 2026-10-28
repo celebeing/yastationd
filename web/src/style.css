@@ -1,16 +1,14 @@
 :root {
-  --bg: #f4f2ee;
+  /* docs/design.md: one blue, from the logo's deep-blue-to-sky gradient; cool neutrals. */
+  --bg: #f3f5f8;
   --card: #ffffff;
-  --fg: #1d1c1a;
-  --muted: #7a766e;
-  --line: #e2ded6;
-  /* docs/design.md: teal for what you act on, ember (the logo's red-to-gold) for the brand. */
-  --accent: #0f766e;
+  --fg: #1a1d22;
+  --muted: #6b7380;
+  --line: #dde3ea;
+  --accent: #0b5cad;
   --on-accent: #ffffff;
-  --ember: #c2410c;
-  --on-ember: #ffffff;
-  --brand: linear-gradient(90deg, #d62f2f, #ffb627);
-  --ok: #4d7c0f;
+  --brand: linear-gradient(225deg, #0a4b9e, #2fb8f2);
+  --ok: #2f8f4e;
   --err: #b91c1c;
   --warn: #a16207;
   --on-warn: #ffffff;
@@ -19,16 +17,14 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #151413;
-    --card: #1f1e1c;
-    --fg: #ecebe8;
-    --muted: #9a958c;
-    --line: #34322e;
-    --accent: #2dd4bf;
-    --on-accent: #0b1513;
-    --ember: #fb923c;
-    --on-ember: #1b1410;
-    --ok: #a3e635;
+    --bg: #121417;
+    --card: #1b1e22;
+    --fg: #e8ebef;
+    --muted: #9aa3ae;
+    --line: #2e333a;
+    --accent: #38bdf8;
+    --on-accent: #0a1622;
+    --ok: #4ade80;
     --err: #f87171;
     --warn: #facc15;
     --on-warn: #1b1410;
@@ -108,6 +104,8 @@ canvas.led { max-width: 100%; border-radius: 8px; display: block; margin-bottom:
   white-space: pre-wrap; word-break: break-all; }
 .log .lwarn { color: var(--warn); }
 .log .lerr { color: var(--err); }
+.diag { margin-top: 1.25rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+.diag h3 { margin-bottom: 0.25rem; }
 
 /* The speaker panel: its header across, then a vertical section menu beside the content. */
 .sp-body { display: grid; grid-template-columns: 11.5rem minmax(0, 1fr); gap: 1.5rem; align-items: start; }
@@ -153,7 +151,7 @@ label.field input { width: 5.5rem; }
 .mhead { display: grid; grid-template-columns: minmax(10rem, 1fr) 2fr auto; gap: 0.8rem; align-items: center; }
 .mshows { overflow-wrap: anywhere; }
 .mbtns { display: flex; gap: 0.4rem; }
-.badge { font-size: 0.75em; padding: 0.05rem 0.4rem; border-radius: 6px; background: var(--ember); color: var(--on-ember); vertical-align: middle; }
+.badge { font-size: 0.75em; padding: 0.05rem 0.4rem; border-radius: 6px; background: var(--accent); color: var(--on-accent); vertical-align: middle; }
 .medit { margin-top: 0.6rem; border-top: 1px solid var(--line); padding-top: 0.4rem; }
 .cand { border-left: 3px solid var(--line); padding-left: 0.6rem; margin-top: 0.6rem; }
 .cand .row, .steps .row { margin-top: 0.4rem; }

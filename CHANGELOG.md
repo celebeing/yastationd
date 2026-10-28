@@ -18,10 +18,16 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
   keeps its own build's default, so a default changed in a new version is no longer pinned by an
   earlier share (the fleet kept `arbitration_wait_ms = 700` after v0.18.1 made it 300).
 
+**Diagnostics**
+- `<cfw>/bin/diag.sh` (shipped by deploy.sh) packs everything useful about a speaker into one
+  tar.gz, redacted by default for bug reports; the web app downloads it (Status → Log →
+  "Download diagnostics", `GET /api/diag`). `tools/diag-build.sh` does the same for a machine
+  whose build or deploy fails ([docs/diagnostics.md](docs/diagnostics.md)).
+
 **Web app**
-- A logo (a deltoid on an ember red-to-gold disc) in the README, the favicon and beside
-  "Speakers"; the app's accent moves from violet to teal (the logo's ember stays for the brand), the
-  status colours get dark-theme versions, and [docs/design.md](docs/design.md) sets the rules.
+- A logo (a deltoid on a deep-blue-to-sky disc) in the README, the favicon and beside
+  "Speakers"; the app's accent moves from violet to the logo's blue on cool neutrals, the status
+  colours get dark-theme versions, and [docs/design.md](docs/design.md) sets the rules.
 - The speaker card: a vitals panel beside the name (the speaker's and the daemon's uptime apart,
   load, temperature, free memory, the daemon's memory, free flash; `GET /api/vitals`, and
   `/metrics` gains `yastation_system_uptime_seconds`), the controls in one toolbar row under it.

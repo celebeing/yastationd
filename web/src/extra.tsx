@@ -451,7 +451,51 @@ export function LogTab({ peer, base }: { peer: Peer; base: string }) {
           <div class={cls(l)}>{l}</div>
         ))}
       </pre>
+      <DiagDownload peer={peer} base={base} />
     </section>
+  )
+}
+
+/** DiagDownload: the speaker's diagnostics archive for a bug report (docs/diagnostics.md). */
+function DiagDownload({ peer, base }: { peer: Peer; base: string }) {
+  const [raw, setRaw] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  async function go() {
+    setBusy(true)
+    setMsg('')
+    try {
+      const { blob, name } = await api.diag(peer.id, base, raw)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = name
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 10000)
+      setMsg(`${name}, ${Math.round(blob.size / 1024)} KB`)
+    } catch (e: any) {
+      setMsg(e.message || String(e))
+    }
+    setBusy(false)
+  }
+  return (
+    <div class="diag">
+      <h3>Diagnostics</h3>
+      <p class="muted small">
+        Everything about this speaker that helps find a problem, in one archive: versions, the system, logs, the config, the network, the
+        audio devices, the guards. Passwords, Wi-Fi names, MAC addresses, serials and what was said are blanked out, so it can go with a bug
+        report; addresses on your network stay.
+      </p>
+      <div class="row">
+        <button class="primary" disabled={busy} onClick={go}>
+          {busy ? 'Collecting… (up to a minute)' : 'Download diagnostics'}
+        </button>
+        <label class="inline small">
+          <input type="checkbox" checked={raw} onChange={(e) => setRaw(e.currentTarget.checked)} /> keep secrets and names (for yourself only)
+        </label>
+      </div>
+      {msg && <p class="small muted">{msg}</p>}
+    </div>
   )
 }
 

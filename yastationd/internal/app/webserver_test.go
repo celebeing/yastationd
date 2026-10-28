@@ -393,3 +393,41 @@ func TestWebMomentsEdit(t *testing.T) {
 		t.Fatal("reset")
 	}
 }
+
+func TestWebDiag(t *testing.T) {
+	a, srv := newWebApp(t)
+	a.prof.Platform.CFWRoot = "/cfw"
+	a.cfg().SysRoot = t.TempDir()
+	_, out := call(t, "POST", srv.URL+"/api/login", "", `{"user":"admin","password":"yastation"}`)
+	tok := out["token"].(string)
+	get := func(q string) (*http.Response, []byte) {
+		req, _ := http.NewRequest("GET", srv.URL+"/api/diag"+q, nil)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return resp, b
+	}
+	if resp, _ := get(""); resp.StatusCode != 404 {
+		t.Fatalf("no script: %d", resp.StatusCode)
+	}
+	bin := filepath.Join(a.cfg().SysRoot, "cfw/bin")
+	os.MkdirAll(bin, 0o755)
+	// A stand-in: gzip magic, then its arguments, so the test sees what it was run with.
+	os.WriteFile(filepath.Join(bin, "diag.sh"), []byte("printf '\\037\\213'; echo \"$@\"\n"), 0o755)
+	resp, b := get("?raw=1")
+	if resp.StatusCode != 200 || !strings.Contains(string(b), "-r -") || resp.Header.Get("Content-Type") != "application/gzip" ||
+		!strings.Contains(resp.Header.Get("Content-Disposition"), "diag-t1-") {
+		t.Fatalf("raw: %d %q %v", resp.StatusCode, b, resp.Header)
+	}
+	if _, b := get(""); strings.Contains(string(b), "-r") {
+		t.Fatalf("redacted run got -r: %q", b)
+	}
+	os.WriteFile(filepath.Join(bin, "diag.sh"), []byte("echo broken >&2; exit 3\n"), 0o755)
+	if resp, b := get(""); resp.StatusCode != 500 || !strings.Contains(string(b), "broken") {
+		t.Fatalf("a failing script: %d %q", resp.StatusCode, b)
+	}
+}

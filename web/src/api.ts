@@ -181,6 +181,31 @@ export const lightCal = (id: string, base: string) => authed<LightCal>(id, base,
 export const calibrateLight = (id: string, base: string, lux: number) =>
   authed<LightCal>(id, base, '/api/calibrate/light', { method: 'POST', body: JSON.stringify({ lux }) }, 40000)
 export const removeLightCal = (id: string, base: string) => authed<LightCal>(id, base, '/api/calibrate/light', { method: 'DELETE' })
+/** diag fetches the speaker's diagnostics archive (docs/diagnostics.md): redacted unless raw. */
+export async function diag(id: string, base: string, raw: boolean): Promise<{ blob: Blob; name: string }> {
+  const ctl = new AbortController()
+  const timer = setTimeout(() => ctl.abort(), 150000) // the script takes up to ~2 min on a busy speaker
+  let r: Response
+  try {
+    const tok = tokenFor(id)
+    r = await fetch(base + '/api/diag' + (raw ? '?raw=1' : ''), { headers: tok ? { Authorization: 'Bearer ' + tok } : {}, signal: ctl.signal })
+  } catch {
+    throw new ApiError(0, 'нет связи')
+  } finally {
+    clearTimeout(timer)
+  }
+  if (!r.ok) {
+    let msg = r.statusText
+    try {
+      msg = (await r.json()).error || msg
+    } catch {}
+    if (r.status === 401) setToken(id, null)
+    throw new ApiError(r.status, msg)
+  }
+  const name = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') || '')?.[1] || `diag-${id}.tar.gz`
+  return { blob: await r.blob(), name }
+}
+
 export const log = (id: string, base: string, source: string, lines: number) =>
   authed<{ source: string; lines: string[] }>(id, base, `/api/log?source=${encodeURIComponent(source)}&lines=${lines}`)
 /** showMoment plays a moment as it is set, or a draft of candidates (not saved). */

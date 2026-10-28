@@ -119,6 +119,7 @@ func (a *App) webHandler() http.Handler {
 	api.HandleFunc("/api/moment/", a.authed(a.apiMoment))
 	api.HandleFunc("/api/log", a.authed(a.apiLog))
 	api.HandleFunc("/api/vitals", a.authed(a.apiVitals))
+	api.HandleFunc("/api/diag", a.authed(a.apiDiag))
 	api.HandleFunc("/api/calibrate/light", a.authed(a.apiLightCal))
 
 	mux := http.NewServeMux()
@@ -152,6 +153,7 @@ func cors(h http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+		w.Header().Set("Access-Control-Expose-Headers", "Content-Disposition") // the diagnostics archive's name
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

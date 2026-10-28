@@ -64,6 +64,7 @@ type App struct {
 	mic        *hw.Mic
 	spot       *wake.Spotter              // nil when the wake word is off
 	lastSubhit atomic.Pointer[wake.Event] // the spotter's last near miss of the wake word (wakecapture.go)
+	diagBusy   atomic.Bool                // a diagnostics archive is being made (diag.go)
 	lifeState  atomic.Int32               // lifecycle (lifecycle.go)
 	front      display.Front              // the front display's scenes and animations; nil = no front display
 	seqs       sequences

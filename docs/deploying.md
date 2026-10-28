@@ -40,6 +40,7 @@ scripts branch on its existence.
 | `<cfw>/yastationd_off` | kill switch: the supervisor stops respawning while it exists |
 | `/etc/init.d/S52zyastationd` | the only rootfs file: boot hook that starts the supervisor (copy kept in `<cfw>/init.d/`) |
 | `<cfw>/init.d/supervise.sh` | the supervisor (see below); without it the hook falls back to a plain 2 s respawn loop |
+| `<cfw>/bin/diag.sh` | the diagnostics collector (busybox sh, read-only; uploaded by `tools/deploy.sh`, nothing runs it by itself): one redacted archive in `/tmp` to send when something is wrong ([diagnostics.md](diagnostics.md)) |
 | `/tmp/yastationd.log` | log (tmpfs — gone on reboot), copy-truncated at 1 MB with one `.1` kept |
 
 The vendor's own files stay untouched, except the two reversible guards below.
@@ -303,6 +304,14 @@ tweaks without a rebuild: `<cfw>/board.conf` (+ restart).
 
 ## 7. Diagnostics and gotchas
 
+- **Collect first, then ask.** `<cfw>/bin/diag.sh` (or `ssh root@<speaker> 'sh -s' <
+  yastationd/scripts/diag.sh` on a unit without it) packs versions, the config (redacted), the
+  logs, `dmesg`, the network, the vendor guards and the ALSA state into one archive;
+  `tools/diag-build.sh` does the same for a failing build or deploy on the host
+  ([diagnostics.md](diagnostics.md)). **Never read every ALSA mixer control** (`amixer contents`,
+  `controls`, `scontents`, or a loop over them) on bergamot: on 2026-10-28 that froze the kernel
+  inside the codec driver and the unit needed a power cycle. Read named controls with `cget`, and
+  the stream state from `/proc/asound`.
 - **`load config err="…: unknown key"`, exit 1, over and over.** The config knows a key the binary
   does not — the binary is older than the tree the config was copied from. Unknown keys are fatal by
   design (a typo must not be silently ignored). The supervisor counts five crashes in a row, moves

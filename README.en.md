@@ -179,6 +179,9 @@ of this project's scope: we assume you already have it.
   Code and the like). [docs/deploying.md](docs/deploying.md) is written for it too, and
   [CLAUDE.md](CLAUDE.md) holds the rules for working on a speaker safely. It builds, installs and
   checks everything by itself.
+- **If something does not work:** collect a diagnostics archive (`<cfw>/bin/diag.sh` on the
+  speaker, `tools/diag-build.sh` for the build and deploy; secrets are stripped by default) and
+  attach it to an issue — [docs/diagnostics.md](docs/diagnostics.md).
 
 ## Repository
 

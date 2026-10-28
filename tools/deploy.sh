@@ -27,7 +27,7 @@
 # at the first failure so a broken build never reaches the rest.
 #
 # What it does per speaker (the same as `make deploy`): upload the binary next to the live one
-# (and the supervisor script), then run stop -> swap -> start as a script on stdin, keeping the
+# (and the supervisor script, and bin/diag.sh), then run stop -> swap -> start as a script on stdin, keeping the
 # old binary as yastationd.prev for the supervisor's crash-loop rollback. Keep it that way: the init hook's stop
 # matches processes by the binary's path, and an ssh command line that mentions the path would be
 # killed along with the daemon.
@@ -235,6 +235,8 @@ grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target platform cfw arc
 
 	put "$bin" "cat > $cfw/bin/yastationd.upload"
 	put "$here/yastationd/init.d/supervise.sh" "mkdir -p $cfw/init.d && cat > $cfw/init.d/supervise.sh.new && mv $cfw/init.d/supervise.sh.new $cfw/init.d/supervise.sh"
+	# The diagnostics collector (docs/diagnostics.md); nothing runs it on deploy.
+	put "$here/yastationd/scripts/diag.sh" "cat > $cfw/bin/diag.sh.new && chmod 755 $cfw/bin/diag.sh.new && mv $cfw/bin/diag.sh.new $cfw/bin/diag.sh"
 	if [ -n "${arch:-}" ]; then
 		sp=$here/spotter-host/build/$arch/spotter-host
 		[ -x "$sp" ] || fail "no $sp — set SPOTTER_SYSROOT_* in tools/build.env (docs/building.md)"
