@@ -228,6 +228,9 @@ func (a *App) moment(slot, name string, ttl time.Duration) bool {
 
 // momentAt is moment with the front part at prio.
 func (a *App) momentAt(slot, name string, ttl time.Duration, prio int) bool {
+	if a.renewMoment(slot, name, ttl) {
+		return true // the voice stage again (HA's next event of it): its show goes on
+	}
 	return a.play(slot, name, a.momentCandidates(name), ttl, prio)
 }
 
@@ -268,6 +271,7 @@ func (a *App) play(slot, name string, shows []show, ttl time.Duration, prio int)
 			e.ring = ""
 		}
 		a.runSteps(slot, steps, ttl, prio, display.PrioScenario, e.ring, e.ringPrio)
+		a.markMoment(slot, name)
 		return true
 	}
 	return false

@@ -438,3 +438,40 @@ func TestRegressCancelClearsTheStage(t *testing.T) {
 	r.hook("voice_cancelled")
 	r.gone(t, "voice")
 }
+
+// A voice stage fired again (HA's next event of it) goes on, its sound not played again; a hook
+// fired again (a volume key) starts over, sound and all.
+func TestStageAgainNoSecondSound(t *testing.T) {
+	r := newRegressApp(t)
+	if err := r.setMoment("listening", []show{{Steps: []scenarioStep{{Express: "listening", Sound: "volume_sound"}, {Express: "listening", Hold: true}}}}); err != nil {
+		t.Fatal(err)
+	}
+	count := func(sound string) int {
+		b, _ := os.ReadFile(r.aplayLog)
+		return strings.Count(string(b), "/"+sound+".wav")
+	}
+	r.moment("voice", "listening", stageTTL)
+	if !r.played(t, "volume_sound") {
+		t.Fatal("the stage's sound did not play")
+	}
+	r.moment("voice", "listening", stageTTL) // HA's voice-started
+	r.moment("voice", "listening", stageTTL) // and its transcribe
+	time.Sleep(300 * time.Millisecond)
+	if n := count("volume_sound"); n != 1 {
+		t.Errorf("the stage's sound played %d times", n)
+	}
+	r.moment("voice", "thinking", stageTTL)
+	r.moment("voice", "listening", stageTTL) // a new listening (a follow-up): its sound again
+	time.Sleep(300 * time.Millisecond)
+	if n := count("volume_sound"); n != 2 {
+		t.Errorf("a new listening played its sound %d times in all, want 2", n)
+	}
+
+	r.hook("volume_change")
+	time.Sleep(50 * time.Millisecond)
+	r.hook("volume_change")
+	time.Sleep(300 * time.Millisecond)
+	if n := count("volume_sound"); n != 4 {
+		t.Errorf("two volume keys: %d sounds in all, want 4", n)
+	}
+}

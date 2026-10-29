@@ -54,7 +54,9 @@ ends: the ring tones. A name may list fallbacks, `calls_ringing_incoming|notific
 `internal/app/defaulttheme.go`), with its slot, its front and ring priorities, its TTL and,
 for a call, when its ring yields to the voice stages (ringing: the listening window after
 «Алиса»; in a call: that and an Assist session in the call). Code calls `hook(name)` (the voice
-stages: `moment()`), and `endHook(name)` for a held one. The default theme (`defaultTheme`, and
+stages: `moment()`), and `endHook(name)` for a held one. A voice stage fired again while its show runs (HA sends
+several events per stage: detection, transcribe, voice-started) goes on with its TTL renewed, so
+its sound plays once; a hook fired again (a second volume key) starts over. The default theme (`defaultTheme`, and
 `momentDefaults` per display kind) does what the CFW always did, so nothing changes until a theme
 says otherwise; events the CFW reacted to with nothing get a moment too, empty by default: the
 places other assistants beep.

@@ -13,6 +13,8 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
   theme" goes back.
 
 **Fixed**
+- A sound on the listening moment played twice after «Алиса» (once more when HA started
+  transcribing): a voice stage fired again now goes on instead of starting over.
 - A pack copied into `<cfw>/packs/` by hand did not show up until the daemon restarted; the Packs
   page now picks it up.
 

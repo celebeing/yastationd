@@ -44,6 +44,42 @@ const (
 type sequences struct {
 	mu   sync.Mutex
 	stop map[string]chan struct{}
+	// run is what a slot's sequence was started for (a moment's name, its TTL timer), keyed by
+	// slot and valid while stop[slot] is its stop.
+	run map[string]seqRun
+}
+
+type seqRun struct {
+	stop     chan struct{}
+	moment   string
+	deadline *time.Timer // nil: no TTL
+}
+
+// renewMoment: slot already runs moment name's show (as steps); its TTL starts over (ttl) instead
+// of the show starting again. The voice stages are fired again on every HA event of the stage,
+// and a show that starts over would play its sound again ("hm" twice at the wake). Hooks (a
+// volume key's sound) always start again.
+func (a *App) renewMoment(slot, name string, ttl time.Duration) bool {
+	a.seqs.mu.Lock()
+	defer a.seqs.mu.Unlock()
+	r, ok := a.seqs.run[slot]
+	if !ok || r.moment != name || a.seqs.stop[slot] != r.stop {
+		return false
+	}
+	if r.deadline != nil && ttl > 0 {
+		r.deadline.Reset(ttl)
+	}
+	return true
+}
+
+// markMoment records that slot's running sequence shows moment name.
+func (a *App) markMoment(slot, name string) {
+	a.seqs.mu.Lock()
+	defer a.seqs.mu.Unlock()
+	if r, ok := a.seqs.run[slot]; ok && a.seqs.stop[slot] == r.stop {
+		r.moment = name
+		a.seqs.run[slot] = r
+	}
 }
 
 // cancelSteps stops the sequence running in slot, if any (its layers stay for the caller).
@@ -138,9 +174,17 @@ func (a *App) runSteps(slot string, steps []scenarioStep, ttl time.Duration, pri
 		a.seqs.mu.Unlock()
 	}
 	var deadline <-chan time.Time
+	var timer *time.Timer
 	if ttl > 0 {
-		deadline = time.After(ttl)
+		timer = time.NewTimer(ttl)
+		deadline = timer.C
 	}
+	a.seqs.mu.Lock()
+	if a.seqs.run == nil {
+		a.seqs.run = map[string]seqRun{}
+	}
+	a.seqs.run[slot] = seqRun{stop: stop, deadline: timer}
+	a.seqs.mu.Unlock()
 	// show starts step i (the first one before returning, so the caller's slot is never empty)
 	// and reports how long it lasts; held = it stays until the slot moves on.
 	show := func(i int) (d time.Duration, held bool) {
