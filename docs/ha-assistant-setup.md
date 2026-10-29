@@ -44,6 +44,9 @@ Run a **Wyoming TTS server** and add it the same way:
 
 Any sample rate is fine: the speaker resamples what HA streams to it.
 
+For a character voice on top of one of these (a second assistant that sounds like someone else),
+see §10.
+
 ## 4. Conversation agent (the "brain")
 
 Pick one in the pipeline:
@@ -190,3 +193,53 @@ failure.
 | Satellite stuck: new runs end instantly or hang in STT | a new run was started over a running one (HA's stale run-end wedges the satellite, [voice-slow-replies.md](voice-slow-replies.md)). The speaker avoids this and heals it itself by dropping the connection; if it persists, reload the Wyoming integration entry |
 | Two speakers answer at once | both heard the wake word; areas help commands target the right room, and moving the speakers apart helps detection |
 | HA API calls fail with an empty reply | HA may serve HTTPS on port 8123; use `https://` |
+
+## 10. A character voice (RVC over Silero)
+
+A second assistant can speak in a character's voice without training a TTS: a normal TTS speaks
+the answer, and **RVC** (Retrieval-based Voice Conversion) changes its timbre to the character's,
+using a ready RVC v2 model (community models for many characters exist on Hugging Face). A Wyoming
+proxy does both in one step, so HA sees just another TTS:
+
+```
+HA ──synthesize──► wyoming-rvc ──per sentence──► your Wyoming TTS (e.g. Silero, Russian)
+   ◄──audio────────┘  RVC (ContentVec + RMVPE + the voice model, resident on the GPU)
+```
+
+- **The proxy:** a fork of `xchwarze/wyoming-rvc` with an AMD ROCm image and Russian sentence
+  splitting: `<wyoming-rvc-fork-url>` (its `docs/wyoming-upstream.md` has the full compose and
+  env example, `docs/rocm.md` the AMD details). It runs with `SOURCE=wyoming`: your existing TTS
+  stays the upstream and keeps working on its own.
+- **RVC transfers timbre, not delivery.** Rhythm and intonation stay the source voice's, so pick
+  a source voice close to the character (a female source for a female character; with Silero
+  `v5_5_ru`, `kseniya` or `baya`), then tune the pitch (`RVC_PITCH`, semitones) by ear. Typical
+  settings: index rate 0.6, protect 0.33, RMVPE pitch.
+- **Hardware.** An NVIDIA GPU (the upstream image) or an AMD GPU (the fork's ROCm image) makes the
+  conversion take a fraction of a second. **AMD/ROCm: turn MIOpen off.** With PyTorch's default,
+  MIOpen searches for a convolution kernel for every new input length, which on a Radeon 8060S
+  (gfx1151) made every phrase take 20+ s; with `torch.backends.cudnn.enabled=False` (the fork's
+  `CUDNN=auto` does it on ROCm) the same phrase takes about 0.3 s. A CPU also works for RVC: on 16
+  Zen 5 cores, about 1 s per phrase with `OMP_NUM_THREADS=8` (the default thread count was 7x
+  slower).
+- **Latency** (Radeon 8060S, Silero on the same host, measured at the Wyoming socket, as HA reads
+  it): a one-word reply starts after 0.4–0.5 s (Silero alone: 0.05 s), one sentence after
+  0.45–0.65 s, a three-sentence reply (10 s of audio) after 0.5 s, since each sentence is converted
+  and sent on its own. The speaker's 0.5 s buffer hides the rest.
+- **Licensing.** Character voices belong to their owners; such models are for personal use. Don't
+  put the model or its audio into a public repo.
+
+### In Home Assistant
+
+1. **Add the TTS:** *Settings → Devices & services → Add integration → Wyoming Protocol*,
+   host = `<rvc-host>`, port = `<rvc-port>`. A TTS entity appears, named after the proxy's
+   `WYOMING_PROGRAM_NAME`, with one voice (`VOICE_NAME`) in its `VOICE_LANGUAGE`.
+2. **Add a second assistant:** *Settings → Voice assistants → Add assistant*, with the same
+   language, STT, conversation agent and *Prefer handling commands locally* as your main one, and
+   the new TTS entity and voice. Leave the main assistant as the preferred one. (Pipelines can
+   also be copied through the websocket API: `assist_pipeline/pipeline/list`, then
+   `assist_pipeline/pipeline/create` with the copied fields and a new `tts_engine`/`tts_voice`.)
+3. **Give a speaker the voice:** open the speaker's satellite device (*Settings → Devices &
+   services → Wyoming Protocol → the speaker*) and set its **Assistant** select to the new
+   assistant. Every other speaker keeps its own; switching back is the same select.
+
+To listen first without a speaker: the ▶ button next to the voice in the assistant's settings.
