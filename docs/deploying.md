@@ -140,7 +140,7 @@ cd yastationd
 # local.mk (gitignored): DEVICE = root@<speaker>, SSHKEY = <key> (optional), PLATFORM = <codename>
 make platform-info                                 # confirms derived <cfw> and helper arch
 make stage                                         # creates <cfw>: binary + init hook copy (nothing starts)
-make sounds                                        # vendor sounds -> <cfw>/sounds/*.wav
+make sounds                                        # vendor sounds -> <cfw>/sounds/*.wav (decoded in a container)
 make vqe-models [VQE_MODEL=<model_call.nnet>]      # intercom: the call-mode NR model (from the unit's firmware, else the file; orion has none yet)
 make clips                                         # firmware 0.369 only: its binary clock clips -> <cfw>/clips/*.scled
 ```

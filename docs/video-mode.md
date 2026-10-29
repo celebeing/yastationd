@@ -16,7 +16,7 @@ uploads it, no host tools needed ([assets.md](assets.md)). On the host:
 
 ```sh
 cd yastationd
-make video VIDEO=~/Videos/bad_apple.mp4            # convert (ffmpeg) and upload to <cfw>/media/
+make video VIDEO=~/Videos/bad_apple.mp4            # convert (ffmpeg, in the tools container) and upload to <cfw>/media/
 # or only convert, into build/media/:
 make video-convert VIDEO=~/Videos/bad_apple.mp4
 ```
@@ -26,7 +26,8 @@ Then pick **video** in the speaker's **Display** select in HA (or publish `video
 ([led-preview.md](led-preview.md)). It plays once; the select shows `video` meanwhile and goes back
 to the previous mode at the end.
 
-On the host, without a unit: `go run ./cmd/ledsim -media build/media` and the **video** button
+On the host, without a unit: `tools/build.sh hosttool:ledsim`, then
+`yastationd/build/ledsim -media yastationd/build/media` and the **video** button
 (picture only; see "Limits").
 
 ## The files

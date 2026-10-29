@@ -3,11 +3,16 @@
 //
 //	packtool <pack-dir>  [-o out.zip]   zip a pack directory (pack.json at its root) and check it
 //	packtool <pack.zip>                 check an archive
+//	packtool -get <field> <pack-dir>    print a manifest field (id, name, version, author, source,
+//	                                    license; displays comma-separated): scripts need no jq
+//	packtool -index <url> <pack-dir>... print packs.json, an index of the packs' release assets at
+//	                                    <url>/<id>-v<version>/<id>-<version>.zip
 package main
 
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -21,11 +26,29 @@ import (
 
 func main() {
 	out := flag.String("o", "", "the archive to write (a directory's default: <id>.zip)")
+	get := flag.String("get", "", "print this manifest field of <pack-dir> (id, name, version, author, source, license, displays)")
+	index := flag.String("index", "", "print packs.json for the <pack-dir>s, their assets under this release download URL")
 	flag.Usage = func() {
-		fmt.Fprintln(os.Stderr, "usage: packtool [-o out.zip] <pack-dir | pack.zip>")
+		fmt.Fprintln(os.Stderr, "usage: packtool [-o out.zip] <pack-dir | pack.zip>\n       packtool -get <field> <pack-dir>\n       packtool -index <download-url> <pack-dir>...")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
+	if *get != "" {
+		if flag.NArg() != 1 {
+			flag.Usage()
+			os.Exit(2)
+		}
+		m, err := readManifest(flag.Arg(0))
+		if err != nil {
+			fail(err)
+		}
+		fmt.Println(m.field(*get))
+		return
+	}
+	if *index != "" {
+		printIndex(strings.TrimRight(*index, "/"), flag.Args())
+		return
+	}
 	if flag.NArg() != 1 {
 		flag.Usage()
 		os.Exit(2)
@@ -101,6 +124,82 @@ func zipDir(dir string) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// manifest is the part of pack.json the release scripts read.
+type manifest struct {
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Version  string   `json:"version"`
+	Author   string   `json:"author"`
+	Source   string   `json:"source"`
+	License  string   `json:"license"`
+	Displays []string `json:"displays"`
+}
+
+// readManifest reads <pack-dir>/pack.json (or a pack.json path itself).
+func readManifest(path string) (manifest, error) {
+	if st, err := os.Stat(path); err == nil && st.IsDir() {
+		path = filepath.Join(path, "pack.json")
+	}
+	var m manifest
+	b, err := os.ReadFile(path)
+	if err == nil {
+		err = json.Unmarshal(b, &m)
+	}
+	if err != nil {
+		return m, fmt.Errorf("%s: %w", path, err)
+	}
+	if m.Name == "" {
+		m.Name = m.ID
+	}
+	return m, nil
+}
+
+func (m manifest) field(f string) string {
+	switch f {
+	case "id":
+		return m.ID
+	case "name":
+		return m.Name
+	case "version":
+		return m.Version
+	case "author":
+		return m.Author
+	case "source":
+		return m.Source
+	case "license":
+		return m.License
+	case "displays":
+		return strings.Join(m.Displays, ",")
+	}
+	fail(fmt.Errorf("no field %q (id, name, version, author, source, license, displays)", f))
+	return ""
+}
+
+// printIndex prints packs.json: each pack's current version and its release asset, by id.
+func printIndex(base string, dirs []string) {
+	type entry struct {
+		ID       string   `json:"id"`
+		Name     string   `json:"name"`
+		Version  string   `json:"version"`
+		Displays []string `json:"displays"`
+		Tag      string   `json:"tag"`
+		Asset    string   `json:"asset"`
+		URL      string   `json:"url"`
+	}
+	list := []entry{}
+	for _, d := range dirs {
+		m, err := readManifest(d)
+		if err != nil {
+			fail(err)
+		}
+		tag, asset := m.ID+"-v"+m.Version, m.ID+"-"+m.Version+".zip"
+		list = append(list, entry{m.ID, m.Name, m.Version, append([]string{}, m.Displays...), tag, asset, base + "/" + tag + "/" + asset})
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].ID < list[j].ID })
+	b, _ := json.MarshalIndent(map[string]any{"packs": list}, "", "  ")
+	fmt.Println(string(b))
 }
 
 func fail(err error) {

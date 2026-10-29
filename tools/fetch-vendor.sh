@@ -77,6 +77,6 @@ else
 	echo "tools/build.env: $var=$dest"
 fi
 case $board in
-orion) echo "simulator: go run ./cmd/ledsim -patterns $dest/system/vendor/quasar/ledpatterns/screen" ;;
-*) echo "simulator: go run ./cmd/ledsim -board $board -patterns $dest/system/vendor/quasar/ledpatterns/clock" ;;
+orion) echo "simulator: tools/build.sh hosttool:ledsim; yastationd/build/ledsim -patterns $dest/system/vendor/quasar/ledpatterns/screen" ;;
+*) echo "simulator: tools/build.sh hosttool:ledsim; yastationd/build/ledsim -board $board -patterns $dest/system/vendor/quasar/ledpatterns/clock" ;;
 esac

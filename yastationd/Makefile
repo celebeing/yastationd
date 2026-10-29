@@ -28,7 +28,13 @@ VERSION  := $(shell git describe --tags --match 'v*' --dirty --always 2>/dev/nul
 GOFLAGS  := -trimpath -ldflags="-s -w -X github.com/celebeing/yastationd/yastationd/internal/version.Version=$(VERSION)"
 GOENV    := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: web webui-dist all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds vqe-models deploy clips deploy-egress ota-block video video-convert pack
+.PHONY: web webui-dist all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds sounds-convert vqe-models deploy clips clips-convert deploy-egress ota-block video video-convert video-convert-in pack host-build
+
+# The host needs only docker, sh, git and ssh (docs/building.md, "What the host needs"): the targets a
+# user runs do their Go/ffmpeg/zstd work through ../tools/build.sh, in the pinned images. Inside an
+# image build.sh sets IN_BUILDER=1 and the same targets do the work themselves (never docker there).
+IN_BUILDER ?=
+BUILDSH := ../tools/build.sh
 
 
 all: test build
@@ -66,8 +72,12 @@ clean:
 SSHKEY   ?=
 SSH      := ssh $(if $(SSHKEY),-i $(SSHKEY) -o IdentitiesOnly=yes) $(DEVICE)
 
+# The daemon, tested and built in the Go image (tools/build.sh yastationd), for the targets that ship it.
+host-build:
+	$(BUILDSH) yastationd
+
 # Copy the binary + the init hook to $(DESTDIR) (persistent, no rootfs write, no autostart).
-stage: build
+stage: host-build
 	$(SSH) 'mkdir -p $(DESTDIR)/bin $(DESTDIR)/init.d'
 	$(SSH) 'cat > $(DESTDIR)/bin/$(BIN).new' < $(OUT)
 	$(SSH) 'mv $(DESTDIR)/bin/$(BIN).new $(DESTDIR)/bin/$(BIN) && chmod +x $(DESTDIR)/bin/$(BIN)'
@@ -82,7 +92,8 @@ build-ringdemo:
 	$(GOENV) go build $(GOFLAGS) -o $(RINGDEMOBIN) ./cmd/ringdemo
 	@file $(RINGDEMOBIN)
 
-stage-ringdemo: build-ringdemo
+stage-ringdemo:
+	$(BUILDSH) make:build-ringdemo
 	$(SSH) 'cat > /tmp/ringdemo.new && chmod +x /tmp/ringdemo.new && mv /tmp/ringdemo.new /tmp/ringdemo' < $(RINGDEMOBIN)
 	@echo "ring effects: ssh $(DEVICE) '/tmp/ringdemo -board auto'"
 
@@ -90,13 +101,14 @@ build-fbleddemo:
 	$(GOENV) go build $(GOFLAGS) -o $(FBLEDDEMOBIN) ./cmd/fbleddemo
 	@file $(FBLEDDEMOBIN)
 
-stage-fbleddemo: build-fbleddemo
+stage-fbleddemo:
+	$(BUILDSH) make:build-fbleddemo
 	$(SSH) 'cat > /tmp/fbleddemo.new && chmod +x /tmp/fbleddemo.new && mv /tmp/fbleddemo.new /tmp/fbleddemo' < $(FBLEDDEMOBIN)
 	@echo "screen smoke: ssh $(DEVICE) '/tmp/fbleddemo -clock'  (or -uwu)"
 
 # Throwaway copy in tmpfs for manual on-device testing (gone on reboot). Written aside and
 # renamed in, so it works while the old binary runs (a supervisor respawn then picks it up).
-stage-tmp: build
+stage-tmp: host-build
 	$(SSH) 'cat > /tmp/$(BIN).new && chmod +x /tmp/$(BIN).new && mv /tmp/$(BIN).new /tmp/$(BIN)' < $(OUT)
 
 # stage-tmp, then kill the running /tmp binary so its supervisor respawns the new one.
@@ -145,17 +157,30 @@ SOUNDS ?= no_power volume_sound notification_sound something_went_wrong backend_
 # the setup; the file is the same on every firmware we have, the pause is at 2.41-3.15 s).
 AF_notification_sound := -af volume=-8dB
 AF_something_went_wrong := -af atrim=0:2.6,afade=t=out:st=2.45:d=0.15
+# Fetched over ssh on the host into build/sounds/, decoded in the tools image (sounds-convert),
+# uploaded from the host.
 sounds:
-	@mkdir -p build
-	$(SSH) 'mkdir -p $(DESTDIR)/sounds'
+	@rm -rf build/sounds; mkdir -p build/sounds
 	set -e; for s in $(SOUNDS); do \
-	  if ! $(SSH) "d=/system/vendor/quasar/sounds; for f in ru-RU/$$s.opus ru-RU/$$s.wav ru-RU/$$s.mp3 common/$$s.mp3 $$s.mp3; do [ -f \$$d/\$$f ] && exec cat \$$d/\$$f; done; exit 1" > build/$$s.src; then \
-	    echo "  $$s: not on this firmware, skipped"; rm -f build/$$s.src; continue; \
+	  if ! $(SSH) "d=/system/vendor/quasar/sounds; for f in ru-RU/$$s.opus ru-RU/$$s.wav ru-RU/$$s.mp3 common/$$s.mp3 $$s.mp3; do [ -f \$$d/\$$f ] && exec cat \$$d/\$$f; done; exit 1" > build/sounds/$$s.src; then \
+	    echo "  $$s: not on this firmware, skipped"; rm -f build/sounds/$$s.src; \
 	  fi; \
+	done
+	$(BUILDSH) make:sounds-convert
+	$(SSH) 'mkdir -p $(DESTDIR)/sounds'
+	set -e; for w in build/sounds/*.wav; do \
+	  [ -f "$$w" ] || continue; s=$$(basename $$w .wav); \
+	  $(SSH) "cat > $(DESTDIR)/sounds/$$s.wav.new && mv $(DESTDIR)/sounds/$$s.wav.new $(DESTDIR)/sounds/$$s.wav" < $$w; \
+	  echo "  $$s"; \
+	done
+	rm -rf build/sounds
+
+# build/sounds/<name>.src (as on the firmware: opus, mp3, Ogg) -> <name>.wav, 48 kHz stereo (ffmpeg).
+sounds-convert:
+	set -e; for f in build/sounds/*.src; do \
+	  [ -f "$$f" ] || continue; s=$$(basename $$f .src); \
 	  case $$s in notification_sound) af="$(AF_notification_sound)";; something_went_wrong) af="$(AF_something_went_wrong)";; *) af=;; esac; \
-	  ffmpeg -v error -y -i build/$$s.src $$af -ar 48000 -ac 2 build/$$s.wav; \
-	  $(SSH) "cat > $(DESTDIR)/sounds/$$s.wav.new && mv $(DESTDIR)/sounds/$$s.wav.new $(DESTDIR)/sounds/$$s.wav" < build/$$s.wav; \
-	  rm -f build/$$s.src build/$$s.wav; \
+	  ffmpeg -v error -y -i $$f $$af -ar 48000 -ac 2 build/sounds/$$s.wav; \
 	done
 
 # The VQE's call-mode noise reducer (docs/intercom.md, "The VQE call mode"). spotter-host loads it
@@ -195,12 +220,19 @@ PACK ?=
 PACK_OUT ?=
 pack:
 	@test -n "$(PACK)" || { echo "usage: make pack PACK=<pack dir or .zip> [PACK_OUT=out.zip]"; exit 2; }
-	go run ./cmd/packtool $(if $(PACK_OUT),-o $(PACK_OUT)) "$(PACK)"
+	$(BUILDSH) packtool
+	build/packtool $(if $(PACK_OUT),-o $(PACK_OUT)) "$(PACK)"
 
+# The video is copied into build/media/ (the image sees only the repo), converted in the tools image.
 video-convert:
 	@test -n "$(VIDEO)" || { echo "usage: make video VIDEO=<local video file>"; exit 2; }
+	@mkdir -p build/media
+	cp "$(VIDEO)" build/media/input
+	MAKE_VARS='VIDEO_FLAGS="$(VIDEO_FLAGS)"' $(BUILDSH) make:video-convert-in
+	rm -f build/media/input
+video-convert-in:
 	go build -o build/videoconv ./cmd/videoconv
-	build/videoconv $(VIDEO_FLAGS) -frames build/media/video.led.gz -audio build/media/video.wav "$(VIDEO)"
+	build/videoconv $(VIDEO_FLAGS) -frames build/media/video.led.gz -audio build/media/video.wav build/media/input
 video: video-convert
 	$(SSH) 'mkdir -p $(DESTDIR)/media'
 	set -e; for f in video.led.gz video.wav; do \
@@ -214,17 +246,25 @@ video: video-convert
 # never stored in the repo.
 CLIPS_SRC ?= /system/vendor/quasar/ledpatterns/clock
 clips:
-	go build -o build/clipconv ./cmd/clipconv
-	@mkdir -p build/clips
+	@rm -rf build/clips; mkdir -p build/clips
 	set -e; names=$$($(SSH) 'cd $(CLIPS_SRC) 2>/dev/null && ls *.binscled.zst 2>/dev/null' | sed 's/\.binscled\.zst$$//'); \
 	if [ -z "$$names" ]; then echo "no binary clips on $(DEVICE): nothing to convert"; exit 0; fi; \
-	$(SSH) 'mkdir -p $(DESTDIR)/clips'; \
-	for n in $$names; do \
-	  $(SSH) "cat $(CLIPS_SRC)/$$n.binscled.zst" | zstd -q -d -c > build/clips/$$n.binscled; \
-	  build/clipconv build/clips/$$n.binscled > build/clips/$$n.scled; \
-	  $(SSH) "cat > $(DESTDIR)/clips/$$n.scled.new && mv $(DESTDIR)/clips/$$n.scled.new $(DESTDIR)/clips/$$n.scled" < build/clips/$$n.scled; \
+	for n in $$names; do $(SSH) "cat $(CLIPS_SRC)/$$n.binscled.zst" > build/clips/$$n.binscled.zst; done
+	@[ -n "$$(ls build/clips)" ] || exit 0; $(BUILDSH) make:clips-convert
+	set -e; [ -n "$$(ls build/clips/*.scled 2>/dev/null)" ] || exit 0; $(SSH) 'mkdir -p $(DESTDIR)/clips'; \
+	for c in build/clips/*.scled; do n=$$(basename $$c .scled); \
+	  $(SSH) "cat > $(DESTDIR)/clips/$$n.scled.new && mv $(DESTDIR)/clips/$$n.scled.new $(DESTDIR)/clips/$$n.scled" < $$c; \
 	  echo "  $$n"; \
 	done; rm -rf build/clips
+
+# build/clips/<name>.binscled.zst -> <name>.scled (zstd, cmd/clipconv).
+clips-convert:
+	go build -o build/clipconv ./cmd/clipconv
+	set -e; for z in build/clips/*.binscled.zst; do \
+	  [ -f "$$z" ] || continue; n=$$(basename $$z .binscled.zst); \
+	  zstd -q -d -c $$z > build/clips/$$n.binscled; \
+	  build/clipconv build/clips/$$n.binscled > build/clips/$$n.scled; \
+	done
 
 # A shortcut for tools/deploy.sh with the one speaker set here (DEVICE, PLATFORM, DESTDIR,
 # HELPER_ARCH): the same docker build, helpers, swap and checks. Several speakers, or anything

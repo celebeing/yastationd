@@ -6,8 +6,13 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
 ## Unreleased
 
 **Build**
-- `tools/build.sh packtool` builds the asset-pack checker in the Go container, so building packs
-  needs only docker, not Go on the host.
+- The host needs only docker, sh, make, git and ssh: `make sounds`, `make clips`, `make video`,
+  `make pack`, `make stage` and the LED demo stages now do their Go/ffmpeg/zstd work in pinned
+  containers (a new `yastation-tools` image), fetching from and uploading to the speaker over ssh
+  on the host. `tools/build.sh packtool` / `hosttool:<cmd>` build the host tools (the pack
+  checker, ledsim) for this machine; `make:<target>` runs a conversion in the tools image.
+- `packtool -get <field>` and `-index <url>` read pack manifests, so the asset repo's release
+  scripts need no jq.
 
 ## v0.21.2 — 2026-10-29
 

@@ -21,6 +21,7 @@ its own port, no login, the comparison viewer) is for development and the host s
 
 ```sh
 cd yastationd
+# no Go on the host? ../tools/build.sh hosttool:ledsim, then build/ledsim instead of go run ./cmd/ledsim
 go run ./cmd/ledsim -patterns ../dumps/orion/quasar/ledpatterns/screen   # any copy of the
                                                                           # firmware's ledpatterns/screen
 # open http://localhost:8930/

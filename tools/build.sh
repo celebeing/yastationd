@@ -13,6 +13,13 @@
 #   spotter:<arch>    the voice front-end     spotter-host/build/<arch>/spotter-host   (cross gcc + a vendor sysroot)
 #   packtool          the asset-pack checker  yastationd/build/packtool  (go; for this host, not the speakers;
 #                     builds and checks packs: docs/asset-packs.md)
+#   hosttool:<cmd>    a host tool of cmd/     yastationd/build/<cmd>     (go; for this host: ledsim, demoreel,
+#                     clipconv, …; packtool is hosttool:packtool)
+#   make:<target>     a yastationd make target that needs ffmpeg/zstd/Go (the one-off install
+#                     conversions: sounds-convert, clips-convert, video-convert-in, build-ringdemo,
+#                     build-fbleddemo), run in the tools image; MAKE_VARS="K=V ..." are passed to it
+#
+# The host needs only docker, sh, git (and ssh for the speakers): every toolchain is in an image.
 #   sendspin, spotter both arches; all = web yastationd hostapd dropbear sendspin spotter
 #
 # spotter-host links the vendor's libraries: it needs SPOTTER_SYSROOT_ARMHF / SPOTTER_SYSROOT_AARCH64
@@ -85,11 +92,19 @@ build_yastationd() {
 	run go yastationd 'make -s test build WEB_SRC='
 }
 
-# packtool runs on the host that builds packs (the asset repo's tools/build-packs.sh), so it is
-# built for the builder's own platform, not the speakers'.
-build_packtool() {
-	echo "== packtool"
-	run go yastationd 'CGO_ENABLED=0 GOOS=linux GOARCH=$(go env GOHOSTARCH) GOARM= go build -o build/packtool ./cmd/packtool'
+# hosttool CMD: a tool of cmd/ that runs on the host (packtool for the asset repo's
+# tools/build-packs.sh, ledsim, demoreel…), built for the builder's own platform, not the speakers'.
+build_hosttool() {
+	[ -d "$here/yastationd/cmd/$1" ] || { echo "hosttool:$1: no yastationd/cmd/$1" >&2; exit 2; }
+	echo "== $1 (host tool)"
+	run go yastationd "CGO_ENABLED=0 GOOS=linux GOARCH=\$(go env GOHOSTARCH) GOARM= go build -o build/$1 ./cmd/$1"
+}
+
+# make TARGET: a yastationd make target in the tools image (IN_BUILDER=1: the Makefile does the
+# work itself instead of calling back here).
+build_make() {
+	echo "== make $1"
+	run tools yastationd "make -s IN_BUILDER=1 $1 ${MAKE_VARS:-}"
 }
 
 build_dropbear() {
@@ -163,7 +178,9 @@ for t in "$@"; do
 	yastationd) build_yastationd ;;
 	hostapd) build_hostapd ;;
 	dropbear) build_dropbear ;;
-	packtool) build_packtool ;;
+	packtool) build_hosttool packtool ;;
+	hosttool:*) build_hosttool "${t#hosttool:}" ;;
+	make:*) build_make "${t#make:}" ;;
 	sendspin)
 		build_sendspin armhf
 		build_sendspin aarch64

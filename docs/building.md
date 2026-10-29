@@ -1,7 +1,8 @@
 # Building the artifacts: one script, a container per toolchain
 
 Everything the CFW puts on a speaker is built in pinned builder containers by one script,
-`tools/build.sh`. The host needs **docker** (and sh, git); no Go, Node, zig or cross gcc.
+`tools/build.sh`. The host needs **docker** (and sh, make, git, ssh); no Go, Node, zig, cross gcc,
+ffmpeg, zstd or jq — the one-off conversions run in containers too ("What the host needs" below).
 [deploying.md](deploying.md) §1 has what each binary does on the device; this page is the
 toolchain.
 
@@ -17,6 +18,7 @@ zig image on every target; if a build of an image keeps failing, `docker builder
 | `yastation-go` | `docker/go.Dockerfile` | `yastationd` (tests too) | Go 1.22.5 (`golang:1.22.5-bookworm`), `GOTOOLCHAIN=local`; one static armv7 binary for every board |
 | `yastation-node` | `docker/node.Dockerfile` | the web app (`web/`), embedded in yastationd | Node 18.20.8, pnpm 8.14.1 |
 | `yastation-zig` | `docker/zig.Dockerfile` | `sendspin-host` (per arch), `hostapd`, `dropbear` | **zig 0.14.1** (0.11–0.13 emit armhf C++ binaries that crash before `main`; the tarball for the builder's own arch, x86_64 or aarch64, checked by sha256), cmake, ninja, git, curl |
+| `yastation-tools` | `docker/tools.Dockerfile` | the host-side conversions: vendor sounds (`make sounds`), binary clock clips (`make clips`), videos (`make video`) | the same Go as `yastation-go`, plus Debian bookworm's ffmpeg, zstd, jq, file |
 | `yastation-cross` | `docker/cross.Dockerfile` | `spotter-host` (per arch) | Ubuntu 22.04's gcc 11 cross toolchains (glibc 2.35): the toolchain the deployed builds were made with — its output is byte-identical to them (checked 2026-10-27) |
 
 ## tools/build.sh
@@ -27,6 +29,8 @@ tools/build.sh yastationd      # tests + the daemon (the web app first, when its
 tools/build.sh sendspin:armhf  # one arch; "sendspin" = both
 tools/build.sh spotter:aarch64 # needs a sysroot (below); "spotter" = both, skipping one without
 tools/build.sh web hostapd
+tools/build.sh packtool hosttool:ledsim   # host tools, built for this machine
+tools/build.sh make:sounds-convert        # a yastationd make target in the tools image (the Makefile calls these)
 ```
 
 | Target | Output (where deploy.sh and the Makefiles look) |
@@ -38,6 +42,8 @@ tools/build.sh web hostapd
 | `sendspin:<arch>` | `sendspin-host/build/<arch>/sendspin-host` |
 | `spotter:<arch>` | `spotter-host/build/<arch>/spotter-host` |
 | `packtool` | `yastationd/build/packtool` (for the building host, not the speakers: the asset-pack checker) |
+| `hosttool:<cmd>` | `yastationd/build/<cmd>`: a tool of `cmd/` built for this host (`ledsim`, `demoreel`, `clipconv`, …) |
+| `make:<target>` | a `yastationd` make target run in `yastation-tools` with `IN_BUILDER=1`: `sounds-convert`, `clips-convert`, `video-convert-in`, `build-ringdemo`, `build-fbleddemo` (`MAKE_VARS="K=V"` passes variables) |
 
 - Each target is a `docker run` of its image with the repo mounted **at its own path** (so the
   CMake caches of `sendspin-host` stay valid in and out of the container), as the calling user.
@@ -109,10 +115,35 @@ versions installed by hand they work on a host (`make -C yastationd test build`,
 
 ## Host tools
 
-Not shipped to a speaker; they run on the host: `cmd/packtool` builds and checks an asset pack
-(`tools/build.sh packtool` builds it in the Go container, no Go on the host needed; then
-`yastationd/build/packtool [-o x.zip] <dir or .zip>`; with Go installed, `make -C yastationd pack
-PACK=<dir or .zip>` does both; [asset-packs.md](asset-packs.md)). The others need the Go
-toolchain: `cmd/videoconv` converts a video (`make video-convert`,
-[video-mode.md](video-mode.md)), `cmd/ledsim` and `cmd/demoreel` simulate the LEDs
-([led-preview.md](led-preview.md)).
+Not shipped to a speaker; built for the host in the Go container, so they need no Go there:
+`cmd/packtool` builds and checks an asset pack (`make -C yastationd pack PACK=<dir or .zip>`, or
+`tools/build.sh packtool` then `yastationd/build/packtool [-o x.zip] <dir or .zip>`; `-get <field>`
+and `-index <url>` read manifests for the asset repo's scripts; [asset-packs.md](asset-packs.md)),
+`cmd/ledsim` and `cmd/demoreel` simulate the LEDs (`tools/build.sh hosttool:ledsim`, then
+`yastationd/build/ledsim …`; [led-preview.md](led-preview.md)). `cmd/videoconv` needs ffmpeg, so it
+runs in the tools image (`make video-convert`, [video-mode.md](video-mode.md)).
+
+## What the host needs
+
+docker, sh, make, git and ssh (with the key the speakers trust), plus coreutils, sed, awk, grep,
+find, tar. Everything else is in an image. Steps that talk to a speaker keep ssh on the host (the
+SSH agent never goes into a container): they fetch over ssh, convert in a container, upload over
+ssh.
+
+| What you run | Toolchain it needs | Where it runs |
+|---|---|---|
+| `tools/build.sh …`, `tools/deploy.sh`, `tools/build-dist.sh`, `tools/diag-build.sh` | Go, Node/pnpm, zig, cross gcc | the builder images |
+| `make stage` / `stage-tmp` / `install-initd` / `redeploy-tmp` | Go, Node (the daemon + its web app) | `tools/build.sh yastationd`, then ssh |
+| `make sounds` | ffmpeg (opus/mp3 → wav) | fetch over ssh, `make:sounds-convert` in `yastation-tools`, upload |
+| `make clips` | zstd, Go (`cmd/clipconv`) | fetch over ssh, `make:clips-convert`, upload |
+| `make video` / `video-convert` | Go, ffmpeg (`cmd/videoconv`) | `make:video-convert-in` (the video is copied into `build/media/` first) |
+| `make pack` | Go (`cmd/packtool`) | `tools/build.sh packtool`, then the static binary on the host |
+| `make stage-ringdemo` / `stage-fbleddemo` | Go | `make:build-ringdemo` / `make:build-fbleddemo`, then ssh |
+| `make vqe-models`, `deploy-egress`, `ota-block`, `deploy` | — | ssh only (`deploy` = `tools/deploy.sh`) |
+| `tools/fetch-vendor.sh`, `tools/board-survey.sh`, `tools/orion-*.sh` | — | ssh and tar only |
+| ledsim, demoreel | Go | `tools/build.sh hosttool:<cmd>`, then the binary |
+| the asset repo's `tools/build-packs.sh`, `pack-index.sh` | Go, jq (before) | packtool built here (`packtool`, `-get`, `-index`) |
+
+`make build`, `make test`, `make vet` and the `*-convert`/`*-in` targets are what the images run
+(`IN_BUILDER=1`); on the host, use `tools/build.sh`. `NATIVE=1 tools/deploy.sh` builds with the
+host's Go on purpose.
