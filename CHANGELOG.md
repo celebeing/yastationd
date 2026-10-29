@@ -3,7 +3,7 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.21.1 — 2026-10-29
 
 **Packs**
 - The LED page browses the animations in a column view, like a file browser's: the firmware's own (with their subfolders) and
