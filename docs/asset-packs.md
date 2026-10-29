@@ -59,7 +59,7 @@ ends: the ring tones. A name may list fallbacks, `calls_ringing_incoming|notific
 `"sound": "neco_short_1,neco_short_2,neco_grunt_1"`, `anim:happy_a,happy_b`, a bare `happy,wink`.
 Each showing picks one at random among those this speaker has (a held step picks again on every
 repeat); the choice counts as available when one of them is. A name in the choice may still list
-fallbacks (`a|b,c`).
+fallbacks (`a|b,c`). The Moments editor edits a choice as "a or b" ("+ or" adds a name, ✕ takes one out).
 
 **Hooks.** Every event the CFW reacts to is a moment in the catalogue (`momentCatalog`,
 `internal/app/defaulttheme.go`), with its slot, its front and ring priorities, its TTL and,

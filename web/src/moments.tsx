@@ -18,14 +18,17 @@ function kindOf(s: Show, cat: MomentCatalog): Kind {
   if (s.startsWith('sound:') || s.startsWith('phrase:')) return 'sound'
   if (s.startsWith('ring:')) return 'ring'
   if ((cat.expressions || []).includes(s)) return 'expression'
-  if ((cat.anims || []).some((a) => a.name === s)) return 'anim'
+  if (hasAnim(s, cat)) return 'anim'
   return 'expression'
 }
 
 const refName = (s: string) => s.replace(/^(scenario|anim|sound|phrase|ring):/, '')
 
-/** hasSound: one of a sound name's alternatives ("a|b") is on this speaker. */
-const hasSound = (name: string, cat: MomentCatalog) => name.split('|').some((n) => (cat.sounds || []).includes(n))
+/** hasSound: one of a sound name's random choices ("a,b") or fallbacks ("a|b") is on this speaker. */
+const hasSound = (name: string, cat: MomentCatalog) => name.split(/[,|]/).some((n) => (cat.sounds || []).includes(n.trim()))
+
+/** hasAnim: one of an animation name's random choices ("a,b") is on this speaker. */
+const hasAnim = (name: string, cat: MomentCatalog) => name.split(',').some((n) => (cat.anims || []).some((a) => a.name === n.trim()))
 
 /** stepParts: what a step does, in words. */
 function stepParts(st: Step): string[] {
@@ -56,13 +59,13 @@ function has(s: Show, cat: MomentCatalog): boolean {
     case 'scenario':
       return (cat.scenarios || []).includes(n)
     case 'anim':
-      return (cat.anims || []).some((a) => a.name === n)
+      return hasAnim(n, cat)
     case 'sound':
       return hasSound(n, cat)
     case 'ring':
       return (cat.ring_effects || []).includes(n)
     default:
-      return (cat.expressions || []).includes(n) || (cat.anims || []).some((a) => a.name === n)
+      return n.split(',').some((x) => (cat.expressions || []).includes(x.trim())) || hasAnim(n, cat)
   }
 }
 
@@ -301,13 +304,42 @@ function AnimPicker({ value, cat, onChange }: { value: string; cat: MomentCatalo
   const id = 'anims-' + cat.display
   return (
     <>
-      <input class="anim" list={id} value={value} placeholder="animation" onChange={(e) => onChange(e.currentTarget.value)} />
+      <OneOf value={value} add={(cat.anims || [])[0]?.name || ''} what="animation" onChange={onChange}>
+        {(v, set) => <input class="anim" list={id} value={v} placeholder="animation" onChange={(e) => set(e.currentTarget.value)} />}
+      </OneOf>
       <datalist id={id}>
         {(cat.anims || []).map((a) => (
           <option value={a.name}>{`${(a.ms / 1000).toFixed(1)} s${a.loop ? ', loops' : ''}`}</option>
         ))}
       </datalist>
     </>
+  )
+}
+
+/** OneOf edits a random choice "a,b,c" (docs/asset-packs.md): a picker per name, "+ or" adds one,
+ * ✕ takes one out; with more than one, each showing plays one of them at random. */
+function OneOf(p: { value: string; add: string; what: string; hideAdd?: boolean; onChange: (v: string) => void; children: (v: string, set: (v: string) => void) => preact.ComponentChildren }) {
+  const names = p.value.split(',').map((x) => x.trim())
+  const put = (n: string[]) => p.onChange(n.filter((x, i) => x || n.length === 1 || i === 0).join(','))
+  return (
+    <span class="oneof" title={names.length > 1 ? `One of these ${p.what}s, at random, each time` : undefined}>
+      {names.map((v, i) => (
+        <span class="oneof-item">
+          {i > 0 && <span class="muted small">or</span>}
+          {p.children(v, (x) => put(names.map((y, k) => (k === i ? x : y))))}
+          {names.length > 1 && (
+            <button class="ghost icon" aria-label={`Take ${v} out`} onClick={() => put(names.filter((_, k) => k !== i))}>
+              ✕
+            </button>
+          )}
+        </span>
+      ))}
+      {!p.hideAdd && (
+        <button class="ghost small" title={`Add another ${p.what}: one of them plays at random`} onClick={() => put([...names, p.add])}>
+          + or
+        </button>
+      )}
+    </span>
   )
 }
 
@@ -327,15 +359,20 @@ const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
 /** SoundPicker: a sound name (or none) and whether it is said as speech (stopping other playback). */
 function SoundPicker(p: { name: string; phrase: boolean; cat: MomentCatalog; none?: boolean; onChange: (name: string, phrase: boolean) => void }) {
   const sounds = p.cat.sounds || []
+  const several = p.name.includes(',')
   return (
     <>
-      <select aria-label="Sound" value={p.name} onChange={(e) => p.onChange(e.currentTarget.value, p.phrase)}>
-        {p.none && <option value="">no sound</option>}
-        {p.name && !sounds.includes(p.name) && <option value={p.name}>{p.name}</option>}
-        {sounds.map((x) => (
-          <option value={x}>{x}</option>
-        ))}
-      </select>
+      <OneOf value={p.name} add={sounds[0] || ''} what="sound" onChange={(v) => p.onChange(v, p.phrase)} hideAdd={!p.name}>
+        {(v, set) => (
+          <select aria-label="Sound" value={v} onChange={(e) => set(e.currentTarget.value)}>
+            {p.none && !several && <option value="">no sound</option>}
+            {v && !sounds.includes(v) && <option value={v}>{v}</option>}
+            {sounds.map((x) => (
+              <option value={x}>{x}</option>
+            ))}
+          </select>
+        )}
+      </OneOf>
       {p.name && (
         <label class="inline small" title="Stop other playback and say it, like a spoken line">
           <input type="checkbox" checked={p.phrase} onChange={(e) => p.onChange(p.name, e.currentTarget.checked)} /> as speech

@@ -274,3 +274,11 @@ details.help { margin-bottom: 1rem; }
 details.help summary { cursor: pointer; font-weight: 600; }
 details.help ul { margin: 0.5rem 0 0; padding-left: 1.2rem; }
 details.help li { margin: 0.25rem 0; }
+
+/* A random choice in the moments editor: "a or b or c". */
+.oneof { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+.oneof-item { display: inline-flex; align-items: center; gap: 0.25rem; }
+/* several names take a line of their own in a step's row, so the step's other fields keep their width */
+.oneof:has(.oneof-item + .oneof-item) { flex-basis: 100%; }
+.steps .row:has(.oneof-item + .oneof-item) { flex-wrap: wrap; }
+.steps .row .oneof:has(.oneof-item + .oneof-item) { order: 10; }

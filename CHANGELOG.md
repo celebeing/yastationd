@@ -20,6 +20,7 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
   another speaker). A moment shared before is ignored.
 - `<cfw>/moments.json` is folded into the pack "Your own" at the first start and renamed
   `moments.json.old`.
+- The Moments editor picks several sounds or animations for a random choice ("+ or").
 
 ## v0.21.2 — 2026-10-29
 
