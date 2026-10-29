@@ -95,8 +95,8 @@ packs replace any animation and add sounds to any event.
   to change, and an installed pack can be copied into one of yours whole.
 - **Behaviour → Sounds** lists every sound of the speaker and the packs, to play; add your own
   from any audio file (converted to WAV in the browser). A pack's **Preview animations** button
-  opens all of its animations for this speaker on the **LED** page, where they can be viewed
-  without turning the pack on.
+  opens an overlay with looping animations rendered in the browser; it sends nothing to the
+  speaker.
 - Packs are built and checked on a computer (`tools/build.sh packtool`); the format and an
   example: [docs/asset-packs.md](docs/asset-packs.md).
 

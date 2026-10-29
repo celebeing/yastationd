@@ -218,6 +218,7 @@ func TestApplyHere(t *testing.T) {
 	if len(a.cfg().Themes) != 0 || !slices.Equal(a.cfg().ThemesHere, []string{"neco", customPack}) {
 		t.Fatalf("theme %v, here %v", a.cfg().Themes, a.cfg().ThemesHere)
 	}
+
 	if _, ok := a.frontAnim("happy"); !ok {
 		t.Error("the pack applied here does not play by its bare name")
 	}
@@ -229,6 +230,63 @@ func TestApplyHere(t *testing.T) {
 	}
 	if _, ok := a.frontAnim("happy"); ok {
 		t.Error("the pack still plays after its stack ended")
+	}
+}
+
+func TestPackAnimationView(t *testing.T) {
+	a := pixelPackApp(t)
+	if _, err := a.installPack(packZip(t, map[string]string{"pack.json": `{"id": "neco"}`, "anims/pixels-21x12/happy.led": ledFrame()})); err != nil {
+		t.Fatal(err)
+	}
+	v, err := a.packAnimationView("neco", "happy")
+	if err != nil || v.Display != "pixels-21x12" || v.Width != 21 || v.Height != 12 || len(v.Frames) != 1 {
+		t.Fatalf("preview: %+v %v", v, err)
+	}
+	if len(v.Frames[0].Data) != 21*12*6 || v.Frames[0].Data[:6] != "ffffff" || v.Frames[0].MS != 100 {
+		t.Errorf("frame: %+v", v.Frames[0])
+	}
+	if err := os.WriteFile(filepath.Join(a.packDir("neco"), "anims", "pixels-21x12", "happy.led"), []byte("not an animation\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.packAnimationView("neco", "happy"); err == nil {
+		t.Error("corrupted animation produced a browser preview")
+	}
+}
+
+func TestPackAnimationViewSeg7(t *testing.T) {
+	a := packTestApp(t)
+	a.matrix = &hw.Matrix{}
+	a.front = display.Seg7Front{}
+	clock := "255 0 0 0 0 0 0 | 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 | 0 0 0 0 | 25\n"
+	if _, err := a.installPack(packZip(t, map[string]string{"pack.json": `{"id": "clock"}`, "anims/seg7/tick.scled": clock})); err != nil {
+		t.Fatal(err)
+	}
+	v, err := a.packAnimationView("clock", "tick")
+	if err != nil || v.Display != "seg7" || len(v.Frames) != 1 {
+		t.Fatalf("preview: %+v %v", v, err)
+	}
+	if len(v.Frames[0].Data) != 64 || v.Frames[0].Data[:2] != "ff" || v.Frames[0].MS != 25 {
+		t.Errorf("frame: %+v", v.Frames[0])
+	}
+}
+
+func TestWebPackAnimationPreview(t *testing.T) {
+	a, srv := newWebApp(t)
+	m := pixelPackApp(t)
+	a.screen, a.front, a.store, a.prof = m.screen, m.front, m.store, m.prof
+	a.conf.Store(m.cfg())
+	if _, err := a.installPack(packZip(t, map[string]string{"pack.json": `{"id": "neco"}`, "anims/pixels-21x12/happy.led": ledFrame()})); err != nil {
+		t.Fatal(err)
+	}
+	_, login := call(t, "POST", srv.URL+"/api/login", "", `{"user":"admin","password":"yastation"}`)
+	token, _ := login["token"].(string)
+	code, out := call(t, "GET", srv.URL+"/api/packs/neco/anims/happy", token, "")
+	frames, _ := out["frames"].([]any)
+	if code != 200 || out["display"] != "pixels-21x12" || out["width"] != float64(21) || out["height"] != float64(12) || len(frames) != 1 {
+		t.Fatalf("preview response: %d %v", code, out)
+	}
+	if code, _ := call(t, "GET", srv.URL+"/api/packs/neco/anims/missing", token, ""); code != 422 {
+		t.Errorf("missing animation: %d", code)
 	}
 }
 

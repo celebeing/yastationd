@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"cmp"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -56,6 +57,20 @@ type pack struct {
 	Editable bool `json:"editable,omitempty"`
 	// Moments by display kind ("any" for every one): moment -> candidates.
 	Moments map[string]map[string][]show `json:"moments,omitempty"`
+}
+
+// packAnimationView is one installed animation, parsed into the screen's native frame bytes for
+// the browser preview. Frames are hex to keep the JSON compact and avoid base64 padding.
+type packAnimationView struct {
+	Display string               `json:"display"`
+	Width   int                  `json:"width,omitempty"`
+	Height  int                  `json:"height,omitempty"`
+	Frames  []packAnimationFrame `json:"frames"`
+}
+
+type packAnimationFrame struct {
+	Data string `json:"data"`
+	MS   int64  `json:"ms"`
 }
 
 // packDisplay is this speaker's display kind as packs name it: seg7, pixels-<w>x<h>, "" (none).
@@ -139,6 +154,62 @@ func (a *App) packAnim(ref string) (display.Anim, bool) {
 		return l.(*display.ClipLibrary).Load(name)
 	}
 	return nil, false
+}
+
+// packAnimationView reads an installed pack's animation for this display. The upload path already
+// validates it; parsing again keeps a hand-copied or later-corrupted file out of the browser.
+func (a *App) packAnimationView(id, name string) (packAnimationView, error) {
+	a.rescanPacks()
+	if !packFileName.MatchString(name) || id != customPack && a.installedPacks()[id] == nil {
+		return packAnimationView{}, errors.New("no such pack animation")
+	}
+	kind := a.packDisplay()
+	m := packAnimDir.FindStringSubmatch(kind)
+	if m == nil {
+		return packAnimationView{}, errors.New("this speaker has no supported display")
+	}
+	ext := ".led"
+	if kind == "seg7" {
+		ext = ".scled"
+	}
+	b, err := os.ReadFile(filepath.Join(a.packDir(id), "anims", kind, name+ext))
+	if err != nil {
+		return packAnimationView{}, errors.New("no such pack animation")
+	}
+	v := packAnimationView{Display: kind}
+	if kind == "seg7" {
+		c, err := display.ParseScled(name, bytes.NewReader(b))
+		if err != nil {
+			return packAnimationView{}, err
+		}
+		for _, f := range c.Frames {
+			data := make([]byte, 0, 32)
+			for _, d := range f.Seg {
+				data = append(data, d[:]...)
+			}
+			data = append(data, f.Extra[:]...)
+			v.Frames = append(v.Frames, packAnimationFrame{Data: hex.EncodeToString(data), MS: f.Dur.Milliseconds()})
+		}
+		return v, nil
+	}
+	v.Width, _ = strconv.Atoi(m[2])
+	v.Height, _ = strconv.Atoi(m[3])
+	gamma := 1.0
+	if f, ok := a.front.(display.PixelFront); ok {
+		gamma = f.Gamma
+	}
+	c, err := display.ParseLed(name, bytes.NewReader(b), v.Width, v.Height, gamma)
+	if err != nil {
+		return packAnimationView{}, err
+	}
+	for _, f := range c.Frames {
+		data := make([]byte, 0, len(f.Px)*3)
+		for _, p := range f.Px {
+			data = append(data, p.R, p.G, p.B)
+		}
+		v.Frames = append(v.Frames, packAnimationFrame{Data: hex.EncodeToString(data), MS: f.Dur.Milliseconds()})
+	}
+	return v, nil
 }
 
 func (a *App) installedPacks() map[string]*pack {
@@ -608,6 +679,7 @@ func dirBytes(dir string) int64 {
 //	POST   /api/packs/<id>/rename {"name"}  rename one of the owner's
 //	DELETE /api/packs/<id>                  remove it
 //	GET    /api/packs/<id>/export?id=&name= the pack as an archive (read-only where installed)
+//	GET    /api/packs/<id>/anims/<name>     parsed frames for browser preview
 //	PUT|DELETE /api/packs/<id>/sounds/<name>  a sound of one of the owner's packs (a WAV)
 //	PUT|DELETE /api/packs/<id>/anims/<name>   an animation of one of them, for this display
 func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
@@ -686,6 +758,14 @@ func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")
 		w.Header().Set("Content-Disposition", `attachment; filename="`+cmp.Or(q.Get("id"), parts[0])+`.zip"`)
 		w.Write(b)
+		return
+	case len(parts) == 3 && parts[1] == "anims" && r.Method == http.MethodGet:
+		v, err := a.packAnimationView(parts[0], parts[2])
+		if err != nil {
+			writeErr(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, v)
 		return
 	case len(parts) == 3 && (parts[1] == "sounds" || parts[1] == "anims"):
 		err = a.packAsset(r, parts[0], parts[1], parts[2])

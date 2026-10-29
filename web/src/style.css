@@ -252,6 +252,16 @@ ol.stack { list-style: none; margin: 0.6rem 0 0; padding: 0; }
 ol.stack li { margin-top: 0; padding: 0.35rem 0; border-top: 1px solid var(--line); }
 .warn-text { color: var(--warn); }
 
+/* Packs: a focused catalogue of one pack's clips, without changing the theme. */
+.pack-preview { width: min(42rem, calc(100vw - 2rem)); max-height: min(36rem, calc(100vh - 2rem)); box-sizing: border-box; overflow: auto;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--fg); padding: 1rem; box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22); }
+.pack-preview::backdrop { background: color-mix(in srgb, var(--fg) 28%, transparent); }
+.pack-preview h3 { margin: 0; }
+.pack-preview .pack-preview-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: 0.75rem; margin-top: 0.75rem; }
+.pack-animation-preview { min-width: 0; margin: 0; display: grid; gap: 0.35rem; }
+.pack-animation-preview canvas { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: #030303; image-rendering: pixelated; }
+.pack-animation-preview figcaption { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85em; }
+
 /* The animation browser (LED page): a file browser's column view; each opened folder adds a
    column to the right, the animations play from the last one. */
 .mcols { display: flex; height: 17rem; margin-top: 0.5rem; border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; overflow-y: hidden; background: var(--card); }
