@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -33,8 +34,18 @@ func runFake(t *testing.T, ready string) *Spotter {
 		ok := s.running && s.proc != nil
 		s.mu.Unlock()
 		if ok {
-			time.Sleep(100 * time.Millisecond) // the READY line
-			return s
+			if !strings.Contains(ready, "call-mode") {
+				return s
+			}
+			for end := time.Now().Add(3 * time.Second); time.Now().Before(end); time.Sleep(10 * time.Millisecond) {
+				s.mu.Lock()
+				canMode := s.canMode
+				s.mu.Unlock()
+				if canMode {
+					return s
+				}
+			}
+			t.Fatal("fake spotter-host did not report call-mode support")
 		}
 	}
 	t.Fatal("fake spotter-host did not start")

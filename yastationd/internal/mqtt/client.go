@@ -10,9 +10,22 @@ import (
 	paho "github.com/eclipse/paho.mqtt.golang"
 )
 
+type mqttClient interface {
+	Connect() paho.Token
+	Disconnect(quiesce uint)
+	Publish(topic string, qos byte, retained bool, payload any) paho.Token
+	Subscribe(topic string, qos byte, callback paho.MessageHandler) paho.Token
+	IsConnected() bool
+	IsConnectionOpen() bool
+}
+
+var newPahoClient = func(opts *paho.ClientOptions) mqttClient {
+	return paho.NewClient(opts)
+}
+
 // Client is the daemon's connection to the broker.
 type Client struct {
-	c      paho.Client
+	c      mqttClient
 	topics Topics
 	log    *slog.Logger
 
@@ -67,7 +80,7 @@ func New(o Options) *Client {
 			cl.onBroker(false)
 		}
 	}
-	cl.c = paho.NewClient(opts)
+	cl.c = newPahoClient(opts)
 	return cl
 }
 

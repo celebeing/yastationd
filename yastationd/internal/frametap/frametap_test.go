@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -99,4 +100,77 @@ func TestNilTap(t *testing.T) {
 	tap.Screen([]hw.RGB{{}})
 	tap.Ring(nil)
 	tap.Ambilight([]hw.RGBW{{}})
+}
+
+func TestInfoAndPreflight(t *testing.T) {
+	calls := 0
+	info := Info{Device: "mini", Screen: [2]int{21, 12}, Ring: 6, Commands: []string{"express"}}
+	tap := New(info, func(string, []byte) bool {
+		calls++
+		return true
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	req := httptest.NewRequest(http.MethodGet, "/info", nil)
+	res := httptest.NewRecorder()
+	tap.Handler().ServeHTTP(res, req)
+	if res.Code != http.StatusOK || res.Header().Get("Content-Type") != "application/json" {
+		t.Fatalf("/info response = %d %q", res.Code, res.Header().Get("Content-Type"))
+	}
+	var got Info
+	if err := json.NewDecoder(res.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, info) {
+		t.Fatalf("/info = %+v, want %+v", got, info)
+	}
+
+	req = httptest.NewRequest(http.MethodOptions, "/cmd/express", nil)
+	res = httptest.NewRecorder()
+	tap.Handler().ServeHTTP(res, req)
+	if res.Code != http.StatusOK || res.Header().Get("Access-Control-Allow-Methods") != "GET, POST, OPTIONS" {
+		t.Fatalf("preflight response = %d %q", res.Code, res.Header().Get("Access-Control-Allow-Methods"))
+	}
+	if calls != 0 {
+		t.Fatalf("preflight invoked command %d times", calls)
+	}
+}
+
+func TestFlushDeliversCurrentFramesWithoutBlockingSlowSubscribers(t *testing.T) {
+	tap := New(Info{}, func(string, []byte) bool { return false }, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	slow := make(chan []byte, 1)
+	slow <- []byte("old")
+	fast := make(chan []byte, 2)
+	tap.mu.Lock()
+	tap.subs[slow] = struct{}{}
+	tap.subs[fast] = struct{}{}
+	tap.mu.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go tap.flush(ctx)
+	tap.Screen([]hw.RGB{{R: 1}})
+	first := waitFrame(t, fast)
+	tap.Ring([]hw.RGB{{G: 2}})
+	second := waitFrame(t, fast)
+	if first.Screen != "010000" || second.Ring != "000200" || second.Seq <= first.Seq {
+		t.Fatalf("frames = %+v then %+v", first, second)
+	}
+	if got := <-slow; string(got) != "old" {
+		t.Fatalf("slow subscriber was overwritten: %q", got)
+	}
+}
+
+func waitFrame(t *testing.T, ch <-chan []byte) Frame {
+	t.Helper()
+	select {
+	case msg := <-ch:
+		var f Frame
+		if err := json.Unmarshal(msg, &f); err != nil {
+			t.Fatal(err)
+		}
+		return f
+	case <-time.After(time.Second):
+		t.Fatal("frame was not delivered")
+		return Frame{}
+	}
 }
