@@ -87,14 +87,16 @@ packs replace any animation and add sounds to any event.
   sounds and moments. **Behaviour → Packs** imports one or more archives and stacks them in
   layers: the built-in behaviour always at the bottom, the packs above in order, the top one
   wins. Each pack turns on and off, and every speaker has its own. A pack is checked on the
-  speaker with the same checks that play it; one rejected archive does not cancel the others.
+  speaker with the same checks that play it; an already installed pack with the same id is
+  skipped, and one rejected archive does not cancel the others.
 - **Your own packs:** your moment changes, sounds and animations live in packs of yours: create,
   rename, export them as a .zip, install them on another speaker. **Behaviour → Moments** shows
   what each moment does now and which layer that comes from; Customize copies it into your pack
   to change, and an installed pack can be copied into one of yours whole.
 - **Behaviour → Sounds** lists every sound of the speaker and the packs, to play; add your own
-  from any audio file (converted to WAV in the browser). The **LED** page browses the animations
-  in folders, the firmware's and each pack's, and plays them on the screen without applying a pack.
+  from any audio file (converted to WAV in the browser). A pack's **Preview animations** button
+  opens all of its animations for this speaker on the **LED** page, where they can be viewed
+  without turning the pack on.
 - Packs are built and checked on a computer (`tools/build.sh packtool`); the format and an
   example: [docs/asset-packs.md](docs/asset-packs.md).
 

@@ -274,12 +274,23 @@ func readPack(zipData []byte) (*pack, map[string][]byte, error) {
 // installPack checks a pack archive and installs it, replacing an installed one of the same id
 // (never one of the owner's). Installed, a pack is read-only: an editable mark in it is dropped.
 func (a *App) installPack(zipData []byte) (*pack, error) {
+	p, _, err := a.importPack(zipData, false)
+	return p, err
+}
+
+// importPack checks a pack archive and optionally leaves a same-id installed pack untouched.
+// It returns whether it skipped the archive. Owner's packs are protected from replacement either
+// way; skipExisting treats them as existing too.
+func (a *App) importPack(zipData []byte, skipExisting bool) (*pack, bool, error) {
 	p, files, err := readPack(zipData)
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	if skipExisting && a.installedPacks()[p.ID] != nil {
+		return p, true, nil
 	}
 	if a.packEditable(p.ID) {
-		return nil, fmt.Errorf("%s is one of your packs here: export it under another id, or remove yours first", p.ID)
+		return nil, false, fmt.Errorf("%s is one of your packs here: export it under another id, or remove yours first", p.ID)
 	}
 	if p.Editable {
 		p.Editable = false
@@ -292,38 +303,38 @@ func (a *App) installPack(zipData []byte) (*pack, error) {
 	}
 	root := a.cfwFile(packsDir)
 	if err := os.MkdirAll(root, 0o755); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if free := freeBytes(root); free >= 0 && int64(total) > free-assetFreeKeep {
-		return nil, errors.New("not enough room on the speaker")
+		return nil, false, errors.New("not enough room on the speaker")
 	}
 	tmp, err := os.MkdirTemp(root, ".install-*")
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	defer os.RemoveAll(tmp)
 	for name, b := range files {
 		dst := filepath.Join(tmp, filepath.FromSlash(name))
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if err := os.WriteFile(dst, b, 0o644); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
 	dir := a.packDir(p.ID)
 	old := dir + ".old"
 	os.RemoveAll(old)
 	if err := os.Rename(dir, old); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, err
+		return nil, false, err
 	}
 	if err := os.Rename(tmp, dir); err != nil {
 		os.Rename(old, dir)
-		return nil, err
+		return nil, false, err
 	}
 	os.RemoveAll(old)
 	a.loadPacks()
-	return p, nil
+	return p, false, nil
 }
 
 // packFiles reads an archive's files, by their path in the pack (a single top directory that
@@ -588,7 +599,7 @@ func dirBytes(dir string) int64 {
 // apiPacks serves the Packs page (docs/asset-packs.md):
 //
 //	GET    /api/packs                       the packs, the stack, what the stack names but is missing
-//	PUT    /api/packs                       install a pack (the zip as the body; read-only here)
+//	PUT    /api/packs[?skip_existing=1]     install a pack (the zip as the body; read-only here)
 //	POST   /api/packs/new {"name"}          a new pack of the owner's, worn on top
 //	PUT    /api/packs/stack                 {"stack": [ids], "here": bool}: the stack worn, top first
 //	                                        (here: theme_here; [] ends it); custom left out = off
@@ -611,7 +622,11 @@ func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	}
-	var err error
+	var (
+		err     error
+		skipped string
+		didSkip bool
+	)
 	switch {
 	case len(parts) == 0 && r.Method == http.MethodGet:
 	case len(parts) == 0 && r.Method == http.MethodPut:
@@ -622,8 +637,12 @@ func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
 		}
 		if err == nil {
 			var p *pack
-			if p, err = a.installPack(b); err == nil {
-				a.log.Info("packs: installed", "pack", p.ID, "version", p.Version)
+			if p, didSkip, err = a.importPack(b, r.URL.Query().Get("skip_existing") == "1"); err == nil {
+				if didSkip {
+					skipped = p.ID
+				} else {
+					a.log.Info("packs: installed", "pack", p.ID, "version", p.Version)
+				}
 			}
 		}
 	case len(parts) == 1 && parts[0] == "new" && r.Method == http.MethodPost:
@@ -678,5 +697,9 @@ func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, a.packsNow())
+	out := a.packsNow()
+	if skipped != "" {
+		out["skipped"] = skipped
+	}
+	writeJSON(w, http.StatusOK, out)
 }

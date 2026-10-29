@@ -160,8 +160,8 @@ export function PacksTab({ peer, base }: { peer: Peer; base: string }) {
                 </td>
                 <td class="actions">
                   {!!k.anims?.length && (
-                    <a class="button ghost" href={`#led/@${k.id}`} title="Play its animations on the LED page">
-                      Animations
+                    <a class="button ghost" href={`#led/@${k.id}`} title="Show every animation in this pack on the LED page">
+                      Preview animations
                     </a>
                   )}
                   {onOff(k)}
@@ -207,8 +207,8 @@ export function PacksTab({ peer, base }: { peer: Peer; base: string }) {
                 </td>
                 <td class="actions">
                   {!!k.anims?.length && (
-                    <a class="button ghost" href={`#led/@${k.id}`} title="Play its animations on the LED page, without turning it on">
-                      Animations
+                    <a class="button ghost" href={`#led/@${k.id}`} title="Show every animation in this pack on the LED page, without turning it on">
+                      Preview animations
                     </a>
                   )}
                   {onOff(k)}
@@ -229,7 +229,7 @@ export function PacksTab({ peer, base }: { peer: Peer; base: string }) {
   )
 }
 
-type PackImport = { file: string; error?: string }
+type PackImport = { file: string; skipped?: string; error?: string }
 
 function AddPack(p: { peer: Peer; base: string; max: number; onDone: () => void; onErr: (e: string) => void }) {
   const [files, setFiles] = useState<File[]>([])
@@ -246,9 +246,14 @@ function AddPack(p: { peer: Peer; base: string; max: number; onDone: () => void;
       setPct(0)
       try {
         if (file.size > p.max) throw new Error(`over ${p.max >> 20} MB`)
-        await api.uploadAsset(p.peer.id, p.base, '/api/packs', file, (n) => setPct(n / file.size))
-        installed = true
-        setImports((r) => [...r, { file: file.name }])
+        const result: unknown = await api.uploadAsset(p.peer.id, p.base, '/api/packs?skip_existing=1', file, (n) => setPct(n / file.size))
+        const skipped = result && typeof result === 'object' && 'skipped' in result && typeof result.skipped === 'string' ? result.skipped : ''
+        if (skipped) {
+          setImports((r) => [...r, { file: file.name, skipped }])
+        } else {
+          installed = true
+          setImports((r) => [...r, { file: file.name }])
+        }
       } catch (e: unknown) {
         const error = e instanceof Error ? e.message : String(e)
         setImports((r) => [...r, { file: file.name, error }])
@@ -294,8 +299,8 @@ function AddPack(p: { peer: Peer; base: string; max: number; onDone: () => void;
       {imports.length > 0 && (
         <ul class="small">
           {imports.map((r) => (
-            <li class={r.error ? 'err' : ''}>
-              {r.file}: {r.error || 'installed.'}
+            <li class={r.error ? 'err' : r.skipped ? 'warn-text' : ''}>
+              {r.file}: {r.error || (r.skipped ? `${r.skipped} already exists — skipped.` : 'installed.')}
             </li>
           ))}
         </ul>

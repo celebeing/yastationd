@@ -101,6 +101,21 @@ func TestPackInstallApplyRemove(t *testing.T) {
 	}
 }
 
+// Batch import leaves a matching pack untouched rather than replacing it.
+func TestPackImportSkipsExisting(t *testing.T) {
+	a := packTestApp(t)
+	if _, err := a.installPack(packZip(t, map[string]string{"pack.json": `{"id": "hl", "name": "First"}`})); err != nil {
+		t.Fatal(err)
+	}
+	p, skipped, err := a.importPack(packZip(t, map[string]string{"pack.json": `{"id": "hl", "name": "Replacement"}`}), true)
+	if err != nil || !skipped || p.ID != "hl" {
+		t.Fatalf("skip: %+v %t %v", p, skipped, err)
+	}
+	if got := a.installedPacks()["hl"].Name; got != "First" {
+		t.Errorf("replaced existing pack with %q", got)
+	}
+}
+
 func TestPackRefused(t *testing.T) {
 	a := packTestApp(t)
 	man := `{"id": "x", "name": "x"}`

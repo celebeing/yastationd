@@ -138,14 +138,16 @@ front for an animation the display lacks. The catalogue lists the sounds this sp
 ## Phase 3: packs in the web app
 
 Behaviour → Packs (`web/src/packs.tsx`): the theme stack this speaker wears (up/down, turn off),
-the built-in behaviour under it; **Your packs** (Animations, Turn on/off, Rename, Export,
-Remove; a new one by name); **Installed** (Animations, Turn on/off, Copy to my pack, Remove);
-import one or more `.zip` archives. The browser sends each archive separately and reports its
-own result, so a rejected pack never prevents the rest from installing. Behaviour → Sounds: every
-sound by name and the pack it comes from, Play (on the speaker), add one to one of the owner's
-packs (any audio the browser decodes, converted to WAV there) or remove one from it. Behaviour →
-Moments: "Edit in" one of the owner's packs; per moment the layer it comes from (a pack, or
-built-in), Play, Customize / Edit; a note when the moment comes from a pack above the one edited.
+the built-in behaviour under it; **Your packs** (Preview animations, Turn on/off, Rename, Export,
+Remove; a new one by name); **Installed** (Preview animations, Turn on/off, Copy to my pack,
+Remove); import one or more `.zip` archives. The browser sends each archive separately and reports
+its own result: it skips an archive whose pack id is already on the speaker, while a rejected pack
+never prevents the rest from installing. **Preview animations** opens the LED page at that pack,
+where all animations for the speaker's display are listed without turning the pack on. Behaviour →
+the speaker), add one to one of the owner's packs (any audio the browser decodes, converted to WAV
+there) or remove one from it. Behaviour → Moments: "Edit in" one of the owner's packs; per moment
+the layer it comes from (a pack, or built-in), Play, Customize / Edit; a note when the moment comes
+from a pack above the one edited.
 
 The LED page's animation browser (`AnimBrowser` in `web/src/extra.tsx`, a column view) walks the
 animations as folders: "In force" (the firmware's and the worn theme's, by the names moments use; the stock ones
@@ -156,8 +158,9 @@ the speaker, a search box finds across all of them. The open folder is in the ad
 API (behind the login): `GET /api/packs` → `{packs: [{id, name, version, author, source,
 license, displays, editable, moments, sounds, anims, fits, bytes, position}], stack, here,
 target, display, missing, free, max_bytes}` (`stack`: what this speaker wears, top first;
-`here`: it comes from `theme_here`; `target`: the owner's pack edits go to by default); `PUT
-/api/packs` (the zip, ≤ 32 MB, ≤ 64 MB unpacked); `POST /api/packs/new {"name"}`; `PUT
+here`: it comes from `theme_here`; `target`: the owner's pack edits go to by default); `PUT
+/api/packs[?skip_existing=1]` (the zip, ≤ 32 MB, ≤ 64 MB unpacked; the optional query returns
+`skipped: <id>` rather than replacing a same-id pack); `POST /api/packs/new {"name"}`; `PUT
 /api/packs/stack {"stack": [ids], "here": bool}` (the stack worn; custom left out = off); `POST
 /api/packs/<id>/apply[?here=1]`, `/copy`, `/rename {"name"}`; `DELETE /api/packs/<id>`; `GET
 /api/packs/<id>/export?id=&name=` (custom needs another id); `PUT|DELETE
