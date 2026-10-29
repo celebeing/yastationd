@@ -69,7 +69,25 @@ type Mode struct {
 
 	settingsChanged bool // under confMu
 
+	after func(time.Duration) <-chan time.Time
+	leave func()
+
 	portal atomic.Pointer[portalRoute] // the page while active (SharedHTTP)
+}
+
+func (m *Mode) delay(d time.Duration) <-chan time.Time {
+	if m.after != nil {
+		return m.after(d)
+	}
+	return time.After(d)
+}
+
+func (m *Mode) leaveSetup() {
+	if m.leave != nil {
+		m.leave()
+		return
+	}
+	m.Leave()
 }
 
 type portalRoute struct {

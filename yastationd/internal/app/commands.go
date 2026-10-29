@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -40,6 +41,9 @@ func (a *App) commands() map[string]func([]byte) {
 		c["ambilight_fx_brightness"] = a.cmdAmbilightFxBrightness
 		c["ambilight_fx_effect"] = a.cmdAmbilightFxEffect
 	}
+	if a.vid != nil {
+		c["voice_ignore_guests"] = a.cmdVoiceIgnoreGuests
+	}
 	a.shareOptions(c)
 	return c
 }
@@ -70,6 +74,12 @@ func (a *App) subscribe() {
 	a.mqtt.Subscribe(t.Arbitration(), a.onArbitrationClaim)
 	a.mqtt.SubscribeTopic(t.WebInfoAll(), a.onWebInfo)
 	a.syncSubscribe()
+	if a.vid != nil {
+		a.mqtt.Subscribe(t.VoicePeople(), a.onVoicePeople)
+	}
+	if a.vstore != nil {
+		a.mqtt.Subscribe(t.VoiceEvents(), a.onVoiceEvent)
+	}
 }
 
 // ring: HA JSON light schema {state, brightness, color:{r,g,b}, effect}.
@@ -106,9 +116,13 @@ func (a *App) cmdRing(payload []byte) {
 }
 
 type ambilightCommand struct {
-	State      string                      `json:"state"`
-	Brightness *int                        `json:"brightness"`
-	Color      *struct{ R, G, B, W uint8 } `json:"color"`
+	State      string `json:"state"`
+	Brightness *int   `json:"brightness"`
+	Color      *struct {
+		H *float64 `json:"h"`
+		S *float64 `json:"s"`
+	} `json:"color"`
+	ColorTemp *int `json:"color_temp"` // kelvin (the discovery sets color_temp_kelvin)
 }
 
 func parseAmbilightCommand(payload []byte) (ambilightCommand, error) {
@@ -124,17 +138,18 @@ func (command ambilightCommand) apply(s *persistState) {
 	if command.Brightness != nil {
 		s.AmbilightBright = clamp(*command.Brightness, 0, 255)
 	}
-	if command.Color != nil {
-		s.AmbilightRGBW = hw.RGBW{
-			R: command.Color.R,
-			G: command.Color.G,
-			B: command.Color.B,
-			W: command.Color.W,
-		}
+	if c := command.Color; c != nil && c.H != nil && c.S != nil {
+		s.AmbilightMode = "hs"
+		s.AmbilightHue = math.Mod(math.Mod(*c.H, 360)+360, 360)
+		s.AmbilightSat = math.Max(0, math.Min(100, *c.S))
+	}
+	if command.ColorTemp != nil {
+		s.AmbilightMode = "color_temp"
+		s.AmbilightKelvin = clamp(*command.ColorTemp, ambilightMinKelvin, ambilightMaxKelvin)
 	}
 }
 
-// ambilight: HA JSON light schema {state, brightness, color:{r,g,b,w}}.
+// ambilight: HA JSON light schema {state, brightness, color:{h,s} | color_temp (kelvin)}.
 func (a *App) cmdAmbilight(payload []byte) {
 	command, err := parseAmbilightCommand(payload)
 	if err != nil {

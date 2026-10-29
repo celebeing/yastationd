@@ -272,8 +272,8 @@ func (m *Mode) apiFinish(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, map[string]bool{"ok": true})
 	go func() {
-		time.Sleep(time.Second) // let the reply reach the phone first
-		m.Leave()
+		<-m.delay(time.Second) // let the reply reach the phone first
+		m.leaveSetup()
 	}()
 }
 
@@ -284,7 +284,7 @@ func (m *Mode) apiReboot(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, map[string]bool{"ok": true})
 	go func() {
-		time.Sleep(time.Second)
+		<-m.delay(time.Second)
 		m.o.Reboot()
 	}()
 }

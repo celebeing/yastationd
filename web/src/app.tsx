@@ -7,6 +7,7 @@ import { Control, name } from './controls'
 import { ConfigPage } from './settings'
 import { VideosTab } from './assets'
 import { PacksTab, SoundsTab } from './packs'
+import { VoicesTab } from './voices'
 
 // The app (docs/web-ui.md): the speakers on the LAN, and per speaker its sensors, runtime
 // controls, config and login. It is served by every speaker; the one it came from is "home" and
@@ -162,6 +163,8 @@ function Speakers({ home }: { home: Peer }) {
           peer={peer}
           base={api.baseOf(peer, home.id)}
           status={status[peer.id] || 'checking'}
+          peers={list}
+          onSwitch={setSel}
           onLogin={() => setStatus((s) => ({ ...s, [peer.id]: 'ok' }))}
         />
         )}
@@ -220,13 +223,13 @@ function About({ list, latest }: { list: Peer[]; latest: api.Release | null }) {
 }
 
 // Two levels: a group, then its tabs (docs/web-ui.md).
-type Tab = 'overview' | 'log' | 'controls' | 'led' | 'packs' | 'sounds' | 'videos' | 'general' | 'voice' | 'moments' | 'home' | 'music' | 'intercom' | 'calibration' | 'wifi' | 'account'
+type Tab = 'overview' | 'log' | 'controls' | 'led' | 'packs' | 'sounds' | 'videos' | 'general' | 'voice' | 'voices' | 'moments' | 'home' | 'music' | 'intercom' | 'calibration' | 'wifi' | 'account'
 
 const GROUPS: { id: string; name: string; tabs: Tab[] }[] = [
   { id: 'status', name: 'Status', tabs: ['overview', 'log'] },
   { id: 'controls', name: 'Controls', tabs: ['controls', 'led'] },
   { id: 'behaviour', name: 'Behaviour', tabs: ['moments', 'packs', 'sounds', 'videos'] },
-  { id: 'configuration', name: 'Configuration', tabs: ['general', 'voice', 'home', 'music', 'intercom', 'calibration', 'wifi', 'account'] },
+  { id: 'configuration', name: 'Configuration', tabs: ['general', 'voice', 'voices', 'home', 'music', 'intercom', 'calibration', 'wifi', 'account'] },
 ]
 
 const TAB_NAMES: Record<Tab, string> = {
@@ -239,6 +242,7 @@ const TAB_NAMES: Record<Tab, string> = {
   videos: 'Videos',
   general: 'General',
   voice: 'Voice',
+  voices: 'People',
   moments: 'Moments',
   home: 'Home integration',
   music: 'Music Assistant',
@@ -248,7 +252,7 @@ const TAB_NAMES: Record<Tab, string> = {
   account: 'Login',
 }
 
-function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () => void }) {
+function Speaker(props: { peer: Peer; base: string; status: Status; peers: Peer[]; onSwitch: (id: string) => void; onLogin: () => void }) {
   const { peer, base } = props
   // The open section is in the address (#options), so it can be linked and survives a reload.
   // (#led/<folder> also opens a folder of the animation browser.)
@@ -293,7 +297,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
   }, [peer.id])
 
   const available = (t: Tab) =>
-    t === 'led' ? !!features.led_preview : t === 'moments' ? !!features.moments : t === 'videos' ? !!features.videos : t === 'packs' || t === 'sounds' ? !!features.packs : true
+    t === 'led' ? !!features.led_preview : t === 'moments' ? !!features.moments : t === 'videos' ? !!features.videos : t === 'packs' || t === 'sounds' ? !!features.packs : t === 'voices' ? !!features.voices : true
 
   if (props.status === 'offline') return <div class="card">{peer.name} does not answer at {peer.url}.</div>
   if (needLogin || props.status === 'login')
@@ -337,6 +341,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
       {tab === 'calibration' && <ConfigPage page="calibration" peer={peer} base={base} />}
       {(['moments', 'packs', 'sounds', 'videos'] as Tab[]).includes(tab) && <BehaviourHelp />}
       {tab === 'moments' && <MomentsTab peer={peer} base={base} />}
+      {tab === 'voices' && <VoicesTab peer={peer} base={base} peers={props.peers} onSwitch={props.onSwitch} ents={ents} reloadState={load} />}
       {tab === 'led' && <LedTab peer={peer} base={base} />}
       {tab === 'packs' && <PacksTab peer={peer} base={base} />}
       {tab === 'sounds' && <SoundsTab peer={peer} base={base} />}

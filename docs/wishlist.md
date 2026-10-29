@@ -265,6 +265,13 @@ passing by, whether polling at 50 Hz disturbs the chip's own touch handling, and
 chip's sensitivity (its register settings) could be raised for more range without breaking the
 ring.
 
+## Station 3: the ring's colours
+
+The ring is RGB LEDs behind the fabric, driven as raw RGB like the ambilight was before its
+calibration ([ambilight-color.md](ambilight-color.md)); it likely has the same linear driver and a
+similar channel imbalance. The same camera measurement and `internal/ledcolor` (without W) would
+correct it; the fabric (the case colour) is in the light path, so it is per case colour.
+
 ## Station 3: the power budget with the white channel on
 
 The firmware keeps the rear strip's framebuffer without white (`ledfb-rgb48`); we switch it to

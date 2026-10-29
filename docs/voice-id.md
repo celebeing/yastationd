@@ -1,9 +1,12 @@
 # Voice ID on the speaker: who is talking, guests ignored, the speaker's gender in HA
 
-**Status:** research and design, 2026-10-28. Nothing built, no code yet. The firmware's models
-were checked on the desk against real requests (below); the rest is a plan, with the two checks
-it waits on (an aborted run in HA, the wake word as a sample) and a comparison with doing the same
-on a server.
+**Status (2026-10-29):** built: the voiceprints on the speaker, the verdict, HA's sensors, ignoring
+guests with the `voice_guest` moment, the store with the album and the People tab, `make
+voice-models`. Checked: the voiceprints against the desk pipeline (the same values) and their cost
+on a Mini 3 and a Station 3; the album and the protocol in Go tests. Not yet checked on a live
+household: how well «Алиса» plus the start of a request tells two voices apart, and how the
+grouping copes with real data. The research behind it, the comparison with a server proxy and the
+vendors' approach follow below.
 
 The speakers' firmware ships a voice biometry stack of its own (`/system/vendor/quasar/bio_lingware/`),
 run by the vendor assistant (`maind`), which the CFW keeps off. Its models are ordinary TFLite files
@@ -53,71 +56,141 @@ voices.
 
 ## What the owner gets
 
-**In HA, per speaker** (MQTT discovery; updated as soon as a request has been heard, before HA
-acts on it):
+**In HA, per speaker** (MQTT discovery, with `voice_id = true`; updated as soon as a request has
+been heard, before HA acts on it, and again on the whole request):
 
-- `sensor.<speaker>_voice` — the enrolled person's name, `guest`, or `unknown` (too short, no
-  speech). Attributes: `score`, the runner-up and its score, `gender`, the model tag.
+- `sensor.<speaker>_voice` — the person of the household (their name, or their group's id when
+  unnamed), `guest`, or `unknown` (too little speech, or nobody marked as the household yet).
+  Attributes: `score` (cosine to the closest person), `closest`, `second` /
+  `second_name` (the runner-up), `gender`, `female` (the classifier's output), `age`, `secs`,
+  `stage` (`early`: «Алиса» and the start of the request; `final`: the whole request), `model`.
 - `sensor.<speaker>_voice_gender` — `male` / `female` / `unknown`, needs **no enrollment** (the
-  firmware's classifier). In a household of two that alone says a lot.
+  firmware's classifier; `female` ≥ 0.65, `male` ≤ 0.40, between them unknown: non-speech sits
+  near 0.5). In a household of two that alone says a lot.
 - `binary_sensor.<speaker>_voice_known` — the household or not.
+- `switch.<speaker>_ignore_guests` — the option below (shareable like the other options).
 
-The LLM agent reads them through the prompt template (`speaker-id.md` §4 shows the shape);
-automations use them directly.
+The LLM agent learns who is talking from one templated line in its prompt, which finds the
+sensor of the speaker the request came from (`llm_context.device_id`;
+[ha-assistant-setup.md](ha-assistant-setup.md), "Telling the agent who is talking"); automations use
+the sensors directly.
 
-**On the speaker, runtime options** (HA and the web app):
+**Ignore guests** (the switch; in the web app with the Voice settings): a request from a voice
+that is not one of the household never reaches HA; the `voice_guest` moment shows that it was
+heard and ignored on purpose (a moment like the others: the owner picks its picture; by default the
+`angry` expression). It does nothing until someone is
+marked as the household. The settings (Configuration → Voice → Voice ID):
 
-- `switch` **Ignore guests**: a request from a voice that is not enrolled is dropped before HA
-  hears it; the `voice_ignored` moment shows that it was heard and ignored on purpose (a moment like
-  the others: the owner picks its picture; default a glance on seg7, a "no" on Station 3).
-- `number` **Guest threshold** (0.40–0.90, default the firmware's 0.66), and what happens when the
-  verdict is unsure (too little speech): let it through (default) or drop it.
+| Key | Default | |
+|---|---|---|
+| `voice_id` | off | the feature; restart |
+| `voice_store` | off | this speaker keeps the voices (one per household); restart; not shared |
+| `voice_guest_threshold` | 0.66 | cosine a voice needs to be taken for a person (the firmware's own) |
+| `voice_guest_margin` | 0.02 | how much the best match must beat the runner-up |
+| `voice_hold_ms` | 800 | with guests ignored: how much of the request after «Алиса» the check waits for |
+| `voice_unsure` | allow | with guests ignored: an unsure check (too little speech, a failed voiceprint) lets the request through, or `drop` |
+| `voice_bio_dir` | (found) | the models: `<cfw>/vendor/bio_lingware`, else the firmware's |
 
-**In the web app, a Voices tab** (calibration and debugging, below).
+**In the web app, the People tab** (below): the people, the log, the edits, and a Guests card with
+Ignore guests and the guest threshold themselves (the same settings, each with its share switch):
+dragging the threshold previews what it does to the last requests, letting go saves it.
 
 ## How it works
 
 ```
-mic → spotter-host: VQE → wake word ─────────────────┐
-                      └→ fbank → body (every 0.48 s) ─┴→ head → voiceprint (+ gender, age)
-                                                              │ VOICE event (stdout)
-yastationd: compare with the household's voices → verdict ────┘
-   ├─ publish the sensors (MQTT)            ├─ arbitration: the winner's verdict counts
-   └─ ignore guests: abort the request (or hold, then release or drop it)
+mic → spotter-host serve: VQE → wake word → yastationd ─┐ WAKE
+                                     vqe_0 (fd 3) ──────┤ audio from 1.3 s before the wake point
+                                                        ▼
+            spotter-host voice (a second process): fbank → body every 0.48 s → head on request
+                                                        │ voiceprint (512 values)
+yastationd: gender/age (Go) → verdict against the household's centroids
+   ├─ guests ignored: the request waits voice_hold_ms (held), then goes to HA or is dropped
+   ├─ HA's sensors (early, then final)        └─ the event (voiceprint, transcript) → the store
 ```
 
-1. **spotter-host** already holds the clean 16 kHz audio and the vendor libraries. It computes the
-   fbank on the fly, runs `body` every 20 frames, and `head` when asked; it loads `libtflite.so`
-   with `dlopen` like `libyandex_evil.so`. It keeps the last ~2 s of audio, so the wake word itself
-   is part of the voiceprint: «Алиса» every time is the most comparable sample a household has.
-2. **Stopping a guest before HA acts on it, without adding latency.** HA's VAD ends the request
-   and its intent runs at once, so the verdict has to come while the person is still speaking. Two
-   ways; the first is the one to build if its checks pass:
-   - **The wake word decides (no added latency).** The satellite already has «Алиса» when the wake
-     fires — the same phrase every time, the most comparable sample a household has. Its voiceprint
-     takes ~0.1 s and runs in parallel with the start of the request; the audio streams to HA at
-     once, as today. While the command goes on, the voiceprint is refined on it. A `guest` verdict
-     aborts the request while HA is still listening; commands almost always last longer than the
-     verdict takes. **To check first:** that HA drops a run the satellite aborts mid-speech instead
-     of acting on the part it already transcribed (the Wyoming satellite code in HA, then one try on
-     a unit), and how well «Алиса» alone separates voices (the HA recordings start after the wake
-     word, so this needs voiceprints collected on a unit).
-   - **Hold and release (fallback).** The satellite holds up to ~1.2 s of audio (the wake word and
-     the start of the command), takes a voiceprint, then sends the held audio in one burst and
-     streams on — HA hears the end of the phrase at the same moment as before, so the hold costs the
-     voiceprint's ~0.1 s, not the 1.2 s — or drops the request. Safe whatever HA does with an
-     aborted run; a little latency, and more audio to judge by than the wake word alone.
+1. **`spotter-host voice <bio_lingware>`** (`spotter-host/voiceprint.c`) is a process of its own,
+   started by the daemon on first use: a crash in TFLite never touches the wake word. It reads
+   commands on stdin (`a <n>` + 16 kHz mono PCM, `v <tag>`, `r`), computes the Kaldi fbank as
+   `features_config.json` says, runs `body` as 20-frame blocks fill up (so the work is done while
+   the person speaks) and `head` over the last 300 rows when asked, and prints `VOICE <tag> <secs>
+   <512 values>`. TFLite is the firmware's `libtflite.so`, loaded with `dlopen`.
+   - **The vendor's TFLite builds interpreters only through its own op resolver**:
+     `TfLiteInterpreterCreate` registers no ops (it crashes on our models), so we call
+     `TfLiteCustomOpResolverCreate("next")` and `TfLiteInterpreterCreateWithCustomResolver(model,
+     resolver, options)` as `libyandex_evil.so` does (signatures read from the library's code; the
+     tag is the frontend's `custom-opresolver-tag`). An empty tag is not registered.
+   - **The gender and age classifiers can't run there**: the `next` resolver lacks their
+     `LOGISTIC` op. They are two dense layers (int8 weights with one scale, ReLU, one output,
+     sigmoid), so the daemon reads them from the `.tflite` files (a small FlatBuffers reader,
+     `internal/voiceid/classifier.go`) and computes them; within 0.02 of TFLite's outputs.
+   - Checked (2026-10-29): the same voiceprints as the desk pipeline (cosine 0.9998–1.0) on both
+     arches; under qemu-user the armhf build crashes inside libtflite's CPU detection (an x86
+     `/proc/cpuinfo`), on a real Mini 3 it runs. Cost: a Mini 3 takes 0.18 s of CPU for 2.9 s of
+     speech (6 % of real time), a Station 3 0.08 s; loading the models 0.03–0.06 s.
+2. **The voiceprint of a request** (`internal/app/voiceid.go`) starts at the wake word, before
+   arbitration: the audio from 1.3 s before the wake point (all of «Алиса», whatever
+   `wake_word_in_stream` sends to HA), then the request until the session ends. A session started
+   by the voice key or a follow-up takes its voiceprint from its start. The speaker that loses the
+   arbitration drops its voiceprint; the winner's counts.
+3. **The early verdict** comes `voice_hold_ms` after the wake word: the voiceprint of «Алиса» and
+   the start of the request against the household (`voiceid.Match`: the closest person's centroid
+   at or above the threshold and beating the runner-up by the margin; else a guest; with nobody
+   marked as the household, unknown).
+   - **Guests ignored:** the request is held until then (`heldWake`, as for arbitration) and
+     `run-pipeline` is not sent; a guest's request is dropped: HA sees nothing, nothing
+     reconnects, `voice_guest` shows. Otherwise the held speech goes to HA at once and the rest
+     streams live, so HA hears the end of the request no later than without the check (the check
+     costs the voiceprint's ~0.1 s, not the hold).
+   - **Not ignored:** the request goes on at once; the early verdict only updates the sensors.
+4. **The final verdict** on the whole request (up to its last 7.2 s) when the session ends updates
+   the sensors, and the event — the voiceprint, the verdict, the speaker, HA's transcript, whether
+   it was ignored — goes to the store over MQTT (`<prefix>/voice/event`, not retained; spooled
+   in memory, up to 200, while the broker is away).
+5. **The household** comes from the store, retained (`<prefix>/voice/people`: the model tag, the
+   store's id, the household's centroids). A message from another voiceprint model is not used.
 
-   Either way `voice_ignored` shows on a dropped request. With "ignore guests" off nothing is
-   aborted or held: the sensors get the early verdict, and a better one (the whole utterance) when
-   the speaker stops.
-3. **yastationd** compares the voiceprint with the household's voices (cosine to each person's
-   centroid; the best one above the threshold with a margin over the runner-up, else `guest`),
-   publishes the sensors, sends the request event to the store, and gates the request.
-4. **Arbitration** ([wake-arbitration.md](wake-arbitration.md)): every speaker that heard the wake
-   word starts its voiceprint at once, without waiting for the arbitration result; the winner's
-   verdict counts (it streams to HA and publishes), the losers drop theirs. Later, maybe: the winner
-   takes the best score any claimant reported.
+### The store and the album
+
+On the speaker with `voice_store` (`internal/app/voicestore.go`, `internal/voiceid/album.go`):
+
+- **Every event is an entry** in `<cfw>/voices/log.jsonl` (appended; the newest 3000 kept, the
+  oldest unpinned ones dropped first). Events from another voiceprint model are not filed.
+- **The grouping**, in time order: an entry with almost no speech (under 0.9 s) or that HA heard
+  no words in (no transcript, and not an ignored guest's) goes to "not a person"; any other joins
+  the group whose centroid (the mean of its normalised voiceprints) is closest, if at least 0.6
+  close, else starts its own. Then groups whose centroids are at least 0.6 close are joined, the
+  closest pair first: going entry by entry, a voice whose first phrase was atypical starts two
+  groups (seen 2026-10-30: a woman's first request scored 0.49 on gender and 0.33 to her second;
+  her two halves were 0.64 apart, both ~0 from the other voice). Two groups the owner named or marked are never
+  joined, and a group the owner pinned without naming (a request moved to "a new person") takes
+  no part. A group's gender is its members' mean.
+- **Each entry keeps the early verdict too** (`early`, `early_score`, `early_secs`), to see how
+  often «Алиса» and the start of the request agree with the whole request.
+- **The owner's edits are pins** (`<cfw>/voices/edits.json`): naming a group or marking it as
+  the household pins its entries to it, merging pins the one group's entries to the other, moving an entry pins it (to a group, to
+  "not a person", or to a new group). Regrouping places pinned entries first, so an edit is never
+  undone, and later requests join such a group by similarity.
+- **The household is a mark of its own, not the name** (since 2026-10-30): a named visitor stays a
+  guest, and a household member may stay unnamed (the sensor then shows the group's id). The
+  household's centroids are published (2 s after the last change, and on every connect); the
+  other groups stay in the tab. Edits from before the mark: every named group became the
+  household on load.
+- **Forgetting** a person deletes the group's entries and its name; "forget everything" empties
+  the log and the edits; both republish at once.
+
+API (on every speaker; the album calls only on the store): `GET /api/voices` (`on`, `store`,
+`store_id`, `people`, `model`, `threshold`, `ignore_guests`; on the store also `groups` and
+`entries`), `GET /api/voices/log?group=&limit=`, `GET /api/voices/preview?threshold=` (the last
+100 requests of real speech judged again at that threshold), `POST /api/voices/groups/<id>`
+`{name}`, `DELETE /api/voices/groups/<id>`, `POST /api/voices/merge` `{from, into}`,
+`POST /api/voices/entries/<id>` `{group}` (`noise`, `new` or a group), `DELETE /api/voices`.
+
+### Arbitration
+
+Every speaker that heard the wake word starts its voiceprint at once, without waiting for the
+arbitration ([wake-arbitration.md](wake-arbitration.md)); the losers drop theirs, the winner's
+verdict counts (it gates, publishes and files the event). The hold is counted from the wake
+word, so the arbitration's wait overlaps it.
 
 ## On the speaker or on the server
 
@@ -136,7 +209,7 @@ transcription and passes the transcript on, or an empty one for a guest. Compare
 | What the owner needs | nothing but the option | a server with the proxy (a container or an HA add-on) between HA and its STT; few CFW users have one |
 | Load | the speaker's CPU; on a Mini 3 to be measured | the server's, negligible |
 | Arbitration | to handle (the winner's verdict counts) | not a concern: only the winner streams |
-| Calibration | the Voices tab on the speakers, from normal use | a page or a script on the server; the same data, collected there |
+| Calibration | the People tab on the speakers, from normal use | a page or a script on the server; the same data, collected there |
 | Where voiceprints live | on the speakers | on the server |
 
 **For CFW users in general** the speaker is the better home: nothing to install, gender for free,
@@ -263,7 +336,7 @@ the store ── the people's centroids (retained) ─► every speaker
 Where the store lives:
 
 1. **One of the speakers, chosen** (`voice_store = true` in its config; a Station 3 if there is
-   one: room on its eMMC, a faster CPU). The Voices tab lives there; the web app reaches every
+   one: room on its eMMC, a faster CPU). The People tab lives there; the web app reaches every
    speaker, so it shows from any. While that speaker is off, the log waits on the others and edits
    wait. **The pick:** nothing to install besides the CFW.
 2. **HA**, through an integration of our own that keeps the log and the groups and shows them in
@@ -281,29 +354,33 @@ the retained centroids with them.
 
 ## Turning it on (for others)
 
-- **Requirements:** the firmware's `bio_lingware/` and `libtflite.so` on the speaker — Mini 3
-  0.369, Mini 3 Pro, Station 3 have both; the Mini 3 0.6.x firmware needs the newer model and the
-  library from another firmware (`make voice-models`, the way `vqe-models` works: copied from the
-  owner's own unit or vendor tree, never from the repo). The web app says what is missing.
-- **Config:** `voice_id = true` on the speakers (off by default), `voice_store = true` on one of
-  them. Gender works at once; people appear in the Voices tab after a day or so of use, to be named.
+- **Requirements:** the firmware's `bio_lingware/` with the 512-dim voiceprint model
+  (`next_tdnn_1-3M_v1_thr66`) and `libtflite.so` — Mini 3 0.369, Mini 3 Pro and Station 3 have
+  both. The Mini 3 0.6.x firmware has an older 256-dim model the daemon doesn't take: `make
+  voice-models VOICE_MODELS=<a newer firmware's bio_lingware dir>` puts the newer one in
+  `<cfw>/vendor/bio_lingware` (copied from a firmware you have, the way `vqe-models` works; never
+  from the repo). The daemon logs what is missing.
+- **Config:** `voice_id = true` on the speakers (shareable), `voice_store = true` on one of them.
+  Gender works at once; people appear in the People tab after some use, to be named and marked as the household there. Then
+  "Ignore guests", if wanted.
 - **Nothing on the HA side** besides the new entities; the agent's prompt gets a line if wanted.
 
 ## Phases
 
-1. **spotter-host voiceprints:** fbank in C, TFLite via `dlopen`, `VOICE` events (final; partials).
-   Checked against the desk pipeline on the same wav (same voiceprint within float error).
-2. **yastationd:** the verdict against centroids, the HA sensors (gender first: no enrollment).
-3. **The store and the Voices tab:** request events and retained centroids over MQTT, automatic
-   grouping, the log, rename / merge / correct, the threshold preview, guided enrollment.
-4. **Ignore guests:** abort on a guest verdict (or the hold-and-release fallback),
-   `voice_ignored`, arbitration.
-5. `make voice-models` for the old Mini 3 firmware.
+1. ~~spotter-host voiceprints~~ (2026-10-29): a separate `voice` mode, not inside `serve`.
+2. ~~yastationd: the verdict, the HA sensors.~~
+3. ~~The store and the People tab~~: guided enrollment ("five phrases") is not built yet; naming a
+   group that formed by itself does the job.
+4. ~~Ignore guests~~: judged before `run-pipeline`, so HA's handling of an aborted run does not
+   matter.
+5. ~~`make voice-models`~~.
+6. Next: a week of real use on the author's speakers — how the groups form, the scores of the
+   household against guests on «Алиса» + 0.8 s, the threshold — and guided enrollment if the
+   groups need it.
 
 ## Open questions
 
-- CPU on the Mini 3 (A53, armhf): `body` every 0.48 s while listening, `head` at the end. Measure
-  in phase 1; if it is heavy, run `body` only on the held audio and at the end.
+- ~~CPU on the Mini 3~~: 6 % of real time while someone speaks (measured, "How it works").
 - ~~What HA does with a run the satellite aborts mid-speech.~~ Read in HA 2026.9's code
   (`wyoming/assist_satellite.py`, `assist_satellite/entity.py`, `assist_pipeline/pipeline.py`),
   not yet confirmed on a live run:
@@ -318,7 +395,8 @@ the retained centroids with them.
     ([voice-slow-replies.md](voice-slow-replies.md)).
   - **Simplest of all: judge on the wake word alone and never send `run-pipeline` for a guest.**
     HA sees nothing and nothing reconnects. This is how the phone assistants verify (on the
-    hotword); the open question below decides whether «Алиса» is enough.
-- How well the wake word alone («Алиса», ~0.6 s) separates voices, and two similar voices (two men
-  of one household) in particular: needs voiceprints collected on a unit, since HA's recordings
-  start after the wake word.
+    hotword); the open question below decides whether «Алиса» is enough. **Built this way**, with
+    `voice_hold_ms` of the request added to «Алиса» (0 = the wake word alone).
+- How well the wake word alone («Алиса», ~0.6 s), or with 0.8 s of the request, separates voices,
+  and two similar voices (two men of one household) in particular: the store now collects the
+  early and the final verdicts from real use; compare them after a week.

@@ -42,6 +42,9 @@
  *       fd 4, if open: vqe_gain the same way — in the call mode (SetCommunicationMode 1: neural
  *       NR + AGC) the call's uplink. SIGUSR1 switches the call mode on, SIGUSR2 off (0, the ASR
  *       mode); vqe_0 (the spotters' input) is the same in both (docs/intercom.md).
+ *   spotter-host voice <bio_lingware_dir>
+ *       the firmware's voice biometry on 16 kHz mono speech fed by the daemon: a voiceprint, gender
+ *       and age per utterance (voiceprint.c has the protocol; docs/voice-id.md)
  *   On the VQE path each spotter runs in its own thread behind a queue (the VQE loop never waits
  *   for one): with the call mode's neural NR one core could not carry it all in real time.
  *
@@ -60,6 +63,8 @@
 
 #include "spotter_api.h"
 #include "vqe_api.h"
+
+int cmd_voice(const char *dir); /* voiceprint.c */
 
 /* Channel types the spotter library accepts (0..5; 6+ give "Unknown channel type"). */
 #define SPOTTER_NTYPES 6
@@ -838,6 +843,7 @@ static void usage(void)
                     "       spotter-host listen [-s SCALE] [-A MODE] [-C MODE] [-P PRESET] [-N CH] [-M MICS] [-R CH | -Q CHLIST]"
                     " [-x MAP] [-v] [-b] [-g] -a MODEL [-k MODEL] < capture\n"
                     "       spotter-host serve [...] -a MODEL [-k MODEL] < capture [3> vqe0_16k_mono]\n"
+                    "       spotter-host voice <bio_lingware_dir>   (commands on stdin, voiceprint.c)\n"
                     "   -P preset   vendor VQE preset (default bergamot; orion takes the raw 13ch 96 kHz mroute stream)\n"
                     "   -N CH       interleaved channels in the capture (default 8)\n"
                     "   -M MICS     capture channels of the VQE mics, comma list in preset order (default 0,1,2)\n"
@@ -857,6 +863,8 @@ int main(int argc, char **argv)
     const char *amodel = NULL, *kmodel = NULL;
     if (strcmp(argv[1], "probe") == 0 && argc >= 3)
         return cmd_probe(argv[2]);
+    if (strcmp(argv[1], "voice") == 0 && argc >= 3)
+        return cmd_voice(argv[2]);
     optind = 2;
     if (strcmp(argv[1], "vqe") == 0 || strcmp(argv[1], "listen") == 0 || strcmp(argv[1], "serve") == 0) {
         while ((opt = getopt(argc, argv, "s:A:C:a:k:x:vbgP:N:M:R:Q:m:")) != -1) {

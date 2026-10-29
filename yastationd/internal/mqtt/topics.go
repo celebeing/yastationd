@@ -75,6 +75,11 @@ func (t Topics) ObjectOf(topic string) string {
 // Arbitration is the shared topic where speakers that heard a wake word post their claims.
 func (t Topics) Arbitration() string { return fmt.Sprintf("%s/arbitration", t.prefix) }
 
+// Voice ID (docs/voice-id.md): every speaker posts what it heard to VoiceEvents (not retained);
+// the store speaker publishes the household's voices, retained, on VoicePeople.
+func (t Topics) VoiceEvents() string { return fmt.Sprintf("%s/voice/event", t.prefix) }
+func (t Topics) VoicePeople() string { return fmt.Sprintf("%s/voice/people", t.prefix) }
+
 // DisplayCmd is the one-shot overlay command topic (JSON {surface,op,args,ttl_ms,priority}).
 func (t Topics) DisplayCmd() string { return fmt.Sprintf("%s/%s/display/cmd", t.prefix, t.id) }
 

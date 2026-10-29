@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/celebeing/yastationd/yastationd/internal/ledcolor"
 	"github.com/celebeing/yastationd/yastationd/internal/luxcal"
 )
 
@@ -99,6 +100,12 @@ type AmbilightSpec struct {
 	FB           string
 	FBFormat     string
 	FBCompatible string
+	// Primaries and Response are the strip's colour calibration (docs/ambilight-color.md):
+	// R, G, B, W at full as chromaticity and luminance, and the drive level -> light table.
+	// Without Primaries the HA light's colours go out uncorrected. A unit's own primaries
+	// override the board's (config ambilight_calibration).
+	Primaries *[4]ledcolor.Vec
+	Response  []ledcolor.Point
 }
 
 // MatrixSpec: the front display. Kind "seg7" = Digits 7-segment digits, one sysfs LED per
@@ -351,6 +358,12 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Ambilight.FBFormat = v
 	case k == "ambilight.fb_compatible":
 		p.Ambilight.FBCompatible = v
+	case k == "ambilight.primaries":
+		var c [4]ledcolor.Vec
+		c, err = ledcolor.ParsePrimaries(v)
+		p.Ambilight.Primaries = &c
+	case k == "ambilight.response":
+		p.Ambilight.Response, err = ledcolor.ParseResponse(v)
 	case k == "clips.dir":
 		p.Clips.Dir = v
 	case k == "matrix.kind":

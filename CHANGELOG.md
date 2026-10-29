@@ -3,7 +3,32 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.22.0 — 2026-10-30
+
+**Voice ID** ([docs/voice-id.md](docs/voice-id.md))
+- The speakers tell who is talking, with the firmware's own voiceprint model, on the speaker (no
+  server, no cloud). Off by default: `voice_id = true`, and `voice_store = true` on one speaker.
+- HA gets, per speaker, who it was (a person of the household, guest or unknown), the speaker's gender (no
+  enrollment needed) and whether the voice is the household's, before it acts on the request.
+- **Ignore guests** (an HA switch and a web app option): a request from a voice the household
+  doesn't know never reaches HA; the new `voice_guest` moment shows it was heard and ignored. The
+  check waits for «Алиса» and the start of the request (`voice_hold_ms`), with the speech held, so
+  HA hears the end of the request no later than before.
+- The People tab: people appear by themselves as the speakers hear requests, like faces in a photo
+  album; name them, mark who is the household (a name alone doesn't), merge, move a misheard
+  request, forget a person. Ignore guests and the guest threshold are there too, with a preview of
+  what a threshold does to the last requests.
+- How to tell HA's assistant who is talking: one line in the agent's prompt
+  ([docs/ha-assistant-setup.md](docs/ha-assistant-setup.md)).
+- `make voice-models` for the Mini 3 0.6.x firmware, whose own voice model is too old.
+
+**Station 3's rear light shows HA's colours as meant** ([docs/ambilight-color.md](docs/ambilight-color.md))
+- The strip was driven with HA's RGBW as is, and its colours were visibly off (a strong blue, a
+  greenish white). Measured with a camera, the board profile now carries the strip's primaries and
+  response, and the speaker solves for the drive that gives the wanted colour.
+- The HA light is now colour + colour temperature (2000-8000 K) instead of RGBW; a colour set
+  before is kept. `ambilight_white` and `ambilight_calibration` settings; music effects get the
+  corrected colours too, DDP streams stay raw.
 
 **Build**
 - The host needs only docker, sh, make, git and ssh: `make sounds`, `make clips`, `make video`,

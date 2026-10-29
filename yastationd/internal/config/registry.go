@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/celebeing/yastationd/yastationd/internal/ledcolor"
 	"github.com/celebeing/yastationd/yastationd/internal/luxcal"
 	"github.com/celebeing/yastationd/yastationd/internal/web"
 )
@@ -54,6 +55,7 @@ var Groups = []struct{ ID, Title, Page string }{
 	{"video", "Video", "general"},
 	{"initial", "A new speaker's first values", "general"},
 	{"voice", "Voice", "voice"},
+	{"voice_id", "Voice ID", "voice"},
 	{"identity", "Identity", "home"},
 	{"ha", "Home Assistant", "home"},
 	{"web", "Web app", "home"},
@@ -247,6 +249,21 @@ func init() {
 	reg(Key{Name: "ambilight_fx_white", Group: "ambilight", Label: "Ambilight effects: white LED", Runtime: true, Sync: true, Needs: "ambilight",
 		Doc: "The white in the ambilight's music effects (the highs of rain, the peak of vu) lights the strip's white LEDs; off, it is mixed from red, green and blue. DDP streams and the HA light are not affected."},
 		boolV(func(c *Config) *bool { return &c.AmbilightFxWhite }))
+	reg(Key{Name: "ambilight_white", Group: "ambilight", Label: "Ambilight white", Runtime: true, Sync: true, Needs: "ambilight",
+		Doc: "The white the ambilight's colours are made for. srgb: colours as Home Assistant specifies them (sRGB, 6500 K white), the default; warm: the strip's own white LED, about 5300 K, without its green tint — colours shift warmer to match; or a colour temperature such as 4000. Applies to the HA light and the music effects, not to DDP streams."},
+		textV(func(c *Config) *string { return &c.AmbilightWhite }, func(v string) error {
+			_, err := ledcolor.White(v, ledcolor.Calibration{})
+			return err
+		}))
+	reg(Key{Name: "ambilight_calibration", Group: "ambilight", Label: "Ambilight calibration (this speaker)", Runtime: true, Advanced: true, Needs: "ambilight",
+		Doc: "This speaker's own measured strip colours, over the board's: R, G, B and W at full as \"x y Y\" (chromaticity, luminance relative to W), comma-separated. Empty uses the board's calibration, which fits the units measured so far within a barely visible difference (docs/ambilight-color.md)."},
+		textV(func(c *Config) *string { return &c.AmbilightCalibration }, func(v string) error {
+			if strings.TrimSpace(v) == "" {
+				return nil
+			}
+			_, err := ledcolor.ParsePrimaries(v)
+			return err
+		}))
 	reg(Key{Name: "ddp_port", Group: "ambilight", Label: "DDP port", Sync: true, Needs: "ambilight", Advanced: true,
 		Doc: "Boards with an ambilight: the UDP port for LED frames from LedFx or WLED tools; 0 turns it off."},
 		intV(0, 65535, func(c *Config) *int { return &c.DDPPort }))
@@ -347,6 +364,29 @@ func init() {
 		overrideV("wake_model", textV(func(c *Config) *string { return &c.WakeModel }, nil)))
 	reg(Key{Name: "command_model", Group: "voice", Label: "Command model", Advanced: true, Doc: "Overrides the board's."},
 		overrideV("command_model", textV(func(c *Config) *string { return &c.CommandModel }, nil)))
+
+	// --- voice id ---
+	reg(Key{Name: "voice_id", Group: "voice_id", Label: "Recognise voices", Sync: true,
+		Doc: "Tells who is talking from the voice, with the speaker's own voiceprint model, on the speaker: no server, no cloud. HA gets the person's name (or guest), the gender and whether the voice is the household's, before it acts on the request. People appear by themselves in the People tab as they talk, to be named and marked as the household there; until someone is marked every voice is unknown. Needs the firmware's voice models (Mini 3 0.369, Mini 3 Pro, Station 3; other firmware: make voice-models)."},
+		boolV(func(c *Config) *bool { return &c.VoiceID }))
+	reg(Key{Name: "voice_store", Group: "voice_id", Label: "Keep the voices here",
+		Doc: "This speaker keeps the log of requests and the voice groups for the whole household, and hosts the People tab; the others send it what they hear. Turn it on for one speaker, a Station 3 if there is one (more flash, a faster CPU). Voiceprints are biometric data: they stay on this speaker's flash and the home's broker."},
+		boolV(func(c *Config) *bool { return &c.VoiceStore }))
+	reg(Key{Name: "voice_guest_threshold", Group: "voice_id", Label: "Guest threshold", Runtime: true, Sync: true,
+		Doc: "How close a voice must be to a person's (cosine of the voiceprints, 0.40 to 0.90) to count as theirs; below it, a guest. Higher: fewer guests taken for the household, more of the household taken for guests. The People tab shows what a value would have done to the last requests. 0.66 is the firmware's own."},
+		floatV(0.4, 0.9, func(c *Config) *float64 { return &c.GuestThreshold }))
+	reg(Key{Name: "voice_guest_margin", Group: "voice_id", Label: "Margin over the runner-up", Runtime: true, Sync: true, Advanced: true,
+		Doc: "How much closer the voice must be to the best match than to the second person (0 to 0.2) to be taken for them; otherwise a guest."},
+		floatV(0, 0.2, func(c *Config) *float64 { return &c.GuestMargin }))
+	reg(Key{Name: "voice_hold_ms", Group: "voice_id", Label: "Check before sending", Runtime: true, Sync: true, Advanced: true,
+		Doc: "With guests ignored: how much of the request after «Алиса» the check waits for before the request goes to HA (0 to 2000 ms; 0 judges on the wake word alone). The speech is held meanwhile and sent at once after, so HA hears the end of the request no later than without the check; more speech makes the check surer."},
+		durV(0, 2000, time.Millisecond, func(c *Config) *time.Duration { return &c.VoiceHold }))
+	reg(Key{Name: "voice_unsure", Group: "voice_id", Label: "When unsure", Runtime: true, Sync: true, Advanced: true,
+		Doc: "With guests ignored: what happens when the check can't tell (too little speech, or the voiceprint failed): allow sends the request on, drop ignores it."},
+		enumV([]string{"allow", "drop"}, func(c *Config) *string { return &c.VoiceUnsure }))
+	reg(Key{Name: "voice_bio_dir", Group: "voice_id", Label: "Voice models", Advanced: true,
+		Doc: "Where the voiceprint models are (the firmware's bio_lingware). Empty: <cfw>/vendor/bio_lingware when there (make voice-models), else the firmware's /system/vendor/quasar/bio_lingware."},
+		textV(func(c *Config) *string { return &c.VoiceBio }, nil))
 
 	// --- identity ---
 	reg(Key{Name: "device_id", Group: "identity", Label: "Device ID",

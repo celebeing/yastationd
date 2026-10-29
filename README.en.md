@@ -55,6 +55,12 @@ packs replace any animation and add sounds to any event.
 - Several speakers in earshot agree which one answers: the nearest (the loudest «Алиса»); the
   others glance aside and stay silent ([docs/wake-arbitration.md](docs/wake-arbitration.md)).
 - «Стоп» ends a voice session at once, whether it listens, thinks or speaks.
+- Voice ID, household or guest: the speaker tells who is talking with the firmware's own voiceprint
+  model, on the speaker. HA gets the name (or "guest") and the speaker's gender before it acts on
+  the request. With "ignore guests" on, a request from an unknown voice never reaches HA, and the
+  speaker shows the `voice_guest` moment. People appear by themselves in the People tab, like
+  faces in a photo album; you name them and mark who is the household. Off by default, turned on in the settings
+  ([docs/voice-id.md](docs/voice-id.md)).
 - Announcements and TTS from HA (`assist_satellite.announce`, any media URL).
 - HA voice timers: countdown on the clock, an alarm on finish, any touch key stops it. A paused timer
   blinks its remainder briefly, then the clock comes back.
@@ -106,7 +112,10 @@ packs replace any animation and add sounds to any event.
   for automations over MQTT (`ring/set`, `ring_animation/set`); as an HA `light` entity only with
   `ha_ring_light = true`. The speaker's own settings (durations, the dialog follow-up) live
   in its web app, not on HA's device card.
-- Station 3's rear strip as an RGBW `light`, and a DDP receiver for it: point
+- Station 3's rear strip as a `light` with calibrated colours: a hue or a colour temperature from
+  HA shows as meant (the speaker mixes in the white LED itself; the white point is the
+  `ambilight_white` setting, sRGB by default; [docs/ambilight-color.md](docs/ambilight-color.md)).
+  And a DDP receiver for it: point
   [LedFx](https://www.ledfx.app/) (or WLED tools) at the speaker as a 12-pixel DDP device and its
   effects play on the strip; without it, our own music effects (rain, VU, spectrum, energy,
   scroll, pulse) follow the music playing on the speaker, chosen and dimmed from HA

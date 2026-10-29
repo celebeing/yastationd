@@ -59,7 +59,12 @@ type Config struct {
 	// AmbilightFxWhite: the music effects use the strip's white channel (else what would go
 	// there is drawn as R=G=B). On by default.
 	AmbilightFxWhite bool
-	AutoBrightness   bool // clock brightness from the light sensor at first start (later: HA switch)
+	// AmbilightWhite: the white the HA light's colours are shown against (ledcolor.White:
+	// srgb, warm or kelvin); AmbilightCalibration: this unit's own primaries over the board's
+	// ("" = the board's; docs/ambilight-color.md).
+	AmbilightWhite       string
+	AmbilightCalibration string
+	AutoBrightness       bool // clock brightness from the light sensor at first start (later: HA switch)
 	// Light-sensor reading -> clock brightness, interpolated on log(lux) between the points
 	// (ascending lux) and clamped at the ends. The reading is the sensor's own scale, not true
 	// lux: the sensor sits behind the grille and its spectrum differs from a lux meter's.
@@ -139,6 +144,20 @@ type Config struct {
 	// waits for louder ones.
 	Arbitration     bool
 	ArbitrationWait time.Duration
+
+	// Voice ID (docs/voice-id.md): the firmware's voiceprint model tells who is talking. VoiceID
+	// turns it on; VoiceStore makes this speaker the one that keeps the log and the groups.
+	// GuestThreshold and GuestMargin decide when a voice is one of the household; VoiceHold is
+	// how much of the request after the wake word the check waits for when guests are ignored;
+	// VoiceUnsure what an unsure check does then ("allow" or "drop"). VoiceBio overrides where the
+	// models are.
+	VoiceID        bool
+	VoiceStore     bool
+	GuestThreshold float64
+	GuestMargin    float64
+	VoiceHold      time.Duration
+	VoiceUnsure    string
+	VoiceBio       string
 
 	// Logs off the speaker (internal/logship): the daemon's and the system's log lines go as
 	// syslog over TCP to LogRemote ("host:port"; "" = off); while it is unreachable they wait in
@@ -312,6 +331,7 @@ func Default() Config {
 		SendspinVolume:      "linked",
 		MusicDuckDB:         -26,
 		AmbilightFxWhite:    true,
+		AmbilightWhite:      "srgb",
 		MusicTitle:          true,
 		MarqueeSpeed:        1,
 		MusicClips:          true,
@@ -332,6 +352,10 @@ func Default() Config {
 		LEDPreview:          true,
 		WebUser:             web.DefaultUser,
 		ArbitrationWait:     300 * time.Millisecond,
+		GuestThreshold:      0.66,
+		GuestMargin:         0.02,
+		VoiceHold:           800 * time.Millisecond,
+		VoiceUnsure:         "allow",
 		NetWatchdog:         10 * time.Minute,
 		NetWifiRecovery:     true,
 		NetWifiReconfigure:  2 * time.Minute,

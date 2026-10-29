@@ -111,7 +111,7 @@ plays, the white "thinking" comet while it waits for audio, and nothing once apl
 ## Entities (HA MQTT Discovery)
 
 Optional `light` ring (`ha_ring_light = true`; with `effect_list`: none/pulse/comet/blink/rainbow
-+ voice presets) · optional `light` ambilight (rear RGBW strip, on boards that declare one) ·
++ voice presets) · optional `light` ambilight (rear RGBW strip, on boards that declare one; hue/saturation or colour temperature) ·
 `select` display_mode (clock/off/message, clock_date and video on pixel screens —
 docs/video-mode.md; long messages scroll) · `text` display_message · `number` volume · `notify`
 show_text · `binary_sensor` mic_mute (On/Off) · `sensor` lux (calibrated lux, the raw `reading` as
@@ -121,7 +121,9 @@ power_problem · `switch` auto_brightness + `number` clock_brightness · `binary
 `event` button (volume_up/down, voice_command, panel_gesture, wake_word) · with `intercom = true`:
 `sensor` intercom (idle/calling/ringing/in_call; attributes peer, ended) · `select`
 intercom_target (the other speakers) · `button` intercom_call (also answers) · `button`
-intercom_hangup ([docs/intercom.md](../docs/intercom.md)).
+intercom_hangup ([docs/intercom.md](../docs/intercom.md)) · with `voice_id = true`: `sensor` voice
+(a named person, guest or unknown; the verdict as attributes) · `sensor` voice_gender ·
+`binary_sensor` voice_known · `switch` voice_ignore_guests ([docs/voice-id.md](../docs/voice-id.md)).
 
 **Not on HA's device card** (2026-10-28): the speaker's own settings — `text_duration`,
 `animation_duration`, `follow_up` — are in the web app only (still entities of its API;
@@ -135,7 +137,10 @@ the entities it had.
 Timed overlays (show_text, ring_animation, display/cmd) light the ring/matrix over whatever is
 underneath — even with the ring light off — and fall back when the time is up, without touching the
 light's state. `ring_animation` returns to `off` (not "none": HA's MQTT select reads "None" as unknown).
-The ambilight is an independent persisted RGBW light. Ring/status overlays do not take it over.
+The ambilight is an independent persisted light (colour modes `hs` and `color_temp`; with the
+board's calibration the speaker works out the RGBW drive that shows exactly that colour,
+[`../docs/ambilight-color.md`](../docs/ambilight-color.md); `ambilight_white` picks the white the
+colours are made for). Ring/status overlays do not take it over.
 LED frames streamed over DDP (UDP `ddp_port`, 4048; LedFx, WLED tools) take it over while they
 come; without a stream, music effects draw it while music plays (`switch` ambilight_fx, `select`
 ambilight_fx_effect, `number` ambilight_fx_brightness)

@@ -28,7 +28,7 @@ VERSION  := $(shell git describe --tags --match 'v*' --dirty --always 2>/dev/nul
 GOFLAGS  := -trimpath -ldflags="-s -w -X github.com/celebeing/yastationd/yastationd/internal/version.Version=$(VERSION)"
 GOENV    := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: web webui-dist all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds sounds-convert vqe-models deploy clips clips-convert deploy-egress ota-block video video-convert video-convert-in pack host-build
+.PHONY: web webui-dist all platform-info build build-ringdemo build-fbleddemo test vet clean stage stage-tmp stage-ringdemo stage-fbleddemo redeploy-tmp install-initd sounds sounds-convert vqe-models voice-models deploy clips clips-convert deploy-egress ota-block video video-convert video-convert-in pack host-build
 
 # The host needs only docker, sh, git and ssh (docs/building.md, "What the host needs"): the targets a
 # user runs do their Go/ffmpeg/zstd work through ../tools/build.sh, in the pinned images. Inside an
@@ -208,6 +208,22 @@ vqe-models:
 	  echo "  no call-mode model on this firmware: pass VQE_MODEL=<model_call.nnet>"; exit 1; \
 	fi; \
 	$(SSH) "ls -la $$t"
+
+# Voice ID's models (docs/voice-id.md) for a unit whose firmware has only the old voiceprint model
+# (Mini 3 0.6.x): the bio_lingware directory of a newer firmware (Mini 3 0.369, Mini 3 Pro, Station
+# 3) you have, VOICE_MODELS=<dir>, goes to $(DESTDIR)/vendor/bio_lingware. A unit whose own firmware
+# has the newer model needs nothing. Vendor files: never stored in the repo.
+VOICE_MODELS ?=
+voice-models:
+	set -e; d=/system/vendor/quasar/bio_lingware; t=$(DESTDIR)/vendor/bio_lingware; \
+	if $(SSH) "grep -q '\"embedding-dim\": *512' $$d/tflite-online-ecapa-tdnn-frontend/config.json 2>/dev/null"; then \
+	  echo "  the firmware has the newer voiceprint model: nothing to do"; exit 0; \
+	fi; \
+	test -n "$(VOICE_MODELS)" || { echo "  the firmware's voice models are old: pass VOICE_MODELS=<a newer firmware's bio_lingware dir>"; exit 1; }; \
+	grep -q '"embedding-dim": *512' "$(VOICE_MODELS)/tflite-online-ecapa-tdnn-frontend/config.json" || \
+	  { echo "  $(VOICE_MODELS) is not the newer model (embedding-dim 512)"; exit 1; }; \
+	$(SSH) "rm -rf $$t.new && mkdir -p $$t.new"; \
+	tar -C "$(VOICE_MODELS)" -cf - . | $(SSH) "tar -C $$t.new -xf - && rm -rf $$t && mv $$t.new $$t && ls -R $$t"
 
 # The video display mode's files (docs/video-mode.md) from a local video you supply: VIDEO=<file>.
 # video-convert only converts (cmd/videoconv, ffmpeg) into build/media/; video also uploads them to

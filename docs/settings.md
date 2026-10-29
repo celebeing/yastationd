@@ -53,7 +53,7 @@ in the registry (`config.Groups`, `Page`), so a new key only picks a section:
 | Tab | Sections |
 |---|---|
 | General | Display (with HA's display options), Ambilight, Sound, Video, a new speaker's first values |
-| Voice | the wake word, the dialog with HA (follow-up, the reply deadline, a wake word while waiting), which speaker answers, the voice front-end's hardware |
+| Voice | the wake word, the dialog with HA (follow-up, the reply deadline, a wake word while waiting), which speaker answers, voice ID (who is talking, ignoring guests; [voice-id.md](voice-id.md)), the voice front-end's hardware |
 | Moments | what the speaker shows for each event (display-expressions.md) |
 | Home integration | Identity (name, ID, board), Home Assistant (MQTT, room sound sensors, Wyoming, health probes), Web app, Time, Logs. Usually set once |
 | Music Assistant | the Sendspin player and the music on the display |
@@ -106,7 +106,7 @@ An item the owner shares lives in one retained topic, `<prefix>/shared/<kind>/<i
 | Kind | Item | Value |
 |---|---|---|
 | `setting` | a config key with `Sync` | its lines, e.g. `["2"]`; `null` while it is at the default |
-| `option` | an HA option entity (clock brightness, auto brightness, durations, follow-up, faces, ambilight fx brightness) | its state, e.g. `"40"` |
+| `option` | an HA option entity (clock brightness, auto brightness, durations, follow-up, faces, ambilight fx brightness, ignore guests) | its state, e.g. `"40"` |
 
 - **Sharing** an item publishes this speaker's value; every speaker takes it (a config key through
   `applyConfigText`, so a restart key restarts each speaker on trial; an option through its command

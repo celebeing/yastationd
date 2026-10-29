@@ -66,6 +66,7 @@ to the binary. Flash is written only when the config is saved.
 | `GET /api/wifi`, `POST /api/wifi/networks` | the saved Wi-Fi networks (no passwords), the current one, whether setup mode is on; add a network (`{ssid, psk, hidden, priority}`) — only with `wifi_setup` on ([wifi-setup.md](wifi-setup.md)) |
 | `GET /api/moments[?pack=]`, `PUT\|DELETE /api/moments/<name>[?pack=]`, `POST /api/moment/<name>` | the moments, the layer each comes from, the owner's packs and the catalogue; set or remove a moment in one of the owner's packs; show one (a body of candidates previews an unsaved draft) |
 | `GET /api/log?source=daemon\|system&lines=N` | the tail of the daemon's or the system log, oldest first ([storage.md](storage.md)) |
+| `GET /api/voices`, `GET /api/voices/log\|preview`, `POST /api/voices/groups/<id>\|merge\|entries/<id>`, `DELETE /api/voices[/groups/<id>]` | voice ID: where the store is; on the store the groups, the log, the threshold preview and the owner's edits ([voice-id.md](voice-id.md)) |
 | `GET\|POST\|DELETE /api/calibrate/light` | the light-sensor calibration: its state; `{"lux": N}` measures and stores a point; drop the unit's own ([sensor-calibration.md](sensor-calibration.md)) |
 
 ### One definition for MQTT and the web
@@ -144,7 +145,7 @@ window's width.
 | Status | Sensors (and diagnostics), Log |
 | Controls | Display and voice (the runtime controls HA has: lights, display, expressions, volume…), LED |
 | Behaviour | Moments, Packs, Sounds, Videos — what the speaker does when something happens ([asset-packs.md](asset-packs.md)); a short explanation, folded once read, sits above each |
-| Configuration | General, Voice, Home integration, Music Assistant, Intercom, Calibration, Wi-Fi, Login — [settings.md](settings.md) |
+| Configuration | General, Voice, People (with voice ID on: the album of voices on the store speaker, a pointer to it on the others; [voice-id.md](voice-id.md)), Home integration, Music Assistant, Intercom, Calibration, Wi-Fi, Login — [settings.md](settings.md) |
 
 ## Calibration
 

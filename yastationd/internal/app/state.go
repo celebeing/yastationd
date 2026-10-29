@@ -13,13 +13,20 @@ import (
 
 // persistState is the HA-set state that survives a restart (written to Config.StateFile).
 type persistState struct {
-	RingOn          bool    `json:"ring_on"`
-	RingRGB         hw.RGB  `json:"ring_rgb"`
-	RingBright      int     `json:"ring_bright"` // 0..255
-	RingEffect      string  `json:"ring_effect"` // one of ringEffects; "" = none
-	AmbilightOn     bool    `json:"ambilight_on"`
-	AmbilightRGBW   hw.RGBW `json:"ambilight_rgbw"`
-	AmbilightBright int     `json:"ambilight_bright"` // 0..255
+	RingOn          bool   `json:"ring_on"`
+	RingRGB         hw.RGB `json:"ring_rgb"`
+	RingBright      int    `json:"ring_bright"` // 0..255
+	RingEffect      string `json:"ring_effect"` // one of ringEffects; "" = none
+	AmbilightOn     bool   `json:"ambilight_on"`
+	AmbilightBright int    `json:"ambilight_bright"` // 0..255
+	// The ambilight's colour as HA sets it (docs/ambilight-color.md): a hue and saturation
+	// ("hs") or a colour temperature ("color_temp"); the strip's drive is worked out from it.
+	AmbilightMode   string  `json:"ambilight_mode"`
+	AmbilightHue    float64 `json:"ambilight_hue"` // 0..360
+	AmbilightSat    float64 `json:"ambilight_sat"` // 0..100
+	AmbilightKelvin int     `json:"ambilight_kelvin"`
+	// AmbilightLegacy: the raw RGBW of a file from before the modes, migrated on load.
+	AmbilightLegacy *hw.RGBW `json:"ambilight_rgbw,omitempty"`
 	// Streamed effects on the ambilight (DDP): taken at all, and their brightness 1..255.
 	AmbilightFx       bool `json:"ambilight_fx"`
 	AmbilightFxBright int  `json:"ambilight_fx_bright"`
@@ -37,6 +44,8 @@ type persistState struct {
 	// it false: with auto on, its level was unused, so it becomes 255 (auto reached that).
 	ClockMax    bool `json:"clock_bright_is_max,omitempty"`
 	MusicVolume int  `json:"music_volume"` // Music Assistant player volume 0..100 (volume "separate")
+	// VoiceIgnoreGuests: voice ID drops requests from voices the household doesn't know.
+	VoiceIgnoreGuests bool `json:"voice_ignore_guests,omitempty"`
 }
 
 func defaultState(ringBright, ambilightBright, clockBright int, clockAuto bool) persistState {
@@ -45,7 +54,8 @@ func defaultState(ringBright, ambilightBright, clockBright int, clockAuto bool) 
 		RingRGB:         hw.RGB{R: 255, G: 255, B: 255},
 		RingBright:      ringBright,
 		AmbilightOn:     false,
-		AmbilightRGBW:   hw.RGBW{W: 255},
+		AmbilightMode:   "color_temp",
+		AmbilightKelvin: defaultAmbilightKelvin,
 		AmbilightBright: ambilightBright,
 		AmbilightFx:     true,
 		// Dim: the strip lights the wall behind the speaker like a floodlight.
@@ -89,7 +99,11 @@ func newStateStore(path string, dflt persistState) *stateStore {
 		// (Volume is absent in older files and stays -1 = untouched.)
 		loaded := dflt
 		loaded.ClockMax = false // only what the file says
+		loaded.AmbilightMode = ""
 		if json.Unmarshal(b, &loaded) == nil {
+			if loaded.AmbilightMode == "" {
+				migrateAmbilight(&loaded, dflt)
+			}
 			if loaded.ClockBright <= 0 {
 				loaded.ClockBright = dflt.ClockBright
 			}

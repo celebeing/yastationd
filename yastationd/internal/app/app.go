@@ -21,6 +21,7 @@ import (
 	"github.com/celebeing/yastationd/yastationd/internal/frametap"
 	"github.com/celebeing/yastationd/yastationd/internal/health"
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
+	"github.com/celebeing/yastationd/yastationd/internal/ledcolor"
 	"github.com/celebeing/yastationd/yastationd/internal/logship"
 	"github.com/celebeing/yastationd/yastationd/internal/luxcal"
 	"github.com/celebeing/yastationd/yastationd/internal/mqtt"
@@ -66,6 +67,8 @@ type App struct {
 	player     *hw.Player
 	mic        *hw.Mic
 	spot       *wake.Spotter              // nil when the wake word is off
+	vid        *voiceID                   // voice ID (voiceid.go); nil when off
+	vstore     *voiceStore                // the voices' store (voicestore.go); nil unless voice_store
 	lastSubhit atomic.Pointer[wake.Event] // the spotter's last near miss of the wake word (wakecapture.go)
 	diagBusy   atomic.Bool                // a diagnostics archive is being made (diag.go)
 	lifeState  atomic.Int32               // lifecycle (lifecycle.go)
@@ -102,20 +105,20 @@ type App struct {
 	luxPath string
 	pdDir   string // USB-C PD sink in sysfs ("" = none)
 
-	autoBright   atomic.Uint64                     // auto clock brightness target (float64 bits; 0 = no reading yet)
-	shownBright  atomic.Uint64                     // the level shown now (float64 bits), gliding to the target
-	brightAt     time.Time                         // last stepBrightness; render goroutine only
-	backlight    *hw.Backlight                     // the front screen's backlight; nil = dim the frames
-	blPrev       int                               // the backlight of the frame written last; render goroutine only
-	luxSmooth    atomic.Uint64                     // smoothed light in lux (float64 bits), published to HA
-	luxKnown     atomic.Bool                       // luxSmooth holds a reading (0 lux in the dark is one)
-	yields       sync.Map                          // slot -> func() bool: its layers see-through (sequence.go)
-	packs        atomic.Pointer[map[string]*pack]  // the installed asset packs (packs.go)
-	packsSeen    atomic.Value                      // packsStamp of the last load (string)
-	packPreviews sync.Map                          // pack id -> its animation library, for "@<pack>/<name>"
-	luxReading   atomic.Uint64                     // the same reading before the calibration (float64 bits)
-	luxUnitCal   atomic.Pointer[[]luxcal.Point]    // set from the web app (lightcal.go); nil = the config's
-	luxCalBusy   atomic.Bool                       // a calibration measurement is running
+	autoBright   atomic.Uint64                    // auto clock brightness target (float64 bits; 0 = no reading yet)
+	shownBright  atomic.Uint64                    // the level shown now (float64 bits), gliding to the target
+	brightAt     time.Time                        // last stepBrightness; render goroutine only
+	backlight    *hw.Backlight                    // the front screen's backlight; nil = dim the frames
+	blPrev       int                              // the backlight of the frame written last; render goroutine only
+	luxSmooth    atomic.Uint64                    // smoothed light in lux (float64 bits), published to HA
+	luxKnown     atomic.Bool                      // luxSmooth holds a reading (0 lux in the dark is one)
+	yields       sync.Map                         // slot -> func() bool: its layers see-through (sequence.go)
+	packs        atomic.Pointer[map[string]*pack] // the installed asset packs (packs.go)
+	packsSeen    atomic.Value                     // packsStamp of the last load (string)
+	packPreviews sync.Map                         // pack id -> its animation library, for "@<pack>/<name>"
+	luxReading   atomic.Uint64                    // the same reading before the calibration (float64 bits)
+	luxUnitCal   atomic.Pointer[[]luxcal.Point]   // set from the web app (lightcal.go); nil = the config's
+	luxCalBusy   atomic.Bool                      // a calibration measurement is running
 
 	baseFx    display.RenderFunc[display.RingFrame] // ring effect layer; render goroutine only
 	baseFxKey string
@@ -123,8 +126,13 @@ type App struct {
 	ambilightFrame      []hw.RGBW // cached solid frame; rebuilt only when the HA state changes
 	ambilightFrameKey   ambilightVisual
 	ambilightFrameKnown bool
-	timers              timers
-	animGen             atomic.Int64 // ring_animation selections, to reset the select only for the latest
+	// The ambilight's colour renderer for the current calibration and white (ambilightcolor.go).
+	colorMu       sync.Mutex
+	colorKnown    bool
+	colorKey      string
+	colorRenderer *ledcolor.Renderer
+	timers        timers
+	animGen       atomic.Int64 // ring_animation selections, to reset the select only for the latest
 
 	quit context.CancelFunc // ends Run: a deliberate restart (the supervisor starts us again)
 
@@ -141,8 +149,11 @@ type App struct {
 
 type ambilightVisual struct {
 	On         bool
-	Color      hw.RGBW
+	Mode       string
+	Hue, Sat   float64
+	Kelvin     int
 	Brightness int
+	Renderer   *ledcolor.Renderer
 }
 
 func New(cfg config.Config, log *slog.Logger) (*App, error) {
@@ -231,6 +242,8 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 	a.sat = &satellite{a: a}
 	a.front = a.newFront()
 	a.spot = a.newSpotter()
+	a.vid = a.newVoiceID()
+	a.vstore = a.newVoiceStore()
 	a.music.host = a.newMusic()
 	a.setup = a.newWifiSetup()
 	a.ic = a.newIntercom()
@@ -404,7 +417,9 @@ func (a *App) ringBase(now time.Time) display.RingFrame {
 // ambilightBase is the ambilight's HA light as a frame (render goroutine only).
 func (a *App) ambilightBase() []hw.RGBW {
 	s := a.store.get()
-	key := ambilightVisual{On: s.AmbilightOn, Color: s.AmbilightRGBW, Brightness: s.AmbilightBright}
+	r := a.ambilightRenderer()
+	key := ambilightVisual{On: s.AmbilightOn, Mode: s.AmbilightMode, Hue: s.AmbilightHue,
+		Sat: s.AmbilightSat, Kelvin: s.AmbilightKelvin, Brightness: s.AmbilightBright, Renderer: r}
 	if a.ambilightFrameKnown && key == a.ambilightFrameKey {
 		return a.ambilightFrame
 	}
@@ -412,7 +427,7 @@ func (a *App) ambilightBase() []hw.RGBW {
 	a.ambilightFrameKey = key
 	a.ambilightFrame = make([]hw.RGBW, a.ambilight.Pixels())
 	if key.On {
-		color := key.Color.Scale(key.Brightness)
+		color := ambilightDrive(r, s)
 		for i := range a.ambilightFrame {
 			a.ambilightFrame[i] = color
 		}
@@ -442,6 +457,7 @@ func (a *App) Run(ctx context.Context) error {
 	b.Intercom = a.ic != nil
 	b.RoomSound = a.roomSoundEnabled()
 	b.SoundSPL = a.splOffset() != 0
+	b.VoiceID = a.vid != nil
 	a.builder = b
 
 	a.hmon = health.New(a.cfg().Path(a.cfg().HeartbeatFile), a.onHealthChange)
@@ -702,6 +718,10 @@ func (a *App) onMQTTConnect() {
 	a.subscribe()
 	a.publishAllState()
 	a.publishWebInfo()
+	a.voiceFlush()
+	if a.vstore != nil {
+		a.voicePublish()
+	}
 }
 
 // publishAllState publishes every state object (on connect, and at start for the web's mirror).
@@ -728,6 +748,9 @@ func (a *App) publishAllState() {
 		a.publish(a.topics.State("volume"), strconv.Itoa(a.percentFromRaw(v)))
 	}
 	a.publishMicMute()
+	if a.vid != nil {
+		a.publish(a.topics.State("voice_ignore_guests"), onOff(s.VoiceIgnoreGuests))
+	}
 }
 
 // telemetryLoop publishes the uptime, and the light level when it moved enough (luxGate).
@@ -832,13 +855,12 @@ func ambilightStateJSON(s persistState) string {
 		m["state"] = "ON"
 	}
 	m["brightness"] = s.AmbilightBright
-	m["color"] = map[string]int{
-		"r": int(s.AmbilightRGBW.R),
-		"g": int(s.AmbilightRGBW.G),
-		"b": int(s.AmbilightRGBW.B),
-		"w": int(s.AmbilightRGBW.W),
+	m["color_mode"] = s.AmbilightMode
+	if s.AmbilightMode == "color_temp" {
+		m["color_temp"] = s.AmbilightKelvin
+	} else {
+		m["color"] = map[string]float64{"h": s.AmbilightHue, "s": s.AmbilightSat}
 	}
-	m["color_mode"] = "rgbw"
 	b, _ := json.Marshal(m)
 	return string(b)
 }
