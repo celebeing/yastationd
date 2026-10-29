@@ -46,31 +46,58 @@ type Host struct {
 
 	mu    sync.Mutex
 	stdin io.WriteCloser
+
+	now   func() time.Time
+	after func(time.Duration) <-chan time.Time
+}
+
+func (h *Host) clock() time.Time {
+	if h.now != nil {
+		return h.now()
+	}
+	return time.Now()
+}
+
+func (h *Host) wait(d time.Duration) <-chan time.Time {
+	if h.after != nil {
+		return h.after(d)
+	}
+	return time.After(d)
+}
+
+func retryDelay(backoff time.Duration, start, end time.Time) time.Duration {
+	if end.Sub(start) > time.Minute {
+		return time.Second
+	}
+	return backoff
+}
+
+func nextBackoff(backoff time.Duration) time.Duration {
+	if backoff < time.Minute {
+		return backoff * 2
+	}
+	return backoff
 }
 
 // Run supervises the child until stop closes, restarting it with backoff.
 func (h *Host) Run(stop <-chan struct{}) {
 	backoff := time.Second
 	for {
-		start := time.Now()
+		start := h.clock()
 		err := h.runOnce(stop)
 		select {
 		case <-stop:
 			return
 		default:
 		}
-		if time.Since(start) > time.Minute {
-			backoff = time.Second
-		}
-		h.Log.Warn("music: sendspin-host exited, restarting", "err", err, "in", backoff)
+		delay := retryDelay(backoff, start, h.clock())
+		h.Log.Warn("music: sendspin-host exited, restarting", "err", err, "in", delay)
 		select {
 		case <-stop:
 			return
-		case <-time.After(backoff):
+		case <-h.wait(delay):
 		}
-		if backoff < time.Minute {
-			backoff *= 2
-		}
+		backoff = nextBackoff(delay)
 	}
 }
 
