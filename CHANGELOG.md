@@ -6,7 +6,7 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
 ## Unreleased
 
 **Packs**
-- The LED page browses the animations as folders: the firmware's own (with their subfolders) and
+- The LED page browses the animations in a column view, like a file browser's: the firmware's own (with their subfolders) and
   one folder per installed pack, played with a click without applying the pack, plus a search.
   The Packs page links each pack's folder.
 - **Apply here** wears a pack on this speaker only (`theme_here`, never shared); "Wear the shared

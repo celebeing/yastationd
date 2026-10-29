@@ -134,8 +134,8 @@ sound by name and where it comes from, Play (on the speaker), add one (any audio
 decodes, converted to WAV there) or remove the owner's. The Moments tab marks a moment a pack
 sets, and says when an edit sits under a pack.
 
-The LED page's animation browser (`AnimBrowser` in `web/src/extra.tsx`) walks the animations as
-folders: "In force" (the firmware's and the worn theme's, by the names moments use; the stock ones
+The LED page's animation browser (`AnimBrowser` in `web/src/extra.tsx`, a column view) walks the
+animations as folders: "In force" (the firmware's and the worn theme's, by the names moments use; the stock ones
 are paths like `oknix/…`, so subfolders) and one folder per installed pack; a click plays it on
 the speaker, a search box finds across all of them. The open folder is in the address
 (`#led/@<pack>`), which is how the Packs page links a pack.

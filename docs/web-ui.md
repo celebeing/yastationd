@@ -165,10 +165,12 @@ paper's 85 % reflectance; the page converts as it is typed) — live, no restart
   the front display as on the glass, its light diffused and seen through the fabric's weave. Nothing is encoded while no
   one watches. `frametap_addr` still opens the tap's own listener without a login (the host
   simulator).
-  Under the preview the speaker's animations, as folders: "In force" (the firmware's, with its
-  own subfolders, and the worn theme's) and one per installed pack, played on a click without
-  applying the pack (`@<pack>/<name>`), with a search across all of them; `#led/<folder>` opens a
-  folder ([asset-packs.md](asset-packs.md), phase 3).
+  Under the preview the speaker's animations in a column view, as a file browser's: the top
+  folders ("In force": the firmware's, with its own subfolders, and the worn theme's; one per
+  installed pack, by its id), each opened folder in a column to the right, and a click on an
+  animation plays it, a pack's without applying the pack (`@<pack>/<name>`); the arrow keys walk
+  the columns, a search lists matches across all of them; `#led/<folder>` opens a folder
+  ([asset-packs.md](asset-packs.md), phase 3).
 - **Wi-Fi:** the saved networks (no passwords), the one connected now (`wpa_cli status`), and
   adding a network — never changing or removing one from a running speaker. The file is written
   (the old one as `.before-web`), wpa_supplicant is not reloaded: the new network is used at the

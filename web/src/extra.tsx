@@ -254,13 +254,30 @@ function Playground({ peer, base, info, onErr }: { peer: Peer; base: string; inf
   )
 }
 
-/** A folder of the animation browser: the animations in force (the firmware's and the theme's,
- * by the names moments use), or one installed pack's ("@<pack>/<name>" plays it unapplied). */
-type AnimRoot = { id: string; title: string; prefix: string; names: string[] }
+/** A top folder of the animation browser: the animations in force (the firmware's and the
+ * theme's, by the names moments use), or one installed pack's ("@<pack>/<name>" plays it
+ * unapplied). */
+type AnimRoot = { id: string; title: string; name?: string; prefix: string; names: string[] }
 
-/** AnimBrowser walks the animations as folders (the firmware's own are paths like oknix/…, each
- * pack is a folder of its own) and plays one on the speaker on a click. The path lives in the
- * address after #led/, so the Packs page can link a pack's folder. */
+/** The folders (with how many animations each holds) and the animations directly under sub. */
+function listing(names: string[], sub: string[]) {
+  const pre = sub.length ? sub.join('/') + '/' : ''
+  const dirs = new Map<string, number>()
+  const files: string[] = []
+  for (const n of names) {
+    if (!n.startsWith(pre)) continue
+    const rest = n.slice(pre.length)
+    const i = rest.indexOf('/')
+    if (i < 0) files.push(rest)
+    else dirs.set(rest.slice(0, i), (dirs.get(rest.slice(0, i)) || 0) + 1)
+  }
+  return { folders: [...dirs.entries()].sort((a, b) => a[0].localeCompare(b[0])), files: files.sort() }
+}
+
+/** AnimBrowser: the animations in columns, as a file browser's column view: the top folders, then
+ * each opened folder to the right (the firmware's own are paths like oknix/…, each pack is a top
+ * folder); a click on an animation plays it on the speaker. Arrow keys walk the columns. The
+ * open path lives in the address after #led/, so the Packs page can link a pack's folder. */
 function AnimBrowser(p: { peer: Peer; base: string; inForce: string[]; play: (name: string, loop: boolean) => void; clear: () => void }) {
   const [packs, setPacks] = useState<api.Pack[]>([])
   const [path, setPathState] = useState<string[]>(() => {
@@ -270,16 +287,20 @@ function AnimBrowser(p: { peer: Peer; base: string; inForce: string[]; play: (na
   const [filter, setFilter] = useState('')
   const [loop, setLoop] = useState(false)
   const [last, setLast] = useState('')
+  const cols = useRef<HTMLDivElement>(null)
   useEffect(() => {
     api.packs(p.peer.id, p.base).then((r) => setPacks(r.packs), () => setPacks([]))
   }, [p.peer.id, p.base])
+  useEffect(() => {
+    if (cols.current) cols.current.scrollLeft = cols.current.scrollWidth // the newest column in view
+  }, [path.join('/'), packs.length])
   const setPath = (s: string[]) => {
     setPathState(s)
     history.replaceState(null, '', '#led' + (s.length ? '/' + s.join('/') : ''))
   }
   const roots: AnimRoot[] = [
     { id: 'in-force', title: 'In force', prefix: '', names: p.inForce },
-    ...packs.filter((k) => k.anims?.length).map((k) => ({ id: '@' + k.id, title: k.id === 'custom' ? 'Your own' : k.name, prefix: '@' + k.id + '/', names: k.anims! })),
+    ...packs.filter((k) => k.anims?.length).map((k) => ({ id: '@' + k.id, title: k.id === 'custom' ? 'Your own' : k.id, name: k.name, prefix: '@' + k.id + '/', names: k.anims! })),
   ]
   const play = (full: string) => {
     setLast(full)
@@ -288,23 +309,63 @@ function AnimBrowser(p: { peer: Peer; base: string; inForce: string[]; play: (na
   const q = filter.trim().toLowerCase()
   const root = roots.find((r) => r.id === path[0])
   const sub = root ? path.slice(1) : []
-  // the folders and files directly under sub in root
-  let folders: [string, number][] = []
-  let files: string[] = []
-  if (root && !q) {
-    const pre = sub.length ? sub.join('/') + '/' : ''
-    const dirs = new Map<string, number>()
-    for (const n of root.names) {
-      if (!n.startsWith(pre)) continue
-      const rest = n.slice(pre.length)
-      const i = rest.indexOf('/')
-      if (i < 0) files.push(rest)
-      else dirs.set(rest.slice(0, i), (dirs.get(rest.slice(0, i)) || 0) + 1)
-    }
-    folders = [...dirs.entries()]
-  }
   const found = q ? roots.flatMap((r) => r.names.filter((n) => (r.title + '/' + n).toLowerCase().includes(q)).map((n) => r.prefix + n)) : []
   const total = roots.reduce((n, r) => n + r.names.length, 0)
+
+  // Arrow keys: up and down within a column, right into the open folder, left back out.
+  function onKey(e: KeyboardEvent) {
+    const b = e.target as HTMLElement
+    if (b.tagName !== 'BUTTON') return
+    const col = b.closest('.mcol')
+    const sib = (el: Element | null | undefined) => el as HTMLElement | null
+    let to: HTMLElement | null = null
+    if (e.key === 'ArrowDown') to = sib(b.nextElementSibling)
+    else if (e.key === 'ArrowUp') to = sib(b.previousElementSibling)
+    else if (e.key === 'ArrowRight') to = sib(col?.nextElementSibling?.querySelector('button'))
+    else if (e.key === 'ArrowLeft') to = sib(col?.previousElementSibling?.querySelector('button.sel') || col?.previousElementSibling?.querySelector('button'))
+    if (!to) return
+    e.preventDefault()
+    to.focus()
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') to.click() // a folder opens, an animation plays: as you walk
+  }
+
+  const columns: preact.JSX.Element[] = []
+  if (!q) {
+    columns.push(
+      <div class="mcol" role="listbox" aria-label="Folders">
+        {roots.map((r) => (
+          <button class={'mfolder' + (r.id === path[0] ? ' sel' : '')} onClick={() => setPath([r.id])} title={r.id === 'in-force' ? "The firmware's and the theme's, by the name a moment uses" : `${r.name}: plays without applying the pack`}>
+            <span class="grow">{r.title}</span>
+            <span class="muted small">{r.names.length}</span>
+          </button>
+        ))}
+      </div>,
+    )
+    if (root)
+      for (let depth = 0; depth <= sub.length; depth++) {
+        const at = sub.slice(0, depth)
+        const { folders, files } = listing(root.names, at)
+        if (!folders.length && !files.length) break
+        columns.push(
+          <div class="mcol" role="listbox" aria-label={at.length ? at.join('/') : root.title}>
+            {folders.map(([d, n]) => (
+              <button class={'mfolder' + (sub[depth] === d ? ' sel' : '')} onClick={() => setPath([root.id, ...at, d])}>
+                <span class="grow">{d}</span>
+                <span class="muted small">{n}</span>
+              </button>
+            ))}
+            {files.map((f) => {
+              const full = root.prefix + [...at, f].join('/')
+              return (
+                <button class={'manim' + (full === last ? ' sel' : '')} onClick={() => play(full)} title={`Play ${full}`}>
+                  {f}
+                </button>
+              )
+            })}
+          </div>,
+        )
+      }
+  }
   return (
     <div class="animbrowser">
       <div class="row">
@@ -315,58 +376,24 @@ function AnimBrowser(p: { peer: Peer; base: string; inForce: string[]; play: (na
         </label>
         <button onClick={p.clear}>Clear</button>
       </div>
-      {!q && (
-        <nav class="crumbs small" aria-label="Folder">
-          <button class="linklike" onClick={() => setPath([])}>
-            All
-          </button>
-          {root && (
-            <>
-              {' / '}
-              <button class="linklike" onClick={() => setPath([root.id])}>
-                {root.title}
+      {q ? (
+        <div class="mcols" onKeyDown={onKey}>
+          <div class="mcol wide" role="listbox" aria-label="Found">
+            {found.slice(0, 300).map((full) => (
+              <button class={'manim' + (full === last ? ' sel' : '')} onClick={() => play(full)}>
+                {full}
               </button>
-            </>
-          )}
-          {sub.map((d, i) => (
-            <>
-              {' / '}
-              <button class="linklike" onClick={() => setPath([root!.id, ...sub.slice(0, i + 1)])}>
-                {d}
-              </button>
-            </>
-          ))}
-        </nav>
+            ))}
+            {!found.length && <span class="muted small mnote">Nothing matches.</span>}
+            {found.length > 300 && <span class="muted small mnote">{found.length - 300} more: narrow the search.</span>}
+          </div>
+        </div>
+      ) : (
+        <div class="mcols" ref={cols} onKeyDown={onKey}>
+          {columns}
+        </div>
       )}
-      <div class="animlist">
-        {!q &&
-          !root &&
-          roots.map((r) => (
-            <button class="folder" onClick={() => setPath([r.id])} title={r.id === 'in-force' ? "The firmware's and the theme's, by the name a moment uses" : `Pack ${r.id}: plays without applying it`}>
-              <b>{r.title}</b> <span class="muted small">{r.names.length}</span>
-            </button>
-          ))}
-        {folders.map(([d, n]) => (
-          <button class="folder" onClick={() => setPath([root!.id, ...sub, d])}>
-            <b>{d}/</b> <span class="muted small">{n}</span>
-          </button>
-        ))}
-        {files.map((f) => {
-          const full = root!.prefix + [...sub, f].join('/')
-          return (
-            <button class={'anim' + (full === last ? ' on' : '')} onClick={() => play(full)}>
-              {f}
-            </button>
-          )
-        })}
-        {found.slice(0, 200).map((full) => (
-          <button class={'anim' + (full === last ? ' on' : '')} onClick={() => play(full)}>
-            {full}
-          </button>
-        ))}
-        {q && !found.length && <span class="muted small">Nothing matches.</span>}
-        {found.length > 200 && <span class="muted small">{found.length - 200} more: narrow the search.</span>}
-      </div>
+      {last && <p class="small muted">Playing {last}</p>}
     </div>
   )
 }
