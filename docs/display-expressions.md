@@ -264,7 +264,6 @@ the pictures:
 | `startup` | `scenario:startup` (eyes, wink) | `scenario:startup-pixel` (eyes, blink) |
 | `dialog_end` | `wink` | `blink` |
 | `arbitration_lost` | `glance` (` > >` quick, then `< < `; ours) | `scenario_emotion/Deactivation_Output` |
-| `voice_guest` | `glance` | `block` (the firmware's "blocked" picture) |
 | `media_pause`, `media_resume` | `pause` (no resume clip) | `media/Pause`, `media/Resume` |
 | `call_outgoing`, `call_incoming`, `timer_finished`, `wifi_setup`, `booting` | the semantic animations `call_*`, `ringing`, `setup`, `booting` | the same, through the pattern map |
 

@@ -74,8 +74,8 @@ automations use them directly.
 
 **Ignore guests** (the switch; in the web app with the Voice settings): a request from a voice
 that is not one of the named people never reaches HA; the `voice_guest` moment shows that it was
-heard and ignored on purpose (a moment like the others: the owner picks its picture; by default a
-`glance` on seg7, the firmware's `block` picture on Station 3). It does nothing until someone is
+heard and ignored on purpose (a moment like the others: the owner picks its picture; by default the
+`angry` expression). It does nothing until someone is
 named. The settings (Configuration → Voice → Voice ID):
 
 | Key | Default | |

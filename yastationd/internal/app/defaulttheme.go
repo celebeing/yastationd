@@ -98,7 +98,7 @@ var defaultTheme = map[string][]show{
 	"voice_cancelled":   {{Ref: "blink"}},
 	"reply_timeout":     {{Ref: "sad"}},
 	"wake_busy":         {{Ref: "busy"}},
-	"voice_guest":       {{Ref: "sad"}},
+	"voice_guest":       {{Ref: "angry"}, {Ref: "sad"}},
 	"volume_change":     {{Ref: "sound:volume_sound"}},
 	"volume_edge":       {},
 	"announce":          {{Ref: "sound:notification_sound"}},
