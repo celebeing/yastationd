@@ -155,7 +155,8 @@ failure.
   on a CPU, with punctuation and digits. Multilingual Whisper models are the general fallback.
 - **TTS:** use a server that streams (synthesis by sentence), so long LLM answers start speaking
   right away. Piper streams by default; for Russian, Silero over Wyoming is a good balance of quality
-  and speed.
+  and speed. Pick the voice in the pipeline: of Silero's Russian female voices, `baya` and
+  `kseniya` sound far warmer than `xenia` (compared side by side, 2026-10).
 - **Conversation LLM: judge truthfulness, not speed.** The failure that matters is a model that skips
   the tool and *invents* a state or a "done" (it "turned on" a light without calling anything).
   Observed:
