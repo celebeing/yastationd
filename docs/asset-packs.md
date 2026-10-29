@@ -21,7 +21,7 @@ holders).
   together or in sequence with delays, is one show.
 - **Pack**: an archive of assets (sounds, animations per display kind) and, optionally, the moments
   that use them. Installed on a speaker under `<cfw>/packs/<id>/`.
-- **Theme stack**: the packs in force, in priority order (`themes`, a shared setting). A moment, a
+- **Theme stack**: the packs in force, in priority order (`theme`, a setting of each speaker; not shared for now). A moment, a
   sound or an animation is looked up in the stack from the top; the built-in **default theme** is
   always the bottom layer. Applying a pack puts it on top: it overrides what is below it and only
   that (an anime faces pack and a Half-Life sound pack are worn together).
@@ -99,11 +99,13 @@ front for an animation the display lacks. The catalogue lists the sounds this sp
 
 `internal/app/packs.go`.
 
-- `theme` (a list, shared, runtime): pack ids, top first. Empty = the default theme alone.
-- `theme_here` (a list, never shared, runtime): this speaker's own stack, worn in place of `theme`
-  while it is set (Apply here on the Packs page). Ending it (`[]`) puts the speaker back on
-  `theme`. A pack removed from the speaker leaves both lists; an own stack that loses its last
-  pack stays as `custom` alone (the default theme), not the shared one.
+- `theme` (a list, runtime): pack ids, top first. Empty = the default theme alone. **Not shared
+  between speakers (since v0.21.2):** a shared stack named packs the other speakers did not have,
+  applied to all with one click, with no undo and no error. Sharing comes back with a way to send
+  the packs along.
+- `theme_here` (a list, runtime): v0.21.1's "Apply here", worn in place of `theme` while it is
+  set; the Packs page edits whichever of the two is in force. A pack removed from the speaker
+  leaves both lists; a `theme_here` that loses its last pack stays as `custom` alone.
 - `<cfw>/packs/<id>/pack.json` + files. The lookups (moments, sounds, animations) read the stack
   at the point of use; an animation in a pack overrides by its exact name, before the stock
   candidates of a semantic name (`listening` in a pack beats the firmware's `alice_listening`).
@@ -113,8 +115,8 @@ front for an animation the display lacks. The catalogue lists the sounds this sp
   applied on top overrides it.
 - A pack's animation directories feed the front display's pack layer (`display.Seg7Front.Packs`,
   `PixelFront.PackPatterns`), re-pointed when the theme key changes or a pack is installed.
-- A speaker that lacks a pack the shared stack names skips it (the web app says which and offers
-  the upload).
+- A pack the stack names but the speaker lacks is skipped (the web app says which and offers the
+  upload).
 - The installed packs are read at start, after an install or a removal through the API, and on
   every `GET /api/packs` when the directory changed (a pack's directory or its `pack.json` time):
   a pack copied into `<cfw>/packs/` by hand or a script shows up when the Packs page is opened.
@@ -124,12 +126,10 @@ front for an animation the display lacks. The catalogue lists the sounds this sp
 
 ## Phase 3: packs in the web app
 
-Assets → Packs (`web/src/packs.tsx`): the theme stack this speaker wears (up/down, take out; a
-note says whether the theme is shared, or that this speaker wears its own, with the way back), the
+Behaviour → Packs (`web/src/packs.tsx`): the theme stack this speaker wears (up/down, take out), the
 installed packs (what each has for this speaker; Animations = its folder on the LED page; Apply =
-on top of the shared theme, "Apply to all" while it is shared; Apply here = on top of this
-speaker's own; Copy moments = into `custom` to edit, Remove),
-upload a `.zip` (checked on the speaker), save `custom` as a pack archive. Assets → Sounds: every
+on top of this speaker's stack; Copy moments = into `custom` to edit, Remove),
+upload a `.zip` (checked on the speaker), save `custom` as a pack archive. Behaviour → Sounds: every
 sound by name and where it comes from, Play (on the speaker), add one (any audio the browser
 decodes, converted to WAV there) or remove the owner's. The Moments tab marks a moment a pack
 sets, and says when an edit sits under a pack.
@@ -141,9 +141,9 @@ the speaker, a search box finds across all of them. The open folder is in the ad
 (`#led/@<pack>`), which is how the Packs page links a pack.
 
 API (behind the login): `GET /api/packs` → `{packs: [{id, name, version, author, source,
-license, displays, moments, sounds, anims, fits, bytes, position}], stack, here, shared_stack,
-shared, display, missing, free, max_bytes}` (`stack`: what this speaker wears; `here`: that is
-its own `theme_here`; `shared`: the theme setting is shared); `PUT /api/packs` (the zip, ≤ 32 MB,
+license, displays, moments, sounds, anims, fits, bytes, position}], stack, here, display,
+missing, free, max_bytes}` (`stack`: what this speaker wears; `here`: it comes from
+`theme_here`); `PUT /api/packs` (the zip, ≤ 32 MB,
 ≤ 64 MB unpacked); `PUT /api/packs/stack {"stack": [ids], "here": bool}`; `POST
 /api/packs/<id>/apply[?here=1]`, `/import`; `DELETE
 /api/packs/<id>`; `GET /api/packs/custom/export?id=&name=`; `PUT|DELETE

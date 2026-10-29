@@ -444,8 +444,8 @@ func (a *App) themeList(here bool) []string {
 	return a.cfg().Themes
 }
 
-// applyPack puts a pack on top of the shared theme, or (here) of this speaker's own, which starts
-// as a copy of the stack it wears.
+// applyPack puts a pack on top of the theme key, or (here) of theme_here, which starts as a copy of
+// the stack the speaker wears. The Packs page edits whichever is in force.
 func (a *App) applyPack(id string, here bool) error {
 	if id != customPack && a.installedPacks()[id] == nil {
 		return errors.New("no such pack")
@@ -458,8 +458,8 @@ func (a *App) applyPack(id string, here bool) error {
 	return a.setThemes(append([]string{id}, rest...), here)
 }
 
-// setThemes writes the theme key (shared like any setting), or theme_here (this speaker's own;
-// an empty list ends it), and points the animations at the result.
+// setThemes writes the theme key, or theme_here (an empty list ends it), and points the animations
+// at the result.
 func (a *App) setThemes(ids []string, here bool) error {
 	key := "theme"
 	if here {
@@ -608,10 +608,8 @@ func (a *App) packsNow() map[string]any {
 			missing = append(missing, id)
 		}
 	}
-	_, shared := a.sharedGet("setting", "theme")
 	return map[string]any{"packs": views, "stack": stack, "display": kind, "missing": missing,
-		"here": len(a.cfg().ThemesHere) > 0, "shared_stack": withCustom(a.cfg().Themes), "shared": shared,
-		"free": freeBytes(a.cfwFile("")), "max_bytes": maxPackZip}
+		"here": len(a.cfg().ThemesHere) > 0, "free": freeBytes(a.cfwFile("")), "max_bytes": maxPackZip}
 }
 
 // listNames lists dir's files with ext, without it, sorted.

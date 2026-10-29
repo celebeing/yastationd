@@ -3,6 +3,18 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.21.2 — 2026-10-29
+
+**Changed**
+- The web app's Assets section is now **Behaviour**, with the Moments editor as its first tab and a
+  short explanation of moments, packs and sounds above them.
+
+**Fixed**
+- The Packs page made it too easy to apply a pack to every speaker with one click, with no undo,
+  no error, and nothing worn where the pack was missing. The theme is no longer shared between
+  speakers: one **Apply** puts a pack on top of this speaker's theme. (A theme already shared
+  stays as each speaker has it; the sync ignores it now.)
+
 ## v0.21.1 — 2026-10-29
 
 **Packs**

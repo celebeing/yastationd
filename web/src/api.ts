@@ -270,14 +270,12 @@ export type Pack = {
   bytes: number
   position: number
 }
-/** stack: the packs this speaker wears; here: they are its own (theme_here), not the shared
- * theme (shared_stack); shared: the theme setting is shared with the other speakers. */
+/** stack: the packs this speaker wears; here: from theme_here (v0.21.1's "Apply here"), not
+ * the theme key. */
 export type Packs = {
   packs: Pack[]
   stack: string[]
   here: boolean
-  shared_stack: string[]
-  shared: boolean
   display: string
   missing: string[] | null
   free: number

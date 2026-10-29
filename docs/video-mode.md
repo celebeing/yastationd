@@ -11,7 +11,7 @@ the CFW downloads them. You supply a local video file and convert it on the host
 
 ## Quick start
 
-The simplest way: the web app's **Assets → Videos** converts a video file in the browser and
+The simplest way: the web app's **Behaviour → Videos** converts a video file in the browser and
 uploads it, no host tools needed ([assets.md](assets.md)). On the host:
 
 ```sh

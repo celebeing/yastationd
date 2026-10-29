@@ -143,7 +143,8 @@ window's width.
 |---|---|
 | Status | Sensors (and diagnostics), Log |
 | Controls | Display and voice (the runtime controls HA has: lights, display, expressions, volume…), LED |
-| Configuration | General, Voice, Moments, Home integration, Music Assistant, Intercom, Calibration, Wi-Fi, Login — [settings.md](settings.md) |
+| Behaviour | Moments, Packs, Sounds, Videos — what the speaker does when something happens ([asset-packs.md](asset-packs.md)); a short explanation, folded once read, sits above each |
+| Configuration | General, Voice, Home integration, Music Assistant, Intercom, Calibration, Wi-Fi, Login — [settings.md](settings.md) |
 
 ## Calibration
 

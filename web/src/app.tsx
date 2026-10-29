@@ -225,8 +225,8 @@ type Tab = 'overview' | 'log' | 'controls' | 'led' | 'packs' | 'sounds' | 'video
 const GROUPS: { id: string; name: string; tabs: Tab[] }[] = [
   { id: 'status', name: 'Status', tabs: ['overview', 'log'] },
   { id: 'controls', name: 'Controls', tabs: ['controls', 'led'] },
-  { id: 'assets', name: 'Assets', tabs: ['packs', 'sounds', 'videos'] },
-  { id: 'configuration', name: 'Configuration', tabs: ['general', 'voice', 'moments', 'home', 'music', 'intercom', 'calibration', 'wifi', 'account'] },
+  { id: 'behaviour', name: 'Behaviour', tabs: ['moments', 'packs', 'sounds', 'videos'] },
+  { id: 'configuration', name: 'Configuration', tabs: ['general', 'voice', 'home', 'music', 'intercom', 'calibration', 'wifi', 'account'] },
 ]
 
 const TAB_NAMES: Record<Tab, string> = {
@@ -335,6 +335,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
       {(['home', 'music', 'intercom'] as Tab[]).includes(tab) && <ConfigPage key={tab} page={tab as any} peer={peer} base={base} />}
       {tab === 'calibration' && <CalibrationTab peer={peer} base={base} />}
       {tab === 'calibration' && <ConfigPage page="calibration" peer={peer} base={base} />}
+      {(['moments', 'packs', 'sounds', 'videos'] as Tab[]).includes(tab) && <BehaviourHelp />}
       {tab === 'moments' && <MomentsTab peer={peer} base={base} />}
       {tab === 'led' && <LedTab peer={peer} base={base} />}
       {tab === 'packs' && <PacksTab peer={peer} base={base} />}
@@ -685,5 +686,46 @@ function Account({ peer, base }: { peer: Peer; base: string }) {
       <button type="submit">Change</button>
       <p class="muted small">Written into this speaker's config (web_user, web_password). Each speaker has its own login.</p>
     </form>
+  )
+}
+
+/** BehaviourHelp: what the Behaviour tabs are about, above each of them; folded once read. */
+function BehaviourHelp() {
+  const KEY = 'yst.behaviourHelp'
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(KEY) !== 'closed'
+    } catch {
+      return true
+    }
+  })
+  const toggle = (e: Event) => {
+    const o = (e.currentTarget as HTMLDetailsElement).open
+    setOpen(o)
+    try {
+      localStorage.setItem(KEY, o ? 'open' : 'closed')
+    } catch {}
+  }
+  return (
+    <details class="card help" open={open} onToggle={toggle}>
+      <summary>How the speaker's behaviour works</summary>
+      <ul class="small">
+        <li>
+          A <b>moment</b> is something the speaker reacts to: the wake word, thinking, the reply, an error, a call, a timer, booting, the volume
+          keys. A moment can show a face or an animation on the display, light the ring and play a sound, together or one after another.
+        </li>
+        <li>
+          <b>Moments</b>: what every moment does on this speaker, and where that comes from. Change one and your version is kept as “Your own”.
+        </li>
+        <li>
+          <b>Packs</b>: themes of animations, sounds and moments (a .zip). Apply puts a pack on top: a moment, sound or animation comes from the
+          highest pack that has it, then the default theme, which is always at the bottom. A pack applied above “Your own” wins over your
+          moments; reorder to change that. Each speaker has its own packs and theme.
+        </li>
+        <li>
+          <b>Sounds</b>: every sound the moments can play, the speaker's own and the packs'; add yours. <b>Videos</b>: clips for the display.
+        </li>
+      </ul>
+    </details>
   )
 }

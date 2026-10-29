@@ -268,3 +268,9 @@ ol.stack li { margin-top: 0; padding: 0.35rem 0; border-top: 1px solid var(--lin
 .mnote { padding: 0.3rem 0.7rem; }
 a.button { display: inline-block; font: inherit; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); padding: 0.4rem 0.8rem; text-decoration: none; }
 a.button:hover { border-color: var(--accent); }
+
+/* The Behaviour tabs' short explanation, folded once read. */
+details.help { margin-bottom: 1rem; }
+details.help summary { cursor: pointer; font-weight: 600; }
+details.help ul { margin: 0.5rem 0 0; padding-left: 1.2rem; }
+details.help li { margin: 0.25rem 0; }

@@ -3,7 +3,7 @@ import * as api from './api'
 import type { Pack, Packs, Peer } from './api'
 import { toWav } from './assets'
 
-// Assets → Packs and Assets → Sounds (docs/asset-packs.md). A pack carries sounds, animations
+// Behaviour → Packs and Behaviour → Sounds (docs/asset-packs.md). A pack carries sounds, animations
 // and moments; the theme stack is the packs in force, top first, over the default theme. The
 // owner's own moments, sounds and animations are the pack "custom".
 
@@ -67,20 +67,7 @@ export function PacksTab({ peer, base }: { peer: Peer; base: string }) {
           The packs in force, the top one first: a moment, a sound or an animation comes from the first pack that has it, else from the default
           theme. Your own moments and sounds are “Your own”.
         </p>
-        {p.here ? (
-          <p class="small row">
-            <span class="grow">This speaker wears a theme of its own; the others keep the {p.shared ? 'shared' : 'common'} one.</span>
-            <button class="ghost" disabled={busy} onClick={() => act(() => api.packStack(peer.id, base, [], true))}>
-              Wear the {p.shared ? 'shared' : 'common'} theme
-            </button>
-          </p>
-        ) : (
-          <p class="muted small">
-            {p.shared
-              ? 'The theme is shared: a change here reaches every speaker that shares it. “Apply here” gives this speaker a theme of its own.'
-              : 'The theme setting is not shared, so a change stays on this speaker.'}
-          </p>
-        )}
+        <p class="muted small">The theme is this speaker's own: packs are installed and worn on each speaker by itself.</p>
         {err && <p class="err">{err}</p>}
         <ol class="stack">
           {p.stack.map((id, i) => (
@@ -127,18 +114,9 @@ export function PacksTab({ peer, base }: { peer: Peer; base: string }) {
                         Animations
                       </a>
                     )}
-                    {(p.here || k.position !== 0) && (
-                      <button
-                        disabled={busy || !k.fits}
-                        onClick={() => act(() => api.packAction(peer.id, base, k.id, 'apply'))}
-                        title={p.shared ? 'Put it on top of the shared theme, on every speaker that shares it' : 'Put it on top of the theme'}
-                      >
-                        {p.shared ? 'Apply to all' : 'Apply'}
-                      </button>
-                    )}
                     {k.position !== 0 && (
-                      <button class="ghost" disabled={busy || !k.fits} onClick={() => act(() => api.packAction(peer.id, base, k.id, 'apply', true))} title="Put it on top of this speaker's own theme">
-                        Apply here
+                      <button disabled={busy || !k.fits} onClick={() => act(() => api.packAction(peer.id, base, k.id, 'apply', p.here))} title="Put it on top of this speaker's theme">
+                        Apply
                       </button>
                     )}
                     {!!k.moments?.length && (

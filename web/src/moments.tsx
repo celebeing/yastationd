@@ -153,7 +153,7 @@ export function MomentsTab({ peer, base }: { peer: Peer; base: string }) {
                 </div>
                 {open === m.name && theme && (
                   <p class="small warn-text">
-                    The pack {theme} sets this moment and sits above your own: what you save here shows once “Your own” is above it (Assets → Packs),
+                    The pack {theme} sets this moment and sits above your own: what you save here shows once “Your own” is above it (Behaviour → Packs),
                     or start from the pack's version there with “Copy moments”.
                   </p>
                 )}

@@ -118,13 +118,12 @@ HA, from single expressions to timed scenarios across the ring and the display.
   calibration against a lux meter or a camera's exposure, every setting by topic with an explanation (most apply at once;
   where a restart is needed it is on trial and rolls itself back if the speaker gets worse), the
   login, and an update check.
-- On a Station 3, **Assets → Videos**: your own clips for its screen (like Bad Apple). A video file
+- On a Station 3, **Behaviour → Videos**: your own clips for its screen (like Bad Apple). A video file
   is converted right in the browser and uploaded, no ffmpeg needed ([docs/assets.md](docs/assets.md)).
 - **Themes and asset packs**: everything the speaker does when something happens (the faces, the
   ring, every sound, the status lights) is a moment you can change, sounds included, together or
-  one after another. **Assets → Packs** installs packs of animations, sounds and moments (a
-  .zip; packs live in their own repositories) and orders them as a theme, top first, shared or
-  for this speaker alone; the LED page plays any pack's animations before you apply it; **Assets →
+  one after another. **Behaviour → Packs** installs packs of animations, sounds and moments (a
+  .zip; packs live in their own repositories) and orders them as a theme, top first; the LED page plays any pack's animations before you apply it; **Behaviour →
   Sounds** plays, adds and replaces sounds; your own changes can be saved as a pack
   ([docs/asset-packs.md](docs/asset-packs.md)).
 - One switch makes a setting, option or moment shared by every speaker: they take this speaker's
