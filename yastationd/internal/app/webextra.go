@@ -27,6 +27,7 @@ func (a *App) features() map[string]bool {
 		"moments":     true,
 		"videos":      a.screen != nil, // the Assets page's videos (assets.go)
 		"packs":       true,            // the Assets page's packs and sounds (packs.go)
+		"voices":      a.vid != nil,    // the Voices tab (voicestore.go)
 	}
 }
 

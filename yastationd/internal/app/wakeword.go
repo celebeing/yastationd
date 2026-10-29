@@ -113,14 +113,17 @@ func (a *App) onWakeEvent(ev wake.Event) {
 
 // startWake starts the session for a wake word ev; startWakeWith with the speech held meanwhile.
 func (a *App) startWake(ev wake.Event) {
-	h := &heldWake{}
+	h := &heldWake{take: a.voiceTakeAt(&ev, srcWake)}
 	h.unsub = a.wakeAudio(&ev, h.add)
 	a.startWakeWith(h)
 }
 
+// startWakeWith starts the wake word's session, through voice ID's check when guests are ignored.
 func (a *App) startWakeWith(held *heldWake) {
-	a.publishButton("wake_word")
-	a.sat.startListeningWith(srcWake, held)
+	a.voiceGate(held, func() {
+		a.publishButton("wake_word")
+		a.sat.startListeningWith(srcWake, held)
+	})
 }
 
 // speaking: our speaker is busy (local playback, a Wyoming stream from HA, or the alarm).

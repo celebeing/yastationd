@@ -78,6 +78,7 @@ places other assistants beep.
 | `listening`, `thinking`, `speaking`, `waiting`, `dialog_end`, `arbitration_lost`, `media_pause`, `media_resume`, `startup` | as before ([display-expressions.md](display-expressions.md)); no sound |
 | `voice_error`, `voice_muted`, `reply_timeout`, `voice_cancelled`, `wake_busy` | the expressions `error`, `mute`, `sad`, `blink`, `busy` |
 | `voice_unavailable` | a bright red pulse and phrase `something_went_wrong` |
+| `voice_guest` | voice ID ignored a request from a voice the household doesn't know: `glance` on seg7, the `block` animation on pixels ([voice-id.md](voice-id.md)) |
 | `volume_change` / `volume_edge` | sound `volume_sound` / nothing |
 | `announce` | sound `notification_sound`; the announcement waits for its sounds |
 | `mic_muted` (held) / `mic_unmuted` | the amber ring / nothing |

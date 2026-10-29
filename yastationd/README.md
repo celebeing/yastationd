@@ -121,7 +121,9 @@ power_problem · `switch` auto_brightness + `number` clock_brightness · `binary
 `event` button (volume_up/down, voice_command, panel_gesture, wake_word) · with `intercom = true`:
 `sensor` intercom (idle/calling/ringing/in_call; attributes peer, ended) · `select`
 intercom_target (the other speakers) · `button` intercom_call (also answers) · `button`
-intercom_hangup ([docs/intercom.md](../docs/intercom.md)).
+intercom_hangup ([docs/intercom.md](../docs/intercom.md)) · with `voice_id = true`: `sensor` voice
+(a named person, guest or unknown; the verdict as attributes) · `sensor` voice_gender ·
+`binary_sensor` voice_known · `switch` voice_ignore_guests ([docs/voice-id.md](../docs/voice-id.md)).
 
 **Not on HA's device card** (2026-10-28): the speaker's own settings — `text_duration`,
 `animation_duration`, `follow_up` — are in the web app only (still entities of its API;

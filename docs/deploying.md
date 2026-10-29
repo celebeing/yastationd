@@ -14,7 +14,7 @@ scripts branch on its existence.
 | Path | What |
 |---|---|
 | `<cfw>/bin/yastationd` | the agent (static armv7, same binary for every board) |
-| `<cfw>/bin/spotter-host` | the voice front-end host, built for the device's userland arch |
+| `<cfw>/bin/spotter-host` | the voice front-end host, built for the device's userland arch; with `voice_id` a second process of it (`spotter-host voice`) makes the voiceprints |
 | `<cfw>/bin/sendspin-host` | the Music Assistant player (optional, `sendspin = true`), built for the userland arch |
 | `<cfw>/bin/dropbearmulti`, `<cfw>/bin/scp` (a link to it), `dropbearmulti.prev` | the SSH server, our build of dropbear (static aarch64, with scp; [dropbear/README.md](../dropbear/README.md)), when the speaker already runs dropbear from there; replaced on a first deploy or with `DROPBEAR=1`, the one before kept as `.prev` |
 | `<cfw>/bin/hostapd` | the access point for the Wi-Fi setup mode (static armv7, same binary for every board; [wifi-setup.md](wifi-setup.md)) |
@@ -24,6 +24,8 @@ scripts branch on its existence.
 | `<cfw>/yastationd.state` | persisted UI state (ring, display, volume, brightness, ambilight effects…), written by the daemon |
 | `<cfw>/sounds/*.wav` | decoded vendor voice lines and call sounds (`make sounds`) |
 | `<cfw>/vendor/vqe_models/noise_reducer/model.nnet` | the VQE's call-mode noise reducer, for the intercom (`make vqe-models`) |
+| `<cfw>/vendor/bio_lingware/` | voice ID's voiceprint model for a unit whose firmware has only the old one (Mini 3 0.6.x; `make voice-models VOICE_MODELS=<a newer firmware's bio_lingware>`; [voice-id.md](voice-id.md)) |
+| `<cfw>/voices/log.jsonl`, `<cfw>/voices/edits.json` | only on the speaker with `voice_store`: every speaker's voice requests (voiceprint, transcript, verdict; the newest 3000, ~3 KB each) and the owner's names and edits of the voices. Biometric data: 0600, never leaves the home ([voice-id.md](voice-id.md)) |
 | `<cfw>/clips/*.scled` | the firmware's clock animations converted to text (`make clips`, firmware 0.369 only; others ship text clips the daemon reads in place) |
 | `<cfw>/scenarios/*.json` | your own display/ring scenarios (optional) |
 | `<cfw>/bin/yastationd.prev` | the previous agent, kept by every update; the supervisor swaps it back in if the new one crash-loops (the bad one is then kept as `.bad`) |

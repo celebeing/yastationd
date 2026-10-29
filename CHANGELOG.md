@@ -5,6 +5,20 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
 
 ## Unreleased
 
+**Voice ID** ([docs/voice-id.md](docs/voice-id.md))
+- The speakers tell who is talking, with the firmware's own voiceprint model, on the speaker (no
+  server, no cloud). Off by default: `voice_id = true`, and `voice_store = true` on one speaker.
+- HA gets, per speaker, who it was (a named person, guest or unknown), the speaker's gender (no
+  enrollment needed) and whether the voice is the household's, before it acts on the request.
+- **Ignore guests** (an HA switch and a web app option): a request from a voice the household
+  doesn't know never reaches HA; the new `voice_guest` moment shows it was heard and ignored. The
+  check waits for «Алиса» and the start of the request (`voice_hold_ms`), with the speech held, so
+  HA hears the end of the request no later than before.
+- The Voices tab: people appear by themselves as the speakers hear requests, like faces in a photo
+  album; name them, merge, move a misheard request, forget a person; a threshold preview shows
+  which of the last requests a value would have taken for guests.
+- `make voice-models` for the Mini 3 0.6.x firmware, whose own voice model is too old.
+
 **Build**
 - The host needs only docker, sh, make, git and ssh: `make sounds`, `make clips`, `make video`,
   `make pack`, `make stage` and the LED demo stages now do their Go/ffmpeg/zstd work in pinned

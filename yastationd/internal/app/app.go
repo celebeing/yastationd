@@ -66,6 +66,8 @@ type App struct {
 	player     *hw.Player
 	mic        *hw.Mic
 	spot       *wake.Spotter              // nil when the wake word is off
+	vid        *voiceID                   // voice ID (voiceid.go); nil when off
+	vstore     *voiceStore                // the voices' store (voicestore.go); nil unless voice_store
 	lastSubhit atomic.Pointer[wake.Event] // the spotter's last near miss of the wake word (wakecapture.go)
 	diagBusy   atomic.Bool                // a diagnostics archive is being made (diag.go)
 	lifeState  atomic.Int32               // lifecycle (lifecycle.go)
@@ -231,6 +233,8 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 	a.sat = &satellite{a: a}
 	a.front = a.newFront()
 	a.spot = a.newSpotter()
+	a.vid = a.newVoiceID()
+	a.vstore = a.newVoiceStore()
 	a.music.host = a.newMusic()
 	a.setup = a.newWifiSetup()
 	a.ic = a.newIntercom()
@@ -442,6 +446,7 @@ func (a *App) Run(ctx context.Context) error {
 	b.Intercom = a.ic != nil
 	b.RoomSound = a.roomSoundEnabled()
 	b.SoundSPL = a.splOffset() != 0
+	b.VoiceID = a.vid != nil
 	a.builder = b
 
 	a.hmon = health.New(a.cfg().Path(a.cfg().HeartbeatFile), a.onHealthChange)
@@ -702,6 +707,10 @@ func (a *App) onMQTTConnect() {
 	a.subscribe()
 	a.publishAllState()
 	a.publishWebInfo()
+	a.voiceFlush()
+	if a.vstore != nil {
+		a.voicePublish()
+	}
 }
 
 // publishAllState publishes every state object (on connect, and at start for the web's mirror).
@@ -728,6 +737,9 @@ func (a *App) publishAllState() {
 		a.publish(a.topics.State("volume"), strconv.Itoa(a.percentFromRaw(v)))
 	}
 	a.publishMicMute()
+	if a.vid != nil {
+		a.publish(a.topics.State("voice_ignore_guests"), onOff(s.VoiceIgnoreGuests))
+	}
 }
 
 // telemetryLoop publishes the uptime, and the light level when it moved enough (luxGate).

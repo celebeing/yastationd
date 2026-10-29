@@ -142,6 +142,7 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 	case wyoming.TypeVoiceStopped, wyoming.TypeTranscript, wyoming.TypeSynthesize:
 		a.log.Info("wyoming", "event", ev.Type, "text", ev.String("text"))
 		if ev.Type == wyoming.TypeTranscript {
+			s.noteTranscript(c, ev.String("text"))
 			s.endListeningOn(c, "transcript")
 			s.setAwaiting(true)
 			s.lastHeard.Store(time.Now().UnixNano()) // whose request an HA intercom call is (cmdIntercomCall)

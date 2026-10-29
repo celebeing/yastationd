@@ -282,3 +282,55 @@ details.help li { margin: 0.25rem 0; }
 .oneof:has(.oneof-item + .oneof-item) { flex-basis: 100%; }
 .steps .row:has(.oneof-item + .oneof-item) { flex-wrap: wrap; }
 .steps .row .oneof:has(.oneof-item + .oneof-item) { order: 10; }
+
+/* Configuration → Voices (voices.tsx): the groups as cards, the log, the threshold preview. */
+.voices { display: flex; flex-direction: column; gap: 1rem; }
+.voices .card p:last-child { margin-bottom: 0; }
+.note { border-left: 3px solid var(--accent); padding: 0.4rem 0.7rem; background: color-mix(in srgb, var(--accent) 6%, transparent); border-radius: 0 8px 8px 0; }
+.voices .row > button.ghost { background: transparent; color: var(--fg); border-color: var(--line); }
+.voices .row > button.ghost:hover:not(:disabled) { border-color: var(--accent); }
+.confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.vgroups { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.75rem; }
+.vgroup { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.vgroup.named { border-left: 3px solid var(--accent); }
+.vgroup.noise { background: color-mix(in srgb, var(--fg) 3%, var(--card)); }
+.vgroup.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.vg-head { display: flex; flex-direction: column; gap: 0.15rem; text-align: left; border: 0; border-radius: 0; background: transparent; padding: 0.75rem 0.9rem 0.4rem; }
+.vg-head:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.vg-name { font-weight: 600; font-size: 1.05rem; overflow-wrap: anywhere; }
+.vg-actions, .vg-edit { padding: 0 0.9rem 0.75rem; margin-top: 0.3rem; }
+.vg-actions button { font-size: 0.85rem; padding: 0.25rem 0.6rem; }
+.vg-edit input, .vg-edit select { flex: 1 1 8rem; min-width: 0; }
+.vlog-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+ul.vlog { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+ul.vlog li { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) auto; gap: 0.3rem 0.9rem; align-items: start; padding: 0.55rem 0; border-top: 1px solid var(--line); }
+ul.vguests li { grid-template-columns: 7.5rem minmax(0, 1fr); }
+.vmeta { display: flex; flex-direction: column; font-variant-numeric: tabular-nums; }
+.vbody { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.vtext { overflow-wrap: anywhere; }
+.vfacts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.7rem; }
+.vfacts .chip { font-size: 0.78rem; }
+select.vmove { max-width: 11rem; }
+ul.vlog { max-height: 36rem; overflow-y: auto; }
+ul.vguests { max-height: 22rem; }
+h3.vsub { margin-top: 1rem; }
+.vth { min-width: 2.5rem; font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  ul.vlog li, ul.vguests li { grid-template-columns: minmax(0, 1fr); }
+  .vmeta { flex-direction: row; gap: 0.6rem; }
+  select.vmove { justify-self: start; }
+}
+/* The score histogram: one strip per named person and one for everyone else, the threshold a line across. */
+.vhist { display: flex; flex-direction: column; gap: 0.35rem; margin: 0.75rem 0 0.5rem; }
+.vh-row { display: grid; grid-template-columns: minmax(5rem, 9rem) minmax(0, 1fr); gap: 0.6rem; align-items: end; }
+.vh-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-bottom: 0.1rem; }
+.vh-plot { position: relative; display: flex; align-items: flex-end; gap: 2px; height: 2.6rem; border-bottom: 1px solid var(--line); }
+.vh-plot i { flex: 1; min-width: 0; border-radius: 2px 2px 0 0; }
+.vh-plot i.own { background: var(--accent); }
+.vh-plot i.rest { background: color-mix(in srgb, var(--fg) 40%, transparent); }
+.vh-plot i.wrong { background: var(--warn); }
+.vh-th { position: absolute; top: -0.2rem; bottom: -0.2rem; width: 2px; margin-left: -1px; background: var(--err); }
+.vh-axis .vh-plot { height: 1.1rem; border-bottom: 0; }
+.vh-axis .vh-plot span { position: absolute; top: 0; transform: translateX(-50%); }
+.vh-axis .vh-plot span:first-child { transform: none; }
+.vh-axis .vh-plot span:last-child { transform: translateX(-100%); }

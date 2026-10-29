@@ -178,7 +178,7 @@ export async function setPassword(id: string, base: string, user: string, passwo
   setCred(user, password)
 }
 
-export type Features = { wifi?: boolean; led_preview?: boolean; moments?: boolean; videos?: boolean; packs?: boolean }
+export type Features = { wifi?: boolean; led_preview?: boolean; moments?: boolean; videos?: boolean; packs?: boolean; voices?: boolean }
 export type Net = { id: number; ssid: string; security: string; priority: number; disabled: boolean; hidden: boolean }
 /** A moment's candidate: a reference ("wink", "anim:media/Like", "scenario:startup") or a sequence. */
 /** A step of a sequence (docs/asset-packs.md): what it shows and plays at once; a step with none is a pause. */
@@ -416,3 +416,77 @@ export const vitals = (id: string, base: string) => authed<Vitals>(id, base, '/a
 export const syncState = (id: string, base: string) => authed<SyncState>(id, base, '/api/sync')
 export const setSync = (id: string, base: string, kind: SyncKind, item: string, on: boolean) =>
   authed<SyncState>(id, base, '/api/sync', { method: 'POST', body: JSON.stringify({ kind, item, on }) })
+
+/** Voice ID (docs/voice-id.md): a group of voiceprints the store thinks are one voice. */
+export type VoiceGroup = {
+  id: string
+  /** set by the owner: one of the household */
+  name?: string
+  /** the "not a person" group: false wakes, noise, silence */
+  noise?: boolean
+  count: number
+  /** the members' mean P(female); -1: no classifier */
+  female: number
+  gender: 'male' | 'female' | 'unknown'
+  /** the newest member's time, unix ms */
+  last: number
+  speakers: string[] | null
+}
+/** GET /api/voices: every speaker with voice ID says where the store is; the store adds the album. */
+export type Voices = {
+  on: boolean
+  store: boolean
+  threshold: number
+  model?: string
+  people?: number
+  ignore_guests?: boolean
+  store_id?: string
+  groups?: VoiceGroup[]
+  entries?: number
+}
+/** A request in the store's log (verdict: a name, guest or unknown — what the speaker decided). */
+export type VoiceEntry = {
+  id: string
+  at: number
+  speaker: string
+  src?: string
+  transcript?: string
+  ignored?: boolean
+  secs: number
+  female: number
+  age: number
+  model?: string
+  verdict?: string
+  score: number
+  group: string
+  pinned?: boolean
+}
+export type VoicePreviewRow = {
+  id: string
+  at: number
+  speaker: string
+  transcript?: string
+  group: string
+  score: number
+  closest?: string
+  state: 'known' | 'guest' | 'unknown'
+  name?: string
+}
+export type VoicePreview = { threshold: number; people: number; guests: number; rows: VoicePreviewRow[] | null }
+export const voices = (id: string, base: string) => authed<Voices>(id, base, '/api/voices')
+export const voiceLog = (id: string, base: string, group: string, limit: number) =>
+  authed<VoiceEntry[] | null>(id, base, `/api/voices/log?group=${encodeURIComponent(group)}&limit=${limit}`)
+export const voicePreview = (id: string, base: string, threshold: number) =>
+  authed<VoicePreview>(id, base, '/api/voices/preview?threshold=' + threshold.toFixed(2))
+type Ok = { ok: boolean }
+/** renameVoice: an empty name unnames the group (its requests stay together). */
+export const renameVoice = (id: string, base: string, group: string, name: string) =>
+  authed<Ok>(id, base, '/api/voices/groups/' + encodeURIComponent(group), { method: 'POST', body: JSON.stringify({ name }) })
+export const forgetVoice = (id: string, base: string, group: string) =>
+  authed<Ok & { forgotten: number }>(id, base, '/api/voices/groups/' + encodeURIComponent(group), { method: 'DELETE' })
+export const mergeVoices = (id: string, base: string, from: string, into: string) =>
+  authed<Ok>(id, base, '/api/voices/merge', { method: 'POST', body: JSON.stringify({ from, into }) })
+/** moveVoiceEntry: to a group id, "noise" or "new" (a person of its own). */
+export const moveVoiceEntry = (id: string, base: string, entry: string, group: string) =>
+  authed<Ok>(id, base, '/api/voices/entries/' + encodeURIComponent(entry), { method: 'POST', body: JSON.stringify({ group }) })
+export const forgetAllVoices = (id: string, base: string) => authed<Ok>(id, base, '/api/voices', { method: 'DELETE' })

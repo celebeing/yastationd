@@ -46,6 +46,7 @@ type voiceSession struct {
 	speechOne sync.Once
 	lvl       hw.LevelMeter // what we sent, to judge mic gain
 	src       string        // what started it (srcKey, srcWake, srcFollow)
+	take      *voiceTake    // its voiceprint (voice ID; nil when off)
 }
 
 // heldWake is a wake word that interrupted a pending reply: its speech is buffered while the
@@ -56,6 +57,15 @@ type heldWake struct {
 	sink  func([]byte) // set once the new session runs: forwards live audio
 	unsub func()
 	timer *time.Timer
+	take  *voiceTake // the voiceprint of the wake word's voice (voice ID; nil when off)
+}
+
+// drop gives up on the held speech: no session will take it.
+func (h *heldWake) drop() {
+	if h.unsub != nil {
+		h.unsub()
+	}
+	h.take.end()
 }
 
 func (h *heldWake) add(pcm []byte) {
@@ -99,8 +109,8 @@ func (s *satellite) startListeningWith(src string, held *heldWake) {
 		a.publishDisplayMode()
 	}
 	drop := func() { // not starting: the held speech goes nowhere
-		if held != nil && held.unsub != nil {
-			held.unsub()
+		if held != nil {
+			held.drop()
 		}
 	}
 	s.mu.Lock()
@@ -154,8 +164,12 @@ func (s *satellite) startListeningWith(src string, held *heldWake) {
 	if held != nil {
 		held.attach(send)
 		v.unsub = held.unsub
+		v.take = held.take
 	} else {
 		v.unsub = a.wakeAudio(nil, send)
+	}
+	if v.take == nil {
+		v.take = a.voiceTakeAt(nil, src)
 	}
 	go func() {
 		select {
@@ -358,10 +372,21 @@ func (s *satellite) stopListening(v *voiceSession, why string) {
 		v.unsub()
 		v.conn.Send(wyoming.Event{Type: wyoming.TypeAudioStop})
 		close(v.done)
+		s.a.voiceFinal(v.take)
 		st := v.lvl.Stats()
 		s.a.log.Info("voice: stopped listening", "why", why, "secs", st.Seconds,
 			"peak_dbfs", st.PeakDBFS, "loud_rms_dbfs", st.LoudDBFS, "floor_rms_dbfs", st.FloorDBFS)
 	})
+}
+
+// noteTranscript keeps HA's transcript with c's session's voiceprint (voice ID's log).
+func (s *satellite) noteTranscript(c *wyoming.Conn, text string) {
+	s.mu.Lock()
+	v := s.listen
+	s.mu.Unlock()
+	if v != nil && v.conn == c {
+		v.take.noteTranscript(text)
+	}
 }
 
 // endListeningOn stops the session if it runs on c (transcript/error/disconnect from HA).

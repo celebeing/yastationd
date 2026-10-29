@@ -16,10 +16,14 @@ const OPTIONS: Record<string, { group: string; doc: string }> = {
   animation_duration: { group: 'display', doc: 'How long an expression or ring animation started from Home Assistant plays.' },
   ambilight_fx_brightness: { group: 'ambilight', doc: "The ambilight's brightness under the music effects." },
   follow_up: { group: 'voice', doc: 'Whether the speaker listens again after it answers, for a reply without the wake word.' },
+  voice_ignore_guests: {
+    group: 'voice_id',
+    doc: "Requests from voices the household doesn't know are ignored before they reach Home Assistant: the speaker shows the voice_guest moment instead. Needs at least one named person in the Voices tab.",
+  },
 }
 
 // Config keys shown right after an option of the same section, not among the section's keys.
-const AFTER: Record<string, string> = { auto_brightness_min: 'clock_brightness' }
+const AFTER: Record<string, string> = { auto_brightness_min: 'clock_brightness', voice_guest_threshold: 'voice_ignore_guests' }
 const optOrder = Object.keys(OPTIONS)
 
 type Ctx = { peer: Peer; base: string }

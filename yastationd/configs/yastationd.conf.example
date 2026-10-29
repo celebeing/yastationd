@@ -108,6 +108,15 @@ wyoming_port = 10700
 # Speakers that hear one «Алиса» agree which answers: the loudest (docs/wake-arbitration.md).
 # arbitration = true
 # arbitration_wait_ms = 300
+# Voice ID: who is talking, from the firmware's voiceprint model (docs/voice-id.md). One speaker
+# keeps the voices (voice_store); "ignore guests" itself is an HA switch / web app option.
+# voice_id              = false
+# voice_store           = false
+# voice_guest_threshold = 0.66
+# voice_guest_margin    = 0.02
+# voice_hold_ms         = 800
+# voice_unsure          = allow
+# voice_bio_dir         =
 # This speaker's own sensor calibrations, over the board's (docs/sensor-calibration.md):
 # lux_calibration = <reading>:<lux>, <reading>:<lux>
 # mic_spl_offset  = <dB SPL - dBFS>

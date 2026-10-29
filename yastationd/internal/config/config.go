@@ -140,6 +140,20 @@ type Config struct {
 	Arbitration     bool
 	ArbitrationWait time.Duration
 
+	// Voice ID (docs/voice-id.md): the firmware's voiceprint model tells who is talking. VoiceID
+	// turns it on; VoiceStore makes this speaker the one that keeps the log and the groups.
+	// GuestThreshold and GuestMargin decide when a voice is one of the household; VoiceHold is
+	// how much of the request after the wake word the check waits for when guests are ignored;
+	// VoiceUnsure what an unsure check does then ("allow" or "drop"). VoiceBio overrides where the
+	// models are.
+	VoiceID        bool
+	VoiceStore     bool
+	GuestThreshold float64
+	GuestMargin    float64
+	VoiceHold      time.Duration
+	VoiceUnsure    string
+	VoiceBio       string
+
 	// Logs off the speaker (internal/logship): the daemon's and the system's log lines go as
 	// syslog over TCP to LogRemote ("host:port"; "" = off); while it is unreachable they wait in
 	// a spool file on flash capped at LogSpoolKB.
@@ -332,6 +346,10 @@ func Default() Config {
 		LEDPreview:          true,
 		WebUser:             web.DefaultUser,
 		ArbitrationWait:     300 * time.Millisecond,
+		GuestThreshold:      0.66,
+		GuestMargin:         0.02,
+		VoiceHold:           800 * time.Millisecond,
+		VoiceUnsure:         "allow",
 		NetWatchdog:         10 * time.Minute,
 		NetWifiRecovery:     true,
 		NetWifiReconfigure:  2 * time.Minute,

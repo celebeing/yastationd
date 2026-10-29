@@ -37,6 +37,8 @@ type persistState struct {
 	// it false: with auto on, its level was unused, so it becomes 255 (auto reached that).
 	ClockMax    bool `json:"clock_bright_is_max,omitempty"`
 	MusicVolume int  `json:"music_volume"` // Music Assistant player volume 0..100 (volume "separate")
+	// VoiceIgnoreGuests: voice ID drops requests from voices the household doesn't know.
+	VoiceIgnoreGuests bool `json:"voice_ignore_guests,omitempty"`
 }
 
 func defaultState(ringBright, ambilightBright, clockBright int, clockAuto bool) persistState {

@@ -54,6 +54,7 @@ var Groups = []struct{ ID, Title, Page string }{
 	{"video", "Video", "general"},
 	{"initial", "A new speaker's first values", "general"},
 	{"voice", "Voice", "voice"},
+	{"voice_id", "Voice ID", "voice"},
 	{"identity", "Identity", "home"},
 	{"ha", "Home Assistant", "home"},
 	{"web", "Web app", "home"},
@@ -347,6 +348,29 @@ func init() {
 		overrideV("wake_model", textV(func(c *Config) *string { return &c.WakeModel }, nil)))
 	reg(Key{Name: "command_model", Group: "voice", Label: "Command model", Advanced: true, Doc: "Overrides the board's."},
 		overrideV("command_model", textV(func(c *Config) *string { return &c.CommandModel }, nil)))
+
+	// --- voice id ---
+	reg(Key{Name: "voice_id", Group: "voice_id", Label: "Recognise voices", Sync: true,
+		Doc: "Tells who is talking from the voice, with the speaker's own voiceprint model, on the speaker: no server, no cloud. HA gets the person's name (or guest), the gender and whether the voice is the household's, before it acts on the request. People appear by themselves in the Voices tab as they talk, to be named there; until someone is named every voice is unknown. Needs the firmware's voice models (Mini 3 0.369, Mini 3 Pro, Station 3; other firmware: make voice-models)."},
+		boolV(func(c *Config) *bool { return &c.VoiceID }))
+	reg(Key{Name: "voice_store", Group: "voice_id", Label: "Keep the voices here",
+		Doc: "This speaker keeps the log of requests and the voice groups for the whole household, and hosts the Voices tab; the others send it what they hear. Turn it on for one speaker, a Station 3 if there is one (more flash, a faster CPU). Voiceprints are biometric data: they stay on this speaker's flash and the home's broker."},
+		boolV(func(c *Config) *bool { return &c.VoiceStore }))
+	reg(Key{Name: "voice_guest_threshold", Group: "voice_id", Label: "Guest threshold", Runtime: true, Sync: true,
+		Doc: "How close a voice must be to a person's (cosine of the voiceprints, 0.40 to 0.90) to count as theirs; below it, a guest. Higher: fewer guests taken for the household, more of the household taken for guests. The Voices tab shows what a value would have done to the last requests. 0.66 is the firmware's own."},
+		floatV(0.4, 0.9, func(c *Config) *float64 { return &c.GuestThreshold }))
+	reg(Key{Name: "voice_guest_margin", Group: "voice_id", Label: "Margin over the runner-up", Runtime: true, Sync: true, Advanced: true,
+		Doc: "How much closer the voice must be to the best match than to the second person (0 to 0.2) to be taken for them; otherwise a guest."},
+		floatV(0, 0.2, func(c *Config) *float64 { return &c.GuestMargin }))
+	reg(Key{Name: "voice_hold_ms", Group: "voice_id", Label: "Check before sending", Runtime: true, Sync: true, Advanced: true,
+		Doc: "With guests ignored: how much of the request after «Алиса» the check waits for before the request goes to HA (0 to 2000 ms; 0 judges on the wake word alone). The speech is held meanwhile and sent at once after, so HA hears the end of the request no later than without the check; more speech makes the check surer."},
+		durV(0, 2000, time.Millisecond, func(c *Config) *time.Duration { return &c.VoiceHold }))
+	reg(Key{Name: "voice_unsure", Group: "voice_id", Label: "When unsure", Runtime: true, Sync: true, Advanced: true,
+		Doc: "With guests ignored: what happens when the check can't tell (too little speech, or the voiceprint failed): allow sends the request on, drop ignores it."},
+		enumV([]string{"allow", "drop"}, func(c *Config) *string { return &c.VoiceUnsure }))
+	reg(Key{Name: "voice_bio_dir", Group: "voice_id", Label: "Voice models", Advanced: true,
+		Doc: "Where the voiceprint models are (the firmware's bio_lingware). Empty: <cfw>/vendor/bio_lingware when there (make voice-models), else the firmware's /system/vendor/quasar/bio_lingware."},
+		textV(func(c *Config) *string { return &c.VoiceBio }, nil))
 
 	// --- identity ---
 	reg(Key{Name: "device_id", Group: "identity", Label: "Device ID",

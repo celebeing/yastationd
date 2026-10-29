@@ -45,6 +45,8 @@ type builder struct {
 	// not dBFS.
 	RoomSound bool
 	SoundSPL  bool
+	// VoiceID adds who is talking (docs/voice-id.md) and the ignore-guests switch.
+	VoiceID bool
 
 	mu            sync.Mutex
 	intercomPeers []string
@@ -294,6 +296,36 @@ func (b *builder) Entities() []Entity {
 			}
 			entities = append(entities, Entity{"sensor", s.obj, cfg})
 		}
+	}
+	if b.VoiceID {
+		entities = append(entities,
+			Entity{"sensor", "voice", map[string]any{
+				"name":                  "Voice",
+				"state_topic":           t.State("voice"),
+				"json_attributes_topic": t.State("voice_attr"),
+				"icon":                  "mdi:account-voice",
+			}},
+			Entity{"sensor", "voice_gender", map[string]any{
+				"name":        "Voice gender",
+				"state_topic": t.State("voice_gender"),
+				"icon":        "mdi:gender-male-female",
+			}},
+			Entity{"binary_sensor", "voice_known", map[string]any{
+				"name":        "Voice known",
+				"state_topic": t.State("voice_known"),
+				"payload_on":  "ON",
+				"payload_off": "OFF",
+				"icon":        "mdi:account-check",
+			}},
+			Entity{"switch", "voice_ignore_guests", map[string]any{
+				"name":            "Ignore guests",
+				"state_topic":     t.State("voice_ignore_guests"),
+				"command_topic":   t.Command("voice_ignore_guests"),
+				"payload_on":      "ON",
+				"payload_off":     "OFF",
+				"entity_category": "config",
+				"icon":            "mdi:account-cancel",
+			}})
 	}
 	if b.HasAmbilight {
 		entities = append(entities, Entity{"light", "ambilight", map[string]any{

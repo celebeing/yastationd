@@ -88,7 +88,7 @@ func (a *App) arbitrateWake(ev wake.Event) {
 		return
 	}
 	mine := arbClaim{ID: a.cfg().DeviceID, Level: round1(level + a.splOffset()), At: time.Now().UnixMilli()}
-	r := &arbRound{mine: mine, at: time.Now(), held: &heldWake{}}
+	r := &arbRound{mine: mine, at: time.Now(), held: &heldWake{take: a.voiceTakeAt(&ev, srcWake)}}
 	r.held.unsub = a.wakeAudio(&ev, r.held.add)
 	if b, err := json.Marshal(mine); err == nil {
 		a.publishEvent(a.topics.Arbitration(), string(b))
@@ -100,7 +100,7 @@ func (a *App) arbitrateWake(ev wake.Event) {
 	a.arb.mu.Lock()
 	if old := a.arb.open; old != nil && !old.done { // a second wake while one is open: keep the first
 		a.arb.mu.Unlock()
-		r.held.unsub()
+		r.held.drop()
 		return
 	}
 	a.arb.open = r
@@ -142,7 +142,7 @@ func (a *App) decide(r *arbRound) {
 	}
 	a.arb.mu.Unlock()
 	if winner.ID != r.mine.ID {
-		r.held.unsub()
+		r.held.drop()
 		a.log.Info("arbitration: lost", "to", winner.ID, "their_level", winner.Level, "mine", r.mine.Level)
 		a.moment("voice", "arbitration_lost", 0)
 		return

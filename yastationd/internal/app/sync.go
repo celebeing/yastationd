@@ -57,7 +57,7 @@ func (a *App) sharedBus() publisher {
 
 // syncOptions are the HA config entities that can be shared (those this board has).
 var syncOptions = []string{"auto_brightness", "clock_brightness", "text_duration", "animation_duration", "follow_up",
-	"ambilight_fx_brightness"}
+	"ambilight_fx_brightness", "voice_ignore_guests"}
 
 // sharedNow: the At of a change, unix ms, never repeating on this speaker (a rejected value is
 // known by its At, so two changes in one millisecond must differ).

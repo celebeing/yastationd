@@ -40,6 +40,9 @@ func (a *App) commands() map[string]func([]byte) {
 		c["ambilight_fx_brightness"] = a.cmdAmbilightFxBrightness
 		c["ambilight_fx_effect"] = a.cmdAmbilightFxEffect
 	}
+	if a.vid != nil {
+		c["voice_ignore_guests"] = a.cmdVoiceIgnoreGuests
+	}
 	a.shareOptions(c)
 	return c
 }
@@ -70,6 +73,12 @@ func (a *App) subscribe() {
 	a.mqtt.Subscribe(t.Arbitration(), a.onArbitrationClaim)
 	a.mqtt.SubscribeTopic(t.WebInfoAll(), a.onWebInfo)
 	a.syncSubscribe()
+	if a.vid != nil {
+		a.mqtt.Subscribe(t.VoicePeople(), a.onVoicePeople)
+	}
+	if a.vstore != nil {
+		a.mqtt.Subscribe(t.VoiceEvents(), a.onVoiceEvent)
+	}
 }
 
 // ring: HA JSON light schema {state, brightness, color:{r,g,b}, effect}.

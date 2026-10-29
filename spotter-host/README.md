@@ -27,6 +27,7 @@ yastationd passes them from its board profile; see [`../docs/boards/README.md`](
 | `spotter_host.c` | The host. `probe` = model channel requirements; `run` = PCM on stdin to events; `vqe` = raw `hw:0,1` capture through the VQE to 16 kHz PCM; `listen` = raw `hw:0,1` capture, then VQE, then wake + command spotters, then event lines |
 
 `-m DIR` points the VQE at its model directory (default `/system/vendor/quasar/vqe_models`); the call mode (`-C 1`) loads `DIR/noise_reducer/model.nnet`, which firmware 3.21 doesn't ship (docs/intercom.md, "The VQE call mode").
+| `voiceprint.c` | `voice <bio_lingware>`: the firmware's voice biometry for voice ID — fbank, the ECAPA `body`/`head` through the vendor's `libtflite.so` (`dlopen`, its own op resolver), commands on stdin, `VOICE` lines on stdout ([docs/voice-id.md](../docs/voice-id.md)) |
 | `build.sh` | Cross-build: `ARCH=armhf` (bergamot, links the **device's** glibc 2.30, see below) or `ARCH=aarch64` (pickle; plain dynamic link, RPATH so the lib's `libtflite.so` resolves) |
 | `tools/listen.sh` | The on-device live test (wraps `arecord` + `listen`, adds wall-clock timestamps) |
 | `tools/hwfree.sh` | Checks that `hw:0,1` is free: no `arecord` running, and `yastationd` doesn't hold `pcmC0D1c` |

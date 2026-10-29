@@ -120,6 +120,8 @@ func (a *App) webHandler() http.Handler {
 	api.HandleFunc("/api/calibrate/light", a.authed(a.apiLightCal))
 	api.HandleFunc("/api/packs", a.authed(a.apiPacks))
 	api.HandleFunc("/api/packs/", a.authed(a.apiPacks))
+	api.HandleFunc("/api/voices", a.authed(a.apiVoices))
+	api.HandleFunc("/api/voices/", a.authed(a.apiVoices))
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", cors(api))
