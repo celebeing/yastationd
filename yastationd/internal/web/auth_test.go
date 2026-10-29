@@ -29,11 +29,13 @@ func TestTokensAndThrottle(t *testing.T) {
 	tk := Tokens{TTL: time.Hour}
 	tk.SetKey(TokenKey(secret, "admin", ""))
 	a := tk.New()
-	flip := "A" // a changed last character (never the one it has)
-	if a[len(a)-1] == 'A' {
+	// a token with one character changed (in the middle: a last base64 character's low bits may
+	// be padding, so changing it may not change the token)
+	mid, flip := len(a)/2, "A"
+	if a[mid] == 'A' {
 		flip = "B"
 	}
-	if !tk.Valid(a) || tk.Valid("nope") || tk.Valid("") || tk.Valid(a[:len(a)-1]+flip) {
+	if !tk.Valid(a) || tk.Valid("nope") || tk.Valid("") || tk.Valid(a[:mid]+flip+a[mid+1:]) {
 		t.Fatal("tokens")
 	}
 	again := Tokens{TTL: time.Hour} // a restart: same secret and login, nothing else kept
