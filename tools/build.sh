@@ -11,6 +11,8 @@
 #   dropbear          the SSH server          dropbear/build/dropbearmulti          (zig)
 #   sendspin:<arch>   the music player        sendspin-host/build/<arch>/sendspin-host (zig; armhf | aarch64)
 #   spotter:<arch>    the voice front-end     spotter-host/build/<arch>/spotter-host   (cross gcc + a vendor sysroot)
+#   packtool          the asset-pack checker  yastationd/build/packtool  (go; for this host, not the speakers;
+#                     builds and checks packs: docs/asset-packs.md)
 #   sendspin, spotter both arches; all = web yastationd hostapd dropbear sendspin spotter
 #
 # spotter-host links the vendor's libraries: it needs SPOTTER_SYSROOT_ARMHF / SPOTTER_SYSROOT_AARCH64
@@ -81,6 +83,13 @@ build_yastationd() {
 	echo "== yastationd"
 	# WEB_SRC= : the app was just built if stale; the Makefile must not call docker from in here.
 	run go yastationd 'make -s test build WEB_SRC='
+}
+
+# packtool runs on the host that builds packs (the asset repo's tools/build-packs.sh), so it is
+# built for the builder's own platform, not the speakers'.
+build_packtool() {
+	echo "== packtool"
+	run go yastationd 'CGO_ENABLED=0 GOOS=linux GOARCH=$(go env GOHOSTARCH) GOARM= go build -o build/packtool ./cmd/packtool'
 }
 
 build_dropbear() {
@@ -154,6 +163,7 @@ for t in "$@"; do
 	yastationd) build_yastationd ;;
 	hostapd) build_hostapd ;;
 	dropbear) build_dropbear ;;
+	packtool) build_packtool ;;
 	sendspin)
 		build_sendspin armhf
 		build_sendspin aarch64

@@ -3,6 +3,12 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Build**
+- `tools/build.sh packtool` builds the asset-pack checker in the Go container, so building packs
+  needs only docker, not Go on the host.
+
 ## v0.21.2 — 2026-10-29
 
 **Your own packs** ([docs/asset-packs.md](docs/asset-packs.md))

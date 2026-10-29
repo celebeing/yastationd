@@ -37,6 +37,7 @@ tools/build.sh web hostapd
 | `dropbear` | `dropbear/build/dropbearmulti` (static aarch64, every board; [dropbear/README.md](../dropbear/README.md)) |
 | `sendspin:<arch>` | `sendspin-host/build/<arch>/sendspin-host` |
 | `spotter:<arch>` | `spotter-host/build/<arch>/spotter-host` |
+| `packtool` | `yastationd/build/packtool` (for the building host, not the speakers: the asset-pack checker) |
 
 - Each target is a `docker run` of its image with the repo mounted **at its own path** (so the
   CMake caches of `sendspin-host` stay valid in and out of the container), as the calling user.
@@ -108,8 +109,10 @@ versions installed by hand they work on a host (`make -C yastationd test build`,
 
 ## Host tools
 
-Not shipped to a speaker; they run on the host with the Go toolchain: `cmd/packtool` builds and
-checks an asset pack (`make -C yastationd pack PACK=<dir or .zip>`,
-[asset-packs.md](asset-packs.md)), `cmd/videoconv` converts a video (`make video-convert`,
+Not shipped to a speaker; they run on the host: `cmd/packtool` builds and checks an asset pack
+(`tools/build.sh packtool` builds it in the Go container, no Go on the host needed; then
+`yastationd/build/packtool [-o x.zip] <dir or .zip>`; with Go installed, `make -C yastationd pack
+PACK=<dir or .zip>` does both; [asset-packs.md](asset-packs.md)). The others need the Go
+toolchain: `cmd/videoconv` converts a video (`make video-convert`,
 [video-mode.md](video-mode.md)), `cmd/ledsim` and `cmd/demoreel` simulate the LEDs
 ([led-preview.md](led-preview.md)).
