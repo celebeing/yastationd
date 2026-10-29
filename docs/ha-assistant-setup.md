@@ -150,6 +150,42 @@ failure.
 - **Colloquial time** ("half past five") is not an LLM job: models parrot the prompt's examples or
   get it wrong. Use a deterministic template response for the time intent.
 
+### Telling the agent who is talking (voice ID)
+
+With voice ID on ([voice-id.md](voice-id.md)) every speaker has `sensor.<speaker>_voice`: the
+person of the household, `guest` or `unknown`, set from «Алиса» and the start of the request before
+HA's STT is done. HA itself never passes it on: Wyoming has no field for it, and a voice request
+carries no user. The agent's prompt is a template rendered on every turn, and `llm_context.device_id`
+there is the satellite the request came from, so one line in the prompt tells the agent who is
+speaking *at that speaker*:
+
+```jinja
+{%- set sat = llm_context.device_id if llm_context is defined and llm_context.device_id else none -%}
+{%- set ns = namespace(v=none) -%}
+{%- if sat -%}
+  {%- for s in states.sensor | selectattr('entity_id', 'match', '.*_voice$') -%}
+    {%- set d = device_id(s.entity_id) -%}
+    {%- if device_attr(d, 'name') == device_attr(sat, 'name') or (area_id(d) and area_id(d) == area_id(sat) and not ns.v) -%}
+      {%- set ns.v = s.state -%}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endif -%}
+{%- if ns.v and ns.v not in ['unknown', 'unavailable'] -%}
+Сейчас говорит: {{ 'гость (чужой голос)' if ns.v == 'guest' else ns.v }}.
+{%- else -%}
+Кто говорит, неизвестно.
+{%- endif -%}
+```
+
+- The satellite (the Wyoming integration's device) and the sensor (the speaker's MQTT device) are two
+  HA devices; the template pairs them by name, else by area. Give each speaker its area (one voice
+  sensor per area), or the same name in both integrations.
+- Then the prompt can use it: "«моя комната» — комната того, кто говорит", and a policy for guests
+  (no personal reminders or calendars, no locks). It is a soft guard: for a hard one, turn on
+  **Ignore guests**, which keeps a guest's request from reaching HA at all.
+- Checked on HA 2026.9 with `render_template` and `llm_context` given as a variable: each satellite
+  got its own speaker's verdict.
+
 ### Choosing models
 
 - **STT:** latency matters more than benchmark WER, because every command waits for it. A

@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import * as api from './api'
-import type { Peer, SyncKind, SyncState, VoiceEntry, VoiceGroup, VoicePreview, Voices } from './api'
-import { ShareSwitch } from './settings'
+import type { Entity, Peer, SettingKey, VoiceEntry, VoiceGroup, VoicePreview, Voices } from './api'
+import { SettingRows } from './settings'
 
 // Configuration → People (docs/voice-id.md, "voices like faces in a photo album"). One speaker (the
 // store, voice_store) keeps every speaker's requests and groups their voiceprints into people; the
 // owner names, merges, moves and forgets here. Every other speaker shows where the store is.
 
-type Props = { peer: Peer; base: string; peers: Peer[]; onSwitch: (id: string) => void }
+type Props = { peer: Peer; base: string; peers: Peer[]; onSwitch: (id: string) => void; ents: Entity[] | null; reloadState: () => void }
 
 const NOISE = 'noise'
 const err2s = (e: any) => e?.message || String(e)
@@ -518,37 +518,39 @@ const HLO = 0.2,
   HSTEP = 0.05,
   HBINS = 16
 
-// The guests card: Ignore guests and the guest threshold themselves (the same settings as in
-// Configuration → Voice, with their share switches), and what the threshold does to the last
-// requests. Dragging the slider previews; letting go saves the threshold.
-function Preview(p: Props & { v: Voices; L: Labels; named: VoiceGroup[]; tick: number; speakerName: (id: string) => string; reload: () => Promise<void> }) {
+// The guests card: Ignore guests and the guest threshold themselves, drawn by the settings page's
+// own rows (SettingRows: the same switch, share switch and paragraph), and what the threshold does
+// to the last requests. Dragging the slider previews; letting go saves the threshold.
+function Preview(
+  p: Props & { v: Voices; L: Labels; named: VoiceGroup[]; tick: number; speakerName: (id: string) => string; reload: () => Promise<void> },
+) {
   const [th, setTh] = useState(() => Math.min(TMAX, Math.max(TMIN, p.v.threshold)))
   const [pv, setPv] = useState<VoicePreview | null>(null)
   const [err, setErr] = useState('')
-  const [sync, setSync] = useState<SyncState | null>(null)
-  const [saving, setSaving] = useState(false)
-  const loadSync = () => api.syncState(p.peer.id, p.base).then(setSync, () => setSync(null))
-  useEffect(() => {
-    loadSync()
-  }, [p.peer.id])
-  useEffect(() => setTh(Math.min(TMAX, Math.max(TMIN, p.v.threshold))), [p.v.threshold])
-  async function run(f: () => Promise<unknown>) {
-    setSaving(true)
-    setErr('')
-    try {
-      await f()
-    } catch (e) {
-      setErr(err2s(e))
-    }
-    await Promise.all([p.reload(), loadSync()])
-    setSaving(false)
-  }
-  const share = (kind: SyncKind, item: string, on: boolean) => run(() => api.setSync(p.peer.id, p.base, kind, item, on))
-  const saveThreshold = (x: number) => {
-    if (Math.abs(x - p.v.threshold) > 0.004) run(() => api.putSettings(p.peer.id, p.base, { voice_guest_threshold: [x.toFixed(2)] }))
-  }
-  const setIgnore = (on: boolean) => run(() => api.control(p.peer.id, p.base, 'voice_ignore_guests', on ? 'ON' : 'OFF'))
   const timer = useRef<number | undefined>(undefined)
+  const saveTimer = useRef<number | undefined>(undefined)
+  const slider = (k: SettingKey, value: string[], commit: (v: string[]) => void) => (
+    <span class="row tight">
+      <input
+        type="range"
+        aria-label={k.label}
+        min={TMIN}
+        max={TMAX}
+        step={0.01}
+        value={th}
+        onInput={(e) => setTh(Number(e.currentTarget.value))}
+        onChange={(e) => {
+          // saved once the slider rests: arrow keys fire change per step, and a shared value goes
+          // over MQTT to every speaker on each save
+          const x = Number(e.currentTarget.value).toFixed(2)
+          clearTimeout(saveTimer.current)
+          saveTimer.current = setTimeout(() => x !== Number(value[0]).toFixed(2) && commit([x]), 700) as unknown as number
+        }}
+        aria-valuetext={th.toFixed(2)}
+      />
+      <b class="vth">{th.toFixed(2)}</b>
+    </span>
+  )
   useEffect(() => {
     let live = true
     clearTimeout(timer.current)
@@ -578,37 +580,21 @@ function Preview(p: Props & { v: Voices; L: Labels; named: VoiceGroup[]; tick: n
   return (
     <section class="card">
       <h3>Guests</h3>
-      <p class="muted small">
-        The same settings as in <a href="#voice">Configuration → Voice</a>. <b>Ignore guests</b>: a request from a voice that is not the
-        household's never reaches Home Assistant; the speaker shows the voice_guest moment instead. <b>Guest threshold</b>: how close a voice
-        must be to a household person's to count as theirs; below it, a guest. Drag the slider to see what a value does to the last requests
-        below; letting go saves it.
-      </p>
-      <div class="row vguest">
-        <label class="vcheck">
-          <input type="checkbox" checked={!!p.v.ignore_guests} disabled={saving} onChange={(e) => setIgnore(e.currentTarget.checked)} /> Ignore guests
-        </label>
-        <ShareSwitch sync={sync} kind="option" item="voice_ignore_guests" onShare={share} />
-      </div>
-      <div class="row vguest">
-        <label class="field" for="vth">
-          Guest threshold
-        </label>
-        <input
-          id="vth"
-          type="range"
-          min={TMIN}
-          max={TMAX}
-          step={0.01}
-          value={th}
-          disabled={saving}
-          onInput={(e) => setTh(Number(e.currentTarget.value))}
-          onChange={(e) => saveThreshold(Number(e.currentTarget.value))}
-          aria-valuetext={th.toFixed(2)}
-        />
-        <b class="vth">{th.toFixed(2)}</b>
-        <ShareSwitch sync={sync} kind="setting" item="voice_guest_threshold" onShare={share} />
-      </div>
+      <SettingRows
+        peer={p.peer}
+        base={p.base}
+        ents={p.ents}
+        reload={p.reloadState}
+        options={['voice_ignore_guests']}
+        keys={['voice_guest_threshold']}
+        control={{ voice_guest_threshold: slider }}
+        onKeys={(ks) => {
+          const k = ks[0]
+          if (k) setTh(Math.min(TMAX, Math.max(TMIN, Number(k.value[0]))))
+          p.reload()
+        }}
+      />
+      <p class="muted small">Drag the threshold to see below what it would do to the last requests; letting go saves it.</p>
       {err && <p class="err">{err}</p>}
       {!pv ? (
         <p class="muted">…</p>

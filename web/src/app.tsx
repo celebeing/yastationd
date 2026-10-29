@@ -341,7 +341,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; peers: Peer[
       {tab === 'calibration' && <ConfigPage page="calibration" peer={peer} base={base} />}
       {(['moments', 'packs', 'sounds', 'videos'] as Tab[]).includes(tab) && <BehaviourHelp />}
       {tab === 'moments' && <MomentsTab peer={peer} base={base} />}
-      {tab === 'voices' && <VoicesTab peer={peer} base={base} peers={props.peers} onSwitch={props.onSwitch} />}
+      {tab === 'voices' && <VoicesTab peer={peer} base={base} peers={props.peers} onSwitch={props.onSwitch} ents={ents} reloadState={load} />}
       {tab === 'led' && <LedTab peer={peer} base={base} />}
       {tab === 'packs' && <PacksTab peer={peer} base={base} />}
       {tab === 'sounds' && <SoundsTab peer={peer} base={base} />}

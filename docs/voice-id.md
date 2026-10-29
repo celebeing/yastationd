@@ -70,8 +70,10 @@ been heard, before HA acts on it, and again on the whole request):
 - `binary_sensor.<speaker>_voice_known` — the household or not.
 - `switch.<speaker>_ignore_guests` — the option below (shareable like the other options).
 
-The LLM agent reads them through the prompt template (`speaker-id.md` §4 shows the shape);
-automations use them directly.
+The LLM agent learns who is talking from one templated line in its prompt, which finds the
+sensor of the speaker the request came from (`llm_context.device_id`;
+[ha-assistant-setup.md](ha-assistant-setup.md), "Telling the agent who is talking"); automations use
+the sensors directly.
 
 **Ignore guests** (the switch; in the web app with the Voice settings): a request from a voice
 that is not one of the household never reaches HA; the `voice_guest` moment shows that it was

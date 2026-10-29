@@ -18,7 +18,7 @@ const OPTIONS: Record<string, { group: string; doc: string }> = {
   follow_up: { group: 'voice', doc: 'Whether the speaker listens again after it answers, for a reply without the wake word.' },
   voice_ignore_guests: {
     group: 'voice_id',
-    doc: "Requests from voices the household doesn't know are ignored before they reach Home Assistant: the speaker shows the voice_guest moment instead. Needs at least one named person in the Voices tab.",
+    doc: "Requests from voices the household doesn't know are ignored before they reach Home Assistant: the speaker shows the voice_guest moment instead. Needs at least one voice marked as the household in the People tab.",
   },
 }
 
@@ -213,6 +213,79 @@ const INTRO: Record<ConfigPageID, string> = {
   intercom: 'Calls between the speakers.',
   wifi: '',
   calibration: '',
+}
+
+/** SettingRows: some options and keys rendered exactly as on their settings page (the row, the
+ * same control, the share switch, the paragraph), for another tab that edits them in place (the
+ * People tab's guests). control overrides a key's control (a slider that also previews); onKeys
+ * gets the keys after every load. Runtime keys only: a restart key is edited on its page. */
+export function SettingRows(
+  p: Ctx & {
+    ents: Entity[] | null
+    reload?: () => void
+    options: string[]
+    keys: string[]
+    control?: Record<string, (k: SettingKey, value: string[], commit: (v: string[]) => void) => any>
+    onKeys?: (keys: SettingKey[]) => void
+  },
+) {
+  const { s, sync, err, setErr, load, share } = useSettings(p)
+  useEffect(() => {
+    if (s && p.onKeys) p.onKeys(s.keys.filter((k) => p.keys.includes(k.name)))
+  }, [s])
+  if (!s) return err ? <p class="err">{err}</p> : <p class="muted">…</p>
+  async function commit(k: SettingKey, v: string[]) {
+    setErr('')
+    try {
+      await api.putSettings(p.peer.id, p.base, { [k.name]: v.length && isDefault(k, v) && !k.set ? [] : v })
+    } catch (e: any) {
+      setErr(`${k.label}: ${e.message || e}`)
+    }
+    await load()
+  }
+  async function send(e: Entity, payload: string) {
+    setErr('')
+    try {
+      await api.control(p.peer.id, p.base, e.object, payload)
+      setTimeout(() => p.reload?.(), 300)
+    } catch (x: any) {
+      setErr(`${name(e)}: ${x.message || x}`)
+    }
+  }
+  return (
+    <div class="settings">
+      {err && <p class="err">{err}</p>}
+      {p.options.map((o) => {
+        const e = (p.ents || []).find((x) => x.object === o)
+        return (
+          e && (
+            <Row
+              label={name(e)}
+              doc={OPTIONS[o]?.doc || ''}
+              control={<Control e={e} send={(v) => send(e, v)} />}
+              share={sync?.option_ids.includes(o) && <ShareSwitch sync={sync} kind="option" item={o} onShare={share} />}
+            />
+          )
+        )
+      })}
+      {p.keys.map((n) => {
+        const k = s.keys.find((x) => x.name === n)
+        if (!k) return null
+        const c = (v: string[]) => commit(k, v)
+        return (
+          <Row
+            label={k.label}
+            doc={k.doc}
+            note={defaultNote(k, k.changed)}
+            changed={k.changed}
+            onReset={() => c([])}
+            control={p.control?.[n] ? p.control[n](k, k.value, c) : <KeyControl k={k} value={k.value} commit={c} />}
+            share={k.sync && <ShareSwitch sync={sync} kind="setting" item={k.name} onShare={share} />}
+          />
+        )
+      })}
+    </div>
+  )
 }
 
 export function ConfigPage(p: Ctx & { page: ConfigPageID; ents?: Entity[]; reload?: () => void }) {

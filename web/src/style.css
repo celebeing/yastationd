@@ -334,5 +334,3 @@ h3.vsub { margin-top: 1rem; }
 .vh-axis .vh-plot span { position: absolute; top: 0; transform: translateX(-50%); }
 .vh-axis .vh-plot span:first-child { transform: none; }
 .vh-axis .vh-plot span:last-child { transform: translateX(-100%); }
-.row.vguest { align-items: center; gap: 0.75rem; flex-wrap: wrap; }
-.vcheck { display: inline-flex; align-items: center; gap: 0.4rem; }
