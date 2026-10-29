@@ -229,44 +229,77 @@ export function PacksTab({ peer, base }: { peer: Peer; base: string }) {
   )
 }
 
+type PackImport = { file: string; error?: string }
+
 function AddPack(p: { peer: Peer; base: string; max: number; onDone: () => void; onErr: (e: string) => void }) {
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
+  const [active, setActive] = useState(-1)
   const [pct, setPct] = useState(-1)
-  const [msg, setMsg] = useState('')
+  const [imports, setImports] = useState<PackImport[]>([])
   async function go() {
-    if (!file) return
-    setMsg('')
+    if (!files.length) return
+    setImports([])
     p.onErr('')
-    try {
-      if (file.size > p.max) throw new Error(`over ${p.max >> 20} MB`)
+    let installed = false
+    for (const [i, file] of files.entries()) {
+      setActive(i)
       setPct(0)
-      await api.uploadAsset(p.peer.id, p.base, '/api/packs', file, (n) => setPct(n / file.size))
-      setMsg(`${file.name}: installed. Turn it on to wear it.`)
-      setFile(null)
-      p.onDone()
-    } catch (e: any) {
-      setMsg(e.message || String(e))
+      try {
+        if (file.size > p.max) throw new Error(`over ${p.max >> 20} MB`)
+        await api.uploadAsset(p.peer.id, p.base, '/api/packs', file, (n) => setPct(n / file.size))
+        installed = true
+        setImports((r) => [...r, { file: file.name }])
+      } catch (e: unknown) {
+        const error = e instanceof Error ? e.message : String(e)
+        setImports((r) => [...r, { file: file.name, error }])
+      }
     }
+    setActive(-1)
     setPct(-1)
+    setFiles([])
+    if (installed) p.onDone()
   }
+  const importing = active >= 0
+  const selected = files.length === 1 ? '1 pack selected' : `${files.length} packs selected`
   return (
     <section class="card">
-      <h3>Add a pack</h3>
-      <p class="muted small">A pack is a .zip with pack.json at its root (docs/asset-packs.md). Its files are checked on the speaker before it is installed.</p>
+      <h3>Import packs</h3>
+      <p class="muted small">
+        Choose one or more .zip packs. Each is checked and installed separately, so a rejected pack does not stop the rest.
+      </p>
       <div class="row">
-        <input type="file" accept=".zip,application/zip" aria-label="Pack archive" onChange={(e) => setFile(e.currentTarget.files?.[0] || null)} />
-        <button class="primary" disabled={!file || pct >= 0} onClick={go}>
-          Upload
+        <input
+          type="file"
+          accept=".zip,application/zip"
+          multiple
+          aria-label="Pack archives"
+          disabled={importing}
+          onChange={(e) => {
+            setFiles(Array.from(e.currentTarget.files || []))
+            e.currentTarget.value = ''
+          }}
+        />
+        <button class="primary" disabled={!files.length || importing} onClick={go}>
+          {importing ? 'Importing…' : 'Import'}
         </button>
       </div>
-      {pct >= 0 && (
-        <div class="progress">
-          Uploading <span class="gauge">
+      {files.length > 0 && !importing && <p class="small muted">{selected}</p>}
+      {importing && (
+        <div class="progress" aria-live="polite">
+          Importing {active + 1} of {files.length}: {files[active].name} <span class="gauge">
             <i style={{ width: `${Math.round(pct * 100)}%` }} />
           </span>
         </div>
       )}
-      {msg && <p class="small">{msg}</p>}
+      {imports.length > 0 && (
+        <ul class="small">
+          {imports.map((r) => (
+            <li class={r.error ? 'err' : ''}>
+              {r.file}: {r.error || 'installed.'}
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }

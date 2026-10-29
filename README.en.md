@@ -84,10 +84,10 @@ packs replace any animation and add sounds to any event.
   text and a sound, at once or in steps with pauses. The last step can hold while the event lasts
   (a call's ring tone). A sound or an animation can be a list: each showing plays one at random.
 - **Packs** are .zip archives of animations (for the Station 3 screen and the Minis' clock),
-  sounds and moments. **Behaviour → Packs** installs them and stacks them in layers: the built-in
-  behaviour always at the bottom, the packs above in order, the top one wins. Each pack turns on
-  and off, and every speaker has its own. A pack is checked on the speaker, with the same checks
-  that play it, before it is installed.
+  sounds and moments. **Behaviour → Packs** imports one or more archives and stacks them in
+  layers: the built-in behaviour always at the bottom, the packs above in order, the top one
+  wins. Each pack turns on and off, and every speaker has its own. A pack is checked on the
+  speaker with the same checks that play it; one rejected archive does not cancel the others.
 - **Your own packs:** your moment changes, sounds and animations live in packs of yours: create,
   rename, export them as a .zip, install them on another speaker. **Behaviour → Moments** shows
   what each moment does now and which layer that comes from; Customize copies it into your pack

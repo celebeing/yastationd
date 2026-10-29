@@ -140,11 +140,12 @@ front for an animation the display lacks. The catalogue lists the sounds this sp
 Behaviour → Packs (`web/src/packs.tsx`): the theme stack this speaker wears (up/down, turn off),
 the built-in behaviour under it; **Your packs** (Animations, Turn on/off, Rename, Export,
 Remove; a new one by name); **Installed** (Animations, Turn on/off, Copy to my pack, Remove);
-upload a `.zip` (checked on the speaker). Behaviour → Sounds: every sound by name and the pack it
-comes from, Play (on the speaker), add one to one of the owner's packs (any audio the browser
-decodes, converted to WAV there) or remove one from it. Behaviour → Moments: "Edit in" one of the
-owner's packs; per moment the layer it comes from (a pack, or built-in), Play, Customize / Edit;
-a note when the moment comes from a pack above the one edited.
+import one or more `.zip` archives. The browser sends each archive separately and reports its
+own result, so a rejected pack never prevents the rest from installing. Behaviour → Sounds: every
+sound by name and the pack it comes from, Play (on the speaker), add one to one of the owner's
+packs (any audio the browser decodes, converted to WAV there) or remove one from it. Behaviour →
+Moments: "Edit in" one of the owner's packs; per moment the layer it comes from (a pack, or
+built-in), Play, Customize / Edit; a note when the moment comes from a pack above the one edited.
 
 The LED page's animation browser (`AnimBrowser` in `web/src/extra.tsx`, a column view) walks the
 animations as folders: "In force" (the firmware's and the worn theme's, by the names moments use; the stock ones
