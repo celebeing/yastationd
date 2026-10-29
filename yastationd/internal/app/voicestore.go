@@ -62,6 +62,13 @@ func (a *App) newVoiceStore() *voiceStore {
 			if e.Pins != nil {
 				st.al.Edits.Pins = e.Pins
 			}
+			if e.Home != nil {
+				st.al.Edits.Home = e.Home
+			} else { // edits from before the household mark: a name made one
+				for id := range st.al.Edits.Names {
+					st.al.Edits.Home[id] = true
+				}
+			}
 		}
 	}
 	if f, err := os.Open(filepath.Join(st.dir, "log.jsonl")); err == nil {
@@ -208,7 +215,7 @@ type voiceEntryView struct {
 }
 
 // apiVoices: GET /api/voices (the groups, or where the store is), /api/voices/log, /api/voices/preview;
-// POST /api/voices/groups/<id> {name}, /api/voices/merge {from, into}, /api/voices/entries/<id> {group};
+// POST /api/voices/groups/<id> {name?, household?}, /api/voices/merge {from, into}, /api/voices/entries/<id> {group};
 // DELETE /api/voices/groups/<id> (forget a person), /api/voices (forget everything).
 func (a *App) apiVoices(w http.ResponseWriter, r *http.Request) {
 	rest := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/voices"), "/")
@@ -251,12 +258,25 @@ func (a *App) apiVoices(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(rest, "groups/"):
 		id := strings.TrimPrefix(rest, "groups/")
 		switch r.Method {
-		case http.MethodPost:
-			var req struct{ Name string }
+		case http.MethodPost: // {name} and/or {household}
+			var req struct {
+				Name      *string
+				Household *bool
+			}
 			if !readJSON(w, r, &req) {
 				return
 			}
-			a.voiceEdit(w, func(al *voiceid.Album) error { return al.Rename(id, strings.TrimSpace(req.Name)) })
+			a.voiceEdit(w, func(al *voiceid.Album) error {
+				if req.Name != nil {
+					if err := al.Rename(id, strings.TrimSpace(*req.Name)); err != nil {
+						return err
+					}
+				}
+				if req.Household != nil {
+					return al.SetHousehold(id, *req.Household)
+				}
+				return nil
+			})
 		case http.MethodDelete:
 			st.mu.Lock()
 			n := st.al.Forget(id)

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import * as api from './api'
 import type { Peer, VoiceEntry, VoiceGroup, VoicePreview, Voices } from './api'
 
-// Configuration → Voices (docs/voice-id.md, "voices like faces in a photo album"). One speaker (the
+// Configuration → People (docs/voice-id.md, "voices like faces in a photo album"). One speaker (the
 // store, voice_store) keeps every speaker's requests and groups their voiceprints into people; the
 // owner names, merges, moves and forgets here. Every other speaker shows where the store is.
 
@@ -49,7 +49,7 @@ export function VoicesTab(p: Props) {
   if (!v.on)
     return (
       <section class="card narrow">
-        <h3>Voices</h3>
+        <h3>People</h3>
         <p>
           Voice recognition is off on this speaker. Turn on <b>Recognise voices</b> in <a href="#voice">Configuration → Voice</a>.
         </p>
@@ -68,7 +68,7 @@ function NotStore(p: Props & { v: Voices }) {
   return (
     <div class="voices">
       <section class="card narrow">
-        <h3>Voices</h3>
+        <h3>People</h3>
         <p>
           The household's voices live on one speaker: it keeps the requests every speaker hears and groups them into people. Naming, merging and
           the guest threshold preview are there.
@@ -105,7 +105,7 @@ function SpeakerStatus({ v }: { v: Voices }) {
         <dt>Ignore guests</dt>
         <dd>
           {v.ignore_guests ? 'on' : 'off'}
-          {v.ignore_guests && !v.people ? <span class="muted small"> (does nothing until someone is named)</span> : null}
+          {v.ignore_guests && !v.people ? <span class="muted small"> (does nothing until someone is marked as the household)</span> : null}
         </dd>
         <dt>Guest threshold</dt>
         <dd>{v.threshold.toFixed(2)}</dd>
@@ -140,7 +140,7 @@ function Album(p: Props & { v: Voices; reload: () => Promise<void> }) {
   const [busy, setBusy] = useState(false)
   const [tick, setTick] = useState(0) // bumps the log and the preview after an edit
   const speakerName = (id: string) => p.peers.find((x) => x.id === id)?.name || id
-  const named = groups.filter((g) => g.name && !g.noise)
+  const named = groups.filter((g) => g.household && !g.noise) // the household
   const real = groups.filter((g) => !g.noise)
   const selected = groups.find((g) => g.id === sel)
 
@@ -163,16 +163,17 @@ function Album(p: Props & { v: Voices; reload: () => Promise<void> }) {
   return (
     <div class="voices">
       <section class="card">
-        <h3>Voices</h3>
+        <h3>People</h3>
         <p class="muted small">
           This speaker keeps the requests every speaker hears ({plural(v.entries || 0, 'request')}) and groups their voiceprints into people, as a
-          photo album groups faces. Give a group a name and it becomes one of the household: the speakers then tell it from guests. Merge groups
+          photo album groups faces. Name a group to know who it is, and mark it <b>Household</b> to have its requests taken: the speakers tell
+          the household from guests (a named visitor stays a guest until marked). Merge groups
           that are one person, and move a request that landed in the wrong group: your edits stay, and new requests are grouped around them.
         </p>
         <p class="small">
           {named.length ? (
             <>
-              The household: <b>{named.map((g) => g.name).join(', ')}</b>.{' '}
+              The household: <b>{named.map((g) => L.label(g.id)).join(', ')}</b>.{' '}
             </>
           ) : null}
           Ignore guests is <b>{v.ignore_guests ? 'on' : 'off'}</b>, the guest threshold {v.threshold.toFixed(2)} (both in{' '}
@@ -184,8 +185,8 @@ function Album(p: Props & { v: Voices; reload: () => Promise<void> }) {
           </p>
         ) : !named.length ? (
           <p class="note">
-            Nobody is named yet. Until someone is, every voice counts as unknown and Ignore guests does nothing. Find the group with your
-            requests below and give it your name.
+            Nobody is marked as the household yet. Until someone is, every voice counts as unknown and Ignore guests does nothing. Find the
+            group with your requests below, name it and mark it Household.
           </p>
         ) : null}
         {err && <p class="err">{err}</p>}
@@ -206,6 +207,7 @@ function Album(p: Props & { v: Voices; reload: () => Promise<void> }) {
                 speakerName={speakerName}
                 onSelect={() => setSel(sel === g.id ? '' : g.id)}
                 rename={(name) => act(() => api.renameVoice(peer.id, base, g.id, name))}
+                household={(on) => act(() => api.setHousehold(peer.id, base, g.id, on))}
                 merge={(into) => act(() => api.mergeVoices(peer.id, base, g.id, into))}
                 forget={() =>
                   act(async () => {
@@ -292,6 +294,7 @@ function GroupCard(p: {
   speakerName: (id: string) => string
   onSelect: () => void
   rename: (name: string) => void
+  household: (on: boolean) => void
   merge: (into: string) => void
   forget: () => void
 }) {
@@ -302,11 +305,11 @@ function GroupCard(p: {
   const speakers = (g.speakers || []).map(p.speakerName)
   const facts = [genderOf(g), plural(g.count, 'phrase'), g.last ? 'last heard ' + since(g.last) : ''].filter(Boolean)
   return (
-    <article class={'vgroup' + (p.selected ? ' sel' : '') + (g.name ? ' named' : '') + (g.noise ? ' noise' : '')}>
+    <article class={'vgroup' + (p.selected ? ' sel' : '') + (g.household ? ' named' : '') + (g.noise ? ' noise' : '')}>
       <button class="vg-head" onClick={p.onSelect} aria-pressed={p.selected} title={p.selected ? 'Show all requests' : 'Show its requests'}>
         <span class="vg-name">
           {p.label}
-          {g.name && <span class="tag">household</span>}
+          {g.household && <span class="tag">household</span>}
         </span>
         <span class="muted small">{facts.join(' · ')}</span>
         {g.noise && <span class="muted small">False wakes, noise and silence: requests with no words in them.</span>}
@@ -360,6 +363,16 @@ function GroupCard(p: {
           {!g.noise && (
             <button class="ghost" disabled={p.busy} onClick={() => (setName(g.name || ''), setMode('rename'))}>
               {g.name ? 'Rename' : 'Name'}
+            </button>
+          )}
+          {!g.noise && (
+            <button
+              class="ghost"
+              disabled={p.busy}
+              onClick={() => p.household(!g.household)}
+              title={g.household ? 'Its requests count as a guest’s again' : 'Its requests are taken: not a guest'}
+            >
+              {g.household ? 'Not household' : 'Household'}
             </button>
           )}
           {!g.noise && p.others.length > 0 && (
@@ -528,10 +541,10 @@ function Preview(p: Props & { v: Voices; L: Labels; named: VoiceGroup[]; tick: n
   const rows = pv?.rows || []
   const guests = rows.filter((r) => r.state === 'guest')
   const namedIds = new Set(p.named.map((g) => g.id))
-  // One strip per named person (their own requests, scored against the closest named person),
+  // One strip per person of the household (their own requests, scored against the closest named person),
   // and one for everyone else.
   const series = [
-    ...p.named.map((g) => ({ key: g.id, label: g.name || '', own: true, scores: rows.filter((r) => r.group === g.id).map((r) => r.score) })),
+    ...p.named.map((g) => ({ key: g.id, label: p.L.label(g.id), own: true, scores: rows.filter((r) => r.group === g.id).map((r) => r.score) })),
     { key: '', label: 'Everyone else', own: false, scores: rows.filter((r) => !namedIds.has(r.group)).map((r) => r.score) },
   ].filter((s) => s.scores.length)
   const pos = (x: number) => ((Math.min(1, Math.max(HLO, x)) - HLO) / (1 - HLO)) * 100
@@ -541,7 +554,7 @@ function Preview(p: Props & { v: Voices; L: Labels; named: VoiceGroup[]; tick: n
     <section class="card">
       <h3>Guest threshold preview</h3>
       <p class="muted small">
-        How close a voice must be to a named person's to count as theirs; below it, a guest. Move the slider until the list below is the guests.
+        How close a voice must be to a household person's to count as theirs; below it, a guest. Move the slider until the list below is the guests.
         Nothing is saved from here: set the value you like as <b>Guest threshold</b> in <a href="#voice">Configuration → Voice</a> (now{' '}
         {p.v.threshold.toFixed(2)}).
       </p>
@@ -570,7 +583,7 @@ function Preview(p: Props & { v: Voices; L: Labels; named: VoiceGroup[]; tick: n
       {!pv ? (
         <p class="muted">…</p>
       ) : !pv.people ? (
-        <p class="note">Nobody is named yet, so every voice is unknown at any threshold. Name the household's groups above first.</p>
+        <p class="note">Nobody is marked as the household yet, so every voice is unknown at any threshold. Mark the household's groups above first.</p>
       ) : !rows.length ? (
         <p class="muted">No requests with speech in them yet.</p>
       ) : (
@@ -578,7 +591,7 @@ function Preview(p: Props & { v: Voices; L: Labels; named: VoiceGroup[]; tick: n
           <p>
             Of the last {plural(rows.length, 'request')}, <b>{guests.length}</b> would be taken for guests.
           </p>
-          <div class="vhist" role="img" aria-label="How close each request was to the closest named person, per person and for everyone else">
+          <div class="vhist" role="img" aria-label="How close each request was to the closest person of the household, per person and for everyone else">
             {series.map((s) => {
               const bins = new Array(HBINS).fill(0)
               for (const x of s.scores) bins[Math.min(HBINS - 1, Math.max(0, Math.floor((x - HLO) / HSTEP)))]++
@@ -616,7 +629,7 @@ function Preview(p: Props & { v: Voices; L: Labels; named: VoiceGroup[]; tick: n
             </div>
           </div>
           <p class="muted small">
-            Each strip: how close a group's requests were to the closest named person. A named person's bars should sit right of the line, everyone
+            Each strip: how close a group's requests were to the closest person of the household. A household person's bars should sit right of the line, everyone
             else's left of it; bars on the wrong side are marked.
           </p>
           {guests.length > 0 && (

@@ -242,7 +242,7 @@ const TAB_NAMES: Record<Tab, string> = {
   videos: 'Videos',
   general: 'General',
   voice: 'Voice',
-  voices: 'Voices',
+  voices: 'People',
   moments: 'Moments',
   home: 'Home integration',
   music: 'Music Assistant',

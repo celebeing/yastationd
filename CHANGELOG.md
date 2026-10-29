@@ -14,8 +14,8 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
   doesn't know never reaches HA; the new `voice_guest` moment shows it was heard and ignored. The
   check waits for «Алиса» and the start of the request (`voice_hold_ms`), with the speech held, so
   HA hears the end of the request no later than before.
-- The Voices tab: people appear by themselves as the speakers hear requests, like faces in a photo
-  album; name them, merge, move a misheard request, forget a person; a threshold preview shows
+- The People tab: people appear by themselves as the speakers hear requests, like faces in a photo
+  album; name them, mark who is the household (a name alone doesn't), merge, move a misheard request, forget a person; a threshold preview shows
   which of the last requests a value would have taken for guests.
 - `make voice-models` for the Mini 3 0.6.x firmware, whose own voice model is too old.
 

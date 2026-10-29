@@ -58,6 +58,10 @@ func TestAlbumGroupsAndEdits(t *testing.T) {
 	if err := al.Rename(ga, "Петя"); err != nil {
 		t.Fatal(err)
 	}
+	if len(al.People()) != 0 {
+		t.Fatal("a name alone made a person of the household")
+	}
+	al.SetHousehold(ga, true)
 	p := al.People()
 	if len(p) != 1 || p[0].Name != "Петя" {
 		t.Fatalf("people %+v", p)
@@ -94,6 +98,7 @@ func TestAlbumGroupsAndEdits(t *testing.T) {
 	}
 	nb := al.GroupOf("b0")
 	al.Rename(gb, "Аня")
+	al.SetHousehold(gb, true)
 	if err := al.Merge(nb, gb); err != nil {
 		t.Fatal(err)
 	}

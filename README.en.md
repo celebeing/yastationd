@@ -58,8 +58,8 @@ packs replace any animation and add sounds to any event.
 - Voice ID, household or guest: the speaker tells who is talking with the firmware's own voiceprint
   model, on the speaker. HA gets the name (or "guest") and the speaker's gender before it acts on
   the request. With "ignore guests" on, a request from an unknown voice never reaches HA, and the
-  speaker shows the `voice_guest` moment. People appear by themselves in the Voices tab, like
-  faces in a photo album; you only name them. Off by default, turned on in the settings
+  speaker shows the `voice_guest` moment. People appear by themselves in the People tab, like
+  faces in a photo album; you name them and mark who is the household. Off by default, turned on in the settings
   ([docs/voice-id.md](docs/voice-id.md)).
 - Announcements and TTS from HA (`assist_satellite.announce`, any media URL).
 - HA voice timers: countdown on the clock, an alarm on finish, any touch key stops it. A paused timer

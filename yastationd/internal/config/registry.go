@@ -367,13 +367,13 @@ func init() {
 
 	// --- voice id ---
 	reg(Key{Name: "voice_id", Group: "voice_id", Label: "Recognise voices", Sync: true,
-		Doc: "Tells who is talking from the voice, with the speaker's own voiceprint model, on the speaker: no server, no cloud. HA gets the person's name (or guest), the gender and whether the voice is the household's, before it acts on the request. People appear by themselves in the Voices tab as they talk, to be named there; until someone is named every voice is unknown. Needs the firmware's voice models (Mini 3 0.369, Mini 3 Pro, Station 3; other firmware: make voice-models)."},
+		Doc: "Tells who is talking from the voice, with the speaker's own voiceprint model, on the speaker: no server, no cloud. HA gets the person's name (or guest), the gender and whether the voice is the household's, before it acts on the request. People appear by themselves in the People tab as they talk, to be named and marked as the household there; until someone is marked every voice is unknown. Needs the firmware's voice models (Mini 3 0.369, Mini 3 Pro, Station 3; other firmware: make voice-models)."},
 		boolV(func(c *Config) *bool { return &c.VoiceID }))
 	reg(Key{Name: "voice_store", Group: "voice_id", Label: "Keep the voices here",
-		Doc: "This speaker keeps the log of requests and the voice groups for the whole household, and hosts the Voices tab; the others send it what they hear. Turn it on for one speaker, a Station 3 if there is one (more flash, a faster CPU). Voiceprints are biometric data: they stay on this speaker's flash and the home's broker."},
+		Doc: "This speaker keeps the log of requests and the voice groups for the whole household, and hosts the People tab; the others send it what they hear. Turn it on for one speaker, a Station 3 if there is one (more flash, a faster CPU). Voiceprints are biometric data: they stay on this speaker's flash and the home's broker."},
 		boolV(func(c *Config) *bool { return &c.VoiceStore }))
 	reg(Key{Name: "voice_guest_threshold", Group: "voice_id", Label: "Guest threshold", Runtime: true, Sync: true,
-		Doc: "How close a voice must be to a person's (cosine of the voiceprints, 0.40 to 0.90) to count as theirs; below it, a guest. Higher: fewer guests taken for the household, more of the household taken for guests. The Voices tab shows what a value would have done to the last requests. 0.66 is the firmware's own."},
+		Doc: "How close a voice must be to a person's (cosine of the voiceprints, 0.40 to 0.90) to count as theirs; below it, a guest. Higher: fewer guests taken for the household, more of the household taken for guests. The People tab shows what a value would have done to the last requests. 0.66 is the firmware's own."},
 		floatV(0.4, 0.9, func(c *Config) *float64 { return &c.GuestThreshold }))
 	reg(Key{Name: "voice_guest_margin", Group: "voice_id", Label: "Margin over the runner-up", Runtime: true, Sync: true, Advanced: true,
 		Doc: "How much closer the voice must be to the best match than to the second person (0 to 0.2) to be taken for them; otherwise a guest."},

@@ -420,8 +420,10 @@ export const setSync = (id: string, base: string, kind: SyncKind, item: string, 
 /** Voice ID (docs/voice-id.md): a group of voiceprints the store thinks are one voice. */
 export type VoiceGroup = {
   id: string
-  /** set by the owner: one of the household */
+  /** set by the owner */
   name?: string
+  /** marked by the owner as one of the household (not a guest); a name alone doesn't make one */
+  household?: boolean
   /** the "not a person" group: false wakes, noise, silence */
   noise?: boolean
   count: number
@@ -485,6 +487,9 @@ type Ok = { ok: boolean }
 /** renameVoice: an empty name unnames the group (its requests stay together). */
 export const renameVoice = (id: string, base: string, group: string, name: string) =>
   authed<Ok>(id, base, '/api/voices/groups/' + encodeURIComponent(group), { method: 'POST', body: JSON.stringify({ name }) })
+/** setHousehold: the group is one of the household (its requests are taken), or not (a guest's). */
+export const setHousehold = (id: string, base: string, group: string, household: boolean) =>
+  authed<Ok>(id, base, '/api/voices/groups/' + encodeURIComponent(group), { method: 'POST', body: JSON.stringify({ household }) })
 export const forgetVoice = (id: string, base: string, group: string) =>
   authed<Ok & { forgotten: number }>(id, base, '/api/voices/groups/' + encodeURIComponent(group), { method: 'DELETE' })
 export const mergeVoices = (id: string, base: string, from: string, into: string) =>

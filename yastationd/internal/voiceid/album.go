@@ -7,9 +7,10 @@ import (
 )
 
 // The album (docs/voice-id.md, "voices like faces in a photo album"): every request's voiceprint
-// is an entry; similar entries group by themselves; the owner names groups, merges them and moves
-// entries. Edits are pins (entry → group) the grouping never undoes: a named group's entries are
-// pinned, so it keeps its members and its name, and later requests join it by similarity.
+// is an entry; similar entries group by themselves; the owner names groups, marks which are the
+// household (the voices whose requests are taken; a name alone doesn't make one), merges groups
+// and moves entries. Edits are pins (entry → group) the grouping never undoes: a named or marked
+// group's entries are pinned, so it keeps its members, and later requests join it by similarity.
 
 // Noise is the group of entries that are not a person (false wakes, noise, silence).
 const Noise = "noise"
@@ -44,7 +45,8 @@ type Entry struct {
 // Group is a set of entries the album thinks are one voice.
 type Group struct {
 	ID       string    `json:"id"`
-	Name     string    `json:"name,omitempty"` // set by the owner: one of the household
+	Name     string    `json:"name,omitempty"`      // set by the owner
+	Home     bool      `json:"household,omitempty"` // marked by the owner as one of the household
 	Noise    bool      `json:"noise,omitempty"`
 	Count    int       `json:"count"`
 	Female   float64   `json:"female"` // the members' mean (-1: no classifier)
@@ -58,8 +60,9 @@ type Group struct {
 
 // Edits are the owner's: names of groups and pinned entries.
 type Edits struct {
-	Names map[string]string `json:"names"` // group → name
-	Pins  map[string]string `json:"pins"`  // entry → group
+	Names map[string]string `json:"names"`     // group → name
+	Home  map[string]bool   `json:"household"` // groups marked as the household (not guests)
+	Pins  map[string]string `json:"pins"`      // entry → group
 }
 
 // Album groups entries.
@@ -72,7 +75,7 @@ type Album struct {
 
 // NewAlbum makes an empty album.
 func NewAlbum() *Album {
-	al := &Album{Edits: Edits{Names: map[string]string{}, Pins: map[string]string{}}}
+	al := &Album{Edits: Edits{Names: map[string]string{}, Home: map[string]bool{}, Pins: map[string]string{}}}
 	al.Regroup()
 	return al
 }
@@ -110,7 +113,7 @@ func (al *Album) mergeClose() {
 				if aid >= bid || a.Noise || b.Noise || len(a.Centroid) == 0 || len(b.Centroid) == 0 {
 					continue
 				}
-				if a.Name != "" && b.Name != "" {
+				if a.kept() && b.kept() {
 					continue
 				}
 				c := Cosine(a.Centroid, b.Centroid)
@@ -140,11 +143,11 @@ func (al *Album) mergeClose() {
 // without pins goes into a named one, or the smaller of two such groups into the larger. A group
 // the owner pinned but did not name (an entry moved to a new person) takes part in neither.
 func (al *Album) absorbable(a, b *Group) (from, into string) {
-	free := func(g *Group) bool { return g.Name == "" && !al.hasPins(g.ID) }
+	free := func(g *Group) bool { return !g.kept() && !al.hasPins(g.ID) }
 	switch {
-	case a.Name != "" && free(b):
+	case a.kept() && free(b):
 		return b.ID, a.ID
-	case b.Name != "" && free(a):
+	case b.kept() && free(a):
 		return a.ID, b.ID
 	case free(a) && free(b):
 		if a.Count < b.Count || (a.Count == b.Count && a.ID > b.ID) {
@@ -177,7 +180,8 @@ func (al *Album) rebuild() {
 func (al *Album) group(id string) *Group {
 	g := al.groups[id]
 	if g == nil {
-		g = &Group{ID: id, Noise: id == Noise, Name: al.Edits.Names[id], Female: -1, Gender: Unknown, Speakers: []string{}}
+		g = &Group{ID: id, Noise: id == Noise, Name: al.Edits.Names[id], Home: al.Edits.Home[id],
+			Female: -1, Gender: Unknown, Speakers: []string{}}
 		al.groups[id] = g
 	}
 	return g
@@ -277,7 +281,7 @@ func (al *Album) GroupOf(id string) string { return al.groupOf[id] }
 func (al *Album) Groups() []*Group {
 	out := make([]*Group, 0, len(al.groups))
 	for _, g := range al.groups {
-		if g.Count > 0 || g.Name != "" {
+		if g.Count > 0 || g.kept() {
 			if g.Gender == "" {
 				g.Gender = Unknown
 			}
@@ -288,6 +292,9 @@ func (al *Album) Groups() []*Group {
 		a, b := out[i], out[j]
 		if a.Noise != b.Noise {
 			return b.Noise
+		}
+		if a.Home != b.Home {
+			return a.Home
 		}
 		if (a.Name != "") != (b.Name != "") {
 			return a.Name != ""
@@ -300,15 +307,40 @@ func (al *Album) Groups() []*Group {
 	return out
 }
 
-// People are the named groups as the speakers need them.
+// kept: the owner named the group or marked it as the household (it is never merged into
+// another by itself).
+func (g *Group) kept() bool { return g.Name != "" || g.Home }
+
+// People are the household's groups as the speakers need them; an unnamed one goes by its id.
 func (al *Album) People() []Person {
 	var out []Person
 	for _, g := range al.Groups() {
-		if g.Name != "" && !g.Noise && len(g.Centroid) > 0 {
-			out = append(out, Person{ID: g.ID, Name: g.Name, Gender: g.Gender, Centroid: g.Centroid})
+		if g.Home && !g.Noise && len(g.Centroid) > 0 {
+			name := g.Name
+			if name == "" {
+				name = g.ID
+			}
+			out = append(out, Person{ID: g.ID, Name: name, Gender: g.Gender, Centroid: g.Centroid})
 		}
 	}
 	return out
+}
+
+// SetHousehold marks group id as one of the household (a voice whose requests are taken), or not
+// (a guest's, however often heard). The group's entries are pinned, as for a name.
+func (al *Album) SetHousehold(id string, on bool) error {
+	g := al.groups[id]
+	if g == nil || g.Noise {
+		return fmt.Errorf("no group %s", id)
+	}
+	al.pinGroup(id)
+	if on {
+		al.Edits.Home[id] = true
+	} else {
+		delete(al.Edits.Home, id)
+	}
+	al.Regroup()
+	return nil
 }
 
 // pinGroup pins every entry now in group id to it (a named group keeps its members).
@@ -350,7 +382,11 @@ func (al *Album) Merge(from, into string) error {
 	if al.Edits.Names[into] == "" && al.Edits.Names[from] != "" {
 		al.Edits.Names[into] = al.Edits.Names[from]
 	}
+	if al.Edits.Home[from] {
+		al.Edits.Home[into] = true
+	}
 	delete(al.Edits.Names, from)
+	delete(al.Edits.Home, from)
 	al.Regroup()
 	return nil
 }
@@ -385,6 +421,7 @@ func (al *Album) Forget(id string) int {
 	}
 	al.Entries = keep
 	delete(al.Edits.Names, id)
+	delete(al.Edits.Home, id)
 	for eid, gid := range al.Edits.Pins {
 		if gid == id {
 			delete(al.Edits.Pins, eid)

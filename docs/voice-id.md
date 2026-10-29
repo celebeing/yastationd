@@ -1,7 +1,7 @@
 # Voice ID on the speaker: who is talking, guests ignored, the speaker's gender in HA
 
 **Status (2026-10-29):** built: the voiceprints on the speaker, the verdict, HA's sensors, ignoring
-guests with the `voice_guest` moment, the store with the album and the Voices tab, `make
+guests with the `voice_guest` moment, the store with the album and the People tab, `make
 voice-models`. Checked: the voiceprints against the desk pipeline (the same values) and their cost
 on a Mini 3 and a Station 3; the album and the protocol in Go tests. Not yet checked on a live
 household: how well «Алиса» plus the start of a request tells two voices apart, and how the
@@ -59,8 +59,9 @@ voices.
 **In HA, per speaker** (MQTT discovery, with `voice_id = true`; updated as soon as a request has
 been heard, before HA acts on it, and again on the whole request):
 
-- `sensor.<speaker>_voice` — the named person, `guest`, or `unknown` (too little speech, or nobody
-  named yet). Attributes: `score` (cosine to the closest person), `closest`, `second` /
+- `sensor.<speaker>_voice` — the person of the household (their name, or their group's id when
+  unnamed), `guest`, or `unknown` (too little speech, or nobody marked as the household yet).
+  Attributes: `score` (cosine to the closest person), `closest`, `second` /
   `second_name` (the runner-up), `gender`, `female` (the classifier's output), `age`, `secs`,
   `stage` (`early`: «Алиса» and the start of the request; `final`: the whole request), `model`.
 - `sensor.<speaker>_voice_gender` — `male` / `female` / `unknown`, needs **no enrollment** (the
@@ -73,10 +74,10 @@ The LLM agent reads them through the prompt template (`speaker-id.md` §4 shows 
 automations use them directly.
 
 **Ignore guests** (the switch; in the web app with the Voice settings): a request from a voice
-that is not one of the named people never reaches HA; the `voice_guest` moment shows that it was
+that is not one of the household never reaches HA; the `voice_guest` moment shows that it was
 heard and ignored on purpose (a moment like the others: the owner picks its picture; by default the
 `angry` expression). It does nothing until someone is
-named. The settings (Configuration → Voice → Voice ID):
+marked as the household. The settings (Configuration → Voice → Voice ID):
 
 | Key | Default | |
 |---|---|---|
@@ -88,7 +89,7 @@ named. The settings (Configuration → Voice → Voice ID):
 | `voice_unsure` | allow | with guests ignored: an unsure check (too little speech, a failed voiceprint) lets the request through, or `drop` |
 | `voice_bio_dir` | (found) | the models: `<cfw>/vendor/bio_lingware`, else the firmware's |
 
-**In the web app, the Voices tab** (below): the people, the log, the edits, the threshold preview.
+**In the web app, the People tab** (below): the people, the log, the edits, the threshold preview.
 
 ## How it works
 
@@ -130,7 +131,7 @@ yastationd: gender/age (Go) → verdict against the household's centroids
 3. **The early verdict** comes `voice_hold_ms` after the wake word: the voiceprint of «Алиса» and
    the start of the request against the household (`voiceid.Match`: the closest person's centroid
    at or above the threshold and beating the runner-up by the margin; else a guest; with nobody
-   named, unknown).
+   marked as the household, unknown).
    - **Guests ignored:** the request is held until then (`heldWake`, as for arbitration) and
      `run-pipeline` is not sent; a guest's request is dropped: HA sees nothing, nothing
      reconnects, `voice_guest` shows. Otherwise the held speech goes to HA at once and the rest
@@ -142,7 +143,7 @@ yastationd: gender/age (Go) → verdict against the household's centroids
    it was ignored — goes to the store over MQTT (`<prefix>/voice/event`, not retained; spooled
    in memory, up to 200, while the broker is away).
 5. **The household** comes from the store, retained (`<prefix>/voice/people`: the model tag, the
-   store's id, the named people's centroids). A message from another voiceprint model is not used.
+   store's id, the household's centroids). A message from another voiceprint model is not used.
 
 ### The store and the album
 
@@ -156,17 +157,20 @@ On the speaker with `voice_store` (`internal/app/voicestore.go`, `internal/voice
   close, else starts its own. Then groups whose centroids are at least 0.6 close are joined, the
   closest pair first: going entry by entry, a voice whose first phrase was atypical starts two
   groups (seen 2026-10-30: a woman's first request scored 0.49 on gender and 0.33 to her second;
-  her two halves were 0.64 apart, both ~0 from the other voice). Two named groups are never
+  her two halves were 0.64 apart, both ~0 from the other voice). Two groups the owner named or marked are never
   joined, and a group the owner pinned without naming (a request moved to "a new person") takes
   no part. A group's gender is its members' mean.
 - **Each entry keeps the early verdict too** (`early`, `early_score`, `early_secs`), to see how
   often «Алиса» and the start of the request agree with the whole request.
-- **The owner's edits are pins** (`<cfw>/voices/edits.json`): naming a group pins its entries to
-  it, merging pins the one group's entries to the other, moving an entry pins it (to a group, to
+- **The owner's edits are pins** (`<cfw>/voices/edits.json`): naming a group or marking it as
+  the household pins its entries to it, merging pins the one group's entries to the other, moving an entry pins it (to a group, to
   "not a person", or to a new group). Regrouping places pinned entries first, so an edit is never
-  undone, and later requests join a named group by similarity.
-- **Named groups are the household**: their centroids are published (2 s after the last change,
-  and on every connect). Unnamed groups stay in the tab, waiting for a name.
+  undone, and later requests join such a group by similarity.
+- **The household is a mark of its own, not the name** (since 2026-10-30): a named visitor stays a
+  guest, and a household member may stay unnamed (the sensor then shows the group's id). The
+  household's centroids are published (2 s after the last change, and on every connect); the
+  other groups stay in the tab. Edits from before the mark: every named group became the
+  household on load.
 - **Forgetting** a person deletes the group's entries and its name; "forget everything" empties
   the log and the edits; both republish at once.
 
@@ -201,7 +205,7 @@ transcription and passes the transcript on, or an empty one for a guest. Compare
 | What the owner needs | nothing but the option | a server with the proxy (a container or an HA add-on) between HA and its STT; few CFW users have one |
 | Load | the speaker's CPU; on a Mini 3 to be measured | the server's, negligible |
 | Arbitration | to handle (the winner's verdict counts) | not a concern: only the winner streams |
-| Calibration | the Voices tab on the speakers, from normal use | a page or a script on the server; the same data, collected there |
+| Calibration | the People tab on the speakers, from normal use | a page or a script on the server; the same data, collected there |
 | Where voiceprints live | on the speakers | on the server |
 
 **For CFW users in general** the speaker is the better home: nothing to install, gender for free,
@@ -328,7 +332,7 @@ the store ── the people's centroids (retained) ─► every speaker
 Where the store lives:
 
 1. **One of the speakers, chosen** (`voice_store = true` in its config; a Station 3 if there is
-   one: room on its eMMC, a faster CPU). The Voices tab lives there; the web app reaches every
+   one: room on its eMMC, a faster CPU). The People tab lives there; the web app reaches every
    speaker, so it shows from any. While that speaker is off, the log waits on the others and edits
    wait. **The pick:** nothing to install besides the CFW.
 2. **HA**, through an integration of our own that keeps the log and the groups and shows them in
@@ -353,7 +357,7 @@ the retained centroids with them.
   `<cfw>/vendor/bio_lingware` (copied from a firmware you have, the way `vqe-models` works; never
   from the repo). The daemon logs what is missing.
 - **Config:** `voice_id = true` on the speakers (shareable), `voice_store = true` on one of them.
-  Gender works at once; people appear in the Voices tab after some use, to be named there. Then
+  Gender works at once; people appear in the People tab after some use, to be named and marked as the household there. Then
   "Ignore guests", if wanted.
 - **Nothing on the HA side** besides the new entities; the agent's prompt gets a line if wanted.
 
@@ -361,7 +365,7 @@ the retained centroids with them.
 
 1. ~~spotter-host voiceprints~~ (2026-10-29): a separate `voice` mode, not inside `serve`.
 2. ~~yastationd: the verdict, the HA sensors.~~
-3. ~~The store and the Voices tab~~: guided enrollment ("five phrases") is not built yet; naming a
+3. ~~The store and the People tab~~: guided enrollment ("five phrases") is not built yet; naming a
    group that formed by itself does the job.
 4. ~~Ignore guests~~: judged before `run-pipeline`, so HA's handling of an aborted run does not
    matter.

@@ -145,7 +145,7 @@ window's width.
 | Status | Sensors (and diagnostics), Log |
 | Controls | Display and voice (the runtime controls HA has: lights, display, expressions, volume…), LED |
 | Behaviour | Moments, Packs, Sounds, Videos — what the speaker does when something happens ([asset-packs.md](asset-packs.md)); a short explanation, folded once read, sits above each |
-| Configuration | General, Voice, Voices (with voice ID on: the album of voices on the store speaker, a pointer to it on the others; [voice-id.md](voice-id.md)), Home integration, Music Assistant, Intercom, Calibration, Wi-Fi, Login — [settings.md](settings.md) |
+| Configuration | General, Voice, People (with voice ID on: the album of voices on the store speaker, a pointer to it on the others; [voice-id.md](voice-id.md)), Home integration, Music Assistant, Intercom, Calibration, Wi-Fi, Login — [settings.md](settings.md) |
 
 ## Calibration
 

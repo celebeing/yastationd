@@ -118,6 +118,7 @@ func TestVoiceStoreNamesAPerson(t *testing.T) {
 	}
 	a.vstore.mu.Lock()
 	a.vstore.al.Rename(groups[0].ID, "Петя")
+	a.vstore.al.SetHousehold(groups[0].ID, true)
 	a.vstore.writeEdits(a)
 	a.vstore.mu.Unlock()
 	a.voicePublish()
