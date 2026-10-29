@@ -20,6 +20,8 @@ import (
 	"strings"
 
 	"github.com/celebeing/yastationd/yastationd/internal/display"
+	"github.com/celebeing/yastationd/yastationd/internal/frametap"
+	"github.com/celebeing/yastationd/yastationd/internal/hw"
 )
 
 // Asset packs and the theme stack (docs/asset-packs.md). A pack is <cfw>/packs/<id>/: pack.json
@@ -59,18 +61,19 @@ type pack struct {
 	Moments map[string]map[string][]show `json:"moments,omitempty"`
 }
 
-// packAnimationView is one installed animation, parsed into the screen's native frame bytes for
-// the browser preview. Frames are hex to keep the JSON compact and avoid base64 padding.
+// packAnimationView is one installed animation for the browser's preview, in the LED preview
+// stream's own terms (internal/frametap: the display described as in /info, each frame as in
+// /frames: drive values, hex), so the web app draws it with the LED page's renderer.
 type packAnimationView struct {
-	Display string               `json:"display"`
-	Width   int                  `json:"width,omitempty"`
-	Height  int                  `json:"height,omitempty"`
-	Frames  []packAnimationFrame `json:"frames"`
+	Screen [2]int               `json:"screen"`         // w, h; 0, 0 = no pixel screen
+	Seg7   *frametap.Seg7       `json:"seg7,omitempty"` // a 7-segment display instead
+	Frames []packAnimationFrame `json:"frames"`
 }
 
 type packAnimationFrame struct {
-	Data string `json:"data"`
-	MS   int64  `json:"ms"`
+	Screen string `json:"screen,omitempty"` // RGB per pixel, as driven (the display's gamma applied)
+	Seg7   string `json:"seg7,omitempty"`   // drive level per element, hw.MatrixFrame.Drive order
+	MS     int64  `json:"ms"`
 }
 
 // packDisplay is this speaker's display kind as packs name it: seg7, pixels-<w>x<h>, "" (none).
@@ -157,7 +160,7 @@ func (a *App) packAnim(ref string) (display.Anim, bool) {
 }
 
 // packAnimationView reads an installed pack's animation for this display. The upload path already
-// validates it; parsing again keeps a hand-copied or later-corrupted file out of the browser.
+// validated it; parsing again keeps a hand-copied or later-corrupted file out of the browser.
 func (a *App) packAnimationView(id, name string) (packAnimationView, error) {
 	a.rescanPacks()
 	if !packFileName.MatchString(name) || id != customPack && a.installedPacks()[id] == nil {
@@ -176,29 +179,27 @@ func (a *App) packAnimationView(id, name string) (packAnimationView, error) {
 	if err != nil {
 		return packAnimationView{}, errors.New("no such pack animation")
 	}
-	v := packAnimationView{Display: kind}
+	var v packAnimationView
 	if kind == "seg7" {
 		c, err := display.ParseScled(name, bytes.NewReader(b))
 		if err != nil {
 			return packAnimationView{}, err
 		}
+		colon, dot, degree := a.matrix.Elements()
+		v.Seg7 = &frametap.Seg7{Digits: hw.Digits, Colon: colon, Dot: dot, Degree: degree}
 		for _, f := range c.Frames {
-			data := make([]byte, 0, 32)
-			for _, d := range f.Seg {
-				data = append(data, d[:]...)
-			}
-			data = append(data, f.Extra[:]...)
-			v.Frames = append(v.Frames, packAnimationFrame{Data: hex.EncodeToString(data), MS: f.Dur.Milliseconds()})
+			d := f.Drive()
+			v.Frames = append(v.Frames, packAnimationFrame{Seg7: hex.EncodeToString(d[:]), MS: f.Dur.Milliseconds()})
 		}
 		return v, nil
 	}
-	v.Width, _ = strconv.Atoi(m[2])
-	v.Height, _ = strconv.Atoi(m[3])
+	v.Screen[0], _ = strconv.Atoi(m[2])
+	v.Screen[1], _ = strconv.Atoi(m[3])
 	gamma := 1.0
 	if f, ok := a.front.(display.PixelFront); ok {
-		gamma = f.Gamma
+		gamma = f.Gamma // as the screen is driven, like the stream: the web app undoes it for a monitor
 	}
-	c, err := display.ParseLed(name, bytes.NewReader(b), v.Width, v.Height, gamma)
+	c, err := display.ParseLed(name, bytes.NewReader(b), v.Screen[0], v.Screen[1], gamma)
 	if err != nil {
 		return packAnimationView{}, err
 	}
@@ -207,7 +208,7 @@ func (a *App) packAnimationView(id, name string) (packAnimationView, error) {
 		for _, p := range f.Px {
 			data = append(data, p.R, p.G, p.B)
 		}
-		v.Frames = append(v.Frames, packAnimationFrame{Data: hex.EncodeToString(data), MS: f.Dur.Milliseconds()})
+		v.Frames = append(v.Frames, packAnimationFrame{Screen: hex.EncodeToString(data), MS: f.Dur.Milliseconds()})
 	}
 	return v, nil
 }
@@ -345,23 +346,37 @@ func readPack(zipData []byte) (*pack, map[string][]byte, error) {
 // installPack checks a pack archive and installs it, replacing an installed one of the same id
 // (never one of the owner's). Installed, a pack is read-only: an editable mark in it is dropped.
 func (a *App) installPack(zipData []byte) (*pack, error) {
-	p, _, err := a.importPack(zipData, false)
-	return p, err
+	r, err := a.importPack(zipData, false)
+	return r.pack, err
 }
 
-// importPack checks a pack archive and optionally leaves a same-id installed pack untouched.
-// It returns whether it skipped the archive. Owner's packs are protected from replacement either
-// way; skipExisting treats them as existing too.
-func (a *App) importPack(zipData []byte, skipExisting bool) (*pack, bool, error) {
+// packImport is what importPack did: the pack, and the version it replaced ("" for a new one), or
+// that it skipped the archive.
+type packImport struct {
+	pack    *pack
+	was     string // the version replaced
+	updated bool   // a pack of this id was installed and is now replaced
+	skipped bool   // the same version is installed already: nothing written
+}
+
+// importPack checks a pack archive and installs it. With sameSkip an installed pack of the same id
+// and version is left as it is (a batch import of archives already here); another version
+// replaces it, as an update. The owner's packs are never replaced.
+func (a *App) importPack(zipData []byte, sameSkip bool) (packImport, error) {
 	p, files, err := readPack(zipData)
 	if err != nil {
-		return nil, false, err
+		return packImport{}, err
 	}
-	if skipExisting && a.installedPacks()[p.ID] != nil {
-		return p, true, nil
+	r := packImport{pack: p}
+	if old := a.installedPacks()[p.ID]; old != nil && !a.packEditable(p.ID) {
+		if sameSkip && old.Version == p.Version {
+			r.skipped = true
+			return r, nil
+		}
+		r.updated, r.was = true, old.Version
 	}
 	if a.packEditable(p.ID) {
-		return nil, false, fmt.Errorf("%s is one of your packs here: export it under another id, or remove yours first", p.ID)
+		return packImport{}, fmt.Errorf("%s is one of your packs here: export it under another id, or remove yours first", p.ID)
 	}
 	if p.Editable {
 		p.Editable = false
@@ -374,38 +389,38 @@ func (a *App) importPack(zipData []byte, skipExisting bool) (*pack, bool, error)
 	}
 	root := a.cfwFile(packsDir)
 	if err := os.MkdirAll(root, 0o755); err != nil {
-		return nil, false, err
+		return packImport{}, err
 	}
 	if free := freeBytes(root); free >= 0 && int64(total) > free-assetFreeKeep {
-		return nil, false, errors.New("not enough room on the speaker")
+		return packImport{}, errors.New("not enough room on the speaker")
 	}
 	tmp, err := os.MkdirTemp(root, ".install-*")
 	if err != nil {
-		return nil, false, err
+		return packImport{}, err
 	}
 	defer os.RemoveAll(tmp)
 	for name, b := range files {
 		dst := filepath.Join(tmp, filepath.FromSlash(name))
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			return nil, false, err
+			return packImport{}, err
 		}
 		if err := os.WriteFile(dst, b, 0o644); err != nil {
-			return nil, false, err
+			return packImport{}, err
 		}
 	}
 	dir := a.packDir(p.ID)
 	old := dir + ".old"
 	os.RemoveAll(old)
 	if err := os.Rename(dir, old); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, false, err
+		return packImport{}, err
 	}
 	if err := os.Rename(tmp, dir); err != nil {
 		os.Rename(old, dir)
-		return nil, false, err
+		return packImport{}, err
 	}
 	os.RemoveAll(old)
 	a.loadPacks()
-	return p, false, nil
+	return r, nil
 }
 
 // packFiles reads an archive's files, by their path in the pack (a single top directory that
@@ -670,7 +685,9 @@ func dirBytes(dir string) int64 {
 // apiPacks serves the Packs page (docs/asset-packs.md):
 //
 //	GET    /api/packs                       the packs, the stack, what the stack names but is missing
-//	PUT    /api/packs[?skip_existing=1]     install a pack (the zip as the body; read-only here)
+//	PUT    /api/packs[?same=skip]           install a pack (the zip as the body; read-only here), or
+//	                                        update one of its id; same=skip leaves the same version
+//	                                        as it is. imported: {id, version, updated, was, skipped}
 //	POST   /api/packs/new {"name"}          a new pack of the owner's, worn on top
 //	PUT    /api/packs/stack                 {"stack": [ids], "here": bool}: the stack worn, top first
 //	                                        (here: theme_here; [] ends it); custom left out = off
@@ -695,9 +712,8 @@ func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
 		return nil
 	}
 	var (
-		err     error
-		skipped string
-		didSkip bool
+		err      error
+		imported map[string]any // PUT: what the import did
 	)
 	switch {
 	case len(parts) == 0 && r.Method == http.MethodGet:
@@ -708,11 +724,18 @@ func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
 			err = fmt.Errorf("over %d MB", maxPackZip>>20)
 		}
 		if err == nil {
-			var p *pack
-			if p, didSkip, err = a.importPack(b, r.URL.Query().Get("skip_existing") == "1"); err == nil {
-				if didSkip {
-					skipped = p.ID
-				} else {
+			var res packImport
+			if res, err = a.importPack(b, r.URL.Query().Get("same") == "skip"); err == nil {
+				p := res.pack
+				imported = map[string]any{"id": p.ID, "version": p.Version, "updated": res.updated, "skipped": res.skipped}
+				if res.updated {
+					imported["was"] = res.was
+				}
+				switch {
+				case res.skipped:
+				case res.updated:
+					a.log.Info("packs: updated", "pack", p.ID, "from", res.was, "to", p.Version)
+				default:
 					a.log.Info("packs: installed", "pack", p.ID, "version", p.Version)
 				}
 			}
@@ -778,8 +801,8 @@ func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := a.packsNow()
-	if skipped != "" {
-		out["skipped"] = skipped
+	if imported != nil {
+		out["imported"] = imported
 	}
 	writeJSON(w, http.StatusOK, out)
 }

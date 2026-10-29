@@ -138,12 +138,16 @@ front for an animation the display lacks. The catalogue lists the sounds this sp
 ## Phase 3: packs in the web app
 
 Behaviour → Packs (`web/src/packs.tsx`): the theme stack this speaker wears (up/down, turn off),
-the built-in behaviour under it; **Your packs** (Preview animations, Turn on/off, Rename, Export,
-Remove; a new one by name); **Installed** (Preview animations, Turn on/off, Copy to my pack,
-Remove); import one or more `.zip` archives. The browser sends each archive separately and reports
-its own result: it skips an archive whose pack id is already on the speaker, while a rejected pack
-never prevents the rest from installing. **Preview animations** opens an overlay with browser-rendered,
-looping previews of every animation for this speaker; it never sends anything to the speaker.
+the built-in behaviour under it; **Your packs** (Preview, Play on the speaker, Turn on/off, Rename,
+Export, Remove; a new one by name); **Installed** (Preview, Play on the speaker, Turn on/off, Copy
+to my pack, Remove); import one or more `.zip` archives. The browser sends each archive by itself
+and reports its result: installed, updated (another version of an installed pack: from → to), or
+skipped (the same version is installed); a rejected pack never stops the rest. **Preview** opens
+an overlay with every animation of the pack for this speaker's display, looping in the browser
+(nothing goes to the speaker): the frames come from the speaker in the LED preview stream's terms
+(drive values, the display as the stream's `/info` describes it) and are painted by the LED page's
+own painter (`web/src/ledframe.ts`), plain, without its glass; a tile repaints only when its frame
+changes and only while it is on screen.
 Behaviour → Sounds:
 every sound by name and the pack it comes from, Play (on the speaker), add one to one of the owner's
 packs (any audio the browser decodes, converted to WAV there) or remove one from it. Behaviour →
@@ -154,15 +158,17 @@ The LED page's animation browser (`AnimBrowser` in `web/src/extra.tsx`, a column
 animations as folders: "In force" (the firmware's and the worn theme's, by the names moments use;
 the stock ones are paths like `oknix/…`, so subfolders) and one folder per installed pack; a click
 plays it on the speaker, and a search box finds across all of them. Its open folder is kept in the
-address (`#led/@<pack>`).
+address (`#led/@<pack>`), which is how the Packs page's "Play on the speaker" links a pack.
 
 API (behind the login): `GET /api/packs` → `{packs: [{id, name, version, author, source,
 license, displays, editable, moments, sounds, anims, fits, bytes, position}], stack, here,
 target, display, missing, free, max_bytes}` (`stack`: what this speaker wears, top first;
-here`: it comes from `theme_here`; `target`: the owner's pack edits go to by default); `PUT
-/api/packs[?skip_existing=1]` (the zip, ≤ 32 MB, ≤ 64 MB unpacked; the optional query returns
-`skipped: <id>` rather than replacing a same-id pack); `GET /api/packs/<id>/anims/<name>` (validated
-animation frames for the browser-only preview); `POST /api/packs/new {"name"}`; `PUT
+`here`: it comes from `theme_here`; `target`: the owner's pack edits go to by default); `PUT
+/api/packs[?same=skip]` (the zip, ≤ 32 MB, ≤ 64 MB unpacked; installs it, or replaces the
+installed pack of its id; `same=skip` leaves the same version as it is; the answer's `imported`:
+`{id, version, updated, was, skipped}`); `GET /api/packs/<id>/anims/<name>` (an animation for the
+preview: `{screen: [w, h], seg7?: {…}, frames: [{screen | seg7: hex, ms}]}`, checked again on
+the way); `POST /api/packs/new {"name"}`; `PUT
 /api/packs/stack {"stack": [ids], "here": bool}` (the stack worn; custom left out = off); `POST
 /api/packs/<id>/apply[?here=1]`, `/copy`, `/rename {"name"}`; `DELETE /api/packs/<id>`; `GET
 /api/packs/<id>/export?id=&name=` (custom needs another id); `PUT|DELETE

@@ -101,18 +101,29 @@ func TestPackInstallApplyRemove(t *testing.T) {
 	}
 }
 
-// Batch import leaves a matching pack untouched rather than replacing it.
-func TestPackImportSkipsExisting(t *testing.T) {
+// A batch import leaves the same version of an installed pack as it is, and updates another one.
+func TestPackImportSkipsSameVersionUpdatesOthers(t *testing.T) {
 	a := packTestApp(t)
-	if _, err := a.installPack(packZip(t, map[string]string{"pack.json": `{"id": "hl", "name": "First"}`})); err != nil {
+	if _, err := a.installPack(packZip(t, map[string]string{"pack.json": `{"id": "hl", "name": "First", "version": "1.0"}`})); err != nil {
 		t.Fatal(err)
 	}
-	p, skipped, err := a.importPack(packZip(t, map[string]string{"pack.json": `{"id": "hl", "name": "Replacement"}`}), true)
-	if err != nil || !skipped || p.ID != "hl" {
-		t.Fatalf("skip: %+v %t %v", p, skipped, err)
+	r, err := a.importPack(packZip(t, map[string]string{"pack.json": `{"id": "hl", "name": "Again", "version": "1.0"}`}), true)
+	if err != nil || !r.skipped || r.pack.ID != "hl" {
+		t.Fatalf("same version: %+v %v", r, err)
 	}
 	if got := a.installedPacks()["hl"].Name; got != "First" {
-		t.Errorf("replaced existing pack with %q", got)
+		t.Errorf("the same version was written over: %q", got)
+	}
+	r, err = a.importPack(packZip(t, map[string]string{"pack.json": `{"id": "hl", "name": "Newer", "version": "1.1"}`}), true)
+	if err != nil || r.skipped || !r.updated || r.was != "1.0" {
+		t.Fatalf("new version: %+v %v", r, err)
+	}
+	if got := a.installedPacks()["hl"].Name; got != "Newer" {
+		t.Errorf("not updated: %q", got)
+	}
+	r, err = a.importPack(packZip(t, map[string]string{"pack.json": `{"id": "fresh", "version": "1"}`}), true)
+	if err != nil || r.skipped || r.updated {
+		t.Errorf("a new pack: %+v %v", r, err)
 	}
 }
 
@@ -239,10 +250,10 @@ func TestPackAnimationView(t *testing.T) {
 		t.Fatal(err)
 	}
 	v, err := a.packAnimationView("neco", "happy")
-	if err != nil || v.Display != "pixels-21x12" || v.Width != 21 || v.Height != 12 || len(v.Frames) != 1 {
+	if err != nil || v.Screen != [2]int{21, 12} || v.Seg7 != nil || len(v.Frames) != 1 {
 		t.Fatalf("preview: %+v %v", v, err)
 	}
-	if len(v.Frames[0].Data) != 21*12*6 || v.Frames[0].Data[:6] != "ffffff" || v.Frames[0].MS != 100 {
+	if len(v.Frames[0].Screen) != 21*12*6 || v.Frames[0].Screen[:6] != "ffffff" || v.Frames[0].MS != 100 {
 		t.Errorf("frame: %+v", v.Frames[0])
 	}
 	if err := os.WriteFile(filepath.Join(a.packDir("neco"), "anims", "pixels-21x12", "happy.led"), []byte("not an animation\n"), 0o644); err != nil {
@@ -257,16 +268,19 @@ func TestPackAnimationViewSeg7(t *testing.T) {
 	a := packTestApp(t)
 	a.matrix = &hw.Matrix{}
 	a.front = display.Seg7Front{}
-	clock := "255 0 0 0 0 0 0 | 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 | 0 0 0 0 | 25\n"
+	// A of digit 0 lit; extras DH, DL, DM, degree = 10 20 30 40
+	clock := "255 0 0 0 0 0 0 | 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 | 10 20 30 40 | 25\n"
 	if _, err := a.installPack(packZip(t, map[string]string{"pack.json": `{"id": "clock"}`, "anims/seg7/tick.scled": clock})); err != nil {
 		t.Fatal(err)
 	}
 	v, err := a.packAnimationView("clock", "tick")
-	if err != nil || v.Display != "seg7" || len(v.Frames) != 1 {
+	if err != nil || v.Seg7 == nil || len(v.Frames) != 1 {
 		t.Fatalf("preview: %+v %v", v, err)
 	}
-	if len(v.Frames[0].Data) != 64 || v.Frames[0].Data[:2] != "ff" || v.Frames[0].MS != 25 {
-		t.Errorf("frame: %+v", v.Frames[0])
+	// the LED stream's order (hw.MatrixFrame.Drive): 28 segments, the colon (DH and DL as one), DM, the degree
+	f := v.Frames[0]
+	if len(f.Seg7) != 2*hw.Seg7Elems || f.Seg7[:2] != "ff" || f.Seg7[56:] != "141e28" || f.MS != 25 {
+		t.Errorf("frame: %+v", f)
 	}
 }
 
@@ -282,7 +296,8 @@ func TestWebPackAnimationPreview(t *testing.T) {
 	token, _ := login["token"].(string)
 	code, out := call(t, "GET", srv.URL+"/api/packs/neco/anims/happy", token, "")
 	frames, _ := out["frames"].([]any)
-	if code != 200 || out["display"] != "pixels-21x12" || out["width"] != float64(21) || out["height"] != float64(12) || len(frames) != 1 {
+	screen, _ := out["screen"].([]any)
+	if code != 200 || len(screen) != 2 || screen[0] != float64(21) || screen[1] != float64(12) || len(frames) != 1 {
 		t.Fatalf("preview response: %d %v", code, out)
 	}
 	if code, _ := call(t, "GET", srv.URL+"/api/packs/neco/anims/missing", token, ""); code != 422 {

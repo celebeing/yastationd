@@ -99,6 +99,10 @@ func (c Clip) Duration() time.Duration {
 	return d
 }
 
+// Drive is the frame as the display is driven at full brightness (hw.MatrixFrame.Drive: the
+// segments, then the colon, DM and the degree), as the LED preview stream carries it.
+func (f ClipFrame) Drive() [hw.Seg7Elems]uint8 { return f.matrixFrame(255).Drive() }
+
 // matrixFrame turns a clip frame into a graded MatrixFrame; the colon is DH and DL together.
 func (f ClipFrame) matrixFrame(brightness int) MatrixFrame {
 	return MatrixFrame{Brightness: brightness, Graded: true, Level: hw.SegLevels{

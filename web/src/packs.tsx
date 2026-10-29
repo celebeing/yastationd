@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import * as api from './api'
 import type { Pack, Packs, Peer } from './api'
 import { toWav } from './assets'
-import { SEG7_BOX, seg7Shapes } from './seg7'
+import { frontSize, LUT, paintFront } from './ledframe'
+
 // Behaviour → Packs and Behaviour → Sounds (docs/asset-packs.md). A pack carries sounds, animations
 // and moments; the theme stack is the packs in force, top first, over the default theme. The
 // owner's own moments, sounds and animations are the pack "custom".
@@ -161,9 +162,14 @@ export function PacksTab({ peer, base }: { peer: Peer; base: string }) {
                 </td>
                 <td class="actions">
                   {!!k.anims?.length && (
-                    <button class="ghost" onClick={() => setPreview(k)} title="Show every animation in this pack">
-                      Preview animations
-                    </button>
+                    <>
+                      <button class="ghost" onClick={() => setPreview(k)} title="Every animation of the pack, looping here in the browser; nothing is sent to the speaker">
+                        Preview
+                      </button>
+                      <a class="button ghost" href={`#led/@${k.id}`} title="Play its animations on the speaker (the LED page), without turning the pack on">
+                        Play on the speaker
+                      </a>
+                    </>
                   )}
                   {onOff(k)}
                   <button class="ghost" disabled={busy} onClick={() => setRenaming(renaming === k.id ? '' : k.id)}>
@@ -208,9 +214,14 @@ export function PacksTab({ peer, base }: { peer: Peer; base: string }) {
                 </td>
                 <td class="actions">
                   {!!k.anims?.length && (
-                    <button class="ghost" onClick={() => setPreview(k)} title="Show every animation in this pack">
-                      Preview animations
-                    </button>
+                    <>
+                      <button class="ghost" onClick={() => setPreview(k)} title="Every animation of the pack, looping here in the browser; nothing is sent to the speaker">
+                        Preview
+                      </button>
+                      <a class="button ghost" href={`#led/@${k.id}`} title="Play its animations on the speaker (the LED page), without turning the pack on">
+                        Play on the speaker
+                      </a>
+                    </>
                   )}
                   {onOff(k)}
                   <button class="ghost" disabled={busy} onClick={() => act(() => api.packAction(peer.id, base, k.id, 'copy'))} title="Make an editable copy, in its place in the theme">
@@ -257,6 +268,8 @@ function PackPreview(p: { peer: Peer; base: string; pack: Pack; onClose: () => v
   )
 }
 
+// One animation, looping: painted plain by the LED page's own painter (ledframe.ts), only when the
+// frame changes and only while on screen; with reduced motion, its first frame.
 function PackAnimationPreview(p: { peer: Peer; base: string; pack: string; name: string }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const [view, setView] = useState<api.PackAnimation | null>(null)
@@ -274,71 +287,43 @@ function PackAnimationPreview(p: { peer: Peer; base: string; pack: string; name:
     }
   }, [p.peer.id, p.base, p.pack, p.name])
   useEffect(() => {
-    if (!view || !canvas.current) return
-    const frames = view.frames.map((frame) => {
-      const bytes = new Uint8Array(frame.data.length / 2)
-      for (let i = 0; i < bytes.length; i++) bytes[i] = Number.parseInt(frame.data.slice(i * 2, i * 2 + 2), 16)
-      return { bytes, ms: Math.max(frame.ms, 16) }
-    })
-    if (!frames.length) return
     const c = canvas.current
+    if (!view || !c || !view.frames.length) return
+    const P = 8, // px per screen pixel
+      S7 = 0.5 // px per seg7 unit
+    const [w, h] = frontSize(view, P, S7)
+    c.width = Math.ceil(w)
+    c.height = Math.ceil(h)
     const ctx = c.getContext('2d')!
-    const shapes = view.display === 'seg7' ? seg7Shapes() : []
-    const draw = (bytes: Uint8Array) => {
-      if (view.display === 'seg7') {
-        const scale = 0.54
-        c.width = Math.ceil((SEG7_BOX.x1 - SEG7_BOX.x0) * scale) + 8
-        c.height = Math.ceil((SEG7_BOX.y1 - SEG7_BOX.y0) * scale) + 8
-        ctx.fillStyle = '#030303'
-        ctx.fillRect(0, 0, c.width, c.height)
-        for (const shape of shapes) {
-          const level = bytes[shape.el]
-          ctx.fillStyle = level ? `rgb(${level}, ${level}, ${level})` : '#151515'
-          ctx.beginPath()
-          if (shape.circle) {
-            ctx.arc(4 + (shape.circle[0] - SEG7_BOX.x0) * scale, 4 + (shape.circle[1] - SEG7_BOX.y0) * scale, shape.circle[2] * scale, 0, 2 * Math.PI)
-          } else {
-            for (let i = 0; i < shape.poly!.length; i++) {
-              const [x, y] = shape.poly![i]
-              if (i) ctx.lineTo(4 + (x - SEG7_BOX.x0) * scale, 4 + (y - SEG7_BOX.y0) * scale)
-              else ctx.moveTo(4 + (x - SEG7_BOX.x0) * scale, 4 + (y - SEG7_BOX.y0) * scale)
-            }
-          }
-          ctx.fill()
-        }
-        return
-      }
-      const w = view.width || 1
-      const h = view.height || 1
-      const scale = Math.max(4, Math.floor(168 / Math.max(w, h)))
-      c.width = w * scale
-      c.height = h * scale
-      ctx.imageSmoothingEnabled = false
-      for (let y = 0; y < h; y++)
-        for (let x = 0; x < w; x++) {
-          const i = (y * w + x) * 3
-          ctx.fillStyle = `rgb(${bytes[i]}, ${bytes[i + 1]}, ${bytes[i + 2]})`
-          ctx.fillRect(x * scale, y * scale, scale, scale)
-        }
+    const frames = view.frames.map((f) => ({ ...f, ms: Math.max(f.ms, 16) }))
+    const total = frames.reduce((n, f) => n + f.ms, 0)
+    const paint = (k: number) => {
+      ctx.fillStyle = '#000'
+      ctx.fillRect(0, 0, c.width, c.height)
+      paintFront(ctx, view, frames[k], LUT, 0, 0, P, S7)
     }
-    const total = frames.reduce((n, frame) => n + frame.ms, 0)
+    paint(0)
+    if (frames.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    let raf = 0,
+      shown = 0,
+      visible = false
     const start = performance.now()
-    let raf = 0
-    const render = (now: number) => {
-      let elapsed = (now - start) % total
-      let frame = frames[frames.length - 1]
-      for (const candidate of frames) {
-        if (elapsed < candidate.ms) {
-          frame = candidate
-          break
-        }
-        elapsed -= candidate.ms
-      }
-      draw(frame.bytes)
-      if (!matchMedia('(prefers-reduced-motion: reduce)').matches) raf = requestAnimationFrame(render)
+    const tick = (now: number) => {
+      let t = (now - start) % total,
+        k = 0
+      while (k < frames.length - 1 && t >= frames[k].ms) t -= frames[k++].ms
+      if (k !== shown) paint((shown = k))
+      raf = visible ? requestAnimationFrame(tick) : 0
     }
-    render(start)
-    return () => cancelAnimationFrame(raf)
+    const io = new IntersectionObserver(([e]) => {
+      visible = e.isIntersecting
+      if (visible && !raf) raf = requestAnimationFrame(tick)
+    })
+    io.observe(c)
+    return () => {
+      io.disconnect()
+      cancelAnimationFrame(raf)
+    }
   }, [view])
   return (
     <figure class="pack-animation-preview">
@@ -348,7 +333,7 @@ function PackAnimationPreview(p: { peer: Peer; base: string; pack: string; name:
   )
 }
 
-type PackImport = { file: string; skipped?: string; error?: string }
+type PackImport = { file: string; id?: string; version?: string; was?: string; updated?: boolean; skipped?: boolean; error?: string }
 
 function AddPack(p: { peer: Peer; base: string; max: number; onDone: () => void; onErr: (e: string) => void }) {
   const [files, setFiles] = useState<File[]>([])
@@ -365,14 +350,10 @@ function AddPack(p: { peer: Peer; base: string; max: number; onDone: () => void;
       setPct(0)
       try {
         if (file.size > p.max) throw new Error(`over ${p.max >> 20} MB`)
-        const result: unknown = await api.uploadAsset(p.peer.id, p.base, '/api/packs?skip_existing=1', file, (n) => setPct(n / file.size))
-        const skipped = result && typeof result === 'object' && 'skipped' in result && typeof result.skipped === 'string' ? result.skipped : ''
-        if (skipped) {
-          setImports((r) => [...r, { file: file.name, skipped }])
-        } else {
-          installed = true
-          setImports((r) => [...r, { file: file.name }])
-        }
+        const result = (await api.uploadAsset(p.peer.id, p.base, '/api/packs?same=skip', file, (n) => setPct(n / file.size))) as { imported?: api.PackImported }
+        const im = result?.imported
+        if (!im?.skipped) installed = true
+        setImports((r) => [...r, { file: file.name, ...im }])
       } catch (e: unknown) {
         const error = e instanceof Error ? e.message : String(e)
         setImports((r) => [...r, { file: file.name, error }])
@@ -389,7 +370,7 @@ function AddPack(p: { peer: Peer; base: string; max: number; onDone: () => void;
     <section class="card">
       <h3>Import packs</h3>
       <p class="muted small">
-        Choose one or more .zip packs. Each is checked and installed separately, so a rejected pack does not stop the rest.
+        Choose one or more .zip packs (docs/asset-packs.md). Each is checked on the speaker and installed by itself, so a rejected one does not stop the rest. A newer version of an installed pack updates it; the same version is skipped.
       </p>
       <div class="row">
         <input
@@ -419,7 +400,13 @@ function AddPack(p: { peer: Peer; base: string; max: number; onDone: () => void;
         <ul class="small">
           {imports.map((r) => (
             <li class={r.error ? 'err' : r.skipped ? 'warn-text' : ''}>
-              {r.file}: {r.error || (r.skipped ? `${r.skipped} already exists — skipped.` : 'installed.')}
+              {r.file}:{' '}
+              {r.error ||
+                (r.skipped
+                  ? `${r.id} ${r.version || ''} is installed already: skipped.`
+                  : r.updated
+                    ? `${r.id} updated${r.was || r.version ? ` from ${r.was || '?'} to ${r.version || '?'}` : ''}.`
+                    : 'installed. Turn it on to wear it.')}
             </li>
           ))}
         </ul>

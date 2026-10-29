@@ -278,13 +278,15 @@ export type Pack = {
   editable?: boolean
 }
 
-/** Parsed frames for one installed pack animation, for browser-only previews. */
+/** One installed pack animation for a preview in the browser, in the LED preview stream's terms
+ * (the display as its /info, frames as its /frames: drive values, hex), painted by ledframe.ts. */
 export type PackAnimation = {
-  display: string
-  width?: number
-  height?: number
-  frames: { data: string; ms: number }[]
+  screen: [number, number]
+  seg7?: { digits: number; colon: boolean; dot: boolean; degree: boolean }
+  frames: { screen?: string; seg7?: string; ms: number }[]
 }
+/** PUT /api/packs: what the import did (updated: replaced another version, was; skipped: the same version is there). */
+export type PackImported = { id: string; version?: string; was?: string; updated?: boolean; skipped?: boolean }
 /** stack: the packs this speaker wears, top first (a pack left out is off); here: from
  * theme_here (v0.21.1's "Apply here"), not the theme key; target: the owner's pack edits go to. */
 export type Packs = {
