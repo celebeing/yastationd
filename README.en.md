@@ -43,7 +43,8 @@ firmware: eyes, the voice-state bars while it listens, thinks and speaks, a ring
 and track changes. A few more faces of ours fill the gaps (happy, sad, angry, wink, sleep). Every change
 on the display is smooth: segments cross-fade per element, so animations join without a blank,
 digits morph into new ones and the clock fades back in after a face. All of it is scriptable from
-HA, from single expressions to timed scenarios across the ring and the display.
+HA, from single expressions to timed scenarios across the ring and the display, and themes and
+packs replace any animation and add sounds to any event.
 
 ## What the speaker does with the CFW
 
@@ -58,6 +59,9 @@ HA, from single expressions to timed scenarios across the ring and the display.
 - HA voice timers: countdown on the clock, an alarm on finish, any touch key stops it. A paused timer
   blinks its remainder briefly, then the clock comes back.
 - Local reflexes while audio plays: «стоп», «громче», «тише» are handled on the device.
+- The replies speak with the voice your HA pipeline picks. The docs also cover a character voice:
+  Silero through RVC on a server's GPU, as a second pipeline
+  ([docs/ha-assistant-setup.md](docs/ha-assistant-setup.md)).
 
 **Expressions on the display and the ring**
 - The speaker's own clock animations play on the front display: the voice-state bars while the
@@ -67,14 +71,37 @@ HA, from single expressions to timed scenarios across the ring and the display.
   volume digits morph, the clock fades back in after a face.
 - From HA's automations: the `expression`, `express` and `scenario` MQTT topics (built-in or
   your own timed scenarios over the ring and the display) and raw frames; the web app's LED page
-  tries them all, and its settings turn the faces on or off. The speaker publishes what it can
+  tries them all. The speaker publishes what it can
   show (`display_caps`), so scripts and an LLM agent can adapt to each model.
   Details: [docs/display-expressions.md](docs/display-expressions.md).
+
+**Behaviour: moments, themes and packs** ([docs/asset-packs.md](docs/asset-packs.md))
+- **Everything the speaker does when something happens is a "moment"**, and you can change it:
+  the wake word, thinking, the reply, an error, a cancel, a timer, a call, booting, HA lost, mute,
+  the volume keys, about forty in all. Some moments are silent by default, at the places other
+  assistants beep: a sound on the wake word, for one.
+- **A moment is a show:** a face or an animation on the display, a ring effect in any colour,
+  text and a sound, at once or in steps with pauses. The last step can hold while the event lasts
+  (a call's ring tone). A sound or an animation can be a list: each showing plays one at random.
+- **Packs** are .zip archives of animations (for the Station 3 screen and the Minis' clock),
+  sounds and moments. **Behaviour → Packs** installs them and stacks them in layers: the built-in
+  behaviour always at the bottom, the packs above in order, the top one wins. Each pack turns on
+  and off, and every speaker has its own. A pack is checked on the speaker, with the same checks
+  that play it, before it is installed.
+- **Your own packs:** your moment changes, sounds and animations live in packs of yours: create,
+  rename, export them as a .zip, install them on another speaker. **Behaviour → Moments** shows
+  what each moment does now and which layer that comes from; Customize copies it into your pack
+  to change, and an installed pack can be copied into one of yours whole.
+- **Behaviour → Sounds** lists every sound of the speaker and the packs, to play; add your own
+  from any audio file (converted to WAV in the browser). The **LED** page browses the animations
+  in folders, the firmware's and each pack's, and plays them on the screen without applying a pack.
+- Packs are built and checked on a computer (`tools/build.sh packtool`); the format and an
+  example: [docs/asset-packs.md](docs/asset-packs.md).
 
 **Controls and sensors (HA MQTT Discovery, one device per speaker)**
 - LED ring effects (pulse, comet, blink, rainbow, voice-state presets) and timed ring animations
   for automations over MQTT (`ring/set`, `ring_animation/set`); as an HA `light` entity only with
-  `ha_ring_light = true`. The speaker's own settings (durations, faces, the dialog follow-up) live
+  `ha_ring_light = true`. The speaker's own settings (durations, the dialog follow-up) live
   in its web app, not on HA's device card.
 - Station 3's rear strip as an RGBW `light`, and a DDP receiver for it: point
   [LedFx](https://www.ledfx.app/) (or WLED tools) at the speaker as a 12-pixel DDP device and its
@@ -113,21 +140,13 @@ HA, from single expressions to timed scenarios across the ring and the display.
 **A web app on every speaker**
 - Open `http://<speaker-ip>/` (login **admin / yastation** until you change it from the app):
   every speaker on the LAN in one list, found by itself; per speaker its sensors, the runtime
-  controls HA has (display, expressions, brightness, volume…), a live LED preview, the moments
-  (what it shows for each event, with an editor), the saved Wi-Fi networks (add one), its logs, a light-sensor
+  controls HA has (display, expressions, brightness, volume…), a live LED preview with an
+  animation browser, the Behaviour section (moments, packs, sounds, videos — above), the saved Wi-Fi networks (add one), its logs, a light-sensor
   calibration against a lux meter or a camera's exposure, every setting by topic with an explanation (most apply at once;
   where a restart is needed it is on trial and rolls itself back if the speaker gets worse), the
   login, and an update check.
 - On a Station 3, **Behaviour → Videos**: your own clips for its screen (like Bad Apple). A video file
   is converted right in the browser and uploaded, no ffmpeg needed ([docs/assets.md](docs/assets.md)).
-- **Themes and asset packs**: everything the speaker does when something happens (the faces, the
-  ring, every sound, the status lights) is a moment you can change, sounds included, together or
-  one after another. **Behaviour → Packs** installs packs of animations, sounds and moments (a
-  .zip; packs live in their own repositories) and orders them as a theme, top first; the LED page plays any pack's animations before you apply it; **Behaviour →
-  Sounds** plays, adds and replaces sounds. Your changes live in packs of your own: the built-in
-  behaviour is always at the bottom, Customize on the Moments page copies what a moment does now
-  into your pack, and an installed pack can be copied into one of yours to change it
-  ([docs/asset-packs.md](docs/asset-packs.md)).
 - One switch makes a setting or option shared by every speaker: they take this speaker's
   value and change together from then on; a speaker that was off catches up when it is back.
   Details: [docs/web-ui.md](docs/web-ui.md), [docs/settings.md](docs/settings.md).
