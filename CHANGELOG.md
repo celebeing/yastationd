@@ -3,7 +3,7 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.21.2 — 2026-10-29
 
 **Your own packs** ([docs/asset-packs.md](docs/asset-packs.md))
 - The built-in behaviour is now level 0, always at the bottom; above it the packs a speaker wears.
@@ -11,28 +11,23 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
   export. "Your own" is the first, and it is worn on top unless you place it elsewhere.
 - Moments: pick the pack you edit ("Edit in"); each moment shows the layer it comes from;
   **Customize** copies what a moment does now into your pack to change it there; "Remove from"
-  lets the layers below show again.
+  lets the layers below show again. A sound or an animation can be several, picked at random
+  ("+ or").
 - Installed packs are read-only; **Copy to my pack** makes an editable copy in its place.
 - Sounds: add and remove sounds in any of your packs.
-
-**Changed**
-- Moments are no longer shared between speakers (packs carry them: export one, install it on
-  another speaker). A moment shared before is ignored.
-- `<cfw>/moments.json` is folded into the pack "Your own" at the first start and renamed
-  `moments.json.old`.
-- The Moments editor picks several sounds or animations for a random choice ("+ or").
-
-## v0.21.2 — 2026-10-29
-
-**Changed**
 - The web app's Assets section is now **Behaviour**, with the Moments editor as its first tab and a
   short explanation of moments, packs and sounds above them.
 
+**Changed**
+- Nothing about packs or moments is shared between speakers any more: each speaker has its own
+  packs and theme (one **Apply** puts a pack on top of this speaker's theme). A theme or a moment
+  shared before is ignored. Sharing comes back through exporting and installing packs.
+- `<cfw>/moments.json` is folded into the pack "Your own" at the first start and renamed
+  `moments.json.old`.
+
 **Fixed**
 - The Packs page made it too easy to apply a pack to every speaker with one click, with no undo,
-  no error, and nothing worn where the pack was missing. The theme is no longer shared between
-  speakers: one **Apply** puts a pack on top of this speaker's theme. (A theme already shared
-  stays as each speaker has it; the sync ignores it now.)
+  no error, and nothing worn where the pack was missing.
 
 ## v0.21.1 — 2026-10-29
 
