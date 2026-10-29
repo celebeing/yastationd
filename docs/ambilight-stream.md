@@ -57,7 +57,9 @@ strip lights the wall like a floodlight). The effects are the usual audio-reacti
 
 The highs of `rain` and the peak of `vu` are white. With `ambilight_fx_white = true` (config;
 on by default since 2026-10-28) they use the strip's white channel, else they are drawn as R=G=B. A DDP stream is
-not affected.
+not affected. With the board's colour calibration the effects' colours are corrected (their
+brightness stays linear) and white is made for `ambilight_white`; off, `ambilight_fx_white` keeps
+the white LED dark ([ambilight-color.md](ambilight-color.md)).
 
 The spectrum is sendspin-host's (`-b`, 21 bands, ~25 frames a second, timed to when the audio is
 heard: [music-sendspin.md](music-sendspin.md#on-the-display)); the strip renders at 40 Hz.

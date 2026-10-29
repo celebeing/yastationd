@@ -30,6 +30,11 @@ ambilight_brightness = 64
 # ddp_port = 4048
 # The music effects use the strip's white channel (off: drawn as R=G=B instead).
 # ambilight_fx_white = true
+# The white the ambilight's colours are made for (docs/ambilight-color.md): srgb (HA's colours as
+# specified, 6500 K), warm (the strip's white LED without its green tint, ~5300 K) or kelvin.
+# ambilight_white = srgb
+# This unit's own measured strip colours over the board's ("x y Y" for R, G, B, W; empty = the board's).
+# ambilight_calibration =
 # clock_brightness     = 255   (first start: the fixed level, and the brightest auto goes; later HA's Clock brightness)
 # auto_brightness_min  = 0     (the dimmest auto goes; 0 = the board's matrix.min_brightness)
 auto_brightness      = true

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/celebeing/yastationd/yastationd/internal/ledcolor"
 	"github.com/celebeing/yastationd/yastationd/internal/luxcal"
 	"github.com/celebeing/yastationd/yastationd/internal/web"
 )
@@ -248,6 +249,21 @@ func init() {
 	reg(Key{Name: "ambilight_fx_white", Group: "ambilight", Label: "Ambilight effects: white LED", Runtime: true, Sync: true, Needs: "ambilight",
 		Doc: "The white in the ambilight's music effects (the highs of rain, the peak of vu) lights the strip's white LEDs; off, it is mixed from red, green and blue. DDP streams and the HA light are not affected."},
 		boolV(func(c *Config) *bool { return &c.AmbilightFxWhite }))
+	reg(Key{Name: "ambilight_white", Group: "ambilight", Label: "Ambilight white", Runtime: true, Sync: true, Needs: "ambilight",
+		Doc: "The white the ambilight's colours are made for. srgb: colours as Home Assistant specifies them (sRGB, 6500 K white), the default; warm: the strip's own white LED, about 5300 K, without its green tint — colours shift warmer to match; or a colour temperature such as 4000. Applies to the HA light and the music effects, not to DDP streams."},
+		textV(func(c *Config) *string { return &c.AmbilightWhite }, func(v string) error {
+			_, err := ledcolor.White(v, ledcolor.Calibration{})
+			return err
+		}))
+	reg(Key{Name: "ambilight_calibration", Group: "ambilight", Label: "Ambilight calibration (this speaker)", Runtime: true, Advanced: true, Needs: "ambilight",
+		Doc: "This speaker's own measured strip colours, over the board's: R, G, B and W at full as \"x y Y\" (chromaticity, luminance relative to W), comma-separated. Empty uses the board's calibration, which fits the units measured so far within a barely visible difference (docs/ambilight-color.md)."},
+		textV(func(c *Config) *string { return &c.AmbilightCalibration }, func(v string) error {
+			if strings.TrimSpace(v) == "" {
+				return nil
+			}
+			_, err := ledcolor.ParsePrimaries(v)
+			return err
+		}))
 	reg(Key{Name: "ddp_port", Group: "ambilight", Label: "DDP port", Sync: true, Needs: "ambilight", Advanced: true,
 		Doc: "Boards with an ambilight: the UDP port for LED frames from LedFx or WLED tools; 0 turns it off."},
 		intV(0, 65535, func(c *Config) *int { return &c.DDPPort }))

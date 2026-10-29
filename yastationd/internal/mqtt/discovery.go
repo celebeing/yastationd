@@ -334,7 +334,10 @@ func (b *builder) Entities() []Entity {
 			"state_topic":           t.State("ambilight"),
 			"command_topic":         t.Command("ambilight"),
 			"brightness":            true,
-			"supported_color_modes": []string{"rgbw"},
+			"supported_color_modes": []string{"hs", "color_temp"},
+			"color_temp_kelvin":     true,
+			"min_kelvin":            AmbilightMinKelvin,
+			"max_kelvin":            AmbilightMaxKelvin,
 			"icon":                  "mdi:led-strip-variant",
 		}})
 	}
@@ -369,6 +372,13 @@ func (b *builder) Entities() []Entity {
 
 // WebOnly: entities the speaker's web app shows (they are its settings) that HA's device card
 // does not get. The web app lists them with the rest (Entities), Publish keeps them out of HA.
+// The ambilight light's colour temperature range in HA (kelvin): what the strip makes well
+// (docs/ambilight-color.md); below ~2200 K the colour is past its red-green edge.
+const (
+	AmbilightMinKelvin = 2000
+	AmbilightMaxKelvin = 8000
+)
+
 var WebOnly = map[string]bool{"text_duration": true, "animation_duration": true, "follow_up": true}
 
 // retired: entities HA got from earlier versions; Publish clears them so HA drops them. Their

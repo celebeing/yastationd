@@ -19,6 +19,8 @@ ring_brightness       = 128
 ambilight_brightness  = 128
 # ddp_port            = 4048   (boards with an ambilight: LED frames over DDP from LedFx etc.; 0 = off)
 # ambilight_fx_white  = true   (music effects use the white channel; off = drawn as R=G=B)
+# ambilight_white     = srgb   (the white the ambilight's colours are made for: srgb, warm or kelvin)
+# ambilight_calibration =      (this unit's measured strip colours over the board's; empty = the board's)
 # clock_brightness      = 255   (first start: the fixed level, and the brightest auto goes; later HA's Clock brightness)
 # auto_brightness_min  = 0     (the dimmest auto goes; 0 = the board's matrix.min_brightness)
 # Clock brightness from the light sensor (also an HA switch; this is only the first-start value).

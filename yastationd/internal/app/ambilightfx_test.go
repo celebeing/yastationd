@@ -33,7 +33,8 @@ func TestAmbilightFxLayer(t *testing.T) {
 	a.fx.kick = make(chan struct{}, 1)
 	a.store.update(func(s *persistState) {
 		s.AmbilightFx, s.AmbilightFxBright = true, 128
-		s.AmbilightOn, s.AmbilightRGBW, s.AmbilightBright = true, hw.RGBW{W: 255}, 255
+		// No calibration in this profile: a colour temperature is W alone.
+		s.AmbilightOn, s.AmbilightMode, s.AmbilightBright = true, "color_temp", 255
 	})
 
 	a.onDDPFrame(ddp.Frame{Channels: 3, Data: []byte{200, 100, 0, 0, 0, 50}})

@@ -354,10 +354,12 @@ Three surfaces, every LED a Linux LED class device each mirrored by a framebuffe
   `ambilight/` = 12 px + duration, `screen/` = 252 px (21×12 row-major) + duration.
   No gamma in the files — the surfaces' gamma (ambilight 2.0, screen 2.2) comes from
   quasar.cfg's `leds` block.
-- `ledconfigs/{red,blue}.json`: per-case-colour 3×3 **channel current coefficient
-  matrices** — which one applies is decided by the case colour, and
-  `S61leds-current-coefficients` programs it at boot. Orthogonal to our sysfs brightness
-  writes; we keep it running.
+- `ledconfigs/{red,blue}.json`: per-case-colour 3×3 colour matrices, read by maind
+  (`maind.ledConfigsPath`), so not applied with maind gated; the case colour is a character of
+  `device_id -r`. Both our units are `K` (black), which has no file. `S61leds-current-coefficients`
+  is something else: it writes `current_coefs` of the clock's LED drivers (3-0021, 3-0037) for
+  the `Y` and `G` cases only (`/etc/leds-current-coefficients.conf`). The ambilight's own
+  calibration is ours: [ambilight-color.md](../ambilight-color.md).
 - The profile wires the ring exactly like bergamot's bar (`sysfs-rgb`, trigger → `none`);
   the 36 px work with the existing stack/effect sizes — **no new backend needed, verified
   on device 2026-10-24** (`tools/orion-led-probe.sh`, log in the local `dumps/`):

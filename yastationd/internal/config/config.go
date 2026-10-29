@@ -59,7 +59,12 @@ type Config struct {
 	// AmbilightFxWhite: the music effects use the strip's white channel (else what would go
 	// there is drawn as R=G=B). On by default.
 	AmbilightFxWhite bool
-	AutoBrightness   bool // clock brightness from the light sensor at first start (later: HA switch)
+	// AmbilightWhite: the white the HA light's colours are shown against (ledcolor.White:
+	// srgb, warm or kelvin); AmbilightCalibration: this unit's own primaries over the board's
+	// ("" = the board's; docs/ambilight-color.md).
+	AmbilightWhite       string
+	AmbilightCalibration string
+	AutoBrightness       bool // clock brightness from the light sensor at first start (later: HA switch)
 	// Light-sensor reading -> clock brightness, interpolated on log(lux) between the points
 	// (ascending lux) and clamped at the ends. The reading is the sensor's own scale, not true
 	// lux: the sensor sits behind the grille and its spectrum differs from a lux meter's.
@@ -326,6 +331,7 @@ func Default() Config {
 		SendspinVolume:      "linked",
 		MusicDuckDB:         -26,
 		AmbilightFxWhite:    true,
+		AmbilightWhite:      "srgb",
 		MusicTitle:          true,
 		MarqueeSpeed:        1,
 		MusicClips:          true,

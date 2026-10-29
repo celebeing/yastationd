@@ -2,7 +2,7 @@ package mqtt
 
 import "testing"
 
-func TestAmbilightDiscoveryIsConditionalRGBW(t *testing.T) {
+func TestAmbilightDiscoveryIsConditional(t *testing.T) {
 	builder := NewBuilder(NewTopics("yastation", "homeassistant", "test"), Device{})
 	for _, entity := range builder.Entities() {
 		if entity.Object == "ambilight" {
@@ -21,8 +21,10 @@ func TestAmbilightDiscoveryIsConditionalRGBW(t *testing.T) {
 			t.Fatalf("ambilight discovery = %+v", entity)
 		}
 		modes, ok := entity.Config["supported_color_modes"].([]string)
-		if !ok || len(modes) != 1 || modes[0] != "rgbw" {
-			t.Fatalf("ambilight color modes = %#v", entity.Config["supported_color_modes"])
+		// Hue/saturation and kelvin: the strip's drive (W included) is worked out on the speaker.
+		if !ok || len(modes) != 2 || modes[0] != "hs" || modes[1] != "color_temp" ||
+			entity.Config["color_temp_kelvin"] != true {
+			t.Fatalf("ambilight color modes = %#v", entity.Config)
 		}
 		return
 	}

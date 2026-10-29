@@ -107,6 +107,9 @@ func (a *App) ambilightShown(now time.Time) []hw.RGBW {
 	if s.AmbilightFx && a.ambilightFxOn() && a.musicLevelsFresh(now) {
 		if fx := a.musicEffect(); fx != nil {
 			f := fx.frame(now, a.ambilight.Pixels())
+			if r := a.ambilightRenderer(); r != nil {
+				return calibrateFx(r, f, s.AmbilightFxBright, a.cfg().AmbilightFxWhite)
+			}
 			if !a.cfg().AmbilightFxWhite {
 				foldWhite(f)
 			}
