@@ -1,6 +1,8 @@
 package app
 
 import (
+	"math/rand"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,6 +28,56 @@ type scenarioStep struct {
 	Phrase  string `json:"phrase,omitempty"`  // a sound name played as speech: other playback stops
 	Ms      int    `json:"ms,omitempty"`      // how long; 0 = the animation's own length
 	Hold    bool   `json:"hold,omitempty"`    // the last step stays (looping, its sound too) until the slot moves on
+}
+
+// oneOf picks one of a random choice "a,b,c" among the names ok accepts ("" when none does); a
+// name without a comma is itself. Each name may still list fallbacks ("a|b", a sound).
+func oneOf(names string, ok func(string) bool) string {
+	alts := strings.Split(names, ",")
+	if len(alts) == 1 {
+		return names
+	}
+	var good []string
+	for _, n := range alts {
+		if n = strings.TrimSpace(n); n != "" && ok(n) {
+			good = append(good, n)
+		}
+	}
+	if len(good) == 0 {
+		return ""
+	}
+	return good[rand.Intn(len(good))]
+}
+
+// anyOf: ok accepts one of the names of a random choice (or the name itself).
+func anyOf(names string, ok func(string) bool) bool {
+	for _, n := range strings.Split(names, ",") {
+		if n = strings.TrimSpace(n); n != "" && ok(n) {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) soundOK(n string) bool { return a.soundPath(n) != "" }
+
+func (a *App) animOK(n string) bool {
+	_, ok := a.frontAnim(n)
+	return ok
+}
+
+// rollStep makes a step's random choices (sound, phrase, animation, expression: "a,b,c"), each
+// among what this speaker has, once per showing.
+func (a *App) rollStep(st scenarioStep) scenarioStep {
+	st.Sound = oneOf(st.Sound, a.soundOK)
+	st.Phrase = oneOf(st.Phrase, a.soundOK)
+	st.Express = oneOf(st.Express, a.refAvailable)
+	if st.Anim != "" {
+		st.Anim = oneOf(st.Anim, a.animOK)
+	} else {
+		st.Matrix = oneOf(st.Matrix, a.animOK)
+	}
+	return st
 }
 
 func (st scenarioStep) anim() string {
@@ -104,19 +156,17 @@ func stepsHaveRing(steps []scenarioStep) bool {
 
 // stepAvailable: the step shows or plays something on this speaker.
 func (a *App) stepAvailable(st scenarioStep) bool {
-	if st.Sound != "" && a.soundPath(st.Sound) != "" || st.Phrase != "" && a.soundPath(st.Phrase) != "" {
+	if st.Sound != "" && anyOf(st.Sound, a.soundOK) || st.Phrase != "" && anyOf(st.Phrase, a.soundOK) {
 		return true
 	}
-	if st.Express != "" && a.refAvailable(st.Express) {
+	if st.Express != "" && anyOf(st.Express, a.refAvailable) {
 		return true
 	}
 	if st.Ring != "" && a.ring != nil && stepEffect(st.Ring, st.Color, st.Period) != nil {
 		return true
 	}
-	if n := st.anim(); n != "" && a.frontClips() {
-		if _, ok := a.frontAnim(n); ok {
-			return true
-		}
+	if n := st.anim(); n != "" && a.frontClips() && anyOf(n, a.animOK) {
+		return true
 	}
 	return st.Text != "" && a.front != nil
 }
@@ -188,10 +238,10 @@ func (a *App) runSteps(slot string, steps []scenarioStep, ttl time.Duration, pri
 	// show starts step i (the first one before returning, so the caller's slot is never empty)
 	// and reports how long it lasts; held = it stays until the slot moves on.
 	show := func(i int) (d time.Duration, held bool) {
-		st := steps[i]
+		st := a.rollStep(steps[i])
 		if i == len(steps)-1 && st.Hold {
 			a.showStep(slot, prio, stepRing, st, 0, true, keepRing)
-			a.loopSound(slot, st, stop, mine)
+			a.loopSound(slot, steps[i], st, stop, mine)
 			return 0, true
 		}
 		d = a.stepLength(st)
@@ -341,11 +391,14 @@ func (a *App) yieldOf(slot string) func() bool {
 
 // loopSound repeats a held step's sound (soundLoopGap apart) while the slot runs this show (stop
 // open and mine): a ring tone. The step itself played it once already.
-func (a *App) loopSound(slot string, st scenarioStep, stop <-chan struct{}, mine func() bool) {
-	name, phrase := st.Sound, false
-	if name == "" {
-		name, phrase = st.Phrase, true
+func (a *App) loopSound(slot string, step, played scenarioStep, stop <-chan struct{}, mine func() bool) {
+	pick := func(st scenarioStep) (string, bool) {
+		if st.Sound != "" {
+			return st.Sound, false
+		}
+		return st.Phrase, true
 	}
+	name, _ := pick(played)
 	d := a.soundLen(name)
 	if d == 0 {
 		return
@@ -360,7 +413,10 @@ func (a *App) loopSound(slot string, st scenarioStep, stop <-chan struct{}, mine
 			if !mine() {
 				return
 			}
+			// a random choice picks again on every repeat
+			name, phrase := pick(scenarioStep{Sound: oneOf(step.Sound, a.soundOK), Phrase: oneOf(step.Phrase, a.soundOK)})
 			a.playSound(slot, name, phrase)
+			d = a.soundLen(name)
 		}
 	}()
 }

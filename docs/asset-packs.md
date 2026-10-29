@@ -50,6 +50,12 @@ a sound and no `ms` lasts as long as the sound, so sounds chain one after anothe
 nothing but `ms` is a pause. A held last step repeats its sound (1.5 s apart) until the moment
 ends: the ring tones. A name may list fallbacks, `calls_ringing_incoming|notification_sound`.
 
+**Random choices.** A sound, a phrase, an animation or an expression may name several, comma-separated:
+`"sound": "neco_short_1,neco_short_2,neco_grunt_1"`, `anim:happy_a,happy_b`, a bare `happy,wink`.
+Each showing picks one at random among those this speaker has (a held step picks again on every
+repeat); the choice counts as available when one of them is. A name in the choice may still list
+fallbacks (`a|b,c`).
+
 **Hooks.** Every event the CFW reacts to is a moment in the catalogue (`momentCatalog`,
 `internal/app/defaulttheme.go`), with its slot, its front and ring priorities, its TTL and,
 for a call, when its ring yields to the voice stages (ringing: the listening window after

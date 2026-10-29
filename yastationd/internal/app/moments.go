@@ -188,15 +188,18 @@ func (a *App) refAvailable(c string) bool {
 		return err == nil
 	}
 	if s, ok := strings.CutPrefix(c, "sound:"); ok {
-		return a.soundPath(s) != ""
+		return anyOf(s, a.soundOK)
 	}
 	if s, ok := strings.CutPrefix(c, "phrase:"); ok {
-		return a.soundPath(s) != ""
+		return anyOf(s, a.soundOK)
 	}
 	if s, ok := strings.CutPrefix(c, "ring:"); ok {
 		return a.ring != nil && effect(s) != nil
 	}
 	c = strings.TrimPrefix(c, "anim:")
+	if strings.Contains(c, ",") { // a random choice: one of them
+		return anyOf(c, a.refAvailable)
+	}
 	if e, ok := expressions[c]; ok && e.ring != "" && a.ring != nil {
 		return true
 	}
@@ -264,7 +267,7 @@ func (a *App) play(slot, name string, shows []show, ttl time.Duration, prio int)
 		}
 		steps, ok := a.showSteps(s)
 		if !ok {
-			return a.expressAt(slot, s.Ref, ttl, prio)
+			return a.expressAt(slot, oneOf(s.Ref, a.refAvailable), ttl, prio)
 		}
 		e := expressions[name]
 		if e.ring == "" || stepsHaveRing(steps) {

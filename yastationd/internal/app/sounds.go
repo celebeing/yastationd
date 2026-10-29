@@ -39,8 +39,16 @@ func (a *App) soundPath(name string) string {
 	return ""
 }
 
-// soundLen is how long a sound name plays (0: none, or not a readable WAV).
+// soundLen is how long a sound name plays (0: none, or not a readable WAV); of a random pick
+// ("a,b"), the longest.
 func (a *App) soundLen(name string) time.Duration {
+	if alts := strings.Split(name, ","); len(alts) > 1 {
+		var d time.Duration
+		for _, n := range alts {
+			d = max(d, a.soundLen(strings.TrimSpace(n)))
+		}
+		return d
+	}
 	p := a.soundPath(name)
 	if p == "" {
 		return 0

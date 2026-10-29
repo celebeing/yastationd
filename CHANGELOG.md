@@ -12,6 +12,9 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
 - **Apply here** wears a pack on this speaker only (`theme_here`, never shared); "Wear the shared
   theme" goes back.
 
+- A moment can pick at random: a sound, an animation or an expression may name several
+  (`neco_short_1,neco_short_2`), and each showing plays one of them.
+
 **Fixed**
 - A sound on the listening moment played twice after «Алиса» (once more when HA started
   transcribing): a voice stage fired again now goes on instead of starting over.

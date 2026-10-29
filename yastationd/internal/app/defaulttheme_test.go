@@ -125,3 +125,27 @@ func TestHeldSoundLoopsOnlyWhenHeld(t *testing.T) {
 		}
 	}
 }
+
+// A random choice "a,b,c" picks among the names this speaker has, each showing anew.
+func TestRandomChoice(t *testing.T) {
+	a := themeTestApp(t, "nya", "hmm")
+	seen := map[string]int{}
+	for range 200 {
+		seen[a.rollStep(scenarioStep{Sound: "nya, hmm,missing"}).Sound]++
+	}
+	if seen["nya"] == 0 || seen["hmm"] == 0 || len(seen) != 2 {
+		t.Errorf("picks: %v", seen)
+	}
+	if got := a.rollStep(scenarioStep{Sound: "missing,gone"}).Sound; got != "" {
+		t.Errorf("nothing to pick from: %q", got)
+	}
+	if st := a.rollStep(scenarioStep{Sound: "nya|hmm"}); st.Sound != "nya|hmm" {
+		t.Errorf("a fallback list is no choice: %q", st.Sound)
+	}
+	if !a.available(show{Ref: "sound:missing,hmm"}) || a.available(show{Ref: "sound:missing,gone"}) {
+		t.Error("a choice is available when one of its names is")
+	}
+	if d := a.soundLen("nya,missing"); d < 90*time.Millisecond {
+		t.Errorf("a choice's length: %v", d)
+	}
+}
