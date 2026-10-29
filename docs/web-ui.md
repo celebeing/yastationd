@@ -64,7 +64,7 @@ to the binary. Flash is written only when the config is saved.
 | `GET /api/sync`, `POST /api/sync` | what is shared with the other speakers; share or stop sharing an item |
 | `POST /api/password` | change the login |
 | `GET /api/wifi`, `POST /api/wifi/networks` | the saved Wi-Fi networks (no passwords), the current one, whether setup mode is on; add a network (`{ssid, psk, hidden, priority}`) — only with `wifi_setup` on ([wifi-setup.md](wifi-setup.md)) |
-| `GET /api/moments`, `PUT\|DELETE /api/moments/<name>`, `POST /api/moment/<name>` | the moments and their catalogue; set the owner's choice or go back to the defaults; show one (a body of candidates previews an unsaved draft) |
+| `GET /api/moments[?pack=]`, `PUT\|DELETE /api/moments/<name>[?pack=]`, `POST /api/moment/<name>` | the moments, the layer each comes from, the owner's packs and the catalogue; set or remove a moment in one of the owner's packs; show one (a body of candidates previews an unsaved draft) |
 | `GET /api/log?source=daemon\|system&lines=N` | the tail of the daemon's or the system log, oldest first ([storage.md](storage.md)) |
 | `GET\|POST\|DELETE /api/calibrate/light` | the light-sensor calibration: its state; `{"lux": N}` measures and stores a point; drop the unit's own ([sensor-calibration.md](sensor-calibration.md)) |
 
@@ -177,13 +177,15 @@ paper's 85 % reflectance; the page converts as it is typed) — live, no restart
   (the old one as `.before-web`), wpa_supplicant is not reloaded: the new network is used at the
   next reconnect or reboot, so the connection in use is never touched. The rest is the setup
   mode's.
-- **Moments:** the moments the app announces (the voice stages, the startup, the end of a
-  dialog, arbitration, music), what each shows here, a Play button, and an editor: per moment a
-  list of candidates (the first this speaker has plays), each an expression, an animation of its
-  front display (typed to filter: Station 3 has about a hundred), a scenario, or a sequence of
-  steps (expression, animation, ring effect, text; a length or the animation's own; the last one
-  may hold). "Play draft" shows it unsaved, Save keeps it in `<cfw>/moments.json`, "Reset to
-  default" drops it ([display-expressions.md](display-expressions.md), "The owner's moments").
+- **Moments:** every moment, what it shows here and the layer that comes from (a pack, or
+  built-in), a Play button, and an editor working in one of the owner's packs ("Edit in"):
+  Customize copies what the moment does now into that pack; per moment a list of candidates (the
+  first this speaker has plays), each an expression, an animation of its front display (typed to
+  filter: Station 3 has about a hundred), a scenario, a sound, a ring effect or a sequence of
+  steps (expression, animation, ring effect, text, sound; a length or the animation's own; the
+  last one may hold). "Play draft" shows it unsaved, Save keeps it in the pack, "Remove from" lets
+  the layers below show again ([asset-packs.md](asset-packs.md), [display-expressions.md](display-expressions.md),
+  "The owner's moments").
 - **Log:** the tail of the daemon's log (`/tmp/yastationd.log`) or of the system log
   (`/var/log/messages` with `messages.0`: the kernel, the Wi-Fi driver, dropbear), 100–2000 lines,
   a filter, warnings and errors coloured; while "follow" is on it refreshes every 3 s and stays at

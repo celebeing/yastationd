@@ -44,7 +44,7 @@ killed) and its output capped; a failing one is noted and the run goes on.
 | `processes.txt` | `ps w`, a `top` snapshot, RSS/threads/fds of our processes, vendor-stack processes, the supervisor's pid |
 | `cfw.txt` | the `<cfw>` listing; flags and markers (`maind_off`, `yastationd_off`, `config.trial`, `sync.*`, `netwatch.count`, `log-spool`…: presence, size, date); `.bak` / `.pre-*` / `.prev` / `.bad` / `.upload` files (names and sizes only); `vendor/`, `iptables/`, sounds and clips; `wakes/` (count, size, the newest names — never the audio) |
 | `config.txt` | `yastationd.conf`, `board.conf`, `sync.pending`, `sync.rejected`, and the diff from `yastationd.conf.bak` (the last change) |
-| `state.txt` | `yastationd.state`, `moments.json`, the heartbeat, `/tmp/yastationd*` markers, log-ship positions, the log spool |
+| `state.txt` | `yastationd.state`, the packs' `pack.json` (the owner's moments; an old `moments.json`), the heartbeat, `/tmp/yastationd*` markers, log-ship positions, the log spool |
 | `daemon-http.txt` | `GET /api/info` and `GET /metrics` from the daemon on `127.0.0.1` (port from `http_addr`, default 80; both need no login) |
 | `log-yastationd.txt` | the tails of `/tmp/yastationd.log` (4000 lines) and `.1` (1500) |
 | `log-system.txt` | `/var/log/messages` and `.0`, `logread` where it exists, `/tmp/yastation-*.log`, dropbear's log |

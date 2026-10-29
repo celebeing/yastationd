@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"io"
@@ -100,11 +101,13 @@ type animInfo struct {
 	Loop bool   `json:"loop,omitempty"`
 }
 
-func (a *App) momentViews() []momentView {
-	custom := a.userMomentMap()
+// momentViews: every moment as the Moments page shows it, with pack's own entry as Custom (the
+// pack it edits).
+func (a *App) momentViews(pack string) []momentView {
 	var out []momentView
 	for _, m := range momentCatalog {
-		v := momentView{momentInfo: m, Default: a.momentDefault(m.Name), Custom: custom[m.Name], Shows: -1}
+		v := momentView{momentInfo: m, Default: a.momentDefault(m.Name), Shows: -1}
+		v.Custom, _ = a.packMoment(pack, m.Name)
 		_, v.From, _ = a.themeMoment(m.Name)
 		v.Current = a.momentCandidates(m.Name)
 		for i, c := range a.momentCandidates(m.Name) {
@@ -145,16 +148,43 @@ func (a *App) momentCatalogView() momentCatalogView {
 	return c
 }
 
-// apiMoments: GET the moments and the catalogue; PUT /api/moments/<name> [candidates] sets the
-// owner's choice, DELETE /api/moments/<name> goes back to the defaults.
+// editableView is one of the owner's packs as the Moments page offers it.
+type editableView struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	On   bool   `json:"on"` // worn (in the stack)
+}
+
+func (a *App) editableViews() []editableView {
+	var out []editableView
+	stack := a.themeStack()
+	for _, id := range a.editablePacks() {
+		v := editableView{ID: id, Name: "Your own", On: slices.Contains(stack, id)}
+		if p := a.installedPacks()[id]; p != nil {
+			v.Name = p.Name
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+// apiMoments: GET [?pack=<id>] the moments (with that pack's own entries; default: the edit
+// target), the catalogue and the owner's packs; PUT /api/moments/<name>[?pack=<id>] [candidates]
+// sets one of the owner's packs' entry, DELETE removes it (the layers below show).
 func (a *App) apiMoments(w http.ResponseWriter, r *http.Request) {
 	name := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/moments"), "/")
+	pack := cmp.Or(r.URL.Query().Get("pack"), a.editTarget())
+	views := func() map[string]any {
+		return map[string]any{"moments": a.momentViews(pack), "target": pack, "editable": a.editableViews()}
+	}
 	if name == "" {
 		if r.Method != http.MethodGet {
 			writeErr(w, http.StatusMethodNotAllowed, "GET")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"moments": a.momentViews(), "catalog": a.momentCatalogView()})
+		v := views()
+		v["catalog"] = a.momentCatalogView()
+		writeJSON(w, http.StatusOK, v)
 		return
 	}
 	if !knownMoment(name) {
@@ -173,12 +203,12 @@ func (a *App) apiMoments(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusMethodNotAllowed, "PUT or DELETE")
 		return
 	}
-	if err := a.setMoment(name, shows); err != nil {
-		writeErr(w, http.StatusInternalServerError, err.Error())
+	if err := a.setPackMoment(pack, name, shows); err != nil {
+		writeErr(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	a.log.Info("web: moment set", "moment", name, "custom", shows != nil)
-	writeJSON(w, http.StatusOK, map[string]any{"moments": a.momentViews()})
+	a.log.Info("web: moment set", "moment", name, "pack", pack, "set", shows != nil)
+	writeJSON(w, http.StatusOK, views())
 }
 
 func knownMoment(name string) bool {

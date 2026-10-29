@@ -21,14 +21,19 @@ holders).
   together or in sequence with delays, is one show.
 - **Pack**: an archive of assets (sounds, animations per display kind) and, optionally, the moments
   that use them. Installed on a speaker under `<cfw>/packs/<id>/`.
-- **Theme stack**: the packs in force, in priority order (`theme`, a setting of each speaker; not shared for now). A moment, a
-  sound or an animation is looked up in the stack from the top; the built-in **default theme** is
-  always the bottom layer. Applying a pack puts it on top: it overrides what is below it and only
+- **Theme stack**: the packs a speaker wears, in priority order (`theme`, a setting of each
+  speaker; not shared for now). A moment, a sound or an animation is looked up in the stack from
+  the top. Below every pack is **level 0, the built-in behaviour** (the default theme, the
+  defaults per display kind and the board profile's `moment.<name>`, e.g. Station 3's silence):
+  it can't be removed. Turning a pack on puts it on top: it overrides what is below it and only
   that (an anime faces pack and a Half-Life sound pack are worn together).
-- **The owner's own theme**: the moments editor edits a local pack, `custom`. It is a pack like any
-  other and sits in the stack where the owner puts it: a theme above it overrides the owner's
-  moments. To start from a theme, import its moments into `custom` and edit from there; export
-  `custom` as an archive to keep it or give it away.
+- **The owner's packs** (since v0.22): packs made on the speaker, marked `"editable": true` in
+  their pack.json; any number of them (create, rename, reorder, turn on and off, export, remove).
+  The Moments page edits one of them ("Edit in"): **Customize** copies a moment's aggregate (what
+  it does now, from whichever layer) into that pack, where it is changed; removing it there lets
+  the layers below show again. The first one is `custom`, "Your own". **Installed** packs (a zip
+  from elsewhere) are read-only; **Copy to my pack** makes an editable copy (`<id>-mine`, "<name>
+  (mine)", all its files) that takes the original's place in the stack.
 
 Everything the speaker does in reaction to an event is a moment, the status indication included
 (booting, HA lost, mute, calls, the timer's alarm, Wi-Fi setup): a theme can change all of it.
@@ -109,10 +114,16 @@ front for an animation the display lacks. The catalogue lists the sounds this sp
 - `<cfw>/packs/<id>/pack.json` + files. The lookups (moments, sounds, animations) read the stack
   at the point of use; an animation in a pack overrides by its exact name, before the stock
   candidates of a semantic name (`listening` in a pack beats the firmware's `alice_listening`).
-- The owner's own pack, `custom`, keeps its moments in `<cfw>/moments.json` (the Moments tab, as
-  before) and its sounds and animations under `<cfw>/packs/custom/`. Not named in `theme`, it
-  sits just above the default theme, so a speaker with its own moments sees no change; a pack
-  applied on top overrides it.
+- The owner's packs are directories under `<cfw>/packs/` like any other, their pack.json marked
+  `"editable": true` (an installed archive's mark is dropped: installed means read-only, and an
+  install over one of the owner's packs is refused). Their moments for this speaker are kept
+  under its display kind (`pixels-21x12`, `seg7`; `any` without a display). Code:
+  `internal/app/ownpacks.go`.
+- `custom` ("Your own") is worn **on top** when the theme list does not place it, so the owner's
+  edits win by default; the Packs page writes the stack it shows, and a stack without custom is
+  stored with `-custom` (custom off).
+- An old `<cfw>/moments.json` (where the owner's moments lived up to v0.21) is folded into
+  `custom` at start and renamed `moments.json.old`; a broken one is only renamed.
 - A pack's animation directories feed the front display's pack layer (`display.Seg7Front.Packs`,
   `PixelFront.PackPatterns`), re-pointed when the theme key changes or a pack is installed.
 - A pack the stack names but the speaker lacks is skipped (the web app says which and offers the
@@ -126,13 +137,14 @@ front for an animation the display lacks. The catalogue lists the sounds this sp
 
 ## Phase 3: packs in the web app
 
-Behaviour → Packs (`web/src/packs.tsx`): the theme stack this speaker wears (up/down, take out), the
-installed packs (what each has for this speaker; Animations = its folder on the LED page; Apply =
-on top of this speaker's stack; Copy moments = into `custom` to edit, Remove),
-upload a `.zip` (checked on the speaker), save `custom` as a pack archive. Behaviour → Sounds: every
-sound by name and where it comes from, Play (on the speaker), add one (any audio the browser
-decodes, converted to WAV there) or remove the owner's. The Moments tab marks a moment a pack
-sets, and says when an edit sits under a pack.
+Behaviour → Packs (`web/src/packs.tsx`): the theme stack this speaker wears (up/down, turn off),
+the built-in behaviour under it; **Your packs** (Animations, Turn on/off, Rename, Export,
+Remove; a new one by name); **Installed** (Animations, Turn on/off, Copy to my pack, Remove);
+upload a `.zip` (checked on the speaker). Behaviour → Sounds: every sound by name and the pack it
+comes from, Play (on the speaker), add one to one of the owner's packs (any audio the browser
+decodes, converted to WAV there) or remove one from it. Behaviour → Moments: "Edit in" one of the
+owner's packs; per moment the layer it comes from (a pack, or built-in), Play, Customize / Edit;
+a note when the moment comes from a pack above the one edited.
 
 The LED page's animation browser (`AnimBrowser` in `web/src/extra.tsx`, a column view) walks the
 animations as folders: "In force" (the firmware's and the worn theme's, by the names moments use; the stock ones
@@ -141,13 +153,17 @@ the speaker, a search box finds across all of them. The open folder is in the ad
 (`#led/@<pack>`), which is how the Packs page links a pack.
 
 API (behind the login): `GET /api/packs` → `{packs: [{id, name, version, author, source,
-license, displays, moments, sounds, anims, fits, bytes, position}], stack, here, display,
-missing, free, max_bytes}` (`stack`: what this speaker wears; `here`: it comes from
-`theme_here`); `PUT /api/packs` (the zip, ≤ 32 MB,
-≤ 64 MB unpacked); `PUT /api/packs/stack {"stack": [ids], "here": bool}`; `POST
-/api/packs/<id>/apply[?here=1]`, `/import`; `DELETE
-/api/packs/<id>`; `GET /api/packs/custom/export?id=&name=`; `PUT|DELETE
-/api/packs/custom/sounds|anims/<name>`.
+license, displays, editable, moments, sounds, anims, fits, bytes, position}], stack, here,
+target, display, missing, free, max_bytes}` (`stack`: what this speaker wears, top first;
+`here`: it comes from `theme_here`; `target`: the owner's pack edits go to by default); `PUT
+/api/packs` (the zip, ≤ 32 MB, ≤ 64 MB unpacked); `POST /api/packs/new {"name"}`; `PUT
+/api/packs/stack {"stack": [ids], "here": bool}` (the stack worn; custom left out = off); `POST
+/api/packs/<id>/apply[?here=1]`, `/copy`, `/rename {"name"}`; `DELETE /api/packs/<id>`; `GET
+/api/packs/<id>/export?id=&name=` (custom needs another id); `PUT|DELETE
+/api/packs/<id>/sounds|anims/<name>` (the owner's packs only). Moments: `GET
+/api/moments[?pack=<id>]` → `{moments, catalog, target, editable: [{id, name, on}]}` (each
+moment's `custom` is that pack's own entry, `from` the layer in force, "" = built-in); `PUT|DELETE
+/api/moments/<name>[?pack=<id>]` (the owner's packs only; 422 for an installed one).
 
 ## The pack format
 

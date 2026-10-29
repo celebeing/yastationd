@@ -289,7 +289,7 @@ func init() {
 		Doc: "Only the value a new speaker starts with; afterwards the Auto brightness option rules."},
 		boolV(func(c *Config) *bool { return &c.AutoBrightness }))
 	reg(Key{Name: "theme", Group: "theme", Label: "Theme packs", Runtime: true,
-		Doc: "The asset packs in force, one id per line, the top one first (docs/asset-packs.md): a moment, a sound or an animation comes from the first pack that has it, else from the default theme. Your own moments are the pack custom; not listed, it sits just above the default theme. A pack this speaker does not have is skipped. Not shared between speakers for now: packs are installed on each speaker by hand. Theme packs on this speaker, when set, stands in for it here. Behaviour → Packs sets it."},
+		Doc: "The asset packs in force, one id per line, the top one first (docs/asset-packs.md): a moment, a sound or an animation comes from the first pack that has it, else from the default theme. Your own moments are the pack custom; not listed, it is worn on top (-custom: off). A pack this speaker does not have is skipped. Not shared between speakers for now: packs are installed on each speaker by hand. Theme packs on this speaker, when set, stands in for it here. Behaviour → Packs sets it."},
 		listV(func(c *Config) *[]string { return &c.Themes }))
 	reg(Key{Name: "theme_here", Group: "theme", Label: "Theme packs on this speaker", Runtime: true, Advanced: true,
 		Doc: "This speaker's own theme, in place of Theme packs (from the time Theme packs could be shared): the same list. Empty: the speaker wears Theme packs. Behaviour → Packs edits whichever of the two is in force."},

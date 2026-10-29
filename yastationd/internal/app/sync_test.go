@@ -299,39 +299,20 @@ func momentSpeaker(t *testing.T, id string) *App {
 	return a
 }
 
-func TestSyncMoments(t *testing.T) {
+// Moments are not shared (v0.22: they travel in packs): none can be offered, and a retained
+// shared moment from an older speaker is ignored.
+func TestMomentsNotShared(t *testing.T) {
 	b := newBroker()
 	s1, s2 := momentSpeaker(t, "s1"), momentSpeaker(t, "s2")
-	pix := speaker(t, "p1") // no front display: takes no moments
 	b.attach(s1)
 	b.attach(s2)
-	b.attach(pix)
-	if !s1.publishShared(s1.momentKind(), "listening", true) {
-		t.Fatal("share")
+	if s1.publishShared(s1.momentKind(), "listening", true) {
+		t.Fatal("a moment was offered for sharing")
 	}
+	s2.onShared(s2.momentKind(), "listening", []byte(`{"v": ["wink"], "at": 1, "by": "old"}`))
 	b.flush()
-	if err := s1.setMoment("listening", []show{{Ref: "wink"}}); err != nil {
-		t.Fatal(err)
-	}
-	b.flush()
-	got := s2.userMomentMap()["listening"]
-	if len(got) != 1 || got[0].Ref != "wink" {
-		t.Fatalf("s2's moment: %+v", got)
-	}
-	// Back to the defaults travels too.
-	s2.setMoment("listening", nil)
-	b.flush()
-	if _, ok := s1.userMomentMap()["listening"]; ok {
-		t.Fatal("reset did not go across")
-	}
-	if len(pix.userMomentMap()) != 0 {
-		t.Fatal("a speaker without the display kind took a moment")
-	}
-	// Moments not shared stay local.
-	s1.setMoment("thinking", []show{{Ref: "wink"}})
-	b.flush()
-	if _, ok := s2.userMomentMap()["thinking"]; ok {
-		t.Fatal("an unshared moment went across")
+	if c := s2.momentCandidates("listening"); len(c) != 1 || c[0].Ref != "listening" {
+		t.Fatalf("a retained shared moment was taken: %v", c)
 	}
 }
 

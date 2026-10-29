@@ -29,8 +29,7 @@ scripts branch on its existence.
 | `<cfw>/bin/yastationd.prev` | the previous agent, kept by every update; the supervisor swaps it back in if the new one crash-loops (the bad one is then kept as `.bad`) |
 | `<cfw>/egress.sh` | the egress lock, IPv4 + IPv6 (`make deploy-egress`; §0); `<cfw>/iptables/` = a bundled iptables-legacy where the firmware has none |
 | `<cfw>/yastationd.conf.bak`, `<cfw>/config.trial` | the config before the last change (web app, sync, calibration), and the trial marker while a change that needed a restart is on trial ([settings.md](settings.md)) |
-| `<cfw>/moments.json` (+ `.bak`) | the owner's moments, written by the web app's Moments tab ([display-expressions.md](display-expressions.md)) |
-| `<cfw>/packs/<id>/` | installed asset packs, and `custom/` for the owner's own sounds and animations, written by the web app's Behaviour → Packs and Sounds ([asset-packs.md](asset-packs.md)) |
+| `<cfw>/packs/<id>/` | asset packs: installed ones and the owner's own (their moments, sounds and animations, written by the web app's Behaviour tabs; [asset-packs.md](asset-packs.md)); an old `<cfw>/moments.json` is folded into `packs/custom/` and renamed `.old` |
 | `<cfw>/web.secret` | the web app's token secret: 32 random bytes, written once, 0600 (a login then survives restarts; deleting it logs everyone out) |
 | `<cfw>/sync.pending`, `<cfw>/sync.rejected` | shared settings a running trial came from, and those whose trial failed here and are not taken again until they change ([settings.md](settings.md), "Sync") |
 | `<cfw>/wakes/` | only with the test option `wake_capture`: the audio around each wake word (WAV + JSON, the newest 200, ~22 MB) ([wake-word-boundary.md](wake-word-boundary.md)) |

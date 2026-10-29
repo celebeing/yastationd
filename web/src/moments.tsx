@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'preact/hooks'
 import * as api from './api'
-import type { Moment, MomentCatalog, Peer, Show, Step, SyncKind, SyncState } from './api'
-import { ShareSwitch } from './settings'
+import type { Moment, MomentCatalog, OwnPack, Peer, Show, Step } from './api'
 
 // The Moments tab: what the speaker shows and plays when something happens, and an editor for it
 // (docs/display-expressions.md, "Moments"; docs/asset-packs.md). A moment is a list of
@@ -72,14 +71,20 @@ export function MomentsTab({ peer, base }: { peer: Peer; base: string }) {
   const [cat, setCat] = useState<MomentCatalog | null>(null)
   const [open, setOpen] = useState('')
   const [err, setErr] = useState('')
-  const [sync, setSyncState] = useState<SyncState | null>(null)
+  const [target, setTarget] = useState('')
+  const [mine, setMine] = useState<OwnPack[]>([])
+  const [stack, setStack] = useState<string[]>([])
+  const [names, setNames] = useState<Record<string, string>>({})
   const fail = (e: any) => setErr(e.message || String(e))
-  async function loadAll() {
+  async function loadAll(pack?: string) {
     try {
-      const [r, sy] = await Promise.all([api.moments(peer.id, base), api.syncState(peer.id, base)])
+      const [r, pk] = await Promise.all([api.moments(peer.id, base, pack), api.packs(peer.id, base)])
       setList(r.moments)
       setCat(r.catalog)
-      setSyncState(sy)
+      setTarget(r.target)
+      setMine(r.editable)
+      setStack(pk.stack)
+      setNames(Object.fromEntries(pk.packs.map((k) => [k.id, k.name])))
     } catch (e: any) {
       fail(e)
     }
@@ -87,14 +92,6 @@ export function MomentsTab({ peer, base }: { peer: Peer; base: string }) {
   useEffect(() => {
     loadAll()
   }, [peer.id])
-  async function share(kind: SyncKind, item: string, on: boolean) {
-    setErr('')
-    try {
-      setSyncState(await api.setSync(peer.id, base, kind, item, on))
-    } catch (e: any) {
-      fail(e)
-    }
-  }
 
   async function play(name: string, draft?: Show[]) {
     setErr('')
@@ -108,59 +105,72 @@ export function MomentsTab({ peer, base }: { peer: Peer; base: string }) {
   async function save(name: string, shows: Show[] | null) {
     setErr('')
     try {
-      const r = await api.setMoment(peer.id, base, name, shows)
+      const r = await api.setMoment(peer.id, base, name, shows, target)
       setList(r.moments)
       setOpen('')
     } catch (e: any) {
       fail(e)
     }
   }
+  const tName = names[target] || mine.find((k) => k.id === target)?.name || target
+  const tOn = mine.find((k) => k.id === target)?.on
+  const above = (from: string) => !!from && stack.indexOf(from) >= 0 && stack.indexOf(from) < stack.indexOf(target)
 
   return (
     <section class="card">
       <h3>Moments</h3>
       <p class="muted small">
-        What the speaker shows when something happens. Each moment has a list of candidates; the first one this speaker has plays.
-        Changes are saved on the speaker and apply at once. A moment on every speaker is shared by the speakers with the same
-        kind of display ({cat?.display || '…'}).
+        What the speaker does when something happens, and where that comes from: one of the worn packs, or the built-in behaviour. Customize a
+        moment to copy what it does now into one of your packs and change it there.
       </p>
+      <div class="row">
+        <span class="k">Edit in</span>
+        <select aria-label="The pack your changes go into" value={target} onChange={(e) => loadAll(e.currentTarget.value)}>
+          {mine.map((k) => (
+            <option value={k.id}>
+              {k.name}
+              {k.on ? '' : ' (off)'}
+            </option>
+          ))}
+        </select>
+        {tOn === false && <span class="small warn-text">this pack is off: turn it on in Packs to see your changes</span>}
+      </div>
       {err && <p class="err">{err}</p>}
       {(!list || !cat) && <p class="muted">…</p>}
       {list && cat && (
         <div class="moments">
           {list.map((m) => {
-            const cur = m.current ?? m.custom ?? m.default
-            const theme = m.from && m.from !== 'custom' ? m.from : ''
+            const cur = m.current ?? m.default
+            const from = m.from ? names[m.from] || m.from : 'built-in'
             return (
               <div class={'moment' + (open === m.name ? ' open' : '')} key={m.name}>
                 <div class="mhead">
                   <div class="mname">
-                    <b>{m.name}</b> {theme ? <span class="badge" title={m.custom ? 'Your own is below this pack in the theme' : ''}>{theme}</span> : m.custom && <span class="badge">custom</span>}
+                    <b>{m.name}</b> <span class="badge" title="Where what it does comes from">{from}</span>
                     <div class="muted small">{m.when}</div>
                   </div>
                   <div class="mshows small">
                     {m.shows >= 0 ? describe(cur[m.shows], cat) : <span class="muted">nothing on this speaker</span>}
                   </div>
                   <div class="mbtns">
-                    <ShareSwitch sync={sync} kind="moment" item={m.name} onShare={share} />
                     <button disabled={m.shows < 0} onClick={() => play(m.name)}>
                       Play
                     </button>
-                    <button class="ghost" onClick={() => setOpen(open === m.name ? '' : m.name)}>
-                      {open === m.name ? 'Close' : 'Edit'}
+                    <button class="ghost" onClick={() => setOpen(open === m.name ? '' : m.name)} title={m.custom ? `Edit it in ${tName}` : `Copy what it does now into ${tName}`}>
+                      {open === m.name ? 'Close' : m.custom ? 'Edit' : 'Customize'}
                     </button>
                   </div>
                 </div>
-                {open === m.name && theme && (
+                {open === m.name && above(m.from || '') && (
                   <p class="small warn-text">
-                    The pack {theme} sets this moment and sits above your own: what you save here shows once “Your own” is above it (Behaviour → Packs),
-                    or start from the pack's version there with “Copy moments”.
+                    {names[m.from!] || m.from} is above {tName} in the theme: what you save here shows once {tName} is above it (Behaviour → Packs).
                   </p>
                 )}
                 {open === m.name && (
                   <MomentEditor
                     m={m}
                     cat={cat}
+                    pack={tName}
                     onPlay={(d) => play(m.name, d)}
                     onSave={(d) => save(m.name, d)}
                     onReset={() => save(m.name, null)}
@@ -177,9 +187,10 @@ export function MomentsTab({ peer, base }: { peer: Peer; base: string }) {
 
 const clone = (s: Show[]): Show[] => JSON.parse(JSON.stringify(s))
 
-function MomentEditor(p: { m: Moment; cat: MomentCatalog; onPlay: (d: Show[]) => void; onSave: (d: Show[]) => void; onReset: () => void }) {
+function MomentEditor(p: { m: Moment; cat: MomentCatalog; pack: string; onPlay: (d: Show[]) => void; onSave: (d: Show[]) => void; onReset: () => void }) {
   const { m, cat } = p
-  const [draft, setDraft] = useState<Show[]>(() => clone(m.custom ?? m.default))
+  // the pack's own version, else a copy of what the moment does now (Customize)
+  const [draft, setDraft] = useState<Show[]>(() => clone(m.custom ?? m.current ?? m.default))
   const stage = ['listening', 'thinking', 'speaking', 'waiting'].includes(m.name)
   const set = (i: number, s: Show) => setDraft(draft.map((x, k) => (k === i ? s : x)))
   const move = (i: number, d: number) => {
@@ -241,15 +252,15 @@ function MomentEditor(p: { m: Moment; cat: MomentCatalog; onPlay: (d: Show[]) =>
       </div>
       <div class="row">
         <button class="primary" onClick={() => p.onSave(draft)}>
-          Save
+          Save in {p.pack}
         </button>
         <button onClick={() => p.onPlay(draft)}>Play draft</button>
         {m.custom && (
-          <button class="ghost" onClick={p.onReset}>
-            Reset to default
+          <button class="ghost" onClick={p.onReset} title="The layers below show again">
+            Remove from {p.pack}
           </button>
         )}
-        <span class="muted small">Default: {m.default.length ? m.default.map((s) => describe(s, cat)).join(', else ') : 'nothing'}</span>
+        <span class="muted small">Built-in: {m.default.length ? m.default.map((s) => describe(s, cat)).join(', else ') : 'nothing'}</span>
       </div>
     </div>
   )

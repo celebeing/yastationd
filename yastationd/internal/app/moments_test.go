@@ -74,9 +74,6 @@ func TestOwnerMoments(t *testing.T) {
 	a.cfg().SysRoot = t.TempDir()
 	a.prof.Platform.CFWRoot = "/cfw"
 	os.MkdirAll(a.cfg().SysRoot+"/cfw", 0o755)
-	if err := a.loadMoments(); err != nil {
-		t.Fatal(err)
-	}
 	seq := []show{{Steps: []scenarioStep{{Express: "happy", Ms: 30}, {Anim: "wink", Hold: true}}}}
 	if err := a.setMoment("dialog_end", seq); err != nil {
 		t.Fatal(err)
@@ -85,9 +82,9 @@ func TestOwnerMoments(t *testing.T) {
 		t.Fatalf("owner's candidates = %+v", c)
 	}
 	// it is on flash and loads back
-	a.userMoments.Store(nil)
-	if err := a.loadMoments(); err != nil || !reflect.DeepEqual(a.momentCandidates("dialog_end"), seq) {
-		t.Fatalf("reload: %v %+v", err, a.momentCandidates("dialog_end"))
+	a.packs.Store(nil)
+	if a.loadPacks(); !reflect.DeepEqual(a.momentCandidates("dialog_end"), seq) {
+		t.Fatalf("reload: %+v", a.momentCandidates("dialog_end"))
 	}
 	// the sequence plays: happy (ring + front), then the held wink, which stays
 	if !a.moment("voice", "dialog_end", 0) || !a.ringStack.Has("voice") {
@@ -238,20 +235,23 @@ func TestOwnerMomentFallbacks(t *testing.T) {
 	}
 }
 
-func TestMomentsFileBroken(t *testing.T) {
+// An old moments.json (before the owner's packs) folds into the pack custom; a broken one is
+// put aside and the speaker starts with the defaults.
+func TestOldMomentsFile(t *testing.T) {
 	a := newMomentApp(t)
-	os.WriteFile(a.momentPath(), []byte(`{"dialog_end": [{"steps": []}]}`), 0o644)
-	if a.loadMoments() == nil {
-		t.Fatal("a broken file was accepted")
+	os.WriteFile(a.momentPath(), []byte(`{"dialog_end": ["happy"]}`), 0o644)
+	a.foldOldMoments()
+	if c := a.momentCandidates("dialog_end"); len(c) != 1 || c[0].Ref != "happy" {
+		t.Fatalf("folded: %v", c)
 	}
-	if c := a.momentCandidates("dialog_end"); !reflect.DeepEqual(c, refs([]string{"wink"})) {
+	if _, err := os.Stat(a.momentPath()); err == nil {
+		t.Error("the old file stayed")
+	}
+	b := newMomentApp(t)
+	os.WriteFile(b.momentPath(), []byte(`{"dialog_end": [{"steps": []}]}`), 0o644)
+	b.foldOldMoments()
+	if c := b.momentCandidates("dialog_end"); !reflect.DeepEqual(c, refs([]string{"wink"})) {
 		t.Fatalf("defaults lost: %v", c)
-	}
-	// a save keeps the previous file as .bak
-	os.WriteFile(a.momentPath(), []byte(`{}`), 0o644)
-	a.setMoment("startup", []show{{Ref: "happy"}})
-	if b, err := os.ReadFile(a.momentPath() + ".bak"); err != nil || string(b) != "{}" {
-		t.Fatalf("bak: %q %v", b, err)
 	}
 }
 

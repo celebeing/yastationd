@@ -355,7 +355,7 @@ func TestWebMomentsEdit(t *testing.T) {
 	if c, _ := x["custom"].([]any); len(c) != 2 || c[1] != "wink" {
 		t.Fatalf("custom: %v", x["custom"])
 	}
-	if b, err := os.ReadFile(a.momentPath()); err != nil || !strings.Contains(string(b), `"hold": true`) {
+	if b, err := os.ReadFile(filepath.Join(a.packDir(customPack), "pack.json")); err != nil || !strings.Contains(string(b), `"hold": true`) {
 		t.Fatalf("file: %s %v", b, err)
 	}
 	// errors: unknown moment, not a list, a broken sequence, no login, wrong method

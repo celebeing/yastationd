@@ -8,7 +8,6 @@ import { toWav } from './assets'
 // owner's own moments, sounds and animations are the pack "custom".
 
 const NAME = /^[a-z0-9][a-z0-9_-]{0,39}$/
-const PACK_ID = /^[a-z0-9][a-z0-9-]{0,39}$/
 const fmtKB = (b: number) => (b >= 1 << 20 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB')
 
 function save(blob: Blob, name: string) {
@@ -50,30 +49,66 @@ function what(k: Pack): string {
 export function PacksTab({ peer, base }: { peer: Peer; base: string }) {
   const { p, err, setErr, busy, act, load } = usePacks(peer, base)
   const [confirmDel, setConfirmDel] = useState('')
+  const [renaming, setRenaming] = useState('')
+  const [newName, setNewName] = useState('')
   if (!p) return <section class="card">{err ? <p class="err">{err}</p> : <p class="muted">Loading…</p>}</section>
   const byId = Object.fromEntries(p.packs.map((k) => [k.id, k]))
-  // The stack shown is the one this speaker wears: its own (here) or the shared theme.
+  // The stack shown is the one this speaker wears (theme_here when that is in force).
+  const setStack = (s: string[]) => act(() => api.packStack(peer.id, base, s, p.here))
   const move = (i: number, d: number) => {
     const s = [...p.stack]
     ;[s[i], s[i + d]] = [s[i + d], s[i]]
-    act(() => api.packStack(peer.id, base, s, p.here))
+    setStack(s)
   }
-  const takeOut = (id: string) => act(() => api.packStack(peer.id, base, p.stack.filter((x) => x !== id), p.here))
+  const off = (id: string) => setStack(p.stack.filter((x) => x !== id))
+  const on = (id: string) => act(() => api.packAction(peer.id, base, id, 'apply', p.here))
+  const mine = p.packs.filter((k) => k.editable)
+  const installed = p.packs.filter((k) => !k.editable)
+  const exportOne = async (k: Pack) => {
+    setErr('')
+    try {
+      const as = k.id === 'custom' ? 'my-theme' : ''
+      const r = await api.exportPack(peer.id, base, k.id, as)
+      save(r.blob, r.name)
+    } catch (e: any) {
+      setErr(e.message || String(e))
+    }
+  }
+  const remove = (k: Pack) =>
+    confirmDel === k.id ? (
+      <button class="danger" disabled={busy} onClick={() => act(() => api.deletePack(peer.id, base, k.id))}>
+        Remove {k.name}
+      </button>
+    ) : (
+      <button class="ghost" disabled={busy} onClick={() => setConfirmDel(k.id)}>
+        Remove
+      </button>
+    )
+  const onOff = (k: Pack) =>
+    k.position >= 0 ? (
+      <button class="ghost" disabled={busy} onClick={() => off(k.id)} title="Stop wearing it (it stays installed)">
+        Turn off
+      </button>
+    ) : (
+      <button disabled={busy || !k.fits} onClick={() => on(k.id)} title="Wear it, on top">
+        Turn on
+      </button>
+    )
   return (
     <div class="assets">
       <section class="card">
         <h3>Theme</h3>
         <p class="muted small">
-          The packs in force, the top one first: a moment, a sound or an animation comes from the first pack that has it, else from the default
-          theme. Your own moments and sounds are “Your own”.
+          What this speaker wears, the top first: a moment, a sound or an animation comes from the highest pack that has it, else from the built-in
+          behaviour, always at the bottom. Your packs (marked “yours”) can sit anywhere; put one on top to have the last word.
         </p>
-        <p class="muted small">The theme is this speaker's own: packs are installed and worn on each speaker by itself.</p>
         {err && <p class="err">{err}</p>}
         <ol class="stack">
           {p.stack.map((id, i) => (
             <li class="row">
               <span class="grow">
-                <b>{byId[id]?.name || id}</b> <span class="muted small">{byId[id] ? what(byId[id]) : 'not on this speaker: upload it below'}</span>
+                <b>{byId[id]?.name || id}</b> {byId[id]?.editable && <span class="badge">yours</span>}{' '}
+                <span class="muted small">{byId[id] ? what(byId[id]) : 'not on this speaker: upload it below'}</span>
               </span>
               <button class="ghost icon" disabled={busy || i === 0} onClick={() => move(i, -1)} title="Higher" aria-label={`Move ${id} up`}>
                 ↑
@@ -81,73 +116,115 @@ export function PacksTab({ peer, base }: { peer: Peer; base: string }) {
               <button class="ghost icon" disabled={busy || i === p.stack.length - 1} onClick={() => move(i, 1)} title="Lower" aria-label={`Move ${id} down`}>
                 ↓
               </button>
-              {id !== 'custom' && (
-                <button class="ghost icon" disabled={busy} onClick={() => takeOut(id)} title="Take out of the theme" aria-label={`Take ${id} out`}>
-                  ✕
-                </button>
-              )}
+              <button class="ghost icon" disabled={busy} onClick={() => off(id)} title="Turn off" aria-label={`Turn ${id} off`}>
+                ✕
+              </button>
             </li>
           ))}
-          <li class="row muted">The default theme</li>
+          <li class="row muted">Built-in behaviour</li>
         </ol>
         {p.missing?.length ? <p class="small err">Not on this speaker: {p.missing.join(', ')}.</p> : null}
       </section>
 
       <section class="card">
-        <h3>Installed</h3>
+        <h3>Your packs</h3>
+        <p class="muted small">
+          Packs you make here: the Moments page edits one of them, the Sounds page adds to one. Export one to keep it or to install it on another
+          speaker.
+        </p>
         <table class="assetlist">
           <tbody>
-            {p.packs
-              .filter((k) => k.id !== 'custom')
-              .map((k) => (
-                <tr>
-                  <td>
-                    <b>{k.name}</b> <span class="muted small">{[k.version, k.author].filter(Boolean).join(', ')}</span>
-                    <div class="muted small">
-                      {what(k)} · {fmtKB(k.bytes)}
-                      {k.license ? ` · ${k.license}` : ''}
-                    </div>
-                  </td>
-                  <td class="actions">
-                    {!!k.anims?.length && (
-                      <a class="button ghost" href={`#led/@${k.id}`} title="Play its animations on the LED page, without applying it">
-                        Animations
-                      </a>
-                    )}
-                    {k.position !== 0 && (
-                      <button disabled={busy || !k.fits} onClick={() => act(() => api.packAction(peer.id, base, k.id, 'apply', p.here))} title="Put it on top of this speaker's theme">
-                        Apply
-                      </button>
-                    )}
-                    {!!k.moments?.length && (
-                      <button
-                        class="ghost"
-                        disabled={busy}
-                        onClick={() => act(() => api.packAction(peer.id, base, k.id, 'import'))}
-                        title="Copy its moments into your own, to edit them on the Moments page"
-                      >
-                        Copy moments
-                      </button>
-                    )}
-                    {confirmDel === k.id ? (
-                      <button class="danger" disabled={busy} onClick={() => act(() => api.deletePack(peer.id, base, k.id))}>
-                        Remove {k.name}
-                      </button>
-                    ) : (
-                      <button class="ghost" disabled={busy} onClick={() => setConfirmDel(k.id)}>
-                        Remove
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+            {mine.map((k) => (
+              <tr>
+                <td>
+                  {renaming === k.id ? (
+                    <form
+                      class="row"
+                      onSubmit={(e) => {
+                        e.preventDefault()
+                        const v = (e.currentTarget.elements.namedItem('name') as HTMLInputElement).value
+                        setRenaming('')
+                        act(() => api.renamePack(peer.id, base, k.id, v))
+                      }}
+                    >
+                      <input name="name" aria-label="Pack name" value={k.name} autofocus />
+                      <button type="submit">Save</button>
+                    </form>
+                  ) : (
+                    <b>{k.name}</b>
+                  )}{' '}
+                  {k.id === p.target && <span class="badge">edited</span>}
+                  <div class="muted small">
+                    {what(k)} · {fmtKB(k.bytes)} · {k.position >= 0 ? 'on' : 'off'}
+                  </div>
+                </td>
+                <td class="actions">
+                  {!!k.anims?.length && (
+                    <a class="button ghost" href={`#led/@${k.id}`} title="Play its animations on the LED page">
+                      Animations
+                    </a>
+                  )}
+                  {onOff(k)}
+                  <button class="ghost" disabled={busy} onClick={() => setRenaming(renaming === k.id ? '' : k.id)}>
+                    Rename
+                  </button>
+                  <button class="ghost" disabled={busy} onClick={() => exportOne(k)} title="Download it as a pack archive">
+                    Export
+                  </button>
+                  {remove(k)}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
-        {p.packs.length === 1 && <p class="muted small">No packs yet. Packs live in their own repositories; upload one below.</p>}
+        <form
+          class="row"
+          onSubmit={(e) => {
+            e.preventDefault()
+            act(() => api.newPack(peer.id, base, newName)).then(() => setNewName(''))
+          }}
+        >
+          <input aria-label="New pack name" placeholder="name of a new pack" value={newName} onInput={(e) => setNewName(e.currentTarget.value)} />
+          <button type="submit" disabled={busy}>
+            New pack
+          </button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h3>Installed</h3>
+        <p class="muted small">Packs from elsewhere, read-only here: “Copy to my pack” makes one of yours from it, in its place in the theme.</p>
+        <table class="assetlist">
+          <tbody>
+            {installed.map((k) => (
+              <tr>
+                <td>
+                  <b>{k.name}</b> <span class="muted small">{[k.version, k.author].filter(Boolean).join(', ')}</span>
+                  <div class="muted small">
+                    {what(k)} · {fmtKB(k.bytes)} · {k.position >= 0 ? 'on' : 'off'}
+                    {k.license ? ` · ${k.license}` : ''}
+                  </div>
+                </td>
+                <td class="actions">
+                  {!!k.anims?.length && (
+                    <a class="button ghost" href={`#led/@${k.id}`} title="Play its animations on the LED page, without turning it on">
+                      Animations
+                    </a>
+                  )}
+                  {onOff(k)}
+                  <button class="ghost" disabled={busy} onClick={() => act(() => api.packAction(peer.id, base, k.id, 'copy'))} title="Make an editable copy, in its place in the theme">
+                    Copy to my pack
+                  </button>
+                  {remove(k)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {installed.length === 0 && <p class="muted small">No packs yet. Packs live in their own repositories; upload one below.</p>}
       </section>
 
       <AddPack peer={peer} base={base} max={p.max_bytes} onDone={load} onErr={setErr} />
-      <ExportTheme peer={peer} base={base} />
     </div>
   )
 }
@@ -164,7 +241,7 @@ function AddPack(p: { peer: Peer; base: string; max: number; onDone: () => void;
       if (file.size > p.max) throw new Error(`over ${p.max >> 20} MB`)
       setPct(0)
       await api.uploadAsset(p.peer.id, p.base, '/api/packs', file, (n) => setPct(n / file.size))
-      setMsg(`${file.name}: installed. Apply it to wear it.`)
+      setMsg(`${file.name}: installed. Turn it on to wear it.`)
       setFile(null)
       p.onDone()
     } catch (e: any) {
@@ -194,36 +271,6 @@ function AddPack(p: { peer: Peer; base: string; max: number; onDone: () => void;
   )
 }
 
-function ExportTheme({ peer, base }: { peer: Peer; base: string }) {
-  const [id, setId] = useState('my-theme')
-  const [name, setName] = useState('')
-  const [msg, setMsg] = useState('')
-  async function go() {
-    setMsg('')
-    try {
-      const r = await api.exportTheme(peer.id, base, id, name)
-      save(r.blob, r.name)
-      setMsg(`${r.name}, ${fmtKB(r.blob.size)}`)
-    } catch (e: any) {
-      setMsg(e.message || String(e))
-    }
-  }
-  return (
-    <section class="card">
-      <h3>Save your own as a pack</h3>
-      <p class="muted small">Your moments, sounds and animations as a pack archive: keep it, or install it on another speaker.</p>
-      <div class="row">
-        <input aria-label="Pack id" value={id} placeholder="id" onInput={(e) => setId(e.currentTarget.value)} />
-        <input aria-label="Pack name" value={name} placeholder="name" onInput={(e) => setName(e.currentTarget.value)} />
-        <button class="primary" disabled={!PACK_ID.test(id) || id === 'custom'} onClick={go}>
-          Download
-        </button>
-      </div>
-      {msg && <p class="small">{msg}</p>}
-    </section>
-  )
-}
-
 export function SoundsTab({ peer, base }: { peer: Peer; base: string }) {
   const { p, err, setErr, busy, act, load } = usePacks(peer, base)
   const [all, setAll] = useState<string[]>([])
@@ -231,9 +278,16 @@ export function SoundsTab({ peer, base }: { peer: Peer; base: string }) {
   useEffect(() => {
     reloadAll()
   }, [peer.id, base])
+  const [into, setInto] = useState('')
   if (!p) return <section class="card">{err ? <p class="err">{err}</p> : <p class="muted">Loading…</p>}</section>
-  const own = p.packs.find((k) => k.id === 'custom')?.sounds || []
-  const from = (n: string) => (own.includes(n) ? 'yours' : p.stack.find((id) => p.packs.find((k) => k.id === id)?.sounds?.includes(n)) || 'stock')
+  const mine = p.packs.filter((k) => k.editable)
+  const target = mine.find((k) => k.id === into) || mine.find((k) => k.id === p.target) || mine[0]
+  const own = target?.sounds || []
+  const name = (id: string) => p.packs.find((k) => k.id === id)?.name || id
+  const from = (n: string) => {
+    const id = p.stack.find((id) => p.packs.find((k) => k.id === id)?.sounds?.includes(n))
+    return id ? name(id) : 'stock'
+  }
   async function play(n: string) {
     setErr('')
     try {
@@ -247,9 +301,20 @@ export function SoundsTab({ peer, base }: { peer: Peer; base: string }) {
       <section class="card">
         <h3>Sounds</h3>
         <p class="muted small">
-          The sounds the moments play by name: the stock ones, the theme's, yours. A sound of yours with a stock name replaces it while “Your own”
-          is in the theme above the default.
+          The sounds the moments play by name: the stock ones and the worn packs'. A sound with a stock name in a pack replaces it while that pack is
+          on. Your sounds go into one of your packs:
         </p>
+        <div class="row">
+          <span class="k">Your pack</span>
+          <select aria-label="The pack your sounds go into" value={target?.id} onChange={(e) => setInto(e.currentTarget.value)}>
+            {mine.map((k) => (
+              <option value={k.id}>
+                {k.name}
+                {k.position < 0 ? ' (off)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
         {err && <p class="err">{err}</p>}
         <table class="assetlist">
           <tbody>
@@ -263,8 +328,8 @@ export function SoundsTab({ peer, base }: { peer: Peer; base: string }) {
                     Play
                   </button>
                   {own.includes(n) && (
-                    <button class="ghost" disabled={busy} onClick={() => act(() => api.deleteCustomAsset(peer.id, base, 'sounds', n)).then(reloadAll)}>
-                      Remove
+                    <button class="ghost" disabled={busy} onClick={() => act(() => api.deletePackAsset(peer.id, base, target!.id, 'sounds', n)).then(reloadAll)}>
+                      Remove from {target!.name}
                     </button>
                   )}
                 </td>
@@ -276,6 +341,8 @@ export function SoundsTab({ peer, base }: { peer: Peer; base: string }) {
       <AddSound
         peer={peer}
         base={base}
+        pack={target?.id || 'custom'}
+        packName={target?.name || 'Your own'}
         onDone={() => {
           load()
           reloadAll()
@@ -285,7 +352,7 @@ export function SoundsTab({ peer, base }: { peer: Peer; base: string }) {
   )
 }
 
-function AddSound(p: { peer: Peer; base: string; onDone: () => void }) {
+function AddSound(p: { peer: Peer; base: string; pack: string; packName: string; onDone: () => void }) {
   const [file, setFile] = useState<File | null>(null)
   const [name, setName] = useState('')
   const [msg, setMsg] = useState('')
@@ -296,8 +363,8 @@ function AddSound(p: { peer: Peer; base: string; onDone: () => void }) {
     setBusy(true)
     try {
       const body = file.type === 'audio/wav' || file.name.toLowerCase().endsWith('.wav') ? file : await toWav(file)
-      await api.uploadAsset(p.peer.id, p.base, `/api/packs/custom/sounds/${name}`, body, () => {})
-      setMsg(`${name}: added.`)
+      await api.uploadAsset(p.peer.id, p.base, api.packAssetPath(p.pack, 'sounds', name), body, () => {})
+      setMsg(`${name}: added to ${p.packName}.`)
       setFile(null)
       p.onDone()
     } catch (e: any) {
@@ -307,7 +374,7 @@ function AddSound(p: { peer: Peer; base: string; onDone: () => void }) {
   }
   return (
     <section class="card">
-      <h3>Add a sound</h3>
+      <h3>Add a sound to {p.packName}</h3>
       <p class="muted small">Any audio file the browser can play; it is converted to WAV here. Name it like a stock sound to replace that one.</p>
       <div class="row">
         <input

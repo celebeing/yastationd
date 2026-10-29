@@ -242,14 +242,16 @@ fi
 
 sec state.txt
 show "$CFW/yastationd.state" 50
-if [ -f "$CFW/moments.json" ]; then
+# the owner's moments: the packs' manifests (up to v0.21 also moments.json)
+for m in "$CFW/moments.json" "$CFW"/packs/*/pack.json; do
+	[ -f "$m" ] || continue
 	note ""
-	note "== $CFW/moments.json ($(wc -c <"$CFW/moments.json") bytes)"
-	if [ "$RAW" = 1 ]; then head -c 20000 "$CFW/moments.json" >>"$F"; else
-		head -c 20000 "$CFW/moments.json" | sed -E 's/("name"[[:space:]]*:[[:space:]]*)"[^"]*"/\1"<redacted>"/g' >>"$F"
+	note "== $m ($(wc -c <"$m") bytes)"
+	if [ "$RAW" = 1 ]; then head -c 20000 "$m" >>"$F"; else
+		head -c 20000 "$m" | sed -E 's/("name"[[:space:]]*:[[:space:]]*)"[^"]*"/\1"<redacted>"/g' >>"$F"
 	fi
 	note ""
-fi
+done
 show "$CFW/netwatch.count" 5
 note ""
 note "== the heartbeat ($(cat /tmp/yastationd.heartbeat 2>/dev/null || echo absent))"

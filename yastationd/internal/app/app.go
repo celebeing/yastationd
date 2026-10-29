@@ -114,7 +114,6 @@ type App struct {
 	packsSeen    atomic.Value                      // packsStamp of the last load (string)
 	packPreviews sync.Map                          // pack id -> its animation library, for "@<pack>/<name>"
 	luxReading   atomic.Uint64                     // the same reading before the calibration (float64 bits)
-	userMoments  atomic.Pointer[map[string][]show] // <cfw>/moments.json (moments.go)
 	luxUnitCal   atomic.Pointer[[]luxcal.Point]    // set from the web app (lightcal.go); nil = the config's
 	luxCalBusy   atomic.Bool                       // a calibration measurement is running
 
@@ -244,9 +243,7 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 	a.ringStack = display.NewStack(a.ringBase)
 	a.matrixStack = display.NewStack(a.matrixBase)
 	a.loadPacks()
-	if err := a.loadMoments(); err != nil {
-		a.log.Warn("moments: the owner's file is ignored", "err", err)
-	}
+	a.foldOldMoments()
 	return a, nil
 }
 

@@ -31,7 +31,7 @@ twice (the upload and the `.prev` copy, ~17 MB each).
 | `wpa_supplicant.conf` | only from the Wi-Fi setup page |
 | `<cfw>/intercom-*.raw` | only with `intercom_record_dir` set (testing) |
 | `<cfw>/log-spool` | only while the log server is unreachable, once a minute, capped (`log_spool_kb`) |
-| `<cfw>/moments.json` | a moment saved from the web app |
+| `<cfw>/packs/<id>/pack.json` of the owner's packs | a moment saved from the web app (up to v0.21: `<cfw>/moments.json`) |
 | `<cfw>/web.secret` (32 B) | once, the first time the web server starts |
 | `<cfw>/netwatch.count` | a network-watchdog reboot (one write) |
 

@@ -176,7 +176,11 @@ alarm, Wi-Fi setup) and every sound are moments too, so a theme can change any o
 level, a timer's countdown, a call's duration, the setup gesture's progress, a track title, a
 video, HA's commands. A moment resolves through, first match wins:
 
-0. the owner's choice, `<cfw>/moments.json`, set from the web app's Moments tab (below);
+0. the packs the speaker wears, top first: installed themes and the owner's own editable packs,
+   set from the web app's Moments tab (below; [asset-packs.md](asset-packs.md));
+
+and then level 0, the built-in behaviour:
+
 1. `<cfw>/board.conf` and the board profile: `moment.<name> = <candidate>, <candidate>, …` (the
    board.conf override already covers every profile key, so a user re-maps a moment there);
 2. the defaults of the front display's kind in code (`seg7`, `pixels`), next to the per-display
@@ -196,11 +200,12 @@ a value (`volume` → the level, `timer` → the time left) are passed through t
 
 ### The owner's moments
 
-The web app's Moments tab edits them; they are kept in `<cfw>/moments.json` (written atomically,
-the previous file as `moments.json.bak`) and apply at once, no restart. The file maps a moment to
-its candidates; a missing moment keeps its defaults, an empty list shows nothing. A candidate is a
-reference (a string, as above: `"blink"`, `"anim:media/Like"`, `"scenario:startup"`) or a
-sequence of its own:
+The web app's Moments tab edits them in one of the owner's packs ("Edit in"; since v0.22 they
+live in the pack's pack.json under the speaker's display kind, no longer in `<cfw>/moments.json`,
+which is folded into the pack `custom` at start) and they apply at once, no restart. A pack maps a
+moment to its candidates; a moment the pack lacks comes from the layers below, an empty list shows
+nothing. A candidate is a reference (a string, as above: `"blink"`, `"anim:media/Like"`,
+`"scenario:startup"`) or a sequence of its own:
 
 ```json
 {
@@ -232,12 +237,13 @@ The voice stages (`listening`, `thinking`, `speaking`, `waiting`) are moments si
 defaults are the expressions of their names, so nothing changes until the owner sets them. A
 stage lasts until the next one, so its sequence should hold its last step (the editor says so).
 
-API (behind the login): `GET /api/moments` → `{moments: [{name, when, default, custom, shows}],
-catalog: {display, expressions, scenarios, anims: [{name, ms, loop}], ring_effects,
-colour_effects, sounds}}` (`custom`
-null = the defaults; `shows` the index of the candidate shown here, −1 none; the catalogue holds
-what this speaker has); `PUT /api/moments/<name>` with a list of candidates; `DELETE
-/api/moments/<name>` back to the defaults; `POST /api/moment/<name>` plays it, with a body of
+API (behind the login): `GET /api/moments[?pack=<id>]` → `{moments: [{name, when, default,
+custom, from, current, shows}], target, editable, catalog: {display, expressions, scenarios,
+anims: [{name, ms, loop}], ring_effects, colour_effects, sounds}}` (`custom`: the edited pack's
+own entry, null = none; `from`: the pack in force, "" = built-in; `shows` the index of the
+candidate shown here, −1 none; the catalogue holds what this speaker has); `PUT
+/api/moments/<name>[?pack=<id>]` with a list of candidates (one of the owner's packs); `DELETE`
+the same removes the pack's entry; `POST /api/moment/<name>` plays it, with a body of
 candidates plays that draft unsaved (6 s at most).
 
 Moments stay above the layers they use: priorities, slots and TTLs are those of the expression

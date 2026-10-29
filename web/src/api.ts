@@ -215,10 +215,15 @@ export const infoFull = (base: string) => req<Peer & { features?: Features; ddp?
 export const wifi = (id: string, base: string) => authed<{ networks: Net[]; current: string; setup_mode: boolean }>(id, base, '/api/wifi')
 export const wifiAdd = (id: string, base: string, n: { ssid: string; psk: string; hidden: boolean; priority: number }) =>
   authed<{ ok: boolean }>(id, base, '/api/wifi/networks', { method: 'POST', body: JSON.stringify(n) })
-export const moments = (id: string, base: string) => authed<{ moments: Moment[]; catalog: MomentCatalog }>(id, base, '/api/moments')
-/** setMoment saves the owner's candidates (null: back to the defaults). */
-export const setMoment = (id: string, base: string, name: string, shows: Show[] | null) =>
-  authed<{ moments: Moment[] }>(id, base, '/api/moments/' + encodeURIComponent(name), shows ? { method: 'PUT', body: JSON.stringify(shows) } : { method: 'DELETE' })
+/** One of the owner's packs, as the Moments page offers it to edit (on: worn). */
+export type OwnPack = { id: string; name: string; on: boolean }
+/** The moments with pack's own entries as `custom` (target: the pack they are of). */
+export type MomentsState = { moments: Moment[]; target: string; editable: OwnPack[] }
+const packQ = (pack?: string) => (pack ? '?pack=' + encodeURIComponent(pack) : '')
+export const moments = (id: string, base: string, pack?: string) => authed<MomentsState & { catalog: MomentCatalog }>(id, base, '/api/moments' + packQ(pack))
+/** setMoment saves candidates into one of the owner's packs (null: its entry goes, the layers below show). */
+export const setMoment = (id: string, base: string, name: string, shows: Show[] | null, pack?: string) =>
+  authed<MomentsState>(id, base, '/api/moments/' + encodeURIComponent(name) + packQ(pack), shows ? { method: 'PUT', body: JSON.stringify(shows) } : { method: 'DELETE' })
 export type LightCal = { calibration: string; source: 'unit' | 'board' | 'none'; reading: number; lux: number; measured?: number; before?: number }
 export const lightCal = (id: string, base: string) => authed<LightCal>(id, base, '/api/calibrate/light')
 /** calibrateLight takes ~16 s on the speaker (it measures), hence the long timeout. */
@@ -269,13 +274,16 @@ export type Pack = {
   fits: boolean
   bytes: number
   position: number
+  /** one of the owner's packs (made here); installed ones are read-only */
+  editable?: boolean
 }
-/** stack: the packs this speaker wears; here: from theme_here (v0.21.1's "Apply here"), not
- * the theme key. */
+/** stack: the packs this speaker wears, top first (a pack left out is off); here: from
+ * theme_here (v0.21.1's "Apply here"), not the theme key; target: the owner's pack edits go to. */
 export type Packs = {
   packs: Pack[]
   stack: string[]
   here: boolean
+  target: string
   display: string
   missing: string[] | null
   free: number
@@ -285,13 +293,22 @@ export const packs = (id: string, base: string) => authed<Packs>(id, base, '/api
 /** packStack writes the theme (here: this speaker's own; [] with here ends it). */
 export const packStack = (id: string, base: string, stack: string[], here = false) =>
   authed<Packs>(id, base, '/api/packs/stack', { method: 'PUT', body: JSON.stringify({ stack, here }) })
-export const packAction = (id: string, base: string, pack: string, what: 'apply' | 'import', here = false) =>
+/** packAction: apply = on top of the stack; copy = an editable copy of it, in its place. */
+export const packAction = (id: string, base: string, pack: string, what: 'apply' | 'copy', here = false) =>
   authed<Packs>(id, base, `/api/packs/${encodeURIComponent(pack)}/${what}${here ? '?here=1' : ''}`, { method: 'POST' })
+export const newPack = (id: string, base: string, name: string) =>
+  authed<Packs>(id, base, '/api/packs/new', { method: 'POST', body: JSON.stringify({ name }) })
+export const renamePack = (id: string, base: string, pack: string, name: string) =>
+  authed<Packs>(id, base, `/api/packs/${encodeURIComponent(pack)}/rename`, { method: 'POST', body: JSON.stringify({ name }) })
 export const deletePack = (id: string, base: string, pack: string) => authed<Packs>(id, base, '/api/packs/' + encodeURIComponent(pack), { method: 'DELETE' })
-export const deleteCustomAsset = (id: string, base: string, kind: 'sounds' | 'anims', name: string) =>
-  authed<Packs>(id, base, `/api/packs/custom/${kind}/${encodeURIComponent(name)}`, { method: 'DELETE' })
-export const exportTheme = (id: string, base: string, pack: string, name: string) =>
-  download(id, base, `/api/packs/custom/export?id=${encodeURIComponent(pack)}&name=${encodeURIComponent(name)}`, pack + '.zip')
+/** packAssetPath: where a sound or animation of one of the owner's packs is put (PUT) or removed. */
+export const packAssetPath = (pack: string, kind: 'sounds' | 'anims', name: string) =>
+  `/api/packs/${encodeURIComponent(pack)}/${kind}/${encodeURIComponent(name)}`
+export const deletePackAsset = (id: string, base: string, pack: string, kind: 'sounds' | 'anims', name: string) =>
+  authed<Packs>(id, base, packAssetPath(pack, kind, name), { method: 'DELETE' })
+/** exportPack: a pack as an archive (as: another id, needed for custom; name: another name). */
+export const exportPack = (id: string, base: string, pack: string, as = '', name = '') =>
+  download(id, base, `/api/packs/${encodeURIComponent(pack)}/export?id=${encodeURIComponent(as)}&name=${encodeURIComponent(name)}`, (as || pack) + '.zip')
 
 export const log = (id: string, base: string, source: string, lines: number) =>
   authed<{ source: string; lines: string[] }>(id, base, `/api/log?source=${encodeURIComponent(source)}&lines=${lines}`)

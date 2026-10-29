@@ -14,10 +14,10 @@ import (
 
 // Moments: what happens in the CFW's life that the speaker reacts to (docs/display-expressions.md,
 // "Moments"). Code that reacts to an event calls moment(), never express() with a picture: which
-// picture fits is a per-platform choice. A moment resolves through the owner's <cfw>/moments.json
-// (set from the web app), the board profile's moment.<name> (and <cfw>/board.conf), the defaults
-// of the front display's kind below, then an expression of the same name; a candidate counts only
-// if this speaker has it.
+// picture fits is a per-platform choice. A moment resolves through the theme stack's packs, top
+// first (the owner's editable packs among them, packs.go), then level 0: the board profile's
+// moment.<name> (and <cfw>/board.conf), the defaults of the front display's kind below, the
+// default theme, an expression of the same name; a candidate counts only if this speaker has it.
 
 // momentDefaults per front display kind ("seg7"; "pixels" for every pixel screen). Moments not
 // listed (the voice stages) show the expression of their name.
@@ -84,67 +84,41 @@ func refs(names []string) []show {
 	return out
 }
 
-// momentFile is <cfw>/moments.json: the owner's moments, name → candidates (an empty list: the
-// moment shows nothing here).
+// momentFile is <cfw>/moments.json: where the owner's moments lived before they became the
+// editable pack "custom" (v0.22). Found at start, it is folded into that pack and renamed .old.
 const momentFile = "moments.json"
 
 func (a *App) momentPath() string {
 	return a.cfwFile(momentFile)
 }
 
-// loadMoments reads the owner's moments (none when the file is missing).
-func (a *App) loadMoments() error {
-	m := map[string][]show{}
+// foldOldMoments moves an old <cfw>/moments.json into the pack "custom" (its entries go in where
+// the pack has none for the moment) and renames the file .old. A broken file is only renamed.
+func (a *App) foldOldMoments() {
 	b, err := os.ReadFile(a.momentPath())
-	switch {
-	case os.IsNotExist(err):
-	case err != nil:
-		return err
-	default:
-		if err := json.Unmarshal(b, &m); err != nil {
-			return fmt.Errorf("%s: %w", momentFile, err)
+	if err != nil {
+		return
+	}
+	var m map[string][]show
+	if err := json.Unmarshal(b, &m); err != nil {
+		a.log.Warn("moments: the old moments.json is broken, left aside", "err", err)
+	}
+	for name, shows := range m {
+		if _, ok := a.packMoment(customPack, name); !ok {
+			if err := a.setPackMoment(customPack, name, shows); err != nil {
+				a.log.Warn("moments: folding the old moments.json", "err", err)
+				return
+			}
 		}
 	}
-	a.userMoments.Store(&m)
-	return nil
+	os.Rename(a.momentPath(), a.momentPath()+".old")
+	a.log.Info("moments: the old moments.json is now the pack custom", "moments", len(m))
 }
 
-// setMoment stores the owner's candidates for name (nil: back to the defaults), live and on flash.
+// setMoment stores candidates for name in the pack the Moments page edits (editTarget; nil: the
+// pack's entry goes and the layers below show).
 func (a *App) setMoment(name string, shows []show) error {
-	cur := a.userMomentMap()
-	m := make(map[string][]show, len(cur)+1)
-	for k, v := range cur {
-		m[k] = v
-	}
-	if shows == nil {
-		delete(m, name)
-	} else {
-		m[name] = shows
-	}
-	b, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		return err
-	}
-	path := a.momentPath()
-	if old, err := os.ReadFile(path); err == nil {
-		os.WriteFile(path+".bak", old, 0o644)
-	}
-	if err := os.WriteFile(path+".tmp", append(b, '\n'), 0o644); err != nil {
-		return err
-	}
-	if err := os.Rename(path+".tmp", path); err != nil {
-		return err
-	}
-	a.userMoments.Store(&m)
-	a.shareChanged(a.momentKind(), name)
-	return nil
-}
-
-func (a *App) userMomentMap() map[string][]show {
-	if m := a.userMoments.Load(); m != nil {
-		return *m
-	}
-	return nil
+	return a.setPackMoment(a.editTarget(), name, shows)
 }
 
 // frontKind is the front display's kind for the moment defaults ("" without one).

@@ -3,6 +3,24 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Your own packs** ([docs/asset-packs.md](docs/asset-packs.md))
+- The built-in behaviour is now level 0, always at the bottom; above it the packs a speaker wears.
+  Your changes live in packs of your own: make any number, rename, reorder, turn on and off,
+  export. "Your own" is the first, and it is worn on top unless you place it elsewhere.
+- Moments: pick the pack you edit ("Edit in"); each moment shows the layer it comes from;
+  **Customize** copies what a moment does now into your pack to change it there; "Remove from"
+  lets the layers below show again.
+- Installed packs are read-only; **Copy to my pack** makes an editable copy in its place.
+- Sounds: add and remove sounds in any of your packs.
+
+**Changed**
+- Moments are no longer shared between speakers (packs carry them: export one, install it on
+  another speaker). A moment shared before is ignored.
+- `<cfw>/moments.json` is folded into the pack "Your own" at the first start and renamed
+  `moments.json.old`.
+
 ## v0.21.2 — 2026-10-29
 
 **Changed**

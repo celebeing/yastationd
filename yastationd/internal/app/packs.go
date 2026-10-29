@@ -23,8 +23,9 @@ import (
 
 // Asset packs and the theme stack (docs/asset-packs.md). A pack is <cfw>/packs/<id>/: pack.json
 // (its manifest and, optionally, moments) with sounds/<name>.wav and anims/<display>/<name>.led
-// or .scled. The stack is the theme key, top first; the owner's own pack, custom, has its moments
-// in <cfw>/moments.json and sits just above the default theme unless the stack lists it.
+// or .scled. The stack is the theme key, top first, over level 0 (the built-in behaviour). The
+// owner's packs are editable (ownpacks.go); the first, custom ("Your own"), is worn on top unless
+// the stack places it or turns it off ("-custom").
 
 const (
 	packsDir   = "packs"
@@ -50,6 +51,9 @@ type pack struct {
 	Source   string   `json:"source,omitempty"`
 	License  string   `json:"license,omitempty"`
 	Displays []string `json:"displays,omitempty"`
+	// Editable: one of the owner's packs, made on this speaker (ownpacks.go); an installed one is
+	// read-only.
+	Editable bool `json:"editable,omitempty"`
 	// Moments by display kind ("any" for every one): moment -> candidates.
 	Moments map[string]map[string][]show `json:"moments,omitempty"`
 }
@@ -144,8 +148,8 @@ func (a *App) installedPacks() map[string]*pack {
 	return nil
 }
 
-// themeStack is the packs in force, top first: this speaker's own theme_here, else the theme
-// key; custom just above the default theme when the list does not place it.
+// themeStack is the packs in force, top first: theme_here, else the theme key; custom on top when
+// the list does not place it, left out when the list says "-custom".
 func (a *App) themeStack() []string {
 	if l := a.cfg().ThemesHere; len(l) > 0 {
 		return withCustom(l)
@@ -154,12 +158,17 @@ func (a *App) themeStack() []string {
 }
 
 func withCustom(l []string) []string {
-	s := slices.Clone(l)
-	if !slices.Contains(s, customPack) {
-		s = append(s, customPack)
+	if slices.Contains(l, customOff) {
+		return slices.DeleteFunc(slices.Clone(l), func(s string) bool { return s == customOff })
 	}
-	return s
+	if slices.Contains(l, customPack) {
+		return slices.Clone(l)
+	}
+	return append([]string{customPack}, l...)
 }
+
+// customOff in a theme list turns custom off (unlisted, it is worn on top).
+const customOff = "-" + customPack
 
 // themeMoment is a moment's candidates from the first pack in the stack that has the moment, and
 // that pack's id.
@@ -167,12 +176,6 @@ func (a *App) themeMoment(name string) ([]show, string, bool) {
 	packs := a.installedPacks()
 	kind := a.packDisplay()
 	for _, id := range a.themeStack() {
-		if id == customPack {
-			if c, ok := a.userMomentMap()[name]; ok {
-				return c, id, true
-			}
-			continue
-		}
 		p := packs[id]
 		if p == nil {
 			continue
@@ -268,11 +271,20 @@ func readPack(zipData []byte) (*pack, map[string][]byte, error) {
 	return &p, files, nil
 }
 
-// installPack checks a pack archive and installs it, replacing an installed one of the same id.
+// installPack checks a pack archive and installs it, replacing an installed one of the same id
+// (never one of the owner's). Installed, a pack is read-only: an editable mark in it is dropped.
 func (a *App) installPack(zipData []byte) (*pack, error) {
 	p, files, err := readPack(zipData)
 	if err != nil {
 		return nil, err
+	}
+	if a.packEditable(p.ID) {
+		return nil, fmt.Errorf("%s is one of your packs here: export it under another id, or remove yours first", p.ID)
+	}
+	if p.Editable {
+		p.Editable = false
+		man, _ := json.MarshalIndent(p, "", "  ")
+		files["pack.json"] = append(man, '\n')
 	}
 	total := 0
 	for _, b := range files {
@@ -413,23 +425,24 @@ func checkWAV(b []byte) error {
 	return nil
 }
 
-// removePack deletes an installed pack and takes it out of the theme keys.
+// removePack deletes a pack (an installed one, or one of the owner's) and takes it out of the
+// theme keys.
 func (a *App) removePack(id string) error {
-	if id == customPack || a.installedPacks()[id] == nil {
+	_, err := os.Stat(a.packDir(id))
+	if a.installedPacks()[id] == nil && (id != customPack || err != nil) {
 		return errors.New("no such pack")
 	}
 	if err := os.RemoveAll(a.packDir(id)); err != nil {
 		return err
 	}
 	for _, here := range []bool{false, true} {
-		if l := a.themeList(here); slices.Contains(l, id) {
-			l = slices.DeleteFunc(slices.Clone(l), func(s string) bool { return s == id })
-			if here && len(l) == 0 {
-				l = []string{customPack} // still this speaker's own theme: the default one
-			}
-			if err := a.setThemes(l, here); err != nil {
-				return err
-			}
+		l := a.themeList(here)
+		if len(l) == 0 && (here || id != customPack) || !slices.Contains(withCustom(l), id) {
+			continue
+		}
+		stack := slices.DeleteFunc(withCustom(l), func(s string) bool { return s == id })
+		if err := a.setThemes(stack, here); err != nil {
+			return err
 		}
 	}
 	a.loadPacks()
@@ -458,86 +471,24 @@ func (a *App) applyPack(id string, here bool) error {
 	return a.setThemes(append([]string{id}, rest...), here)
 }
 
-// setThemes writes the theme key, or theme_here (an empty list ends it), and points the animations
-// at the result.
+// setThemes writes the stack a speaker wears into the theme key, or theme_here (an empty list ends
+// it), and points the animations at the result. A stack without custom says "-custom" (unlisted,
+// custom would be worn on top).
 func (a *App) setThemes(ids []string, here bool) error {
 	key := "theme"
 	if here {
 		key = "theme_here"
 	}
+	ids = slices.DeleteFunc(slices.Clone(ids), func(s string) bool { return s == customOff })
+	if (len(ids) > 0 || !here) && !slices.Contains(ids, customPack) {
+		ids = append(ids, customOff)
+	}
+	if !here && slices.Equal(ids, []string{customPack}) {
+		ids = nil // the default: custom alone
+	}
 	_, _, err := a.applyConfigKeys(map[string][]string{key: ids}, "set from the Packs page", "packs")
 	a.refreshPackAnims()
 	return err
-}
-
-// importPack copies a pack's moments for this display into the owner's own (custom) and puts
-// custom on top, so editing starts from that theme.
-func (a *App) importPack(id string) error {
-	p := a.installedPacks()[id]
-	if p == nil {
-		return errors.New("no such pack")
-	}
-	for _, kind := range []string{"any", a.packDisplay()} {
-		for name, shows := range p.Moments[kind] {
-			if err := a.setMoment(name, shows); err != nil {
-				return err
-			}
-		}
-	}
-	return a.applyPack(customPack, len(a.cfg().ThemesHere) > 0)
-}
-
-// exportCustom zips the owner's own theme as a pack: its moments, sounds and animations.
-func (a *App) exportCustom(id, name string) ([]byte, error) {
-	if !packID.MatchString(id) || id == customPack {
-		return nil, fmt.Errorf("id %q: lower-case letters, digits and -, up to 40 (not %q)", id, customPack)
-	}
-	p := pack{ID: id, Name: cmp.Or(name, id), Moments: map[string]map[string][]show{}}
-	if m := a.userMomentMap(); len(m) > 0 {
-		p.Moments[cmp.Or(a.packDisplay(), "any")] = m // the moments were made for this display
-	}
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-	dir := a.packDir(customPack)
-	err := filepath.WalkDir(dir, func(fp string, e os.DirEntry, err error) error {
-		if err != nil || e.IsDir() {
-			return nil
-		}
-		rel, _ := filepath.Rel(dir, fp)
-		rel = filepath.ToSlash(rel)
-		if rel == "pack.json" {
-			return nil
-		}
-		if strings.HasPrefix(rel, "anims/") {
-			p.Displays = appendUnique(p.Displays, strings.Split(rel, "/")[1])
-		}
-		b, err := os.ReadFile(fp)
-		if err != nil {
-			return err
-		}
-		w, err := zw.Create(rel)
-		if err != nil {
-			return err
-		}
-		_, err = w.Write(b)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	if len(p.Displays) == 0 && a.packDisplay() != "" {
-		p.Displays = []string{a.packDisplay()}
-	}
-	man, _ := json.MarshalIndent(p, "", "  ")
-	w, err := zw.Create("pack.json")
-	if err != nil {
-		return nil, err
-	}
-	w.Write(append(man, '\n'))
-	if err := zw.Close(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
 }
 
 func appendUnique(s []string, v string) []string {
@@ -568,7 +519,9 @@ func (a *App) packsNow() map[string]any {
 	all := a.installedPacks()
 	ids := make([]string, 0, len(all)+1)
 	for id := range all {
-		ids = append(ids, id)
+		if id != customPack {
+			ids = append(ids, id)
+		}
 	}
 	sort.Strings(ids)
 	ids = append([]string{customPack}, ids...)
@@ -577,20 +530,14 @@ func (a *App) packsNow() map[string]any {
 		if p := all[id]; p != nil {
 			v.pack = *p
 		} else {
-			v.pack = pack{ID: customPack, Name: "Your own"}
+			v.pack = pack{ID: customPack, Name: "Your own", Editable: true}
+		}
+		for _, k := range []string{"any", kind} {
+			for n := range v.pack.Moments[k] {
+				v.Moments = appendUnique(v.Moments, n)
+			}
 		}
 		v.pack.Moments = nil
-		if id == customPack {
-			for n := range a.userMomentMap() {
-				v.Moments = append(v.Moments, n)
-			}
-		} else {
-			for _, k := range []string{"any", kind} {
-				for n := range all[id].Moments[k] {
-					v.Moments = appendUnique(v.Moments, n)
-				}
-			}
-		}
 		sort.Strings(v.Moments)
 		v.Sounds = listNames(filepath.Join(a.packDir(id), "sounds"), ".wav")
 		ext := ".led"
@@ -609,7 +556,8 @@ func (a *App) packsNow() map[string]any {
 		}
 	}
 	return map[string]any{"packs": views, "stack": stack, "display": kind, "missing": missing,
-		"here": len(a.cfg().ThemesHere) > 0, "free": freeBytes(a.cfwFile("")), "max_bytes": maxPackZip}
+		"here": len(a.cfg().ThemesHere) > 0, "target": a.editTarget(),
+		"free": freeBytes(a.cfwFile("")), "max_bytes": maxPackZip}
 }
 
 // listNames lists dir's files with ext, without it, sorted.
@@ -640,19 +588,28 @@ func dirBytes(dir string) int64 {
 // apiPacks serves the Packs page (docs/asset-packs.md):
 //
 //	GET    /api/packs                       the packs, the stack, what the stack names but is missing
-//	PUT    /api/packs                       install a pack (the zip as the body)
-//	PUT    /api/packs/stack                 {"stack": [ids], "here": bool}: the theme key, top first
-//	                                        (here: theme_here, this speaker's own; [] ends it)
+//	PUT    /api/packs                       install a pack (the zip as the body; read-only here)
+//	POST   /api/packs/new {"name"}          a new pack of the owner's, worn on top
+//	PUT    /api/packs/stack                 {"stack": [ids], "here": bool}: the stack worn, top first
+//	                                        (here: theme_here; [] ends it); custom left out = off
 //	POST   /api/packs/<id>/apply[?here=1]   put it on top
-//	POST   /api/packs/<id>/import           its moments into custom, custom on top
+//	POST   /api/packs/<id>/copy             an editable copy of it, in its place in the stack
+//	POST   /api/packs/<id>/rename {"name"}  rename one of the owner's
 //	DELETE /api/packs/<id>                  remove it
-//	GET    /api/packs/custom/export?id=&name=  custom as a pack archive
-//	PUT|DELETE /api/packs/custom/sounds/<name>  the owner's own sound (a WAV)
-//	PUT|DELETE /api/packs/custom/anims/<name>   the owner's own animation for this display
+//	GET    /api/packs/<id>/export?id=&name= the pack as an archive (read-only where installed)
+//	PUT|DELETE /api/packs/<id>/sounds/<name>  a sound of one of the owner's packs (a WAV)
+//	PUT|DELETE /api/packs/<id>/anims/<name>   an animation of one of them, for this display
 func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/packs"), "/"), "/")
 	if parts[0] == "" {
 		parts = nil
+	}
+	var name struct{ Name string }
+	readName := func() error {
+		if json.NewDecoder(io.LimitReader(r.Body, smallBody)).Decode(&name) != nil {
+			return errors.New(`want {"name": …}`)
+		}
+		return nil
 	}
 	var err error
 	switch {
@@ -668,6 +625,10 @@ func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
 			if p, err = a.installPack(b); err == nil {
 				a.log.Info("packs: installed", "pack", p.ID, "version", p.Version)
 			}
+		}
+	case len(parts) == 1 && parts[0] == "new" && r.Method == http.MethodPost:
+		if err = readName(); err == nil {
+			_, err = a.createPack(name.Name)
 		}
 	case len(parts) == 1 && parts[0] == "stack" && r.Method == http.MethodPut:
 		var in struct {
@@ -688,22 +649,27 @@ func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
 		}
 	case len(parts) == 2 && r.Method == http.MethodPost && parts[1] == "apply":
 		err = a.applyPack(parts[0], r.URL.Query().Get("here") == "1")
-	case len(parts) == 2 && r.Method == http.MethodPost && parts[1] == "import":
-		err = a.importPack(parts[0])
+	case len(parts) == 2 && r.Method == http.MethodPost && parts[1] == "copy":
+		_, err = a.copyPack(parts[0])
+	case len(parts) == 2 && r.Method == http.MethodPost && parts[1] == "rename":
+		if err = readName(); err == nil {
+			err = a.renamePack(parts[0], name.Name)
+		}
 	case len(parts) == 1 && r.Method == http.MethodDelete:
 		err = a.removePack(parts[0])
-	case len(parts) == 2 && parts[0] == customPack && parts[1] == "export" && r.Method == http.MethodGet:
-		b, err := a.exportCustom(r.URL.Query().Get("id"), r.URL.Query().Get("name"))
+	case len(parts) == 2 && parts[1] == "export" && r.Method == http.MethodGet:
+		q := r.URL.Query()
+		b, err := a.exportPack(parts[0], q.Get("id"), q.Get("name"))
 		if err != nil {
 			writeErr(w, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
 		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition", `attachment; filename="`+r.URL.Query().Get("id")+`.zip"`)
+		w.Header().Set("Content-Disposition", `attachment; filename="`+cmp.Or(q.Get("id"), parts[0])+`.zip"`)
 		w.Write(b)
 		return
-	case len(parts) == 3 && parts[0] == customPack && (parts[1] == "sounds" || parts[1] == "anims"):
-		err = a.customAsset(r, parts[1], parts[2])
+	case len(parts) == 3 && (parts[1] == "sounds" || parts[1] == "anims"):
+		err = a.packAsset(r, parts[0], parts[1], parts[2])
 	default:
 		writeErr(w, http.StatusNotFound, "no such packs call")
 		return
@@ -713,58 +679,4 @@ func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, a.packsNow())
-}
-
-// customAsset puts (PUT, the file as the body) or removes (DELETE) one of the owner's own sounds
-// or animations in the custom pack.
-func (a *App) customAsset(r *http.Request, kind, name string) error {
-	if !packFileName.MatchString(name) {
-		return errors.New("name: lower-case letters, digits, - and _, up to 40")
-	}
-	disp := a.packDisplay()
-	rel := "sounds/" + name + ".wav"
-	if kind == "anims" {
-		if disp == "" {
-			return errors.New("this speaker has no front display")
-		}
-		ext := ".led"
-		if disp == "seg7" {
-			ext = ".scled"
-		}
-		rel = "anims/" + disp + "/" + name + ext
-	}
-	dst := filepath.Join(a.packDir(customPack), filepath.FromSlash(rel))
-	switch r.Method {
-	case http.MethodDelete:
-		if err := os.Remove(dst); err != nil {
-			return errors.New("no such file")
-		}
-	case http.MethodPut:
-		b, err := io.ReadAll(io.LimitReader(r.Body, maxPackFiles+1))
-		if err != nil {
-			return err
-		}
-		if len(b) > maxPackFiles {
-			return fmt.Errorf("over %d MB", maxPackFiles>>20)
-		}
-		if err := checkPackFile(rel, b); err != nil {
-			return err
-		}
-		if free := freeBytes(a.cfwFile("")); free >= 0 && int64(len(b)) > free-assetFreeKeep {
-			return errors.New("not enough room on the speaker")
-		}
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			return err
-		}
-		if err := os.WriteFile(dst+".new", b, 0o644); err != nil {
-			return err
-		}
-		if err := os.Rename(dst+".new", dst); err != nil {
-			return err
-		}
-	default:
-		return errors.New("PUT or DELETE")
-	}
-	a.loadPacks() // drops the animation caches
-	return nil
 }

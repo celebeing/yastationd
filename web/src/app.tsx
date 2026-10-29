@@ -715,12 +715,16 @@ function BehaviourHelp() {
           keys. A moment can show a face or an animation on the display, light the ring and play a sound, together or one after another.
         </li>
         <li>
-          <b>Moments</b>: what every moment does on this speaker, and where that comes from. Change one and your version is kept as “Your own”.
+          Layers: the <b>built-in behaviour</b> is always at the bottom; above it the packs this speaker wears, the top one first. A moment, sound or
+          animation comes from the highest pack that has it.
         </li>
         <li>
-          <b>Packs</b>: themes of animations, sounds and moments (a .zip). Apply puts a pack on top: a moment, sound or animation comes from the
-          highest pack that has it, then the default theme, which is always at the bottom. A pack applied above “Your own” wins over your
-          moments; reorder to change that. Each speaker has its own packs and theme.
+          <b>Moments</b>: what every moment does now and which layer that comes from. <b>Customize</b> copies it into one of your packs, where you
+          change it; remove it there and the layers below show again.
+        </li>
+        <li>
+          <b>Packs</b>: <b>your packs</b> are made here and editable: create, rename, turn on or off, reorder, export. Installed packs (a .zip from
+          elsewhere) are read-only: <b>Copy to my pack</b> makes an editable one from it. Each speaker has its own packs and theme.
         </li>
         <li>
           <b>Sounds</b>: every sound the moments can play, the speaker's own and the packs'; add yours. <b>Videos</b>: clips for the display.

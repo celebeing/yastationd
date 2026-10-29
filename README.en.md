@@ -124,9 +124,11 @@ HA, from single expressions to timed scenarios across the ring and the display.
   ring, every sound, the status lights) is a moment you can change, sounds included, together or
   one after another. **Behaviour → Packs** installs packs of animations, sounds and moments (a
   .zip; packs live in their own repositories) and orders them as a theme, top first; the LED page plays any pack's animations before you apply it; **Behaviour →
-  Sounds** plays, adds and replaces sounds; your own changes can be saved as a pack
+  Sounds** plays, adds and replaces sounds. Your changes live in packs of your own: the built-in
+  behaviour is always at the bottom, Customize on the Moments page copies what a moment does now
+  into your pack, and an installed pack can be copied into one of yours to change it
   ([docs/asset-packs.md](docs/asset-packs.md)).
-- One switch makes a setting, option or moment shared by every speaker: they take this speaker's
+- One switch makes a setting or option shared by every speaker: they take this speaker's
   value and change together from then on; a speaker that was off catches up when it is back.
   Details: [docs/web-ui.md](docs/web-ui.md), [docs/settings.md](docs/settings.md).
 

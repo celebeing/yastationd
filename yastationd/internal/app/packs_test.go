@@ -134,7 +134,7 @@ func TestExportCustom(t *testing.T) {
 	dir := filepath.Join(a.packDir(customPack), "sounds")
 	os.MkdirAll(dir, 0o755)
 	os.WriteFile(filepath.Join(dir, "mine.wav"), []byte(tick), 0o644)
-	b, err := a.exportCustom("my-theme", "Mine")
+	b, err := a.exportPack(customPack, "my-theme", "Mine")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,5 +214,128 @@ func TestApplyHere(t *testing.T) {
 	}
 	if _, ok := a.frontAnim("happy"); ok {
 		t.Error("the pack still plays after its stack ended")
+	}
+}
+
+// The owner's packs: custom is worn on top unless placed or turned off; installed packs are
+// read-only; a copy is editable and takes the original's place; new packs, renames, exports.
+func TestOwnPacks(t *testing.T) {
+	a := packTestApp(t)
+	hl := packZip(t, map[string]string{
+		"pack.json":         `{"id": "hl", "name": "Half-Life", "editable": true, "moments": {"any": {"volume_change": ["sound:hl_tick"]}}}`,
+		"sounds/hl_tick.wav": tick,
+	})
+	if _, err := a.installPack(hl); err != nil {
+		t.Fatal(err)
+	}
+	if a.packEditable("hl") {
+		t.Fatal("an installed pack came in editable")
+	}
+	// read-only: its moments and files are not changed here
+	if err := a.setPackMoment("hl", "volume_change", nil); err == nil {
+		t.Error("a moment of an installed pack was changed")
+	}
+	// the owner's moment goes into custom, worn on top by default: it wins over hl
+	a.applyPack("hl", false)
+	if err := a.setMoment("volume_change", []show{{Ref: "sound:mine"}}); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(a.themeStack(), []string{"hl", customPack}) {
+		t.Fatalf("stack after apply: %v", a.themeStack())
+	}
+	a.setThemes([]string{customPack, "hl"}, false)
+	if c := a.momentCandidates("volume_change"); c[0].Ref != "sound:mine" {
+		t.Errorf("custom on top: %v", c)
+	}
+	// custom off: the stack without it says so, and the pack's moment shows
+	a.setThemes([]string{"hl"}, false)
+	if slices.Contains(a.themeStack(), customPack) {
+		t.Fatalf("custom still worn: %v (%v)", a.themeStack(), a.cfg().Themes)
+	}
+	if c := a.momentCandidates("volume_change"); c[0].Ref != "sound:hl_tick" {
+		t.Errorf("custom off: %v", c)
+	}
+	// a copy: editable, in hl's place, with hl's files; hl stays installed and read-only
+	id, err := a.copyPack("hl")
+	if err != nil || id != "hl-mine" || !a.packEditable(id) || a.installedPacks()[id].Name != "Half-Life (mine)" {
+		t.Fatalf("copy: %q %v", id, err)
+	}
+	if !slices.Equal(a.themeStack(), []string{"hl-mine"}) {
+		t.Errorf("stack after the copy: %v", a.themeStack())
+	}
+	if _, err := os.Stat(filepath.Join(a.packDir(id), "sounds", "hl_tick.wav")); err != nil {
+		t.Error("the copy lacks the pack's sound")
+	}
+	if err := a.setPackMoment(id, "volume_change", []show{{Ref: "sound:hl_tick"}, {Ref: "wink"}}); err != nil {
+		t.Fatal(err)
+	}
+	if c := a.momentCandidates("volume_change"); len(c) != 2 {
+		t.Errorf("the copy's edit: %v", c)
+	}
+	// installing over one of the owner's packs is refused
+	if _, err := a.installPack(packZip(t, map[string]string{"pack.json": `{"id": "hl-mine"}`})); err == nil {
+		t.Error("an install replaced one of the owner's packs")
+	}
+	// a new pack goes on top; a rename keeps its id
+	nid, err := a.createPack("Ночные звуки")
+	if err != nil || a.themeStack()[0] != nid || a.editTarget() != nid {
+		t.Fatalf("new pack %q: %v, stack %v", nid, err, a.themeStack())
+	}
+	if err := a.renamePack(nid, "Night"); err != nil || a.installedPacks()[nid].Name != "Night" {
+		t.Errorf("rename: %v", err)
+	}
+	if err := a.renamePack("hl", "x"); err == nil {
+		t.Error("an installed pack was renamed")
+	}
+	// export and back: it installs elsewhere read-only, with its moments and files
+	b, err := a.exportPack(id, "hl-v2", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := a.installPack(b)
+	if err != nil || p.ID != "hl-v2" || a.packEditable("hl-v2") || p.Name != "Half-Life (mine)" {
+		t.Fatalf("round trip: %+v %v", p, err)
+	}
+	if c, ok := a.packMoment("hl-v2", "volume_change"); !ok || len(c) != 2 {
+		t.Errorf("round trip moments: %v", c)
+	}
+	// removing one of the owner's packs takes it out of the stack
+	if err := a.removePack(nid); err != nil || slices.Contains(a.themeStack(), nid) {
+		t.Errorf("remove: %v %v", err, a.themeStack())
+	}
+}
+
+// The moments API edits one of the owner's packs (the edit target, or ?pack=), never an
+// installed one.
+func TestWebMomentsInPacks(t *testing.T) {
+	a, srv := newWebApp(t)
+	m := packTestApp(t)
+	a.ringStack, a.matrixStack, a.matrix, a.front, a.store = m.ringStack, m.matrixStack, m.matrix, m.front, m.store
+	a.conf.Store(m.cfg())
+	a.prof = m.prof
+	_, out := call(t, "POST", srv.URL+"/api/login", "", `{"user":"admin","password":"yastation"}`)
+	tok := out["token"].(string)
+	if _, err := a.installPack(packZip(t, map[string]string{"pack.json": `{"id": "ro", "moments": {"any": {"dialog_end": ["happy"]}}}`})); err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := call(t, "PUT", srv.URL+"/api/moments/dialog_end?pack=ro", tok, `["wink"]`); code != 422 {
+		t.Errorf("an installed pack's moment was set: %d", code)
+	}
+	code, out := call(t, "PUT", srv.URL+"/api/moments/dialog_end", tok, `["wink"]`)
+	if code != 200 || out["target"] != customPack {
+		t.Fatalf("set in the edit target: %d %v", code, out)
+	}
+	if c, ok := a.packMoment(customPack, "dialog_end"); !ok || c[0].Ref != "wink" {
+		t.Errorf("custom's entry: %v", c)
+	}
+	if code, _ := call(t, "DELETE", srv.URL+"/api/moments/dialog_end?pack=custom", tok, ""); code != 200 {
+		t.Errorf("reset: %d", code)
+	}
+	if _, ok := a.packMoment(customPack, "dialog_end"); ok {
+		t.Error("the entry stayed after the reset")
+	}
+	_, out = call(t, "GET", srv.URL+"/api/moments", tok, "")
+	if ed, _ := out["editable"].([]any); len(ed) != 1 {
+		t.Errorf("the owner's packs: %v", out["editable"])
 	}
 }

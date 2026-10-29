@@ -107,11 +107,10 @@ An item the owner shares lives in one retained topic, `<prefix>/shared/<kind>/<i
 |---|---|---|
 | `setting` | a config key with `Sync` | its lines, e.g. `["2"]`; `null` while it is at the default |
 | `option` | an HA option entity (clock brightness, auto brightness, durations, follow-up, faces, ambilight fx brightness) | its state, e.g. `"40"` |
-| `moment/<display kind>` | a moment, shared only by speakers whose front display is of that kind (`seg7`, `pixels`) | its candidates, `null` for the defaults |
 
 - **Sharing** an item publishes this speaker's value; every speaker takes it (a config key through
   `applyConfigText`, so a restart key restarts each speaker on trial; an option through its command
-  handler; a moment through `setMoment`). **Unsharing** clears the topic; every speaker keeps the
+  handler). **Unsharing** clears the topic; every speaker keeps the
   value it has.
 - **Defaults stay defaults.** A setting the owner left at the default (the file doesn't set it, or
   sets the default value) is shared as `null`, and a speaker taking `null` removes the key from
@@ -126,8 +125,7 @@ An item the owner shares lives in one retained topic, `<prefix>/shared/<kind>/<i
   last one. No timestamps decide, no leader is needed.
 - **Offline speakers** get the retained values when they connect.
 - **A new speaker** (once it has the broker in its config) gets every shared item on its first
-  connect and takes them: runtime keys and options at once, moments if its display is of the same
-  kind, and the restart keys written together with one restart on trial. Its `.bak` and the
+  connect and takes them: runtime keys and options at once, and the restart keys written together with one restart on trial. Its `.bak` and the
   trial's health mark stay those from before the first restart key, so a rollback undoes them all.
   After the restart the same retained values change nothing. It never sends its own values for
   items already shared; its unshared settings and its own keys (name, ID, calibrations) stay.
@@ -141,7 +139,9 @@ An item the owner shares lives in one retained topic, `<prefix>/shared/<kind>/<i
   share). The broker is on the LAN; put a login on it.
 
 API: `GET /api/sync` (what is shared, when, by whom; which options this speaker can share),
-`POST /api/sync {kind: "setting"|"option"|"moment", item, on}`. Without a broker sharing is off
+`POST /api/sync {kind: "setting"|"option", item, on}`. Moments are not shared since v0.22 (they
+travel in packs, exported and installed; a retained `moment/<kind>` item from an older speaker is
+ignored), and neither is the theme since v0.21.2. Without a broker sharing is off
 (503).
 
 ## Tests
@@ -150,8 +150,8 @@ API: `GET /api/sync` (what is shared, when, by whom; which options this speaker 
 `Changed`), `internal/app/settings_test.go` (apply: comments, invalid, runtime, mixed, overrides;
 the login and calibration writers; the API's kinds, lists, secrets, flags), `internal/app/sync_test.go`
 (an in-memory broker with retained topics and in-order delivery: two speakers converge, both change
-at once, a late speaker, unsharing, a restart key, options pulling each other, moments by display
-kind, the API).
+at once, a late speaker, unsharing, a restart key, options pulling each other, moments not
+shared, the API).
 
 ## Retired keys
 

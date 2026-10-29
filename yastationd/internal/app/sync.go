@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -110,15 +111,8 @@ func (a *App) localShared(kind, item string) (json.RawMessage, bool) {
 		}
 		b, _ := json.Marshal(v.value)
 		return b, true
-	case kind == a.momentKind() && a.frontKind() != "":
-		shows, ok := a.userMomentMap()[item]
-		if !ok {
-			return json.RawMessage("null"), true
-		}
-		b, _ := json.Marshal(shows)
-		return b, true
 	}
-	return nil, false
+	return nil, false // moments are no longer shared (v0.22): they travel in packs
 }
 
 // settingShared is a key's value as shared: null while c leaves it at the default (the file does
@@ -197,11 +191,7 @@ func (a *App) shareChanged(kind, item string) {
 
 // syncKinds: the kinds of shared items this speaker takes.
 func (a *App) syncKinds() []string {
-	kinds := []string{"setting", "option"}
-	if a.frontKind() != "" {
-		kinds = append(kinds, a.momentKind())
-	}
-	return kinds
+	return []string{"setting", "option"} // not moments (v0.22): they travel in packs
 }
 
 func (a *App) syncSubscribe() {
@@ -260,16 +250,8 @@ func (a *App) applyShared(kind, item string, v json.RawMessage) error {
 			fn([]byte(s))
 		}
 		return nil
-	default: // a moment
-		var shows []show
-		if err := json.Unmarshal(v, &shows); err != nil {
-			return err
-		}
-		if string(v) == "null" {
-			shows = nil
-		}
-		return a.setMoment(item, shows)
 	}
+	return fmt.Errorf("%s is not shared", kind)
 }
 
 // shareOptions wraps the shareable options' handlers so a local change goes out when shared.
