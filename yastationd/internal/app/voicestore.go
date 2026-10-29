@@ -99,6 +99,12 @@ func (a *App) onVoiceEvent(payload []byte) {
 	if e.Verdict == voiceid.Known {
 		e.Verdict = ev.Verdict.Name
 	}
+	if x := ev.Early; x != nil {
+		e.Early, e.EarlyScore, e.EarlySecs = x.State, x.Score, x.Secs
+		if x.State == voiceid.Known {
+			e.Early = x.Name
+		}
+	}
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if st.model != "" && e.Model != "" && e.Model != st.model {

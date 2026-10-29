@@ -3,8 +3,8 @@ package app
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"math"
 	"os"
@@ -30,10 +30,10 @@ type voiceID struct {
 	gender *voiceid.Classifier
 	age    *voiceid.Classifier
 
-	mu     sync.Mutex
+	mu      sync.Mutex
 	people  []voiceid.Person // the household, from the store (VoicePeople, retained)
 	storeID string           // the speaker that keeps the voices
-	spool  []string         // events waiting for the broker
+	spool   []string         // events waiting for the broker
 }
 
 // voiceSpoolMax bounds the events kept while the broker is away (a few KB each).
@@ -294,14 +294,15 @@ func (a *App) publishVerdict(v voiceid.Verdict) {
 
 // voiceEvent is what a speaker tells the store about one request.
 type voiceEvent struct {
-	ID         string          `json:"id"`
-	At         int64           `json:"at"` // unix ms
-	Speaker    string          `json:"speaker"`
-	Src        string          `json:"src"`
-	Transcript string          `json:"transcript,omitempty"`
-	Ignored    bool            `json:"ignored,omitempty"`
-	Verdict    voiceid.Verdict `json:"verdict"`
-	Emb        string          `json:"emb,omitempty"` // base64 float32 LE
+	ID         string           `json:"id"`
+	At         int64            `json:"at"` // unix ms
+	Speaker    string           `json:"speaker"`
+	Src        string           `json:"src"`
+	Transcript string           `json:"transcript,omitempty"`
+	Ignored    bool             `json:"ignored,omitempty"`
+	Verdict    voiceid.Verdict  `json:"verdict"`
+	Early      *voiceid.Verdict `json:"early,omitempty"` // the early verdict, when there was one
+	Emb        string           `json:"emb,omitempty"`   // base64 float32 LE
 }
 
 // voiceSend posts the request's voiceprint and verdict to the store (spooled while the broker is
@@ -311,10 +312,10 @@ func (a *App) voiceSend(t *voiceTake, v voiceid.Verdict, ignored bool) {
 		return
 	}
 	t.mu.Lock()
-	tr := t.transcript
+	tr, early := t.transcript, t.early
 	t.mu.Unlock()
 	ev := voiceEvent{ID: newEventID(), At: t.wake.UnixMilli(), Speaker: t.speaker, Src: t.src,
-		Transcript: tr, Ignored: ignored, Verdict: v, Emb: packEmb(v.Embedding)}
+		Transcript: tr, Ignored: ignored, Verdict: v, Early: early, Emb: packEmb(v.Embedding)}
 	b, err := json.Marshal(ev)
 	if err != nil {
 		return

@@ -20,20 +20,20 @@ const (
 
 // Verdict is who a voiceprint was taken for.
 type Verdict struct {
-	State      string  `json:"state"`
-	ID         string  `json:"id,omitempty"`   // the person's, when known
-	Name       string  `json:"name,omitempty"` // the person's, when known
-	Score      float64 `json:"score"`          // cosine to the closest person
-	Closest    string  `json:"closest,omitempty"`
-	Second     float64 `json:"second"` // cosine to the runner-up
-	SecondName string  `json:"second_name,omitempty"`
-	Gender     string  `json:"gender"`             // male, female, unknown
-	Female     float64 `json:"female"`             // the gender classifier's output (-1: none)
-	Age        float64 `json:"age"`                // the age classifier's output (-1: none)
-	Secs       float64 `json:"secs"`               // speech the voiceprint was taken on
-	Model      string  `json:"model,omitempty"`    // the voiceprint model's tag
-	Stage      string  `json:"stage,omitempty"`    // early (the wake word) or final (the whole request)
-	Speaker    string  `json:"speaker,omitempty"`  // the speaker that heard it
+	State      string    `json:"state"`
+	ID         string    `json:"id,omitempty"`   // the person's, when known
+	Name       string    `json:"name,omitempty"` // the person's, when known
+	Score      float64   `json:"score"`          // cosine to the closest person
+	Closest    string    `json:"closest,omitempty"`
+	Second     float64   `json:"second"` // cosine to the runner-up
+	SecondName string    `json:"second_name,omitempty"`
+	Gender     string    `json:"gender"`            // male, female, unknown
+	Female     float64   `json:"female"`            // the gender classifier's output (-1: none)
+	Age        float64   `json:"age"`               // the age classifier's output (-1: none)
+	Secs       float64   `json:"secs"`              // speech the voiceprint was taken on
+	Model      string    `json:"model,omitempty"`   // the voiceprint model's tag
+	Stage      string    `json:"stage,omitempty"`   // early (the wake word) or final (the whole request)
+	Speaker    string    `json:"speaker,omitempty"` // the speaker that heard it
 	Embedding  []float32 `json:"-"`
 }
 

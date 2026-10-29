@@ -153,7 +153,14 @@ On the speaker with `voice_store` (`internal/app/voicestore.go`, `internal/voice
 - **The grouping**, in time order: an entry with almost no speech (under 0.9 s) or that HA heard
   no words in (no transcript, and not an ignored guest's) goes to "not a person"; any other joins
   the group whose centroid (the mean of its normalised voiceprints) is closest, if at least 0.6
-  close, else starts its own. A group's gender is its members' mean.
+  close, else starts its own. Then groups whose centroids are at least 0.6 close are joined, the
+  closest pair first: going entry by entry, a voice whose first phrase was atypical starts two
+  groups (seen 2026-10-30: a woman's first request scored 0.49 on gender and 0.33 to her second;
+  her two halves were 0.64 apart, both ~0 from the other voice). Two named groups are never
+  joined, and a group the owner pinned without naming (a request moved to "a new person") takes
+  no part. A group's gender is its members' mean.
+- **Each entry keeps the early verdict too** (`early`, `early_score`, `early_secs`), to see how
+  often «Алиса» and the start of the request agree with the whole request.
 - **The owner's edits are pins** (`<cfw>/voices/edits.json`): naming a group pins its entries to
   it, merging pins the one group's entries to the other, moving an entry pins it (to a group, to
   "not a person", or to a new group). Regrouping places pinned entries first, so an edit is never

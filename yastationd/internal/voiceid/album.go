@@ -21,18 +21,23 @@ const JoinThreshold = 0.6
 
 // Entry is one request in the album.
 type Entry struct {
-	ID         string    `json:"id"`
-	At         int64     `json:"at"` // unix ms
-	Speaker    string    `json:"speaker"`
-	Src        string    `json:"src,omitempty"`
-	Transcript string    `json:"transcript,omitempty"`
-	Ignored    bool      `json:"ignored,omitempty"`
-	Secs       float64   `json:"secs"`
-	Female     float64   `json:"female"`
-	Age        float64   `json:"age"`
-	Model      string    `json:"model,omitempty"`
-	Verdict    string    `json:"verdict,omitempty"` // what the speaker decided: a name, guest, unknown
-	Score      float64   `json:"score"`
+	ID         string  `json:"id"`
+	At         int64   `json:"at"` // unix ms
+	Speaker    string  `json:"speaker"`
+	Src        string  `json:"src,omitempty"`
+	Transcript string  `json:"transcript,omitempty"`
+	Ignored    bool    `json:"ignored,omitempty"`
+	Secs       float64 `json:"secs"`
+	Female     float64 `json:"female"`
+	Age        float64 `json:"age"`
+	Model      string  `json:"model,omitempty"`
+	Verdict    string  `json:"verdict,omitempty"` // what the speaker decided: a name, guest, unknown
+	Score      float64 `json:"score"`
+	// The early verdict («Алиса» and the start of the request), to see how well it agrees with the
+	// final one (a name, guest, unknown; "" when there was none).
+	Early      string    `json:"early,omitempty"`
+	EarlyScore float64   `json:"early_score,omitempty"`
+	EarlySecs  float64   `json:"early_secs,omitempty"`
 	Emb        []float32 `json:"-"`
 }
 
@@ -88,6 +93,85 @@ func (al *Album) Regroup() {
 	for _, e := range al.Entries {
 		al.place(e)
 	}
+	al.mergeClose()
+}
+
+// mergeClose joins groups whose centroids are as close as an entry must be to join one: the
+// grouping goes entry by entry, so a voice whose first phrase was atypical can start two groups
+// that only later turn out to be one (seen on a real household: 0.64 between the halves, ~0
+// to the other voice). The closest pair goes first. Two named groups are never joined (that is
+// the owner's call), and a group with pinned entries is never absorbed (an entry moved out on
+// purpose stays out).
+func (al *Album) mergeClose() {
+	for {
+		best, from, into := JoinThreshold, "", ""
+		for aid, a := range al.groups {
+			for bid, b := range al.groups {
+				if aid >= bid || a.Noise || b.Noise || len(a.Centroid) == 0 || len(b.Centroid) == 0 {
+					continue
+				}
+				if a.Name != "" && b.Name != "" {
+					continue
+				}
+				c := Cosine(a.Centroid, b.Centroid)
+				if c < best {
+					continue
+				}
+				f, t := al.absorbable(a, b)
+				if f == "" {
+					continue
+				}
+				best, from, into = c, f, t
+			}
+		}
+		if from == "" {
+			return
+		}
+		for eid, gid := range al.groupOf {
+			if gid == from {
+				al.groupOf[eid] = into
+			}
+		}
+		al.rebuild()
+	}
+}
+
+// absorbable picks which of a and b goes into the other ("" if neither may): an unnamed group
+// without pins goes into a named one, or the smaller of two such groups into the larger. A group
+// the owner pinned but did not name (an entry moved to a new person) takes part in neither.
+func (al *Album) absorbable(a, b *Group) (from, into string) {
+	free := func(g *Group) bool { return g.Name == "" && !al.hasPins(g.ID) }
+	switch {
+	case a.Name != "" && free(b):
+		return b.ID, a.ID
+	case b.Name != "" && free(a):
+		return a.ID, b.ID
+	case free(a) && free(b):
+		if a.Count < b.Count || (a.Count == b.Count && a.ID > b.ID) {
+			return a.ID, b.ID
+		}
+		return b.ID, a.ID
+	}
+	return "", ""
+}
+
+func (al *Album) hasPins(gid string) bool {
+	for _, g := range al.Edits.Pins {
+		if g == gid {
+			return true
+		}
+	}
+	return false
+}
+
+// rebuild recomputes every group's stats from groupOf.
+func (al *Album) rebuild() {
+	of := al.groupOf
+	al.groupOf, al.groups = map[string]string{}, map[string]*Group{}
+	al.group(Noise)
+	for _, e := range al.Entries {
+		al.add(e, of[e.ID])
+	}
 }
 
 func (al *Album) group(id string) *Group {
@@ -123,6 +207,11 @@ func (al *Album) place(e *Entry) {
 			}
 		}
 	}
+	al.add(e, id)
+}
+
+// add counts e into group id.
+func (al *Album) add(e *Entry, id string) {
 	g := al.group(id)
 	al.groupOf[e.ID] = id
 	g.Count++
@@ -177,6 +266,7 @@ func (al *Album) Add(e *Entry) bool {
 	}
 	al.Entries = append(al.Entries, e)
 	al.place(e)
+	al.mergeClose()
 	return true
 }
 

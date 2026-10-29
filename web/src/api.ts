@@ -458,6 +458,9 @@ export type VoiceEntry = {
   model?: string
   verdict?: string
   score: number
+  early?: string // the early verdict: «Алиса» and the start of the request
+  early_score?: number
+  early_secs?: number
   group: string
   pinned?: boolean
 }

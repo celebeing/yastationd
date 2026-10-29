@@ -132,3 +132,40 @@ func TestAlbumTrimKeepsPinned(t *testing.T) {
 		t.Error("a pinned entry was dropped before unpinned ones")
 	}
 }
+
+// A voice whose first two phrases are atypical (far from each other) starts two groups entry by
+// entry; the merge pass joins them once the rest show they are one voice (seen on a real
+// household). A group the owner split off by hand stays apart.
+func TestAlbumJoinsASplitVoice(t *testing.T) {
+	r := rand.New(rand.NewSource(3))
+	var at int64
+	al := NewAlbum()
+	for _, e := range voice(r, 10, "a", 0.1, &at) {
+		al.Add(e)
+	}
+	b := voice(r, 8, "b", 0.9, &at)
+	odd := make([]float32, len(b[0].Emb))
+	for i := range odd {
+		odd[i] = float32(r.NormFloat64()) * 0.5
+	}
+	for i := range b[0].Emb { // b0 and b1 pulled apart in opposite directions
+		b[0].Emb[i] += odd[i]
+		b[1].Emb[i] -= odd[i]
+	}
+	if c := Cosine(b[0].Emb, b[1].Emb); c >= JoinThreshold {
+		t.Fatalf("the setup wants b0, b1 far apart: %.2f", c)
+	}
+	for _, e := range b {
+		al.Add(e)
+	}
+	if g := al.GroupOf("b0"); g != al.GroupOf("b1") || g != al.GroupOf("b7") || g == al.GroupOf("a0") {
+		t.Fatalf("b split: %s %s %s (a: %s)", al.GroupOf("b0"), al.GroupOf("b1"), al.GroupOf("b7"), al.GroupOf("a0"))
+	}
+	// moved out by hand: stays out through regroups and new phrases
+	al.Move("b3", "new")
+	al.Add(voice(r, 1, "c", 0.9, &at)[0])
+	al.Regroup()
+	if al.GroupOf("b3") == al.GroupOf("b0") {
+		t.Error("an entry the owner moved out was merged back")
+	}
+}

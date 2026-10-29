@@ -450,6 +450,12 @@ function Log(
                     <span class={'chip ' + vd.tone} title="What the speaker decided, and how close the voice was to that person (1 = the same)">
                       {vd.text}
                     </span>
+                    {e.early && (
+                      <span class="muted" title="The early verdict, on «Алиса» and the start of the request: the one that decides when guests are ignored">
+                        early: {e.early === 'guest' ? 'Guest' : e.early === 'unknown' ? 'Unknown' : e.early}
+                        {e.early_score ? ' · ' + e.early_score.toFixed(2) : ''}
+                      </span>
+                    )}
                     {!p.group && <span class="muted">in {p.L.label(e.group)}</span>}
                     {e.secs > 0 && <span class="muted">{e.secs.toFixed(1)} s of speech</span>}
                   </span>
