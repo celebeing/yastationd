@@ -97,7 +97,11 @@ A feature is not done when the code works. In the **same change**, whenever it:
     behaviour;
 - **needs a new build step or toolchain** (a helper, a front-end, a pinned tool) → its Makefile
   target, a target in `tools/build.sh` (and a `docker/<toolchain>.Dockerfile` when it needs a
-  new toolchain), `docs/building.md`;
+  new toolchain), `docs/building.md`. **The host needs only docker, sh, git and ssh**: every
+  step a user or a sibling repo runs (building, converting sounds/clips/videos, checking packs)
+  runs in a pinned container through `tools/build.sh`. A step that needs Go, node, ffmpeg, zstd,
+  jq or Python on the host is a bug, even when it works on this machine (the owner's has them all;
+  others don't). Check a new step on a host without those tools;
 - **is something a user would notice** → `README.md` (and `yastationd/README.md` for the daemon),
   with any login, address or default they need;
 - **uses or produces a binary we don't rebuild from source each time** (a vendor library, a
