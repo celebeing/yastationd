@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import * as api from './api'
-import type { Peer, VoiceEntry, VoiceGroup, VoicePreview, Voices } from './api'
+import type { Peer, SyncKind, SyncState, VoiceEntry, VoiceGroup, VoicePreview, Voices } from './api'
+import { ShareSwitch } from './settings'
 
 // Configuration → People (docs/voice-id.md, "voices like faces in a photo album"). One speaker (the
 // store, voice_store) keeps every speaker's requests and groups their voiceprints into people; the
@@ -176,8 +177,7 @@ function Album(p: Props & { v: Voices; reload: () => Promise<void> }) {
               The household: <b>{named.map((g) => L.label(g.id)).join(', ')}</b>.{' '}
             </>
           ) : null}
-          Ignore guests is <b>{v.ignore_guests ? 'on' : 'off'}</b>, the guest threshold {v.threshold.toFixed(2)} (both in{' '}
-          <a href="#voice">Configuration → Voice</a>). Model: {v.model || '—'}.
+          Ignore guests is <b>{v.ignore_guests ? 'on' : 'off'}</b>, the guest threshold {v.threshold.toFixed(2)} (below, under Guests). Model: {v.model || '—'}.
         </p>
         {!v.entries ? (
           <p class="note">
@@ -236,7 +236,7 @@ function Album(p: Props & { v: Voices; reload: () => Promise<void> }) {
         />
       )}
 
-      {real.length > 0 && <Preview {...p} L={L} named={named} tick={tick} speakerName={speakerName} />}
+      {real.length > 0 && <Preview {...p} L={L} named={named} tick={tick} speakerName={speakerName} reload={p.reload} />}
 
       {(v.entries || 0) > 0 || named.length ? (
         <section class="card">
@@ -518,10 +518,36 @@ const HLO = 0.2,
   HSTEP = 0.05,
   HBINS = 16
 
-function Preview(p: Props & { v: Voices; L: Labels; named: VoiceGroup[]; tick: number; speakerName: (id: string) => string }) {
+// The guests card: Ignore guests and the guest threshold themselves (the same settings as in
+// Configuration → Voice, with their share switches), and what the threshold does to the last
+// requests. Dragging the slider previews; letting go saves the threshold.
+function Preview(p: Props & { v: Voices; L: Labels; named: VoiceGroup[]; tick: number; speakerName: (id: string) => string; reload: () => Promise<void> }) {
   const [th, setTh] = useState(() => Math.min(TMAX, Math.max(TMIN, p.v.threshold)))
   const [pv, setPv] = useState<VoicePreview | null>(null)
   const [err, setErr] = useState('')
+  const [sync, setSync] = useState<SyncState | null>(null)
+  const [saving, setSaving] = useState(false)
+  const loadSync = () => api.syncState(p.peer.id, p.base).then(setSync, () => setSync(null))
+  useEffect(() => {
+    loadSync()
+  }, [p.peer.id])
+  useEffect(() => setTh(Math.min(TMAX, Math.max(TMIN, p.v.threshold))), [p.v.threshold])
+  async function run(f: () => Promise<unknown>) {
+    setSaving(true)
+    setErr('')
+    try {
+      await f()
+    } catch (e) {
+      setErr(err2s(e))
+    }
+    await Promise.all([p.reload(), loadSync()])
+    setSaving(false)
+  }
+  const share = (kind: SyncKind, item: string, on: boolean) => run(() => api.setSync(p.peer.id, p.base, kind, item, on))
+  const saveThreshold = (x: number) => {
+    if (Math.abs(x - p.v.threshold) > 0.004) run(() => api.putSettings(p.peer.id, p.base, { voice_guest_threshold: [x.toFixed(2)] }))
+  }
+  const setIgnore = (on: boolean) => run(() => api.control(p.peer.id, p.base, 'voice_ignore_guests', on ? 'ON' : 'OFF'))
   const timer = useRef<number | undefined>(undefined)
   useEffect(() => {
     let live = true
@@ -548,19 +574,25 @@ function Preview(p: Props & { v: Voices; L: Labels; named: VoiceGroup[]; tick: n
     { key: '', label: 'Everyone else', own: false, scores: rows.filter((r) => !namedIds.has(r.group)).map((r) => r.score) },
   ].filter((s) => s.scores.length)
   const pos = (x: number) => ((Math.min(1, Math.max(HLO, x)) - HLO) / (1 - HLO)) * 100
-  const changed = Math.abs(th - p.v.threshold) > 0.004
 
   return (
     <section class="card">
-      <h3>Guest threshold preview</h3>
+      <h3>Guests</h3>
       <p class="muted small">
-        How close a voice must be to a household person's to count as theirs; below it, a guest. Move the slider until the list below is the guests.
-        Nothing is saved from here: set the value you like as <b>Guest threshold</b> in <a href="#voice">Configuration → Voice</a> (now{' '}
-        {p.v.threshold.toFixed(2)}).
+        The same settings as in <a href="#voice">Configuration → Voice</a>. <b>Ignore guests</b>: a request from a voice that is not the
+        household's never reaches Home Assistant; the speaker shows the voice_guest moment instead. <b>Guest threshold</b>: how close a voice
+        must be to a household person's to count as theirs; below it, a guest. Drag the slider to see what a value does to the last requests
+        below; letting go saves it.
       </p>
-      <div class="row">
+      <div class="row vguest">
+        <label class="vcheck">
+          <input type="checkbox" checked={!!p.v.ignore_guests} disabled={saving} onChange={(e) => setIgnore(e.currentTarget.checked)} /> Ignore guests
+        </label>
+        <ShareSwitch sync={sync} kind="option" item="voice_ignore_guests" onShare={share} />
+      </div>
+      <div class="row vguest">
         <label class="field" for="vth">
-          Threshold
+          Guest threshold
         </label>
         <input
           id="vth"
@@ -569,15 +601,13 @@ function Preview(p: Props & { v: Voices; L: Labels; named: VoiceGroup[]; tick: n
           max={TMAX}
           step={0.01}
           value={th}
+          disabled={saving}
           onInput={(e) => setTh(Number(e.currentTarget.value))}
+          onChange={(e) => saveThreshold(Number(e.currentTarget.value))}
           aria-valuetext={th.toFixed(2)}
         />
         <b class="vth">{th.toFixed(2)}</b>
-        {changed && (
-          <button class="ghost" onClick={() => setTh(p.v.threshold)}>
-            Back to {p.v.threshold.toFixed(2)}
-          </button>
-        )}
+        <ShareSwitch sync={sync} kind="setting" item="voice_guest_threshold" onShare={share} />
       </div>
       {err && <p class="err">{err}</p>}
       {!pv ? (

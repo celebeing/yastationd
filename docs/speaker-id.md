@@ -4,8 +4,9 @@ Status: research + a desk experiment, 2026-10-22. Nothing deployed; no changes t
 the speakers. HA facts were read from the running container (HA 2026.9.0, `wyoming` 1.10.0).
 The experiment ran on the dev box (WSL), with scripts and models kept in the session scratchpad.
 
-The on-device alternative — the speakers' own firmware biometry models, run by the CFW — and a
-comparison of the two: [voice-id.md](voice-id.md).
+**Superseded (2026-10-29):** voice ID was built on the speaker instead, with the firmware's own
+biometry models: [voice-id.md](voice-id.md) (also the comparison of the two). This server-side
+design stays as research, for satellites without the CFW.
 
 ## 0. Recommendation (TL;DR)
 

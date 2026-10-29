@@ -89,7 +89,9 @@ marked as the household. The settings (Configuration → Voice → Voice ID):
 | `voice_unsure` | allow | with guests ignored: an unsure check (too little speech, a failed voiceprint) lets the request through, or `drop` |
 | `voice_bio_dir` | (found) | the models: `<cfw>/vendor/bio_lingware`, else the firmware's |
 
-**In the web app, the People tab** (below): the people, the log, the edits, the threshold preview.
+**In the web app, the People tab** (below): the people, the log, the edits, and a Guests card with
+Ignore guests and the guest threshold themselves (the same settings, each with its share switch):
+dragging the threshold previews what it does to the last requests, letting go saves it.
 
 ## How it works
 
