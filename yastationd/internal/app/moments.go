@@ -201,7 +201,7 @@ func (a *App) refAvailable(c string) bool {
 		return true
 	}
 	if a.frontClips() {
-		_, ok := a.front.Anim(c)
+		_, ok := a.frontAnim(c)
 		return ok
 	}
 	return false

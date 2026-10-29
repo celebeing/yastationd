@@ -171,6 +171,7 @@ log_level = info
 # marquee_speed = 1             (how fast running lines move, 0.25..4 x the default pace)
 # Asset packs in force, top first, one per line (docs/asset-packs.md; Assets → Packs sets it):
 # theme = <pack id>
+# theme_here = <pack id>         (this speaker's own theme in place of theme, never shared; Apply here)
 # clips_dir = <cfw>/clips        (converted stock clips, searched before the firmware's)
 # scenarios_dir = <cfw>/scenarios
 # lux_path =                     (the light sensor's IIO file; empty = found by the board profile)

@@ -72,6 +72,7 @@ func (a *App) packDir(id string) string { return filepath.Join(a.cfwFile(packsDi
 func (a *App) loadPacks() {
 	m := map[string]*pack{}
 	ents, _ := os.ReadDir(a.cfwFile(packsDir))
+	a.packsSeen.Store(a.packsStamp(ents))
 	for _, e := range ents {
 		if !e.IsDir() || !packID.MatchString(e.Name()) {
 			continue
@@ -91,7 +92,49 @@ func (a *App) loadPacks() {
 		m[p.ID] = &p
 	}
 	a.packs.Store(&m)
+	a.packPreviews.Range(func(k, _ any) bool { a.packPreviews.Delete(k); return true })
 	a.refreshPackAnims()
+}
+
+// packsStamp sums up what is on disk under packs/ (each pack's manifest time), so a pack put
+// there by hand or by a script, not through the API, is seen without a restart.
+func (a *App) packsStamp(ents []os.DirEntry) string {
+	var b strings.Builder
+	for _, e := range ents {
+		var t int64
+		if fi, err := os.Stat(filepath.Join(a.packDir(e.Name()), "pack.json")); err == nil {
+			t = fi.ModTime().UnixNano()
+		}
+		fmt.Fprintf(&b, "%s:%d;", e.Name(), t)
+	}
+	return b.String()
+}
+
+// rescanPacks reloads the packs when the directory changed since the last load.
+func (a *App) rescanPacks() {
+	ents, _ := os.ReadDir(a.cfwFile(packsDir))
+	if seen, _ := a.packsSeen.Load().(string); seen != a.packsStamp(ents) {
+		a.loadPacks()
+	}
+}
+
+// packAnim loads "@<pack>/<name>": an installed pack's animation for this display, whether the
+// pack is in the theme or not (the LED page previews a pack before it is applied).
+func (a *App) packAnim(ref string) (display.Anim, bool) {
+	id, name, ok := strings.Cut(strings.TrimPrefix(ref, "@"), "/")
+	if !ok || id != customPack && a.installedPacks()[id] == nil {
+		return nil, false
+	}
+	dir := filepath.Join(a.packDir(id), "anims", a.packDisplay())
+	switch f := a.front.(type) {
+	case display.PixelFront:
+		l, _ := a.packPreviews.LoadOrStore(id, &display.PixelLibrary{Dirs: []string{dir}, W: f.W, H: f.H, Gamma: f.Gamma})
+		return l.(*display.PixelLibrary).Load(name)
+	case display.Seg7Front:
+		l, _ := a.packPreviews.LoadOrStore(id, &display.ClipLibrary{Dirs: []string{dir}, NoBuiltin: true})
+		return l.(*display.ClipLibrary).Load(name)
+	}
+	return nil, false
 }
 
 func (a *App) installedPacks() map[string]*pack {
@@ -101,10 +144,17 @@ func (a *App) installedPacks() map[string]*pack {
 	return nil
 }
 
-// themeStack is the packs in force, top first: the theme key, custom just above the default
-// theme when the key does not place it.
+// themeStack is the packs in force, top first: this speaker's own theme_here, else the theme
+// key; custom just above the default theme when the list does not place it.
 func (a *App) themeStack() []string {
-	s := slices.Clone(a.cfg().Themes)
+	if l := a.cfg().ThemesHere; len(l) > 0 {
+		return withCustom(l)
+	}
+	return withCustom(a.cfg().Themes)
+}
+
+func withCustom(l []string) []string {
+	s := slices.Clone(l)
 	if !slices.Contains(s, customPack) {
 		s = append(s, customPack)
 	}
@@ -363,7 +413,7 @@ func checkWAV(b []byte) error {
 	return nil
 }
 
-// removePack deletes an installed pack and takes it out of the theme key.
+// removePack deletes an installed pack and takes it out of the theme keys.
 func (a *App) removePack(id string) error {
 	if id == customPack || a.installedPacks()[id] == nil {
 		return errors.New("no such pack")
@@ -371,27 +421,51 @@ func (a *App) removePack(id string) error {
 	if err := os.RemoveAll(a.packDir(id)); err != nil {
 		return err
 	}
-	if slices.Contains(a.cfg().Themes, id) {
-		if err := a.setThemes(slices.DeleteFunc(slices.Clone(a.cfg().Themes), func(s string) bool { return s == id })); err != nil {
-			return err
+	for _, here := range []bool{false, true} {
+		if l := a.themeList(here); slices.Contains(l, id) {
+			l = slices.DeleteFunc(slices.Clone(l), func(s string) bool { return s == id })
+			if here && len(l) == 0 {
+				l = []string{customPack} // still this speaker's own theme: the default one
+			}
+			if err := a.setThemes(l, here); err != nil {
+				return err
+			}
 		}
 	}
 	a.loadPacks()
 	return nil
 }
 
-// applyPack puts a pack on top of the theme stack.
-func (a *App) applyPack(id string) error {
+// themeList is the theme key (here: theme_here) as written.
+func (a *App) themeList(here bool) []string {
+	if here {
+		return a.cfg().ThemesHere
+	}
+	return a.cfg().Themes
+}
+
+// applyPack puts a pack on top of the shared theme, or (here) of this speaker's own, which starts
+// as a copy of the stack it wears.
+func (a *App) applyPack(id string, here bool) error {
 	if id != customPack && a.installedPacks()[id] == nil {
 		return errors.New("no such pack")
 	}
-	rest := slices.DeleteFunc(slices.Clone(a.themeStack()), func(s string) bool { return s == id })
-	return a.setThemes(append([]string{id}, rest...))
+	base := withCustom(a.cfg().Themes)
+	if here {
+		base = a.themeStack()
+	}
+	rest := slices.DeleteFunc(base, func(s string) bool { return s == id })
+	return a.setThemes(append([]string{id}, rest...), here)
 }
 
-// setThemes writes the theme key (shared like any setting) and points the animations at it.
-func (a *App) setThemes(ids []string) error {
-	_, _, err := a.applyConfigKeys(map[string][]string{"theme": ids}, "set from the Packs page", "packs")
+// setThemes writes the theme key (shared like any setting), or theme_here (this speaker's own;
+// an empty list ends it), and points the animations at the result.
+func (a *App) setThemes(ids []string, here bool) error {
+	key := "theme"
+	if here {
+		key = "theme_here"
+	}
+	_, _, err := a.applyConfigKeys(map[string][]string{key: ids}, "set from the Packs page", "packs")
 	a.refreshPackAnims()
 	return err
 }
@@ -410,7 +484,7 @@ func (a *App) importPack(id string) error {
 			}
 		}
 	}
-	return a.applyPack(customPack)
+	return a.applyPack(customPack, len(a.cfg().ThemesHere) > 0)
 }
 
 // exportCustom zips the owner's own theme as a pack: its moments, sounds and animations.
@@ -487,6 +561,7 @@ type packView struct {
 // packsNow is GET /api/packs: the installed packs, the stack, the ids it names but this speaker
 // lacks.
 func (a *App) packsNow() map[string]any {
+	a.rescanPacks()
 	stack := a.themeStack()
 	kind := a.packDisplay()
 	views := []packView{}
@@ -528,12 +603,14 @@ func (a *App) packsNow() map[string]any {
 		views = append(views, v)
 	}
 	var missing []string
-	for _, id := range a.cfg().Themes {
+	for _, id := range stack {
 		if id != customPack && all[id] == nil {
 			missing = append(missing, id)
 		}
 	}
+	_, shared := a.sharedGet("setting", "theme")
 	return map[string]any{"packs": views, "stack": stack, "display": kind, "missing": missing,
+		"here": len(a.cfg().ThemesHere) > 0, "shared_stack": withCustom(a.cfg().Themes), "shared": shared,
 		"free": freeBytes(a.cfwFile("")), "max_bytes": maxPackZip}
 }
 
@@ -566,8 +643,9 @@ func dirBytes(dir string) int64 {
 //
 //	GET    /api/packs                       the packs, the stack, what the stack names but is missing
 //	PUT    /api/packs                       install a pack (the zip as the body)
-//	PUT    /api/packs/stack                 {"stack": [ids]}: the theme key, top first
-//	POST   /api/packs/<id>/apply            put it on top
+//	PUT    /api/packs/stack                 {"stack": [ids], "here": bool}: the theme key, top first
+//	                                        (here: theme_here, this speaker's own; [] ends it)
+//	POST   /api/packs/<id>/apply[?here=1]   put it on top
 //	POST   /api/packs/<id>/import           its moments into custom, custom on top
 //	DELETE /api/packs/<id>                  remove it
 //	GET    /api/packs/custom/export?id=&name=  custom as a pack archive
@@ -594,9 +672,12 @@ func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	case len(parts) == 1 && parts[0] == "stack" && r.Method == http.MethodPut:
-		var in struct{ Stack []string }
+		var in struct {
+			Stack []string
+			Here  bool
+		}
 		if json.NewDecoder(io.LimitReader(r.Body, smallBody)).Decode(&in) != nil {
-			err = errors.New(`want {"stack": [ids]}`)
+			err = errors.New(`want {"stack": [ids], "here": bool}`)
 			break
 		}
 		for _, id := range in.Stack {
@@ -605,10 +686,10 @@ func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err == nil {
-			err = a.setThemes(in.Stack)
+			err = a.setThemes(in.Stack, in.Here)
 		}
 	case len(parts) == 2 && r.Method == http.MethodPost && parts[1] == "apply":
-		err = a.applyPack(parts[0])
+		err = a.applyPack(parts[0], r.URL.Query().Get("here") == "1")
 	case len(parts) == 2 && r.Method == http.MethodPost && parts[1] == "import":
 		err = a.importPack(parts[0])
 	case len(parts) == 1 && r.Method == http.MethodDelete:

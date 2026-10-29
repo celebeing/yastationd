@@ -270,11 +270,25 @@ export type Pack = {
   bytes: number
   position: number
 }
-export type Packs = { packs: Pack[]; stack: string[]; display: string; missing: string[] | null; free: number; max_bytes: number }
+/** stack: the packs this speaker wears; here: they are its own (theme_here), not the shared
+ * theme (shared_stack); shared: the theme setting is shared with the other speakers. */
+export type Packs = {
+  packs: Pack[]
+  stack: string[]
+  here: boolean
+  shared_stack: string[]
+  shared: boolean
+  display: string
+  missing: string[] | null
+  free: number
+  max_bytes: number
+}
 export const packs = (id: string, base: string) => authed<Packs>(id, base, '/api/packs')
-export const packStack = (id: string, base: string, stack: string[]) => authed<Packs>(id, base, '/api/packs/stack', { method: 'PUT', body: JSON.stringify({ stack }) })
-export const packAction = (id: string, base: string, pack: string, what: 'apply' | 'import') =>
-  authed<Packs>(id, base, `/api/packs/${encodeURIComponent(pack)}/${what}`, { method: 'POST' })
+/** packStack writes the theme (here: this speaker's own; [] with here ends it). */
+export const packStack = (id: string, base: string, stack: string[], here = false) =>
+  authed<Packs>(id, base, '/api/packs/stack', { method: 'PUT', body: JSON.stringify({ stack, here }) })
+export const packAction = (id: string, base: string, pack: string, what: 'apply' | 'import', here = false) =>
+  authed<Packs>(id, base, `/api/packs/${encodeURIComponent(pack)}/${what}${here ? '?here=1' : ''}`, { method: 'POST' })
 export const deletePack = (id: string, base: string, pack: string) => authed<Packs>(id, base, '/api/packs/' + encodeURIComponent(pack), { method: 'DELETE' })
 export const deleteCustomAsset = (id: string, base: string, kind: 'sounds' | 'anims', name: string) =>
   authed<Packs>(id, base, `/api/packs/custom/${kind}/${encodeURIComponent(name)}`, { method: 'DELETE' })

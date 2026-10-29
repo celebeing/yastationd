@@ -3,6 +3,19 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Packs**
+- The LED page browses the animations as folders: the firmware's own (with their subfolders) and
+  one folder per installed pack, played with a click without applying the pack, plus a search.
+  The Packs page links each pack's folder.
+- **Apply here** wears a pack on this speaker only (`theme_here`, never shared); "Wear the shared
+  theme" goes back.
+
+**Fixed**
+- A pack copied into `<cfw>/packs/` by hand did not show up until the daemon restarted; the Packs
+  page now picks it up.
+
 ## v0.21.0 — 2026-10-29
 
 **Themes and asset packs** ([docs/asset-packs.md](docs/asset-packs.md))

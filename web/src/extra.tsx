@@ -206,12 +206,7 @@ function DDPInfo({ base }: { base: string }) {
 /** Playground: play any of the speaker's screen animations and expressions, as the old frame-tap
  * viewer did (the tap's /cmd/ endpoint, behind the same login). */
 function Playground({ peer, base, info, onErr }: { peer: Peer; base: string; info: TapInfo; onErr: (s: string) => void }) {
-  const [filter, setFilter] = useState('')
-  const [pattern, setPattern] = useState('')
-  const [loop, setLoop] = useState(false)
   const has = (c: string) => (info.commands || []).includes(c)
-  const patterns = (info.patterns || []).filter((n) => n.toLowerCase().includes(filter.toLowerCase()))
-  const cur = patterns.includes(pattern) ? pattern : patterns[0] || ''
 
   async function cmd(name: string, payload: unknown) {
     onErr('')
@@ -228,22 +223,13 @@ function Playground({ peer, base, info, onErr }: { peer: Peer; base: string; inf
   return (
     <>
       {has('display') && (info.patterns || []).length > 0 && (
-        <div class="row">
-          <span class="k">Animation</span>
-          <input type="text" aria-label="Filter the animations" placeholder={`filter ${info.patterns!.length}`} value={filter} onInput={(e) => setFilter(e.currentTarget.value)} />
-          <select aria-label="Animation" value={cur} onChange={(e) => setPattern(e.currentTarget.value)}>
-            {patterns.map((n) => (
-              <option value={n}>{n}</option>
-            ))}
-          </select>
-          <label class="inline small">
-            <input type="checkbox" checked={loop} onChange={(e) => setLoop(e.currentTarget.checked)} /> loop
-          </label>
-          <button disabled={!cur} onClick={() => cmd('display', { surface: 'matrix', op: 'clip', args: { name: cur, loop }, ttl_ms: loop ? 60000 : 0 })}>
-            Play
-          </button>
-          <button onClick={() => cmd('display', { surface: 'matrix', op: 'clear' })}>Clear</button>
-        </div>
+        <AnimBrowser
+          peer={peer}
+          base={base}
+          inForce={info.patterns!}
+          play={(name, loop) => cmd('display', { surface: 'matrix', op: 'clip', args: { name, loop }, ttl_ms: loop ? 60000 : 0 })}
+          clear={() => cmd('display', { surface: 'matrix', op: 'clear' })}
+        />
       )}
       {has('ring_animation') && info.ring > 0 && (info.ring_effects || []).length > 0 && (
         <div class="row">
@@ -265,6 +251,123 @@ function Playground({ peer, base, info, onErr }: { peer: Peer; base: string; inf
         </div>
       )}
     </>
+  )
+}
+
+/** A folder of the animation browser: the animations in force (the firmware's and the theme's,
+ * by the names moments use), or one installed pack's ("@<pack>/<name>" plays it unapplied). */
+type AnimRoot = { id: string; title: string; prefix: string; names: string[] }
+
+/** AnimBrowser walks the animations as folders (the firmware's own are paths like oknix/…, each
+ * pack is a folder of its own) and plays one on the speaker on a click. The path lives in the
+ * address after #led/, so the Packs page can link a pack's folder. */
+function AnimBrowser(p: { peer: Peer; base: string; inForce: string[]; play: (name: string, loop: boolean) => void; clear: () => void }) {
+  const [packs, setPacks] = useState<api.Pack[]>([])
+  const [path, setPathState] = useState<string[]>(() => {
+    const h = decodeURIComponent(location.hash.slice(1))
+    return h.startsWith('led/') ? h.slice(4).split('/').filter(Boolean) : []
+  })
+  const [filter, setFilter] = useState('')
+  const [loop, setLoop] = useState(false)
+  const [last, setLast] = useState('')
+  useEffect(() => {
+    api.packs(p.peer.id, p.base).then((r) => setPacks(r.packs), () => setPacks([]))
+  }, [p.peer.id, p.base])
+  const setPath = (s: string[]) => {
+    setPathState(s)
+    history.replaceState(null, '', '#led' + (s.length ? '/' + s.join('/') : ''))
+  }
+  const roots: AnimRoot[] = [
+    { id: 'in-force', title: 'In force', prefix: '', names: p.inForce },
+    ...packs.filter((k) => k.anims?.length).map((k) => ({ id: '@' + k.id, title: k.id === 'custom' ? 'Your own' : k.name, prefix: '@' + k.id + '/', names: k.anims! })),
+  ]
+  const play = (full: string) => {
+    setLast(full)
+    p.play(full, loop)
+  }
+  const q = filter.trim().toLowerCase()
+  const root = roots.find((r) => r.id === path[0])
+  const sub = root ? path.slice(1) : []
+  // the folders and files directly under sub in root
+  let folders: [string, number][] = []
+  let files: string[] = []
+  if (root && !q) {
+    const pre = sub.length ? sub.join('/') + '/' : ''
+    const dirs = new Map<string, number>()
+    for (const n of root.names) {
+      if (!n.startsWith(pre)) continue
+      const rest = n.slice(pre.length)
+      const i = rest.indexOf('/')
+      if (i < 0) files.push(rest)
+      else dirs.set(rest.slice(0, i), (dirs.get(rest.slice(0, i)) || 0) + 1)
+    }
+    folders = [...dirs.entries()]
+  }
+  const found = q ? roots.flatMap((r) => r.names.filter((n) => (r.title + '/' + n).toLowerCase().includes(q)).map((n) => r.prefix + n)) : []
+  const total = roots.reduce((n, r) => n + r.names.length, 0)
+  return (
+    <div class="animbrowser">
+      <div class="row">
+        <span class="k">Animation</span>
+        <input type="search" aria-label="Find an animation" placeholder={`find among ${total}`} value={filter} onInput={(e) => setFilter(e.currentTarget.value)} />
+        <label class="inline small">
+          <input type="checkbox" checked={loop} onChange={(e) => setLoop(e.currentTarget.checked)} /> loop
+        </label>
+        <button onClick={p.clear}>Clear</button>
+      </div>
+      {!q && (
+        <nav class="crumbs small" aria-label="Folder">
+          <button class="linklike" onClick={() => setPath([])}>
+            All
+          </button>
+          {root && (
+            <>
+              {' / '}
+              <button class="linklike" onClick={() => setPath([root.id])}>
+                {root.title}
+              </button>
+            </>
+          )}
+          {sub.map((d, i) => (
+            <>
+              {' / '}
+              <button class="linklike" onClick={() => setPath([root!.id, ...sub.slice(0, i + 1)])}>
+                {d}
+              </button>
+            </>
+          ))}
+        </nav>
+      )}
+      <div class="animlist">
+        {!q &&
+          !root &&
+          roots.map((r) => (
+            <button class="folder" onClick={() => setPath([r.id])} title={r.id === 'in-force' ? "The firmware's and the theme's, by the name a moment uses" : `Pack ${r.id}: plays without applying it`}>
+              <b>{r.title}</b> <span class="muted small">{r.names.length}</span>
+            </button>
+          ))}
+        {folders.map(([d, n]) => (
+          <button class="folder" onClick={() => setPath([root!.id, ...sub, d])}>
+            <b>{d}/</b> <span class="muted small">{n}</span>
+          </button>
+        ))}
+        {files.map((f) => {
+          const full = root!.prefix + [...sub, f].join('/')
+          return (
+            <button class={'anim' + (full === last ? ' on' : '')} onClick={() => play(full)}>
+              {f}
+            </button>
+          )
+        })}
+        {found.slice(0, 200).map((full) => (
+          <button class={'anim' + (full === last ? ' on' : '')} onClick={() => play(full)}>
+            {full}
+          </button>
+        ))}
+        {q && !found.length && <span class="muted small">Nothing matches.</span>}
+        {found.length > 200 && <span class="muted small">{found.length - 200} more: narrow the search.</span>}
+      </div>
+    </div>
   )
 }
 

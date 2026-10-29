@@ -52,20 +52,35 @@ export function PacksTab({ peer, base }: { peer: Peer; base: string }) {
   const [confirmDel, setConfirmDel] = useState('')
   if (!p) return <section class="card">{err ? <p class="err">{err}</p> : <p class="muted">Loading…</p>}</section>
   const byId = Object.fromEntries(p.packs.map((k) => [k.id, k]))
+  // The stack shown is the one this speaker wears: its own (here) or the shared theme.
   const move = (i: number, d: number) => {
     const s = [...p.stack]
     ;[s[i], s[i + d]] = [s[i + d], s[i]]
-    act(() => api.packStack(peer.id, base, s))
+    act(() => api.packStack(peer.id, base, s, p.here))
   }
-  const takeOut = (id: string) => act(() => api.packStack(peer.id, base, p.stack.filter((x) => x !== id)))
+  const takeOut = (id: string) => act(() => api.packStack(peer.id, base, p.stack.filter((x) => x !== id), p.here))
   return (
     <div class="assets">
       <section class="card">
         <h3>Theme</h3>
         <p class="muted small">
           The packs in force, the top one first: a moment, a sound or an animation comes from the first pack that has it, else from the default
-          theme. Your own moments and sounds are “Your own”. The order is shared with the other speakers that share the setting.
+          theme. Your own moments and sounds are “Your own”.
         </p>
+        {p.here ? (
+          <p class="small row">
+            <span class="grow">This speaker wears a theme of its own; the others keep the {p.shared ? 'shared' : 'common'} one.</span>
+            <button class="ghost" disabled={busy} onClick={() => act(() => api.packStack(peer.id, base, [], true))}>
+              Wear the {p.shared ? 'shared' : 'common'} theme
+            </button>
+          </p>
+        ) : (
+          <p class="muted small">
+            {p.shared
+              ? 'The theme is shared: a change here reaches every speaker that shares it. “Apply here” gives this speaker a theme of its own.'
+              : 'The theme setting is not shared, so a change stays on this speaker.'}
+          </p>
+        )}
         {err && <p class="err">{err}</p>}
         <ol class="stack">
           {p.stack.map((id, i) => (
@@ -107,9 +122,23 @@ export function PacksTab({ peer, base }: { peer: Peer; base: string }) {
                     </div>
                   </td>
                   <td class="actions">
+                    {!!k.anims?.length && (
+                      <a class="button ghost" href={`#led/@${k.id}`} title="Play its animations on the LED page, without applying it">
+                        Animations
+                      </a>
+                    )}
+                    {(p.here || k.position !== 0) && (
+                      <button
+                        disabled={busy || !k.fits}
+                        onClick={() => act(() => api.packAction(peer.id, base, k.id, 'apply'))}
+                        title={p.shared ? 'Put it on top of the shared theme, on every speaker that shares it' : 'Put it on top of the theme'}
+                      >
+                        {p.shared ? 'Apply to all' : 'Apply'}
+                      </button>
+                    )}
                     {k.position !== 0 && (
-                      <button disabled={busy || !k.fits} onClick={() => act(() => api.packAction(peer.id, base, k.id, 'apply'))} title="Put it on top of the theme">
-                        Apply
+                      <button class="ghost" disabled={busy || !k.fits} onClick={() => act(() => api.packAction(peer.id, base, k.id, 'apply', true))} title="Put it on top of this speaker's own theme">
+                        Apply here
                       </button>
                     )}
                     {!!k.moments?.length && (

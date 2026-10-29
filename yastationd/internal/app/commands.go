@@ -284,7 +284,7 @@ func (a *App) matrixOverlay(op string, args json.RawMessage, prio int, ttl time.
 		var c display.Anim
 		if op == "clip" {
 			var ok bool
-			if c, ok = a.front.Anim(v.Name); !ok {
+			if c, ok = a.frontAnim(v.Name); !ok {
 				a.log.Info("display/cmd: no such clip", "name", v.Name)
 				return
 			}

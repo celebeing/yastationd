@@ -218,6 +218,7 @@ type Config struct {
 
 	Probes        []string // host:port reachability probes for the health state machine
 	Themes        []string // the asset packs in force, top first (docs/asset-packs.md)
+	ThemesHere    []string // this speaker's own theme stack, in place of Themes when set
 	HeartbeatFile string
 	StateFile     string // persisted HA-set state (ring colour, display mode)
 	LogLevel      string

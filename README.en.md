@@ -123,7 +123,8 @@ HA, from single expressions to timed scenarios across the ring and the display.
 - **Themes and asset packs**: everything the speaker does when something happens (the faces, the
   ring, every sound, the status lights) is a moment you can change, sounds included, together or
   one after another. **Assets → Packs** installs packs of animations, sounds and moments (a
-  .zip; packs live in their own repositories) and orders them as a theme, top first; **Assets →
+  .zip; packs live in their own repositories) and orders them as a theme, top first, shared or
+  for this speaker alone; the LED page plays any pack's animations before you apply it; **Assets →
   Sounds** plays, adds and replaces sounds; your own changes can be saved as a pack
   ([docs/asset-packs.md](docs/asset-packs.md)).
 - One switch makes a setting, option or moment shared by every speaker: they take this speaker's

@@ -78,7 +78,7 @@ func (a *App) stepAvailable(st scenarioStep) bool {
 		return true
 	}
 	if n := st.anim(); n != "" && a.frontClips() {
-		if _, ok := a.front.Anim(n); ok {
+		if _, ok := a.frontAnim(n); ok {
 			return true
 		}
 	}
@@ -95,7 +95,7 @@ func (a *App) stepLength(st scenarioStep) time.Duration {
 		if n == "" || !a.frontClips() {
 			continue
 		}
-		if c, ok := a.front.Anim(n); ok && c.Duration() > 0 {
+		if c, ok := a.frontAnim(n); ok && c.Duration() > 0 {
 			return c.Duration()
 		}
 	}
@@ -201,7 +201,7 @@ func (a *App) showStep(slot string, prio, ringPrio int, st scenarioStep, d time.
 		}
 	}
 	if n := st.anim(); n != "" && a.frontClips() {
-		if c, ok := a.front.Anim(n); ok {
+		if c, ok := a.frontAnim(n); ok {
 			loop := c.Looping() || hold
 			a.pushFront(slot, prio, d, c.Play(loop, !loop, a.brightness))
 			front = true

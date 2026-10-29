@@ -8,6 +8,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/celebeing/yastationd/yastationd/internal/display"
+	"github.com/celebeing/yastationd/yastationd/internal/hw"
 )
 
 // packZip builds a pack archive from path -> content.
@@ -64,7 +67,7 @@ func TestPackInstallApplyRemove(t *testing.T) {
 	if c := a.momentCandidates("volume_change"); len(c) != 1 || c[0].Ref != "sound:volume_sound" {
 		t.Errorf("before apply: %+v", c)
 	}
-	if err := a.applyPack("hl"); err != nil {
+	if err := a.applyPack("hl", false); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(a.cfg().Themes, []string{"hl", customPack}) {
@@ -86,7 +89,7 @@ func TestPackInstallApplyRemove(t *testing.T) {
 	if c := a.momentCandidates("volume_change"); c[0].Ref != "sound:hl_tick" {
 		t.Errorf("the theme should override the owner's moment: %+v", c)
 	}
-	a.applyPack(customPack)
+	a.applyPack(customPack, false)
 	if c := a.momentCandidates("volume_change"); c[0].Ref != "sound:mine" {
 		t.Errorf("custom on top: %+v", c)
 	}
@@ -142,5 +145,74 @@ func TestExportCustom(t *testing.T) {
 	}
 	if !strings.Contains(string(b), "sounds/mine.wav") {
 		t.Error("the sound is not in the archive")
+	}
+}
+
+// ledFrame is one .led line: the first dot lit, the rest dark, 100 ms.
+func ledFrame() string {
+	return "ffffff" + strings.Repeat(" 000000", 21*12-1) + " 100\n"
+}
+
+// pixelPackApp is packTestApp with a 21x12 screen, so packs' pixel animations apply.
+func pixelPackApp(t *testing.T) *App {
+	a := packTestApp(t)
+	a.screen = hw.NewVirtualDotMatrix(21, 12)
+	a.front = display.PixelFront{W: 21, H: 12, PackPatterns: &display.PixelLibrary{W: 21, H: 12}}
+	return a
+}
+
+// A pack put on the disk by hand (not through the API) shows up, and its animations play by
+// "@<pack>/<name>" before the pack is applied.
+func TestPackByHandAndPreview(t *testing.T) {
+	a := pixelPackApp(t)
+	a.loadPacks()
+	dir := filepath.Join(a.packDir("neco"), "anims", "pixels-21x12")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(a.packDir("neco"), "pack.json"), []byte(`{"id": "neco", "name": "Neco"}`), 0o644)
+	os.WriteFile(filepath.Join(dir, "happy.led"), []byte(ledFrame()), 0o644)
+	if a.installedPacks()["neco"] != nil {
+		t.Fatal("seen before a rescan")
+	}
+	now := a.packsNow()
+	if a.installedPacks()["neco"] == nil {
+		t.Fatalf("not seen after GET /api/packs: %v", now)
+	}
+	if _, ok := a.frontAnim("@neco/happy"); !ok {
+		t.Error("the pack's animation does not play by @neco/happy")
+	}
+	if _, ok := a.frontAnim("happy"); ok {
+		t.Error("an animation of a pack out of the theme plays by its bare name")
+	}
+	for _, bad := range []string{"@neco/nope", "@nope/happy", "@neco", "@../neco/happy"} {
+		if _, ok := a.frontAnim(bad); ok {
+			t.Errorf("%s resolved", bad)
+		}
+	}
+}
+
+// Apply here: this speaker's own stack (theme_here), the shared key untouched; ending it goes
+// back to the shared one.
+func TestApplyHere(t *testing.T) {
+	a := pixelPackApp(t)
+	if _, err := a.installPack(packZip(t, map[string]string{"pack.json": `{"id": "neco"}`, "anims/pixels-21x12/happy.led": ledFrame()})); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.applyPack("neco", true); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.cfg().Themes) != 0 || !slices.Equal(a.cfg().ThemesHere, []string{"neco", customPack}) {
+		t.Fatalf("theme %v, here %v", a.cfg().Themes, a.cfg().ThemesHere)
+	}
+	if _, ok := a.frontAnim("happy"); !ok {
+		t.Error("the pack applied here does not play by its bare name")
+	}
+	if err := a.setThemes(nil, true); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.cfg().ThemesHere) != 0 || !slices.Equal(a.themeStack(), []string{customPack}) {
+		t.Errorf("not back to the shared theme: %v", a.themeStack())
+	}
+	if _, ok := a.frontAnim("happy"); ok {
+		t.Error("the pack still plays after its stack ended")
 	}
 }

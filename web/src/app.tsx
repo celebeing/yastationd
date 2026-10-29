@@ -251,8 +251,9 @@ const TAB_NAMES: Record<Tab, string> = {
 function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () => void }) {
   const { peer, base } = props
   // The open section is in the address (#options), so it can be linked and survives a reload.
+  // (#led/<folder> also opens a folder of the animation browser.)
   const fromHash = () => {
-    const h = location.hash.slice(1)
+    const h = location.hash.slice(1).split('/')[0]
     if (h === 'options' || h === 'settings') return 'general' // old names
     if (h === 'config' || h === 'advanced') return 'general'
     return h in TAB_NAMES ? (h as Tab) : 'overview'
@@ -262,6 +263,11 @@ function Speaker(props: { peer: Peer; base: string; status: Status; onLogin: () 
     setTabState(t)
     history.replaceState(null, '', '#' + t)
   }
+  useEffect(() => {
+    const on = () => setTabState(fromHash())
+    addEventListener('hashchange', on)
+    return () => removeEventListener('hashchange', on)
+  }, [])
   const [ents, setEnts] = useState<Entity[] | null>(null)
   const [err, setErr] = useState('')
   const [needLogin, setNeedLogin] = useState(false)

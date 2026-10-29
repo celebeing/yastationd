@@ -289,8 +289,11 @@ func init() {
 		Doc: "Only the value a new speaker starts with; afterwards the Auto brightness option rules."},
 		boolV(func(c *Config) *bool { return &c.AutoBrightness }))
 	reg(Key{Name: "theme", Group: "theme", Label: "Theme packs", Runtime: true, Sync: true,
-		Doc: "The asset packs in force, one id per line, the top one first (docs/asset-packs.md): a moment, a sound or an animation comes from the first pack that has it, else from the default theme. Your own moments are the pack custom; not listed, it sits just above the default theme. A pack this speaker does not have is skipped. Assets → Packs sets it."},
+		Doc: "The asset packs in force, one id per line, the top one first (docs/asset-packs.md): a moment, a sound or an animation comes from the first pack that has it, else from the default theme. Your own moments are the pack custom; not listed, it sits just above the default theme. A pack this speaker does not have is skipped. Theme packs on this speaker, when set, stands in for it here. Assets → Packs sets it."},
 		listV(func(c *Config) *[]string { return &c.Themes }))
+	reg(Key{Name: "theme_here", Group: "theme", Label: "Theme packs on this speaker", Runtime: true, Advanced: true,
+		Doc: "This speaker's own theme, in place of Theme packs: the same list, never shared. Empty: the speaker wears Theme packs. Assets → Packs sets it (Apply here)."},
+		listV(func(c *Config) *[]string { return &c.ThemesHere }))
 	reg(Key{Name: "ring_brightness", Group: "initial", Label: "Ring brightness", Advanced: true,
 		Doc: "Only the value a new speaker starts with; afterwards Home Assistant's light entity rules."},
 		intV(0, 255, func(c *Config) *int { return &c.RingBrightness }))
