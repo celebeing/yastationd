@@ -72,6 +72,21 @@ not be recoverable by us. Hence the hard rules:
 - **Update `docs/` before committing** — when implementation reveals new findings, edge cases, or changes to architecture/decisions, update the relevant docs first, and keep the docs index (`docs/index.md`) in sync. Docs must stay in sync with the code. If a doc doesn't exist for a new area, create one and add it to the index.
 - **Language** — all committed artifacts (code, comments, identifiers, commit messages, docs, `CLAUDE.md`) are written in **English**. The agent's conversation with the user may be in **any language** — match the user; only the artifacts are English-only. **One exception:** the main `README.md` is Russian; `README.en.md` is its English twin. Change both together, so they say the same thing.
 
+## Adding a feature: follow the house patterns
+
+Read `docs/adding-a-feature.md` before building one. In short:
+
+- **A setting is a key in the registry** (below); an option HA and the web app both change is
+  persisted state with an HA entity, a command and, if shareable, a `syncOptions` entry.
+- **A reaction is a moment.** Code that reacts to an event fires a moment (`a.hook` / `a.moment`;
+  the catalogue and defaults in `internal/app/defaulttheme.go`), never draws a picture, plays a
+  sound or runs a ring effect itself: the owner and packs decide what it shows.
+- **One definition per entity:** HA discovery and the web app's controls are the same entity;
+  publish through `a.publish`.
+- **The web app reuses its widgets:** `SettingRows` / `Control` for settings and options anywhere,
+  `paintFront` (`web/src/ledframe.ts`) for the front display.
+- **Vendor libraries run in a child process** (`spotter-host` modes), supervised by the daemon.
+
 ## Changes that ripple: deploy, build, vendor repo
 
 A feature is not done when the code works. In the **same change**, whenever it:
