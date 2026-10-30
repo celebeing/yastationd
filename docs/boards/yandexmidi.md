@@ -3,7 +3,7 @@
 Profile: _not written yet_ (`yastationd/internal/board/profiles/yandexmidi.conf`) ·
 Source: **firmware dump only**, `dumps/fw-midi/` (SWU `0.369.1.50`, local only; the directory name
 predates the correction below), plus the community wiki's live-unit data where marked [wiki] ·
-Status: **profiled from firmware — no device in hand, nothing verified on-device.**
+Status: **studied from its firmware only (no board profile) — no device in hand, nothing verified on-device.** **Not planned:** we have no unit and don't port it ([README.md](README.md), "Possible ports nobody here is doing").
 
 > **Which model this is.** Yandex's internal name "midi" belongs to the retail **Station 2**: quasar
 > `deviceType: yandexmidi`, DT `yandex,station-midi` (model "Yandex Station Midi"), hostname

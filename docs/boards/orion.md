@@ -14,7 +14,8 @@ and the production clock renderer remain stable with no flashing; the clock adva
 the stock «Алиса» model and its NPU verifier, the rear ambilight entity, and the screen playing
 the firmware's own patterns for the expressions and the call / alarm / boot / setup states (seen
 on glass; [display-expressions.md](../display-expressions.md), "Screen patterns") all work; see
-"First unit on hand". Open: a pixel clock font, the call-mode VQE model for the intercom.
+"First unit on hand". Since then: our own pixel clock font (v0.8.1) and text fonts (v0.11), the rear ambilight with
+DDP effects and colour calibration; open: the intercom is not yet checked on this board.
 **Mic retest 2026-10-24 (both tested units; two 30 s pure-capture passes each): all
 six channels are healthy.** The earlier "dead capsule" reading from one 4 s clip was a
 transient (see "Mic capture"); it does not block on-device wake/VQE work.
@@ -460,8 +461,9 @@ the other project's scope):
   (`spotter-host`, `sendspin-host`), `sounds`, `install-initd`; the reboot brings everything back on its own
   (no maind, no led-play). Wake on with the stock alisa model: `wake: spotter ready`. A TTS
   announcement plays cleanly. `make vqe-models` finds no call-mode model: this firmware has only
-  `vqe_models/noise_reducer/model.nnet` (no `model_call.nnet`), so the intercom's call mode needs
-  `VQE_MODEL=` until it is clear which model the call mode should use here.
+  `vqe_models/noise_reducer/model.nnet` (no `model_call.nnet`). Later found: that is the name the
+  library itself loads in the call mode, so the daemon uses the firmware's directory as it is and
+  nothing needs copying ([intercom.md](../intercom.md)); the call mode itself is not yet tried here.
 - **Wi-Fi gotcha:** the install kit leaves its lab network (the provisioning AP) in
   `wpa_supplicant.conf` with a lower priority than the home network; after a reboot the unit
   joined the lab AP once while it was up. Remove it, or keep the lab AP off, once provisioning is

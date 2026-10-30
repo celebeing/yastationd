@@ -9,12 +9,15 @@ runtime profile from the device-tree `compatible` list (`yandex,<codename>`); `b
 without a rebuild. Host-side per-unit deployment overrides stay in `local.mk` or
 `tools/deploy.hosts`.
 
-| Board | Model | Status |
-|---|---|---|
-| [bergamot](bergamot.md) | Station Mini 3 | supported, verified on-device |
-| [cucumber](cucumber.md) | Station Midi | not profiled: community wiki data only (no unit, no dump) |
-| [yandexmidi](yandexmidi.md) | Station 2 (DT `yandex,station-midi`) | profiled from firmware `0.369.1.50` (no device yet) |
-| [orion](orion.md) | Station 3 | initial support, installed on a unit: voice + stock wake word (NPU verifier), sound, circular controls, ring, ambilight, 21×12 screen with the stock animations; clock font and call-mode VQE model open |
+The codename is Yandex's own board name: the profile's file name, `board =`, and what the profile
+matches in the device tree (`match = yandex,<codename>`). It is not the retail name, and the two
+cross over (below). The same table, for users, is in the main [README](../../README.md).
+
+| Codename | Retail model | DT `compatible` | Status |
+|---|---|---|---|
+| [bergamot](bergamot.md) | Station Mini 3 | `yandex,bergamot` | full support, verified on-device, two units in daily use |
+| [pickle](pickle.md) | Station Mini 3 Pro | `yandex,pickle` | full support (a 16-pixel ring, aarch64 userland), verified on-device |
+| [orion](orion.md) | Station 3 | `yandex,orion` | full support: voice with the stock wake word (NPU verifier), playback, volume, circular controls, ring, rear ambilight, the 21×12 screen with the firmware's animations and our pixel clock and fonts. The intercom is not yet checked on it |
 
 Known vendor codenames (the VQE presets compiled into `libyandex_evil.so`) — from the
 0.369 armhf lib via `strings`, **plus** the 3.21 aarch64 lib where the names are built from
@@ -31,7 +34,8 @@ not by the word "Midi".
 
 ### Possible ports nobody here is doing
 
-Models we have no unit of and don't plan to port; a contributor with the speaker is welcome to.
+**We don't plan to port these** and have no unit of any; they are not in the table above. A
+contributor with the speaker is welcome to start from the notes here.
 
 - **Station Mini 2** (`yandex,station-mini2`, Amlogic AXG, armhf, kernel 4.9.68): by the community
   wiki ([yandex-station-extended](https://github.com/Marker284/yandex-station-extended),
@@ -41,9 +45,11 @@ Models we have no unit of and don't plan to port; a contributor with the speaker
   sensor; ES8156 DAC + SY6045S amp on `TDM-B`; PDM mics; touch via an AW96103 SAR (`sar0_pad0`), no
   `gpio-keys`; a headphone jack. A profile modelled on `bergamot.conf` (seg7 + `sysfs-rgb` ring) is
   the likely start; the VQE preset `yandexmini_2` is in `libyandex_evil.so`.
-- **Station Midi** (`cucumber`): see [cucumber.md](cucumber.md); start from orion's profile.
-- **Station 2** (`yandexmidi`): see [yandexmidi.md](yandexmidi.md); needs a front `display.Front`
-  for its 89×1 checkerboard panel.
+- **Station Midi** (`cucumber`, DT unknown): community wiki data only, no dump; see
+  [cucumber.md](cucumber.md); start from orion's profile.
+- **Station 2** (`yandexmidi`, DT `yandex,station-midi`): its firmware `0.369.1.50` studied, no
+  profile; see [yandexmidi.md](yandexmidi.md); needs a front `display.Front` for its 89×1
+  checkerboard panel.
 - pulsar's `AGENTS.md` ([pulsar](https://github.com/Morvex885/pulsar), a C++ daemon for the Midi,
   Lite 2 and Mini 2) has hardware notes for those models; its "Midi" is `cucumber`.
 
@@ -51,6 +57,31 @@ Models we have no unit of and don't plan to port; a contributor with the speaker
 
 Prerequisite: SSH access to the speaker as root (how it is obtained is out of scope for this repo).
 The full agent-oriented guide is [`../porting-a-speaker.md`](../porting-a-speaker.md).
+
+> [!WARNING]
+> **Don't try commands on components you don't know.** People have bricked the Zigbee and the
+> audio stacks of Yandex speakers by firing commands at them by trial and error. A wrong write can
+> cost a coprocessor's firmware, a codec's or amp's state, or a calibration, and there may be no
+> way back.
+>
+> - **Survey read-only.** `tools/board-survey.sh`, the device tree, `/proc`, `/sys` *reads* of
+>   named attributes, the vendor's own scripts and binaries read statically.
+> - **Learn what a write does before making it:** from the vendor's scripts and configs
+>   (`/etc/init.d`, `quasar/*.sh`, `hardvold.config`, `ledconfigs`), the driver's source or
+>   strings, a decompile. Then one write at a time, its revert known (reboot-volatile first), on
+>   the unit the owner named, and record it.
+> - **Never:** flash, reset or "update" a coprocessor (Zigbee/Thread/BLE radios, a DSP, an NPU,
+>   touch or LED controllers); write to unknown I2C/SPI addresses or registers (`i2cset`, `i2cdump`
+>   on unknown chips); write sysfs attributes that are actions (`reset`, `update`, `calibrate`,
+>   `soft_rst`, `aot`…); run vendor tools with guessed arguments; touch efuse, `pcba_ids`, the
+>   bootloader or the partitions.
+> - **Even reads can hurt**, and these did: dumping every mixer control (`amixer -c 0 contents`)
+>   and querying the Wi-Fi driver (`wpa_cli signal_poll`, `iw`, `/proc/net/wireless`) froze a Mini
+>   3 until a power cycle ([bergamot.md](bergamot.md)); reading Station 3's touch controller's `reg`
+>   overflows its sysfs page ([orion.md](orion.md)). Read the named controls and attributes you
+>   need, nothing in bulk. `<cfw>/bin/diag.sh` shows the safe set ([diagnostics.md](../diagnostics.md)).
+> - **When unsure, stop and ask the owner.** A unit that no longer boots or answers may not be
+>   recoverable from here.
 
 1. **Survey (read-only):**
    `ssh root@<speaker> 'sh -s' < tools/board-survey.sh > dumps/survey/<codename>-<date>.txt` and

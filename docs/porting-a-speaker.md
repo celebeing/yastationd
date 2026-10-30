@@ -12,9 +12,16 @@ Read first: [boards/README.md](boards/README.md) (profile mechanics + checklist)
 
 ## Ground rules while porting
 
-- **Read-only first.** Surveys, sysfs reads, `arecord` and mixer *reads* are safe. Mixer writes,
-  LED writes and the gain controls are reversible (gone on reboot) but are still changes. Never touch
-  Wi-Fi, the firewall, init/boot, or the vendor gate while porting the CFW features.
+- **Read-only first.** Surveys, sysfs reads of named attributes, `arecord` and reads of named mixer
+  controls are safe. Mixer writes, LED writes and the gain controls are reversible (gone on reboot)
+  but are still changes. Never touch Wi-Fi, the firewall, init/boot, or the vendor gate while
+  porting the CFW features.
+- **No trial and error on components you don't know.** Guessed commands have bricked the Zigbee
+  and audio stacks of Yandex speakers. Learn what a write does from the vendor's scripts, configs
+  and code before making it; never flash, reset or "update" a coprocessor, poke unknown I2C/SPI
+  registers or action attributes, or run vendor tools with guessed arguments; and some bulk reads
+  froze a unit too. The list, with what happened: [boards/README.md](boards/README.md), "Procedure
+  for a new station".
 - **Sound only with the user's OK, and only on the unit they name.** Playing a tone, TTS or an alarm
   is audible in someone's room. Ask which speaker may make sound. Visual tests (LEDs, display) are
   fine, but say what will light up.

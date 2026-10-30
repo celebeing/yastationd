@@ -3,7 +3,7 @@
 Profile: _none_ · Source: **no unit, no firmware dump** — the community wiki's live-unit snapshot
 ([yandex-station-extended](https://github.com/Marker284/yandex-station-extended),
 `docs/devices/station-midi.md`) and pulsar's hardware notes (see [wishlist.md](../wishlist.md)) ·
-Status: **not profiled by us; a pointer for whoever ports it.**
+Status: **not profiled by us; a pointer for whoever ports it.** **Not planned:** we have no unit and don't port it ([README.md](README.md), "Possible ports nobody here is doing").
 
 Not to be confused with the Station 2, whose internal name is "midi" ([yandexmidi.md](yandexmidi.md)).
 

@@ -215,9 +215,9 @@ packs replace any animation and add sounds to any event.
 | `bergamot` | Station Mini 3 | full support, two units in daily use |
 | `pickle` | Station Mini 3 Pro | full support (16-pixel ring, aarch64 userland) |
 | `orion` | Station 3 | full support: voice with the stock wake word (NPU verifier), playback, volume, circular controls, ring, rear ambilight (with DDP effects), the 21×12 screen with the firmware's own animations, our pixel clock and fonts, music on the screen |
-| `yandexmidi` | Station 2 | profiled from firmware only, no unit yet |
 
-Per-board notes: [docs/boards/](docs/boards/README.md).
+We don't port other models (Station 2, Station Midi, Mini 2); what is known about them, and where
+to start for someone who has one: [docs/boards/](docs/boards/README.md).
 
 ## Installing
 
