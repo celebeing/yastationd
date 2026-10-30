@@ -3,6 +3,20 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.22.3 — 2026-10-30
+
+**Logs off the speaker** ([docs/storage.md](docs/storage.md))
+- While the log server is unreachable, logs are appended to the spool on flash instead of rewriting
+  all of it every minute, which could reach 1.4 GB a day with a server down for long or a wrong
+  `log_remote`.
+- The spool holds 16 MB by default (was 1 MB): about a week of a quiet speaker's logs, at no extra
+  wear. At the limit the older half goes.
+- A large spool goes out in chunks after an outage and resumes where it stopped if the link breaks
+  again.
+
+**Docs** — a rule for flash wear in the development guides, and an audit of everything the daemon
+writes to flash in [docs/storage.md](docs/storage.md).
+
 ## v0.22.2 — 2026-10-30
 
 **Voice ID** ([docs/voice-id.md](docs/voice-id.md))
