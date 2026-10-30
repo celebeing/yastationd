@@ -81,10 +81,13 @@ household back to all ([voice-id.md](voice-id.md)).
 
 The clock must be right without the internet. Firmware 0.369 runs `chronyd` against the LAN server
 the install sets; firmware 0.6.x has no `chronyd`, and its own sync polls public pools the egress
-lock blocks. So the daemon carries a small SNTP client (`internal/timesync`): with `chronyd` or
-`ntpd` running it does nothing; otherwise it asks `ntp_server`, then the servers in `chrony_conf`,
-then the default gateway, steps the clock when it is off by more than 200 ms and checks every 15
-minutes; until the first sync the clock's colon blinks. DHCP option 42 was rejected: few home
+lock blocks. So the daemon carries a small SNTP client (`internal/timesync`): it asks `ntp_server`,
+then the servers in `chrony_conf`, then the default gateway, steps the clock when it is off by more
+than 200 ms and checks every 15 minutes. With `chronyd` or `ntpd` running it only checks their work:
+a speaker without a battery-backed clock boots days behind, and `chronyd` was seen slewing such an
+offset for minutes with the old time on the display, so the time counts as synced only once an
+SNTP answer agrees with it (a big disagreement is stepped at once) or, with no server answering,
+when the kernel's unsynced flag is clear. Until then the clock's colon blinks. DHCP option 42 was rejected: few home
 routers send it, `dhcpcd` here does not ask for it, and using it means editing the network setup,
 which the safety doctrine keeps us out of. A Station 3 keeps time over a power cut on its RTC
 ([boards/orion.md](boards/orion.md)). The local time zone is the `tz` setting.

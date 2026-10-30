@@ -98,6 +98,9 @@ they're not in git: copy them from a 0.369 unit or a firmware dump. Verified on 
 OK (layout 0,3,4), `serve` READY.
 
 ## Open questions
-- Does ch6 carry the amp feedback during playback → does the vendor AEC work (barge-in on «Алиса»)?
+- ~~Does ch6 carry the amp feedback during playback → does the vendor AEC work?~~ Yes: ch6 carries
+  our playback and the AEC takes its echo below the room's floor ([intercom.md](../intercom.md),
+  the call mode's tests). Still open: barge-in on «Алиса» over our own playback (the daemon ignores a wake
+  while it plays).
 - Better lux resolution via `hardwaregain`/`integration_time`; auto-brightness curve.
 - Wi-Fi latency after reboot (power save?).

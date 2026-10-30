@@ -192,8 +192,12 @@ is fine with that. Constructors in the shared libraries are run by ld.so as usua
 
 ## Next steps (2026-10-22; since then)
 
-Items 1 and 3 are done: real-voice tests ran on the units (bergamot «Алиса» 10/10 at 1 and 3 m,
-orion 14/14 in a room) and `serve` is what the daemon runs. What is built and still open:
+Item 3 is done (`serve` is what the daemon runs), item 1 in part: real-voice tests ran in the
+default mode only (bergamot «Алиса» 10/10 at 1 and 3 m, orion 14/14 in a room); `-b` and `-x`
+were not compared on real voice. Item 2 is answered by the intercom's tests (ch6 carries our
+playback and the AEC takes its echo below the room's floor: [docs/intercom.md](../docs/intercom.md),
+the call-mode results); whether the spotter then works over our own playback is not tried. Item 4
+is open. What is built and still open:
 [docs/wake-word.md](../docs/wake-word.md). The list as it was, from
 [`docs/research/voice-phase2-plan.md`](../docs/research/voice-phase2-plan.md):
 1. Run the user's real-voice test with `listen.sh`, comparing default, `-b` and `-x 0,0,1`.

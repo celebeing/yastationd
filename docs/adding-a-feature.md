@@ -74,8 +74,9 @@ displays each get something that fits. Design: [display-expressions.md](display-
   (seg7, pixels) in `momentDefaults` (`moments.go`) when the kinds need different pictures.
   `defaulttheme_test.go` checks the two lists agree.
 - Fire it with `a.hook("name")` (its catalogue slot and priorities) or `a.moment(slot, "name",
-  ttl)`; a held one (its catalogue entry has no TTL) is ended with `a.endHook("name")` (its layers,
-  its steps and its sound), one fired with `a.moment` with `a.unexpress(slot)`. Not with
+  ttl)`; a held one (its default is `held(…)`, shown until the code ends it) is ended with
+  `a.endHook("name")` (its layers, its steps and its sound), one fired with `a.moment` with
+  `a.unexpress(slot)`. Not with
   `express()`, a sound player call or a ring effect of your own.
 - What it shows: an expression, `anim:`, `sound:`, `phrase:`, `ring:`, `scenario:`, or steps of
   these (`{"steps": [...]}`); `a,b` picks one at random each time (a sound `a|b`: the first this speaker has). Prefer an existing expression

@@ -56,9 +56,9 @@ Yandex's codenames and which models are which),
 A freshly rooted speaker still runs the vendor's stack and is online: it can download a firmware
 update that wipes the root access and everything else at any moment. Before the survey, and before
 anything else on a unit that ran the stock firmware, do [guides/deploying.md](guides/deploying.md)
-§0 with the owner: the router drop for the unit first (no device change needed), then the
-reversible gate that keeps the vendor stack from starting, the update block and the on-device
-egress lock. Check `/bkupgrade` (it decides `<cfw>`) and whether the firmware has `iptables` before
+§0 with the owner: the reversible gate that keeps the vendor stack from starting, the update
+block, and the internet blocked at two layers (the egress lock on the device and a rule on the
+router). The router rule changes nothing on the device, so it can go first, while you read the rest. Check `/bkupgrade` (it decides `<cfw>`) and whether the firmware has `iptables` before
 you start; ask before any rootfs write and keep the `.orig` backups. The stack stays stopped from
 then on, which is also what the input and mic captures below need.
 

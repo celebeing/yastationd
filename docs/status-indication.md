@@ -10,7 +10,7 @@ speaker watches about itself (the power supply, the network watchdog, vitals, th
 |---|---|---|---|
 | booting | from the daemon's start until the first connection | blue pulse | the `sleep` clip (no clock: the time is unknown) |
 | first connection failed | none within `boot_connect_timeout` (default 40 s); it keeps trying | red pulse | `sleep` |
-| ready | the first connection is made | — (dark is the normal idle) | the `startup` moment once per device boot (eyes → wink by default), then the base layer |
+| ready | the first connection is made | — (dark is the normal idle) | the `startup` moment once per device boot (by default eyes, then a wink on the Minis, a blink on Station 3), then the base layer |
 | degraded | after ready, something is missing for 10 s | dim red pulse | unchanged |
 
 "Connected" means the MQTT broker is up (when one is configured) and HA holds the Wyoming satellite
