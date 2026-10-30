@@ -5,8 +5,9 @@ instead of beside it. For a new speaker model, read [porting-a-speaker.md](porti
 instead; for what a change must touch outside the code (docs, deploy, config examples, the vendor
 repo), the "Changes that ripple" list in `CLAUDE.md`.
 
-**The short version.** A setting is a key in the registry. Anything the speaker does in reaction to
-an event (a picture, a sound, a ring effect) is a **moment**. An HA entity and its web app control
+**The short version.** A setting is a key in the registry. Every sound, animation, ring effect or
+other show the speaker puts on in reaction to something goes through **moments**, our own
+abstraction: code names the event, the theme stack decides what plays. An HA entity and its web app control
 are one definition. The web app reuses the settings page's widgets and the LED page's painter. A
 vendor library runs in a child process. Read the doc of the area first (`docs/index.md`), and say
 in the doc what you built.
@@ -44,10 +45,14 @@ through `a.cfg()` at the point of use; a runtime key copied into a variable at s
 5. an entry in `OPTIONS` (`web/src/settings.tsx`: its group and paragraph), and a config key that
    belongs right under it goes in `AFTER`.
 
-## Reactions: moments
+## Sounds, animations and the rest: moments
 
-Code never draws a picture or plays a sound in reaction to an event: it fires a **moment**, and
-what the moment shows comes from the theme stack (the owner's packs, installed packs, the board,
+A **moment** is this project's own term: a named event in the speaker's life (`listening`,
+`voice_error`, `call_incoming`, `voice_guest`, …) to which the speaker reacts with something seen
+or heard. Every such reaction (a picture or an animation on the front display, a sound, a phrase,
+a ring effect, or a sequence of these) goes through moments. Code never draws a picture or plays a
+sound in reaction to an event: it fires the moment by name, and what the moment shows comes from
+the theme stack (the owner's packs, installed packs, the board,
 the built-in default). So the owner can change it, a pack can restyle it, and boards with different
 displays each get something that fits. Design: [display-expressions.md](display-expressions.md)
 ("Moments"), [asset-packs.md](asset-packs.md).

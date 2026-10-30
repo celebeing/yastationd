@@ -78,9 +78,12 @@ Read `docs/adding-a-feature.md` before building one. In short:
 
 - **A setting is a key in the registry** (below); an option HA and the web app both change is
   persisted state with an HA entity, a command and, if shareable, a `syncOptions` entry.
-- **A reaction is a moment.** Code that reacts to an event fires a moment (`a.hook` / `a.moment`;
-  the catalogue and defaults in `internal/app/defaulttheme.go`), never draws a picture, plays a
-  sound or runs a ring effect itself: the owner and packs decide what it shows.
+- **Everything the speaker shows or plays in reaction to something goes through "moments".** A
+  moment is our own abstraction: a named event of the speaker's life (the wake word heard, an
+  error, a call ringing, a guest's voice ignored) that the owner's packs and installed themes map
+  to sounds, animations, ring effects and phrases. Code only fires the moment by name (`a.hook` /
+  `a.moment`; the catalogue and defaults in `internal/app/defaulttheme.go`) and never draws a
+  picture, plays a sound or runs a ring effect itself.
 - **One definition per entity:** HA discovery and the web app's controls are the same entity;
   publish through `a.publish`.
 - **The web app reuses its widgets:** `SettingRows` / `Control` for settings and options anywhere,
