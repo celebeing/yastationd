@@ -5,23 +5,44 @@ work on it. Scope: **the CFW's functionality on the device**: hardware, audio, v
 the CFW gets onto a device is out of scope here. This guide assumes you already have a root shell on
 the unit (SSH) and, ideally, a full firmware dump.
 
-Read first: [boards/README.md](boards/README.md) (profile mechanics + checklist),
+Read first: [boards/README.md](boards/README.md) (the supported boards, the profile mechanics,
+Yandex's codenames and which models are which),
 [boards/_template.md](boards/_template.md), and the two worked examples:
 [boards/bergamot.md](boards/bergamot.md) (armhf, the reference) and
 [boards/pickle.md](boards/pickle.md) (aarch64; a full port done from a dump + survey).
 
 ## Ground rules while porting
 
+> [!WARNING]
+> **Don't try commands on components you don't know.** People have bricked the Zigbee and the
+> audio stacks of Yandex speakers by firing commands at them by trial and error. A wrong write can
+> cost a coprocessor's firmware, a codec's or amp's state, or a calibration, and there may be no
+> way back.
+>
+> - **Survey read-only.** `tools/board-survey.sh`, the device tree, `/proc`, `/sys` *reads* of
+>   named attributes, the vendor's own scripts and binaries read statically.
+> - **Learn what a write does before making it:** from the vendor's scripts and configs
+>   (`/etc/init.d`, `quasar/*.sh`, `hardvold.config`, `ledconfigs`), the driver's source or
+>   strings, a decompile. Then one write at a time, its revert known (reboot-volatile first), on
+>   the unit the owner named, and record it.
+> - **Never:** flash, reset or "update" a coprocessor (Zigbee/Thread/BLE radios, a DSP, an NPU,
+>   touch or LED controllers); write to unknown I2C/SPI addresses or registers (`i2cset`, `i2cdump`
+>   on unknown chips); write sysfs attributes that are actions (`reset`, `update`, `calibrate`,
+>   `soft_rst`, `aot`…); run vendor tools with guessed arguments; touch efuse, `pcba_ids`, the
+>   bootloader or the partitions.
+> - **Even reads can hurt**, and these did: dumping every mixer control (`amixer -c 0 contents`)
+>   and querying the Wi-Fi driver (`wpa_cli signal_poll`, `iw`, `/proc/net/wireless`) froze a
+>   Mini 3 until a power cycle ([boards/bergamot.md](boards/bergamot.md)); reading Station 3's
+>   touch controller's `reg` overflows its sysfs page ([boards/orion.md](boards/orion.md)). Read
+>   the named controls and attributes you need, nothing in bulk. `<cfw>/bin/diag.sh` shows the
+>   safe set ([diagnostics.md](diagnostics.md)).
+> - **When unsure, stop and ask the owner.** A unit that no longer boots or answers may not be
+>   recoverable from here.
+
 - **Read-only first.** Surveys, sysfs reads of named attributes, `arecord` and reads of named mixer
   controls are safe. Mixer writes, LED writes and the gain controls are reversible (gone on reboot)
   but are still changes. Never touch Wi-Fi, the firewall, init/boot, or the vendor gate while
   porting the CFW features.
-- **No trial and error on components you don't know.** Guessed commands have bricked the Zigbee
-  and audio stacks of Yandex speakers. Learn what a write does from the vendor's scripts, configs
-  and code before making it; never flash, reset or "update" a coprocessor, poke unknown I2C/SPI
-  registers or action attributes, or run vendor tools with guessed arguments; and some bulk reads
-  froze a unit too. The list, with what happened: [boards/README.md](boards/README.md), "Procedure
-  for a new station".
 - **Sound only with the user's OK, and only on the unit they name.** Playing a tone, TTS or an alarm
   is audible in someone's room. Ask which speaker may make sound. Visual tests (LEDs, display) are
   fine, but say what will light up.
@@ -67,7 +88,7 @@ then fold them into the profile.
 | `matrix.backlight` | `/sys/class/backlight/*` whose device is the screen | a sysfs brightness (0..255) that dims the whole screen: the display level goes there and frames keep their half-tones (orion: `fb1`) |
 | `matrix.min_brightness` | the dimmest level still readable in a dark room, on glass | the dimmest auto brightness unless `auto_brightness_min` is set, the default curve's darkest point, and the manual level's floor (bergamot, pickle 4; orion 2) |
 | `matrix.default_mode` | — | the front display mode of a fresh state: `clock` (default), `clock_date`, `off` |
-| `ring.kind/pixels/led/colors` | `/sys/class/leds` names, DT `led-controller` nodes and their labels | `{color}`/`{i}` pattern. Pixel index = DT label number; physical order around the ring may differ (check visually). A model may have a second small "logo" ring; pick the main one. Only `sysfs-rgb` exists today (see §5 for new kinds) |
+| `ring.kind/pixels/led/colors` | `/sys/class/leds` names, DT `led-controller` nodes and their labels | `{color}`/`{i}` pattern. The daemon takes the LEDs over from their default trigger (`trigger` = `none`). Pixel index = DT label number; physical order around the ring may differ (check visually). A model may have a second small "logo" ring; pick the main one. Only `sysfs-rgb` exists today (see §5 for new kinds) |
 | `ambilight.kind/pixels/led/colors/dies` | `/sys/class/leds` names and a visual index probe | Optional rear RGBW strip. `sysfs-rgbw` expands `{color}`/`{i}`/`{die}`; all listed dies at one logical position receive the same value. Verify physical index direction and whether dies are co-located |
 | `ambilight.fb` | `/sys/class/graphics/fb*/name` | Optional: the ledfb framebuffer that takes the strip in one write (orion: `ambilight`). Worth it for effects: [ambilight-stream.md](ambilight-stream.md) |
 | `ambilight.primaries`, `ambilight.response` | a measurement ([ambilight-color.md](ambilight-color.md)) | Optional colour calibration: R, G, B, W at full as `x y Y` (Y relative to W), and the drive level → light table. Without it the HA light's colours go out uncorrected |
@@ -79,7 +100,7 @@ then fold them into the profile.
 | `audio.volume_map` | `quasar.cfg` `volume_capability.volume_manager_settings.platformToAlsaMap` | Stock curve, `level:raw` points, 20 levels = 100 % (`changeStepPercent` 5). HA's percent, the keys (one level each) and the display all follow it. Without it the curve is a straight line over the raw range, which leaves the inaudible bottom as a dead zone. No map in the config: compare `volumeDbLevels` with a model that has one |
 | `audio.volume_default` | what the master boots at | pickle boots its amp at the maximum (+5 dB). Set a sane first-start level |
 | `audio.mic_gain`, `mic_gain_value` | PDM/ADC gain controls | Gains often boot at 0. A hardware mic switch can cut the mics entirely (exact zeros); check the switch before concluding that capture is broken |
-| `mic.device/channels/rate/voice` | the vendor capture device (§3) | Open the device with the channel count the hardware frame really has |
+| `mic.device/channels/rate/voice` | the vendor capture device (§3) | Open the device with the channel count the hardware frame really has. A few seconds in silence and a few while it plays tell the live mics from copies and from the speaker feedback (the echo reference) |
 | `wake.*` | §4 | |
 | `power.pd/min_mv` | `/sys/class/power_supply/*` | Each PD read makes the driver re-query (and log), so poll rarely. Below `min_mv` the `power_problem` moment plays the stock `no_power` line (vendor sounds may be opus even when named `.wav`; `make sounds` decodes them) |
 | `lux.iio_prefix/gain/integration_time` | `/sys/bus/iio/devices/*/name`, `*_available` | Behind a grille the stock gain gives a couple of counts; raise gain/integration |
@@ -197,8 +218,8 @@ as webrtc AEC3 + an open wake-word engine) means a new host binary that speaks t
 ## 6. Definition of done
 
 - `docs/boards/<codename>.md` from the template: identity, each subsystem with observed/inferred
-  marks, the verification results, open questions. Added to [boards/README.md](boards/README.md) and
-  [index.md](index.md).
+  marks, the verification results, open questions. Added to the table of
+  [boards/README.md](boards/README.md) and the main README's, and to [index.md](index.md).
 - The profile is committed, `go test ./...` passes (it parses every built-in profile), and the board
   is auto-detected on the device.
 - Verified on the unit: display, ring, every key, audio out (by ear), volume, mic levels; for voice,

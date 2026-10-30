@@ -42,9 +42,10 @@ preset and spotter models — live in a **board profile**
 (`internal/board/profiles/<codename>.conf`, embedded). The device is matched by its device-tree
 `compatible` (`yandex,<codename>`); `board = <codename>` forces one, and `<cfw>/board.conf`
 overrides runtime keys without a rebuild. Effects size themselves from the ring's pixel count.
-Bringing up a new station: [`../docs/boards/README.md`](../docs/boards/README.md) (survey tool,
-procedure, reversing checklist). Supported: `bergamot` (Station Mini 3), `pickle` (Station Mini 3
-Pro), `orion` (Station 3 — sound, ring and 21×12 front screen verified on-device).
+Bringing up a new station: [`../docs/porting-a-speaker.md`](../docs/porting-a-speaker.md) (ground
+rules, the survey, the profile keys, the verification order). Supported: `bergamot` (Station Mini
+3), `pickle` (Station Mini 3 Pro), `orion` (Station 3); the boards and their notes:
+[`../docs/boards/README.md`](../docs/boards/README.md).
 
 `<cfw>` is `/bkupgrade/cfw` on bergamot and orion and `/data/cfw` on pickle. The profile records this
 for host deployment; the daemon and init hook retain filesystem detection as their bootstrap
