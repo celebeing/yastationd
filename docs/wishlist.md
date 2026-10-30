@@ -10,6 +10,51 @@ Station Midi / Lite 2 / Mini 2 that speaks the ESPHome Native API to HA. It's a 
 but it lets the vendor stack start at every boot and expects internet access (GitHub updates), so
 its solutions need checking against our doctrine before reuse. Both projects are MIT.
 
+## Adopting and retiring a speaker
+
+**Status:** idea, nothing built (2026-10-30). The trigger: giving a speaker to a friend should take
+the household's data off it and keep it from coming back. A factory reset is no answer: it loses
+the CFW and means a reinstall.
+
+**What a speaker holds.** Only the `voice_store` speaker has voiceprints and transcripts on flash
+(`<cfw>/voices/`); the others keep the household's centroids in memory, from a retained topic. All
+of them hold: the Wi-Fi networks, the broker's address and credentials, `yastationd.conf` with the
+log server, `web.secret`, the state file, `<cfw>/log-spool`, the owner's packs, Sendspin's pairing,
+and with the test keys on `<cfw>/wakes/` and the intercom's `.raw` files.
+
+**What the others hold about it.** Its retained topics on the broker (availability, the intercom
+card, the web card, HA's discovery), so it stays in the speaker list, the intercom's names and HA;
+its name in the store's entries and groups. Removing a speaker means clearing these too.
+
+Sketch:
+
+- **Retire**, from the web app of the speaker itself and from the setup page in AP mode: wipe the
+  above and leave it unconfigured, in setup mode. Strictly the CFW's own data: the vendor gate, the
+  egress lock and the update blocks stay, and so does what the speaker needs to boot.
+- **Forget a speaker**, from any other speaker's web app: for a unit that is gone or dead. Any
+  speaker can publish the empty retained messages that clear it from the broker and HA. A wipe does
+  the same for itself first.
+- **So it doesn't return:** clearing is not enough, a speaker that still has the broker's address
+  republishes everything on connect and gets the household's centroids again. The wipe has to take
+  the broker's address with it; for a unit that never got wiped, a retained tombstone
+  (`<prefix>/retired/<device_id>`) would make the store ignore its events and the others hide it.
+  Without broker accounts the tombstone is a courtesy, not a lock: the unit can still read the
+  retained centroids.
+- **Adopt:** the reverse, joining a household: Wi-Fi and the broker from the setup page, then the
+  shared settings and the centroids arrive by themselves. It clears a tombstone. It should check
+  that the `device_id` is free and that a second store isn't being brought in.
+
+Open:
+
+- **Retiring the store.** Its log and groups must move first, or the household is lost: an export
+  and import between speakers, or moving `voice_store` with its files.
+- **A guard on the AP page.** It must stay reachable, but a wipe from an open access point is
+  available to anyone nearby. A physical confirmation (holding a key) would do, on boards with one.
+- **Whether a forgotten speaker's entries stay** in the store (they are the people's voices, not
+  the speaker's), and whether its name in them should change.
+- **SSH keys:** the owner's key should go with a retire, but that may leave no way in if the setup
+  page fails. The safety doctrine in [CLAUDE.md](../CLAUDE.md) applies.
+
 ## Voice pipeline robustness
 
 **Status:** note; unclear we need it. (Slow replies are done: [voice-slow-replies.md](voice-slow-replies.md).)
