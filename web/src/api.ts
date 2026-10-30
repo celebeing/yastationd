@@ -492,8 +492,8 @@ export type VoicePreviewRow = {
 }
 export type VoicePreview = { threshold: number; people: number; guests: number; rows: VoicePreviewRow[] | null }
 export const voices = (id: string, base: string) => authed<Voices>(id, base, '/api/voices')
-export const voiceLog = (id: string, base: string, group: string, limit: number) =>
-  authed<VoiceEntry[] | null>(id, base, `/api/voices/log?group=${encodeURIComponent(group)}&limit=${limit}`)
+export const voiceLog = (id: string, base: string, group: string, limit: number, before = '') =>
+  authed<VoiceEntry[] | null>(id, base, `/api/voices/log?group=${encodeURIComponent(group)}&limit=${limit}&before=${encodeURIComponent(before)}`)
 export const voicePreview = (id: string, base: string, threshold: number) =>
   authed<VoicePreview>(id, base, '/api/voices/preview?threshold=' + threshold.toFixed(2))
 type Ok = { ok: boolean }

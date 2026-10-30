@@ -20,6 +20,16 @@ const Noise = "noise"
 // desk check, other people under 0.55.
 const JoinThreshold = 0.6
 
+// How much is kept (docs/voice-id.md, "How much is kept"): a group's level after a trim, by kind.
+// The limits are per group so that a voice heard often can't push out one heard rarely.
+const (
+	KeepNamed   = 1000 // a named or household group: a few weeks of its voice
+	KeepUnnamed = 100  // an unnamed one: enough to recognise it and name it
+	KeepNoise   = 100
+	MaxUnnamed  = 20   // unnamed groups; the ones longest silent go first
+	TrimExcess  = 1500 // entries over the levels that start a trim
+)
+
 // Entry is one request in the album.
 type Entry struct {
 	ID         string  `json:"id"`
@@ -333,7 +343,7 @@ func (al *Album) SetHousehold(id string, on bool) error {
 	if g == nil || g.Noise {
 		return fmt.Errorf("no group %s", id)
 	}
-	al.pinGroup(id)
+	al.pinGroup(id, nil)
 	if on {
 		al.Edits.Home[id] = true
 	} else {
@@ -343,10 +353,11 @@ func (al *Album) SetHousehold(id string, on bool) error {
 	return nil
 }
 
-// pinGroup pins every entry now in group id to it (a named group keeps its members).
-func (al *Album) pinGroup(id string) {
+// pinGroup pins every entry now in group id to it (a named group keeps its members); only, when
+// given, limits that to these entries.
+func (al *Album) pinGroup(id string, only map[string]bool) {
 	for eid, gid := range al.groupOf {
-		if gid == id {
+		if gid == id && (only == nil || only[eid]) {
 			al.Edits.Pins[eid] = id
 		}
 	}
@@ -358,7 +369,7 @@ func (al *Album) Rename(id, name string) error {
 	if g == nil || g.Noise {
 		return fmt.Errorf("no group %s", id)
 	}
-	al.pinGroup(id)
+	al.pinGroup(id, nil)
 	if name == "" {
 		delete(al.Edits.Names, id)
 	} else {
@@ -378,7 +389,7 @@ func (al *Album) Merge(from, into string) error {
 			al.Edits.Pins[eid] = into
 		}
 	}
-	al.pinGroup(into)
+	al.pinGroup(into, nil)
 	if al.Edits.Names[into] == "" && al.Edits.Names[from] != "" {
 		al.Edits.Names[into] = al.Edits.Names[from]
 	}
@@ -431,25 +442,75 @@ func (al *Album) Forget(id string) int {
 	return n
 }
 
-// Trim keeps the newest max entries, dropping the oldest unpinned ones first.
-func (al *Album) Trim(maxEntries int) bool {
-	over := len(al.Entries) - maxEntries
-	if over <= 0 {
+// surplus says how many of each group's entries a trim would drop, and their sum: a group over
+// its Keep level loses its oldest, and unnamed groups past the MaxUnnamed last heard all go.
+func (al *Album) surplus() (map[string]int, int) {
+	var unnamed []*Group
+	over, sum := map[string]int{}, 0
+	drop := func(g *Group, keep int) {
+		if n := g.Count - keep; n > 0 {
+			over[g.ID] = n
+			sum += n
+		}
+	}
+	for _, g := range al.groups {
+		switch {
+		case g.Noise:
+			drop(g, KeepNoise)
+		case g.kept():
+			drop(g, KeepNamed)
+		case g.Count > 0:
+			unnamed = append(unnamed, g)
+		}
+	}
+	sort.Slice(unnamed, func(i, j int) bool {
+		if unnamed[i].Last != unnamed[j].Last {
+			return unnamed[i].Last > unnamed[j].Last
+		}
+		return unnamed[i].ID < unnamed[j].ID
+	})
+	for i, g := range unnamed {
+		if i < MaxUnnamed {
+			drop(g, KeepUnnamed)
+		} else {
+			drop(g, 0)
+		}
+	}
+	return over, sum
+}
+
+// Trim cuts every group to its Keep level, oldest entries first, once TrimExcess entries have
+// piled up over those levels; it says whether it did (the log and the edits are then rewritten).
+// A rewrite costs the whole file, so one trigger serves all the groups and a trim frees a lot:
+// the flash sees 1/(1-k) of the bytes appended, k being the share a trim leaves, whatever the
+// limits are (docs/voice-id.md, "How much is kept").
+func (al *Album) Trim() bool {
+	over, sum := al.surplus()
+	if sum < TrimExcess {
 		return false
 	}
 	keep := al.Entries[:0]
+	alive := make(map[string]bool, len(al.Entries))
 	for _, e := range al.Entries {
-		if _, pinned := al.Edits.Pins[e.ID]; over > 0 && !pinned {
-			over--
+		if g := al.groupOf[e.ID]; over[g] > 0 {
+			over[g]--
 			continue
 		}
 		keep = append(keep, e)
+		alive[e.ID] = true
 	}
 	al.Entries = keep
-	for over > 0 && len(al.Entries) > 0 { // all pinned: the oldest go anyway
-		delete(al.Edits.Pins, al.Entries[0].ID)
-		al.Entries = al.Entries[1:]
-		over--
+	for eid := range al.Edits.Pins {
+		if !alive[eid] {
+			delete(al.Edits.Pins, eid)
+		}
+	}
+	// A kept group lives by its pins: its id comes from them, and new requests aren't pinned. Left
+	// alone, the window would slide past the last pin and the group would lose its name.
+	for _, g := range al.groups {
+		if g.kept() {
+			al.pinGroup(g.ID, alive)
+		}
 	}
 	al.Regroup()
 	return true

@@ -25,7 +25,6 @@ import (
 // and edits.json (the owner's names and pins).
 
 const (
-	voiceStoreMax  = 3000 // entries kept (~3 KB each on flash)
 	voicePublishIn = 2 * time.Second
 )
 
@@ -124,8 +123,10 @@ func (a *App) onVoiceEvent(payload []byte) {
 	if e.Model != "" {
 		st.model = e.Model
 	}
-	if st.al.Trim(voiceStoreMax) {
+	if st.al.Trim() {
+		st.writeEdits(a) // first: a pin of an entry that is gone does no harm, an entry that lost its pin does
 		st.writeLog(a)
+		a.log.Info("voice store: trimmed", "entries", len(st.al.Entries))
 	} else {
 		st.appendLog(a, e)
 	}
@@ -332,18 +333,26 @@ func (a *App) voiceEdit(w http.ResponseWriter, fn func(*voiceid.Album) error) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
-// apiVoiceLog: the newest entries first (?group= one group's, ?limit= how many, default 100).
+// apiVoiceLog: the newest entries first (?group= one group's, ?limit= how many, default 100,
+// ?before= an entry's id: the page after that entry; none if it has gone since).
 func (a *App) apiVoiceLog(w http.ResponseWriter, r *http.Request) {
 	st := a.vstore
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	if limit <= 0 || limit > voiceStoreMax {
+	if limit <= 0 {
 		limit = 100
 	}
-	group := r.URL.Query().Get("group")
+	group, before := r.URL.Query().Get("group"), r.URL.Query().Get("before")
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	out := []voiceEntryView{}
-	for i := len(st.al.Entries) - 1; i >= 0 && len(out) < limit; i-- {
+	i := len(st.al.Entries) - 1
+	if before != "" {
+		for i >= 0 && st.al.Entries[i].ID != before {
+			i--
+		}
+		i--
+	}
+	for ; i >= 0 && len(out) < limit; i-- {
 		e := st.al.Entries[i]
 		g := st.al.GroupOf(e.ID)
 		if group != "" && g != group {

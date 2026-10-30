@@ -30,6 +30,7 @@ twice (the upload and the `.prev` copy, ~17 MB each).
 | `<cfw>/sendspin/state.json` (sendspin-host) | a Music Assistant server pairs |
 | `wpa_supplicant.conf` | only from the Wi-Fi setup page |
 | `<cfw>/intercom-*.raw` | only with `intercom_record_dir` set (testing) |
+| `<cfw>/voices/log.jsonl`, `edits.json` | only on the `voice_store` speaker: ~3 KB per request appended; the whole log rewritten once per ~1500 requests (4-9 MB, [voice-id.md](voice-id.md), "How much is kept"); `edits.json` on an owner's edit and on those rewrites |
 | `<cfw>/log-spool` | only while the log server is unreachable, once a minute, capped (`log_spool_kb`) |
 | `<cfw>/packs/<id>/pack.json` of the owner's packs | a moment saved from the web app (up to v0.21: `<cfw>/moments.json`) |
 | `<cfw>/web.secret` (32 B) | once, the first time the web server starts |

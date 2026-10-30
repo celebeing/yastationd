@@ -160,8 +160,8 @@ preview of what it does to the last requests).
 
 On the speaker with `voice_store` (`internal/app/voicestore.go`, `internal/voiceid/album.go`):
 
-- **Every event is an entry** in `<cfw>/voices/log.jsonl` (appended; the newest 3000 kept, the
-  oldest unpinned ones dropped first). Events from another voiceprint model are not filed.
+- **Every event is an entry** in `<cfw>/voices/log.jsonl` (appended, ~3 KB each; how much stays:
+  "How much is kept" below). Events from another voiceprint model are not filed.
 - **The grouping**, in time order: an entry with almost no speech (under 0.9 s) or that HA heard
   no words in (no transcript, and not an ignored guest's) goes to "not a person"; any other joins
   the group whose centroid (the mean of its normalised voiceprints) is closest, if at least 0.6
@@ -185,6 +185,24 @@ On the speaker with `voice_store` (`internal/app/voicestore.go`, `internal/voice
 - **Forgetting** a person deletes the group's entries and its name; "forget everything" empties
   the log and the edits; both republish at once.
 
+- **How much is kept:** per group, so a voice heard all the time can't push out one heard rarely.
+  A trim cuts each group to its level, oldest entries first: 1000 for a named or household group,
+  100 for an unnamed one, 100 for "not a person"; of the unnamed groups only the 20 last heard
+  stay. It starts when 1500 entries have piled up over those levels, counted across all the
+  groups, because a rewrite costs the whole file: one small group of its own would rewrite it for
+  a few entries. Limits are constants (`internal/voiceid/album.go`). The numbers:
+  - the flash sees **1/(1−k)** of the bytes appended, k being the share of the log a trim leaves,
+    **whatever the limits are**: 10× for k = 0.9, 5× for 0.8, 2× for 0.5, 1.5× for 0.33. With a
+    guaranteed history M the peak is M/k and the wear 1/(1−k): k = 0.5 minimises their sum, and
+    going lower saves little. The levels and the trigger here give k ≈ 0.5.
+  - a household with one main voice: 1000-2500 of that voice's entries, 4-9 MB, a rewrite every
+    1500 requests; at 40 requests a day ~0.2 MB a day on flash, a trim every 5-6 weeks.
+  - the worst case (several busy voices, 20 full unnamed groups) stays around 7500 entries, ~22 MB.
+  A trim pins the surviving entries of named and marked groups: such a group lives by its pins
+  and new requests aren't pinned, so the window would otherwise slide past the last pin and take
+  the name with it. An entry moved by hand has no extra protection: it goes with its group's age.
+  Before this a full log (3000 entries) was rewritten whole on every request, ~9 MB each, and with
+  nearly all entries pinned a new request dropped out of the log at once.
 - **Why one store and two one-way streams:** syncing a log, groups and edits between speakers
   would be a mess, and it is not needed. Every speaker sends its events to the store and reads the
   household's centroids back (retained); only the store edits, so nothing conflicts. The verdict
@@ -199,7 +217,7 @@ On the speaker with `voice_store` (`internal/app/voicestore.go`, `internal/voice
 
 API (on every speaker; the album calls only on the store): `GET /api/voices` (`on`, `store`,
 `store_id`, `people`, `model`, `threshold`, `ignore_guests`; on the store also `groups` and
-`entries`), `GET /api/voices/log?group=&limit=`, `GET /api/voices/preview?threshold=` (the last
+`entries`), `GET /api/voices/log?group=&limit=&before=` (`before`: an entry's id, the page after it), `GET /api/voices/preview?threshold=` (the last
 100 requests of real speech judged again at that threshold), `POST /api/voices/groups/<id>`
 `{name}`, `DELETE /api/voices/groups/<id>`, `POST /api/voices/merge` `{from, into}`,
 `POST /api/voices/entries/<id>` `{group}` (`noise`, `new` or a group), `DELETE /api/voices`.

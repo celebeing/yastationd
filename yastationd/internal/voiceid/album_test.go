@@ -118,23 +118,123 @@ func TestAlbumGroupsAndEdits(t *testing.T) {
 	}
 }
 
-func TestAlbumTrimKeepsPinned(t *testing.T) {
+// fill adds n requests of one voice, around base.
+func fill(al *Album, r *rand.Rand, base []float32, prefix string, n int, at *int64) {
+	for k := 0; k < n; k++ {
+		e := make([]float32, len(base))
+		for i := range e {
+			e[i] = base[i] + 0.6*float32(r.NormFloat64())
+		}
+		*at++
+		al.Add(&Entry{ID: fmt.Sprintf("%s%d", prefix, *at), At: *at, Speaker: "s1", Secs: 2, Transcript: "свет", Emb: e})
+	}
+}
+
+func baseVoice(r *rand.Rand) []float32 {
+	b := make([]float32, 64)
+	for i := range b {
+		b[i] = float32(r.NormFloat64())
+	}
+	return b
+}
+
+// The household's voices that are heard rarely survive a flood of the one heard all the time, the
+// names outlive every entry they were pinned on, and the rewrites stay rare.
+func TestAlbumTrimLimitsPerGroup(t *testing.T) {
 	r := rand.New(rand.NewSource(2))
 	var at int64
 	al := NewAlbum()
-	for _, e := range voice(r, 10, "a", 0.1, &at) {
-		al.Add(e)
+	loud, quiet := baseVoice(r), baseVoice(r)
+	fill(al, r, loud, "a", 10, &at)
+	fill(al, r, quiet, "k", 30, &at)
+	ga, gk := al.GroupOf("a1"), al.GroupOf("k11")
+	al.Rename(ga, "Петя")
+	al.SetHousehold(ga, true)
+	al.SetHousehold(gk, true) // unnamed: the mark alone counts
+	first := al.Entries[0].ID
+
+	trims, sinceLast, most := 0, 0, 0
+	for i := 0; i < 8000; i++ {
+		fill(al, r, loud, "a", 1, &at)
+		sinceLast++
+		if al.Trim() {
+			trims++
+			if trims > 1 && sinceLast < TrimExcess {
+				t.Fatalf("a rewrite only %d requests after the last", sinceLast)
+			}
+			sinceLast = 0
+		}
+		most = max(most, len(al.Entries))
 	}
-	al.Rename(al.GroupOf("a0"), "Петя") // pins a0..a9
-	for _, e := range voice(r, 10, "c", 0.5, &at) {
-		al.Add(e)
+	if trims < 2 || trims > 8000/TrimExcess {
+		t.Errorf("%d trims", trims)
 	}
-	al.Trim(12)
-	if len(al.Entries) != 12 {
-		t.Fatalf("%d entries", len(al.Entries))
+	if most > KeepNamed+30+TrimExcess+1 {
+		t.Errorf("the log grew to %d entries", most)
 	}
-	if al.GroupOf("a0") == "" {
-		t.Error("a pinned entry was dropped before unpinned ones")
+	if al.GroupOf(first) != "" {
+		t.Error("the oldest entry of the voice over its limit is still here")
+	}
+	var a, k *Group
+	for _, g := range al.Groups() {
+		switch g.ID {
+		case ga:
+			a = g
+		case gk:
+			k = g
+		}
+	}
+	if a == nil || a.Name != "Петя" || !a.Home || a.Count < KeepNamed {
+		t.Fatalf("the loud voice lost its group or its name: %+v", a)
+	}
+	if k == nil || !k.Home || k.Count != 30 {
+		t.Fatalf("the quiet voice lost entries: %+v", k)
+	}
+	if len(al.People()) != 2 {
+		t.Errorf("people %d", len(al.People()))
+	}
+	for id := range al.Edits.Pins {
+		if al.GroupOf(id) == "" {
+			t.Fatal("a pin outlived its entry")
+		}
+	}
+}
+
+func TestAlbumTrimUnnamedAndNoise(t *testing.T) {
+	r := rand.New(rand.NewSource(4))
+	var at int64
+	al := NewAlbum()
+	var bases [][]float32
+	for g := 0; g < MaxUnnamed+5; g++ {
+		bases = append(bases, baseVoice(r))
+		fill(al, r, bases[g], fmt.Sprintf("v%d-", g), 2, &at)
+	}
+	fill(al, r, bases[MaxUnnamed+4], "big", KeepUnnamed+TrimExcess/2, &at)
+	for k := 0; k < TrimExcess; k++ {
+		at++
+		al.Add(&Entry{ID: fmt.Sprintf("n%d", k), At: at, Speaker: "s1"})
+	}
+	if !al.Trim() {
+		t.Fatal("no trim")
+	}
+	real := 0
+	for _, g := range al.Groups() {
+		switch {
+		case g.Noise:
+			if g.Count != KeepNoise {
+				t.Errorf("noise %d", g.Count)
+			}
+		case g.Count > KeepUnnamed:
+			t.Errorf("group %s has %d", g.ID, g.Count)
+		default:
+			real++
+		}
+	}
+	if real != MaxUnnamed {
+		t.Errorf("%d unnamed groups", real)
+	}
+	if al.GroupOf("v0-1") != "" {
+		t.Error("the group longest silent stayed")
 	}
 }
 

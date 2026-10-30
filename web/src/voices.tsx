@@ -227,6 +227,7 @@ function Album(p: Props & { v: Voices; reload: () => Promise<void> }) {
           {...p}
           group={sel}
           title={selected ? `Requests of ${L.label(selected.id)}` : 'All requests'}
+          total={selected ? selected.count : v.entries || 0}
           onAll={sel ? () => setSel('') : undefined}
           L={L}
           tick={tick}
@@ -404,6 +405,7 @@ function Log(
   p: Props & {
     group: string
     title: string
+    total: number
     onAll?: () => void
     L: Labels
     tick: number
@@ -413,18 +415,36 @@ function Log(
   },
 ) {
   const [rows, setRows] = useState<VoiceEntry[] | null>(null)
-  const [limit, setLimit] = useState(PAGE)
+  const [loading, setLoading] = useState(false)
+  const [end, setEnd] = useState(false)
   const [err, setErr] = useState('')
   useEffect(() => {
     let live = true
-    api.voiceLog(p.peer.id, p.base, p.group, limit).then(
+    // after an edit: as many rows as were showing
+    api.voiceLog(p.peer.id, p.base, p.group, Math.max(PAGE, rows?.length || 0)).then(
       (r) => live && (setRows(r || []), setErr('')),
       (e) => live && setErr(err2s(e)),
     )
     return () => {
       live = false
     }
-  }, [p.group, limit, p.tick])
+  }, [p.group, p.tick])
+  function more() {
+    if (!rows?.length) return
+    setLoading(true)
+    api.voiceLog(p.peer.id, p.base, p.group, PAGE, rows[rows.length - 1].id).then(
+      (r) => {
+        setRows([...rows, ...(r || [])])
+        setEnd(!r?.length) // the cursor's entry went in a trim, or the log ended
+        setErr('')
+        setLoading(false)
+      },
+      (e) => {
+        setErr(err2s(e))
+        setLoading(false)
+      },
+    )
+  }
   return (
     <section class="card">
       <div class="vlog-head">
@@ -498,9 +518,9 @@ function Log(
           })}
         </ul>
       )}
-      {rows && rows.length >= limit && limit < 3000 && (
+      {rows && !end && rows.length < p.total && (
         <p class="row">
-          <button class="ghost" onClick={() => setLimit(limit + PAGE * 2)}>
+          <button class="ghost" disabled={loading} onClick={more}>
             Show more
           </button>
         </p>

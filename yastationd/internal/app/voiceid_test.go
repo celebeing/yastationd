@@ -2,6 +2,8 @@ package app
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -92,6 +94,46 @@ func TestVoiceGateNeedsSomeoneNamed(t *testing.T) {
 	a.vid.people = nil
 	if a.ignoringGuests() {
 		t.Fatal("with nobody named nothing can be a guest")
+	}
+}
+
+// The log pages from the newest down; a cursor that has gone since gives an empty page.
+func TestVoiceLogPages(t *testing.T) {
+	a := voiceTestApp(t, "1 0 0")
+	c := config.Default()
+	c.SysRoot, c.VoiceStore = t.TempDir(), true
+	a.conf.Store(&c)
+	a.vstore = a.newVoiceStore()
+	for i := 0; i < 5; i++ {
+		ev := voiceEvent{ID: "e" + string(rune('0'+i)), At: int64(i), Speaker: "s1", Transcript: "свет",
+			Verdict: voiceid.Verdict{State: voiceid.Unknown, Secs: 2, Model: "test_tag"}, Emb: packEmb([]float32{1, 0, 0})}
+		b, _ := json.Marshal(ev)
+		a.onVoiceEvent(b)
+	}
+	page := func(q string) string {
+		w := httptest.NewRecorder()
+		a.apiVoiceLog(w, httptest.NewRequest(http.MethodGet, "/api/voices/log?"+q, nil))
+		var rows []struct{ ID string }
+		if err := json.Unmarshal(w.Body.Bytes(), &rows); err != nil {
+			t.Fatal(err)
+		}
+		ids := ""
+		for _, r := range rows {
+			ids += r.ID + " "
+		}
+		return ids
+	}
+	for q, want := range map[string]string{
+		"limit=2":             "e4 e3 ",
+		"limit=2&before=e3":   "e2 e1 ",
+		"limit=2&before=e1":   "e0 ",
+		"limit=2&before=e0":   "",
+		"limit=2&before=gone": "",
+		"limit=9999":          "e4 e3 e2 e1 e0 ",
+	} {
+		if got := page(q); got != want {
+			t.Errorf("%s: %q, want %q", q, got, want)
+		}
 	}
 }
 
