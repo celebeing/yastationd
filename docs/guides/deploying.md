@@ -319,8 +319,8 @@ tweaks without a rebuild: `<cfw>/board.conf` (+ restart).
       one `sendspin-host` when `sendspin = true`.
 - [ ] `<cfw>/bin/` holds what the config asks for: `spotter-host` for wake, `sendspin-host` for
       music, `hostapd` for the Wi-Fi setup mode (a missing helper only shows as a log line).
-- [ ] `yastationd -version` equals the build you deployed (a config key from a newer tree makes the
-      daemon exit 1 on start, not warn).
+- [ ] `yastationd -version` equals the build you deployed (a config key from a newer tree is
+      skipped and logged; a build before v0.18.0 exits 1 on it instead).
 - [ ] Log clean after start: profile, MQTT, Wyoming, health online, clock confirmed/in sync.
 - [ ] HA: device with ring light, display, volume, brightness, mic mute, illuminance, supply voltage;
       the Wyoming satellite shows idle.

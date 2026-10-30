@@ -23,7 +23,7 @@ Go through this for everything that landed since the last tag (`git log <last-ta
 
 1. **Docs match the code.** New areas have a doc and an entry in [docs/index.md](index.md); changed
    behaviour is reflected where it is described; resolved wishlist entries leave it (what is worth keeping goes into their area's doc).
-2. **User-facing:** [README.md](README.md) (and [yastationd/README.md](../yastationd/README.md)) mention what a user meets — features,
+2. **User-facing:** [README.md](../README.md) and [README.en.md](../README.en.md) (and [yastationd/README.md](../yastationd/README.md)) mention what a user meets — features,
    addresses, logins and their defaults, keys to turn things off.
 3. **Deploying:** [docs/guides/deploying.md](guides/deploying.md) lists every file the CFW puts on a speaker and every install
    or update step; `tools/deploy.sh` uploads every binary that must be on the speaker.

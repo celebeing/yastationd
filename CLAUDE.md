@@ -76,7 +76,7 @@ not be recoverable by us. Hence the hard rules:
   cites research instead of repeating it; splitting a doc in two, link the halves both ways. The
   map of the whole: [docs/architecture.md](docs/architecture.md).
 - **Update `docs/` before committing** — when implementation reveals new findings, edge cases, or changes to architecture/decisions, update the relevant docs first, and keep the docs index ([docs/index.md](docs/index.md)) in sync. Docs must stay in sync with the code. If a doc doesn't exist for a new area, create one and add it to the index.
-- **Language** — all committed artifacts (code, comments, identifiers, commit messages, docs, [CLAUDE.md](CLAUDE.md)) are written in **English**. The agent's conversation with the user may be in **any language** — match the user; only the artifacts are English-only. **One exception:** the main [README.md](README.md) is Russian; [README.en.md](README.en.md) is its English twin. Change both together, so they say the same thing.
+- **Language** — all committed artifacts (code, comments, identifiers, commit messages, docs, `CLAUDE.md`) are written in **English**. The agent's conversation with the user may be in **any language** — match the user; only the artifacts are English-only. **One exception:** the main [README.md](README.md) is Russian; [README.en.md](README.en.md) is its English twin. Change both together, so they say the same thing.
 
 ## Adding a feature: follow the house patterns
 
@@ -141,7 +141,7 @@ testing on it.
 ## Sibling-project initialization
 
 - If you create a **sibling project** (anything at `../<name>` outside this repo), don't leave it as a bare folder. Give it the same baseline setup this project has, before writing substantial code into it:
-  - its own [CLAUDE.md](CLAUDE.md) stating the project's purpose, directives, and intended visibility;
+  - its own `CLAUDE.md` stating the project's purpose, directives, and intended visibility;
   - a `docs/` folder with an index ([docs/index.md](docs/index.md)) for design notes and findings;
   - its own initialized git repository with a sensible `.gitignore`.
 - First decide and record the new project's visibility (private vs. public) and apply matching precautions — e.g. keep personal data and internal hostnames/IPs out of anything that may become public.

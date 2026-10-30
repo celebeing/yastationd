@@ -56,7 +56,7 @@ contributor with the speaker is welcome to start from the notes here.
 - **Station 2** (`yandexmidi`, DT `yandex,station-midi`): its firmware `0.369.1.50` studied, no
   profile; see [yandexmidi.md](yandexmidi.md); needs a front `display.Front` for its 89×1
   checkerboard panel.
-- pulsar's [AGENTS.md](../../AGENTS.md) ([pulsar](https://github.com/Morvex885/pulsar), a C++ daemon for the Midi,
+- pulsar's `AGENTS.md` ([pulsar](https://github.com/Morvex885/pulsar), a C++ daemon for the Midi,
   Lite 2 and Mini 2) has hardware notes for those models; its "Midi" is `cucumber`.
 
 ## Porting a new model
