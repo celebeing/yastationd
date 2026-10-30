@@ -31,6 +31,10 @@ Review of 2026-10-28 (whole repo).
 - **Two RSS readings** — `internal/app/vitals.go`: `/metrics` reads `/proc/self/statm` (not under
   `cfg().Path`), `/api/vitals` reads `VmRSS`. Use `readVitals().DaemonRSS` for both. S.
 
+- **`TestIntercomVoiceScenario` fails under `-race`** (found 2026-10-30, fails on `main` as
+  well) — `internal/app`; the plain `go test` passes. Find the race (likely the test's own
+  shared state with the intercom goroutines) before trusting `-race` runs of the package. S–M.
+
 ## Duplication
 
 

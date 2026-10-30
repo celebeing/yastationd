@@ -33,7 +33,8 @@ broker connects or the speaker becomes ready, so a stale probe does not show red
 Every indication on this page is a moment of the default theme (`startup`, `booting`,
 `boot_failed`, `ha_lost` and `ha_back`, `voice_unavailable`, `mic_muted` and `mic_unmuted`;
 [asset-packs.md](asset-packs.md)), so a theme or the board profile (`moment.<name>`) can change it.
-A bad power supply has its own moment, `power_problem` ([health.md](health.md)).
+A bad power supply has its own moment, `power_problem` ([health.md](health.md)). How the mute
+switch reaches `mic_muted`: [input.md](input.md).
 
 ## Config
 

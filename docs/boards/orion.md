@@ -207,7 +207,7 @@ Generic detector limits and the bergamot instance: [docs/research/wakeword-mic-a
 ## Inputs
 
 - The top surface has two concentric capacitive areas driven by `aw933xx` (event3); only the
-  separate mic-mute control is a physical switch.
+  mic-mute control is a separate input device (below).
 - A standalone central glyph tap emits KEY 582 (`KEY_VOICECOMMAND`) press/release → local voice
   turn / HA `voice_command`. A horizontal inner movement is indistinguishable: it also emits only
   a standalone 582 press/release.
@@ -233,9 +233,11 @@ Generic detector limits and the bergamot instance: [docs/research/wakeword-mic-a
   previous crossing 1 %, ≥200 ms 2 %, ≥110 ms 3 %, faster 5 %. (It was one stock 5 % level per
   1/20 turn: through hardvold's dB-linear Master and the stock curve that is ~4 dB a step
   mid-scale, and a quick turn jumped loud; a plain 1 % per 1/100 turn then snapped to the pads.)
-- `mute` (event2) is a physical mic-mute switch and remains authoritative. **Direct capture
+- `mute` (event2) is the mic-mute control; its latch (SW 14) is authoritative. **Direct capture
   2026-10-25:** switching on emits KEY 113 down, SW 14 = 1, KEY 113 up; switching off emits the
-  same key press/release around SW 14 = 0. The switch cuts the microphones.
+  same key press/release around SW 14 = 0. It cuts the microphones. **Held, it does not stay on**
+  (2026-10-26): the latch goes on and ~2 s into the hold back off by itself, so it is not a plain
+  slide switch; the daemon follows the latch ([input.md](../input.md), "The mic mute").
 - `input_btrcu`: Bluetooth remote KEY 116 + 133. `vad_keypad` is vendor-internal and ignored.
 
 ## Bluetooth / BLE

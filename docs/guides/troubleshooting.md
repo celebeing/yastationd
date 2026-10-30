@@ -24,13 +24,32 @@ Before you start:
 |---|---|---|---|---|
 | 1 | The mic-mute switch | an amber ring while muted; HA's mic mute binary sensor; the log says `wake: ignored, mic muted` | read-only | [status-indication.md](../status-indication.md) (`mic_muted`) |
 | 2 | The wake word is on | `wake_enabled` (web app, Voice settings). Off, only the voice key starts a request | read-only to look | [settings.md](../settings.md) |
-| 3 | `spotter-host` is there and running | log at start: `wake: spotter ready` is good; `wake word disabled: spotter binary missing` (never deployed: deploy it), `wake word disabled: board profile has no wake.vqe_preset/model/mics` (a board without a wake profile), `wake: spotter exited, restarting` over and over (it crashes). `ps w` shows one `spotter-host` | read-only | [deploying.md](deploying.md) §6, §7 |
+| 3 | `spotter-host` is there and running | log at start: `wake: spotter ready` is good; `wake word disabled: spotter binary missing` (never deployed: deploy it), `wake word disabled: board profile has no wake.vqe_preset/model/mics` (a board without a wake profile), `wake: spotter exited, restarting` over and over (it crashes: its own errors are not logged, see "Seeing spotter-host's errors" below); neither `ready` nor `exited` after a start: it hangs while loading; `wake: spotter input lagging, dropped blocks` now and then: it runs but can't keep up (CPU). `ps w` shows one `spotter-host` | read-only | [wake-word.md](../wake-word.md), [deploying.md](deploying.md) §6, §7 |
+| 3a | **Mini 3 on firmware 0.6.x only:** the 0.369 libraries and models shipped next to the CFW (`<cfw>/vendor/libs`, `<cfw>/vendor/spotter_model`) are there and `spotter_libs` / `wake_model` / `command_model` in `yastationd.conf` point at them. On 0.369: the model directories the profile names exist (they differ per unit) | `ls` of those directories, `grep` of the config | read-only | [boards/bergamot.md](../boards/bergamot.md) ("Firmware variants") |
 | 4 | Another speaker answered | the log says `arbitration: lost` with the winner's id; the display shows the `arbitration_lost` moment (a glance, then nothing). Normal when two speakers hear you; `arbitration = false` turns it off | read-only | [wake-arbitration.md](../wake-arbitration.md) |
 | 5 | Voice ID dropped it as a guest | Ignore guests is on (`switch.<speaker>_ignore_guests`); HA's `sensor.<speaker>_voice` says `guest` (or `unknown` with `voice_unsure = drop`); the log says `voice id: request ignored`; the `voice_guest` moment | read-only | [voice-id.md](../voice-id.md) |
 | 6 | HA holds the satellite | the log says `voice: no HA satellite connection` and the speaker answers «К сожалению, что-то пошло не так» with a bright red pulse (`voice_unavailable`). Add or reload the Wyoming integration for `<speaker-ip>:10700` | read-only | [ha-assistant-setup.md](ha-assistant-setup.md) §6, §9; [deploying.md](deploying.md) §3 |
 | 7 | A reply is still pending | with `wake_while_waiting = ignore` the log says `wake: ignored, HA is still answering the previous request` and the `wake_busy` moment blinks; the default `interrupt` starts the new request instead | read-only | [voice-slow-replies.md](../voice-slow-replies.md) |
-| 8 | The speaker was playing | `wake: ignored while playing`: its own playback must not wake it | read-only | — |
+| 8 | The speaker was playing | `wake: ignored while playing`: its own playback must not wake it | read-only | [wake-word.md](../wake-word.md) |
 | 9 | The Assist pipeline | it wakes (listening ring) but nothing useful comes back: STT, the agent, the pipeline chosen on the `…_assistant` select | read-only | [ha-assistant-setup.md](ha-assistant-setup.md) §9 |
+
+**Seeing spotter-host's errors.** The daemon throws the child's stderr away
+([wake-word.md](../wake-word.md), "Supervision"). Run in this order, and stop at the first that
+answers:
+
+1. `spotter-host probe <model-dir>` with the libraries on the path
+   (`LD_LIBRARY_PATH=<the profile's wake.libs, or spotter_libs> <cfw>/bin/spotter-host probe <the wake_model dir>`):
+   it loads the model and prints its rate and channels, or the library's error. It opens no
+   audio device and can run beside the daemon. Read-only.
+2. `spotter-host listen` (the live test in [spotter-host/README.md](../../spotter-host/README.md)) needs
+   the capture device the daemon holds: it refuses while `yastationd` captures, and stopping the
+   daemon means stopping the init script as a script on stdin ([deploying.md](deploying.md), "Going
+   back", for the form). Ask the owner first, start the daemon again after, and keep to
+   `probe` when it answers the question.
+
+**A heard «Алиса» lights the ring** (the `listening` cyan pulse, then the thinking comet), unless
+a pack changed it; a dark ring after the word means it was not heard or was ignored (the checks
+above), not that HA failed.
 
 **Wake word or HA?** Press the voice key once (push-to-talk) and ask something. **Makes sound**:
 ask the people in the room first. If push-to-talk works, HA and the pipeline are fine and the
@@ -94,7 +113,7 @@ Explained in: [ha-intercom-setup.md](ha-intercom-setup.md) (setup, the HA script
 
 1. **Which version runs?** HA's Version sensor, the web app's speaker card, or
    `<cfw>/bin/yastationd -version`. Read-only. Two speakers on different versions behave
-   differently; deploy all with `tools/deploy.sh`.
+   differently (bringing them level with `tools/deploy.sh` is a change: ask first).
 2. **Did the supervisor swap back?** Look for `=== supervise: …` lines in the log (`… swapped in
    .prev (bad binary kept as .bad)`) and for `<cfw>/bin/yastationd.bad`. After 5 short crashes in a
    row the supervisor puts `yastationd.prev` back, so the speaker may be running the *previous*
@@ -104,6 +123,12 @@ Explained in: [ha-intercom-setup.md](ha-intercom-setup.md) (setup, the HA script
    Read-only.
 4. **The CHANGELOG** for what changed between the two versions (a renamed key, a new default).
 
+**A wake-word regression after an update can be in either binary:** the daemon (the wake path in
+`internal/wake`, its config keys) or `spotter-host`, which has no `.prev`: swapping the daemon
+back (below) leaves the new `spotter-host` in place. `tools/deploy.sh` never touches the vendor
+models or libraries, so those change only by a config edit (`wake_model`, `spotter_libs`). Look at
+the "No reaction" checks 3 and 3a first.
+
 **Rolling back: what exists and what does not.**
 
 - The automatic swap to `yastationd.prev` on a crash loop exists and has been exercised. Each
@@ -111,9 +136,12 @@ Explained in: [ha-intercom-setup.md](ha-intercom-setup.md) (setup, the HA script
   ("Supervisor") also gives the manual form of that same swap (run as a script on stdin, §4).
 - **Only the daemon** has a `.prev`. `tools/deploy.sh` overwrites `spotter-host`,
   `sendspin-host` and `hostapd` in place; the old helpers are gone.
-- **A manual rollback to an older release has not been worked through by the maintainers.** There
-  is no procedure; the safer way back is to fix forward or redeploy a known build with
-  `tools/deploy.sh`.
+- The manual swap uses up the only `.prev`: copy `yastationd` aside first if you may want the
+  newer build back.
+- **Only the daemon can be swapped back by hand** ([deploying.md](deploying.md), "Going back").
+  **A rollback of a whole release** (the daemon and its helpers) **has not been worked through by
+  the maintainers**: deploying an older tag's checkout with `tools/deploy.sh` should do it, but
+  nobody has tried. Fix forward when you can, and tell the owner before trying it.
 - **Config compatibility:** since v0.18.0 the daemon loads its config leniently (an unknown key is
   logged and skipped, [settings.md](../settings.md)). A build **older than v0.18.0** refuses a
   config with a key it does not know (`load config err="…: unknown key"`, exit 1) and then

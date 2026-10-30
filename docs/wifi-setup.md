@@ -181,7 +181,8 @@ Init runs `S40wifi` → `S41dhcpcd` → … → `S52zyastationd` in order:
 - **pickle:** working (same keys, same driver family; kernel 5.4, the 32-bit hostapd runs fine).
 - **orion:** working (2026-10-26: the access point came up, a phone joined and got its address,
   "Connect now" restored the Wi-Fi client). The combo became "muted + voice" for it; its mute
-  flips back by itself ~2 s into a hold, so only the voice press needs it.
+  flips back by itself ~2 s into a hold, so only the voice press needs it
+  ([input.md](input.md), "The mic mute").
 
 ## Not done
 

@@ -52,7 +52,7 @@ in the registry (`config.Groups`, `Page`), so a new key only picks a section:
 
 | Tab | Sections |
 |---|---|
-| General | Display (with HA's display options), Ambilight, Sound, Video, a new speaker's first values |
+| General | Display (with HA's display options), Theme (the packs in force), Ambilight, Sound, Video, a new speaker's first values |
 | Voice | the wake word, the dialog with HA (follow-up, the reply deadline, a wake word while waiting), which speaker answers, voice ID (who is talking, ignoring guests; [voice-id.md](voice-id.md)), the voice front-end's hardware |
 | Moments | what the speaker shows for each event (display-expressions.md) |
 | Home integration | Identity (name, ID, board), Home Assistant (MQTT, room sound sensors, Wyoming, health probes), Web app, Time, Logs. Usually set once |
@@ -61,6 +61,12 @@ in the registry (`config.Groups`, `Page`), so a new key only picks a section:
 | Calibration | the light sensor (its own tool) and the mic's dB SPL offset |
 | Wi-Fi | the saved networks, the setup mode's settings, and what happens when the connection is lost (the reboot watchdog, Wi-Fi recovery). Always there, so the setup mode can be turned on from it |
 | Login | the web login |
+
+**A key no section fits.** Put it in the section an owner would look in for that topic, not the
+one whose mechanism it shares (a temperature warning is about the speaker's health, not the
+Wi-Fi page's "when the connection is lost"). When none is about its topic, add a section to
+`config.Groups` on the page it belongs to and say why in the commit; a whole new feature may get
+its own page. Never a section or page per mechanism ("MQTT", "Timers").
 
 There is no Advanced page: on every page the keys marked `Advanced` (rarely touched: ports, paths,
 timing knobs, first-start values, overrides of the board's hardware profile) are folded under

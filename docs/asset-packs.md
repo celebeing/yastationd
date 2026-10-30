@@ -92,6 +92,43 @@ places other assistants beep.
 Station 3's profile keeps its old silence: `moment.volume_change`, `moment.announce` empty and
 `moment.voice_unavailable = ring:unavailable` (orion.conf).
 
+### What a default can use
+
+**Ring effects** (`internal/app/effects.go`). Named: `listening` (cyan pulse), `thinking` (white
+comet), `speaking` (green pulse), `error` (red blink), `success` (green flash), `boot` (cyan
+comet), `waiting` (dim slow white comet), `busy` (white flash), `rainbow`, and the status rings
+(`statusEffects`): `mute` (solid amber), `booting` (blue pulse), `boot_failed` (red pulse),
+`degraded` (dim red pulse), `unavailable` (fast red pulse), `calling` (green comet),
+`call_ringing` (green blink), `in_call` (slow blue pulse), `call_end` (white flash), `alarm`
+(amber blink), `setup` (yellow comet), plus `waiting`, `busy` and `success` from the first list. Shapes in any colour and period (`colourEffects`):
+`pulse`, `comet`, `blink`, `flash`, `solid`. A new status gets a named ring (added to
+`statusEffects`, so the moments editor offers it) rather than a shape with a colour in the
+default theme. Keep the colours' meaning in the effects above: amber = muted or
+attention, red = something wrong, yellow = the Wi-Fi setup mode, blue = booting or in a call, green = a call or success, cyan
+and white = the voice stages.
+
+**Stock sounds** (`SOUNDS` in `yastationd/Makefile`: `make sounds` copies them from the speaker's
+own firmware and decodes them into `<cfw>/sounds/`; a name the firmware lacks is skipped). Found
+in our firmware dumps:
+
+| Sound | Mini 3 (0.369) | Mini 3 Pro | Station 3 |
+|---|---|---|---|
+| `volume_sound`, `notification_sound`, `something_went_wrong`, `no_power` | yes | yes | yes |
+| `calls_connected`, `calls_ended`, `calls_busy`, `calls_ringing_incoming`, `calls_ringing_outgoing` | yes | yes | yes |
+| `backend_unavailable` | yes | — | — |
+| `battery_hot` (not in `SOUNDS`) | — | yes | — |
+
+So a default that names a sound only one board has needs a fallback (`battery_hot|notification_sound`),
+and a new stock sound is a line in `SOUNDS` plus a row here. The firmware's other phrases (the
+whole TTS bank) are listed in [research/tts-decompile.md](research/tts-decompile.md); they are the
+vendor's audio, so they are taken from the speaker at install time and never committed.
+
+**Sound in a new moment.** A moment that fires without the owner doing something (a monitor, a
+timer, a peer) makes the speaker speak up on its own, at any hour, on every unit. So its default
+is seen, not heard (a ring, an expression), unless the event needs to be heard (a call, a timer,
+a supply that can't power the amp); the owner can add a sound in the Moments editor. Test a
+moment with sound only on the unit the owner names ([CLAUDE.md](../CLAUDE.md)).
+
 **Regression.** `internal/app/regress_test.go` pins every reaction moved into moments to what the
 code before did (slot, priorities, TTL, the effect's colour and period, the clip or its
 fallback, the sound and how it plays, the conditions), with no packs and no owner's moments; a

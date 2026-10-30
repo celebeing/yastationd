@@ -52,7 +52,7 @@ as data. Claims are tagged **(observed)** when they come straight from bytes, di
   - **Stock Kaldi/Vosk: no.** They cannot load these graphs, and Kaldi's decoder is the wrong tool anyway.
   - The local thresholds assume cloud re-validation and the 2nd stages. A standalone «Алиса» will show **more false
     accepts** than stock until it is re-thresholded on your own negatives.
-  - **Recommendation** (superseded 2026-10-30: Path A shipped; the vendor spotter shipped instead of microWakeWord ([wake-word.md](../wake-word.md), "Why the vendor spotter")): keep microWakeWord as the sovereign default. Run Path A as an A/B, because Yandex's «Алиса»
+  - **Recommendation** (superseded 2026-10-30: Path A shipped; the vendor spotter shipped instead of microWakeWord ([wake-word.md](../wake-word.md#decision-record-the-vendor-spotter-not-microwakeword))): keep microWakeWord as the sovereign default. Run Path A as an A/B, because Yandex's «Алиса»
     model was trained on far more real far-field data than a TTS-trained MWW model is likely to be. Go to Path B
     only if Path A works well enough to justify removing the blob.
 

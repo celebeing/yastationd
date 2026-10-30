@@ -91,7 +91,14 @@ in Wi-Fi setup mode). It climbs the ladder the firmware's own `WifiWatcher` clim
    `/usr/bin/yandex-wifireset`, which stops wpa_supplicant and Bluetooth, unloads the Wi-Fi
    driver, cycles the SDIO power (`wifi_power 0/1`), loads the driver and starts them again. This
    is what a hung Wi-Fi chip needs ("fw recovery not finish" in the kernel log: the black Mini
-   2026-10-27, the chip's firmware died and the driver could not bring it back);
+   2026-10-27, the chip's firmware died and the driver could not bring it back). Seen working on
+   the lilac Mini (bergamot, firmware 0.369) on 2026-10-30: the link dropped and the speaker lost
+   its DHCP lease (a `169.254.x.x` address), step 1 did nothing (`wpa_cli` itself answered
+   `'RECONFIGURE' command timed out` after 10 s), and 30 s after this step it was back on the
+   LAN, MQTT and HA's satellite connection included, 5 min after the drop, no reboot. The
+   script exits 1 on bergamot even when it works (its Bluetooth init can't write
+   `/sys/kernel/debug/bluetooth/hci0/supervision_timeout`): judge it by the network coming back,
+   not by its exit code;
 3. down `net_watchdog_min`: it logs the kernel's last 40 lines, flushes the spool and reboots.
    Each watchdog reboot doubles the next wait (10 → 20 → 40 min … up to 4 h, counted in
    `<cfw>/netwatch.count`, measured in uptime because a mini's clock is stale after a reboot); an

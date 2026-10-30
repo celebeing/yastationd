@@ -96,7 +96,8 @@ model directory's `flags.txt` (`thresholds`, `subthresholds`; e.g. bergamot's ac
 pickle's built-in 0.81 / 0.405, [research/spotter-decompile.md](research/spotter-decompile.md) §5,
 §9; [boards/pickle.md](boards/pickle.md)). What can be done today:
 
-- **Re-threshold a copy.** Copy the model directory under `<cfw>`, edit `thresholds` in its
+- **Re-threshold a copy.** Copy the model directory under `<cfw>` (check the free space first:
+  orion's verifier `model.nb` alone is 16.9 MB; [storage.md](storage.md) has each board's room), edit `thresholds` in its
   `flags.txt`, and point `wake_model` (or `command_model`) at the copy's absolute path, then restart.
   The code supports this path: the key replaces `wake.model`, which goes to `-a` as is, and the
   library reads the directory's `flags.txt` (`spotter_conf_read`). **Not yet done on any unit**, so
@@ -149,8 +150,10 @@ thresholds can only be tuned through `flags.txt`, not retrained.
 
 **When to revisit:** if false accepts prove too high and re-thresholding a copy does not fix them;
 for a custom wake word; for a board whose firmware lacks a usable front-end; or to drop the blob.
-Another engine needs only a host speaking the serve contract above (`spotter_bin` points at it);
-the daemon does not change ([porting-a-speaker.md](porting-a-speaker.md) §4, "Contract").
+Another engine needs only a host speaking the serve contract above (`spotter_bin` points at it),
+the whole of it: the VQE's streams too (fd 3 `vqe_0` for the requests sent to HA, fd 4 the
+intercom's uplink), not only the `WAKE`/`CMD` lines, or requests and calls lose their echo
+cancellation; the daemon does not change ([porting-a-speaker.md](porting-a-speaker.md) §4, "Contract").
 
 ## Not measured / open
 

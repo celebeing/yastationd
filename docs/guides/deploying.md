@@ -47,14 +47,18 @@ scripts branch on its existence.
 
 The vendor's own files stay untouched, except the two reversible guards below.
 
-**Supervisor** (`yastationd/init.d/supervise.sh`; the header has the full contract). An agent exit
+### Supervisor
+
+`yastationd/init.d/supervise.sh` keeps the daemon up (its header has the full contract). An agent exit
 with status 0 (SIGTERM/SIGINT) is deliberate and restarted after 1 s. Anything else is a crash:
 restart after 2 s, doubling up to 60 s. After 5 crashes in a row, each within 5 min of the start, it
 swaps in `yastationd.prev`. If that crash-loops too, it keeps retrying every 5 min. There is no
 fallback to the vendor stack: the speaker stays without an agent rather than wake the vendor code.
 The log shows `=== start`, `=== exit <rc> after <n>s` and `=== supervise: …` lines.
 
-**Going back.** Only this automatic swap of the daemon has been exercised. Every deploy keeps the
+### Going back
+
+Only this automatic swap of the daemon has been exercised. Every deploy keeps the
 daemon it replaced as `yastationd.prev`; `spotter-host`, `sendspin-host` and `hostapd` are
 overwritten with no copy kept. Putting the previous daemon back by hand is the same swap; send it as
 a script on stdin, never as one ssh command line (the init script's `stop` matches the binary's

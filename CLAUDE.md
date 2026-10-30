@@ -1,9 +1,18 @@
 # CLAUDE.md — yastationd (the CFW)
 
 Custom firmware layer (CFW) that turns owned smart speakers (`bergamot` = Station Mini 3,
-`pickle` = Station Mini 3 Pro, …) into offline Home Assistant speakers: the on-device agent
-`yastationd` + the voice front-end host `spotter-host`. What it does: [README.md](README.md). Porting it to a
-new model: [docs/porting-a-speaker.md](docs/porting-a-speaker.md). Installing/updating it on a speaker: [docs/guides/deploying.md](docs/guides/deploying.md). **Connection details: `ACCESS.local.md` (gitignored).**
+`pickle` = Station Mini 3 Pro, `orion` = Station 3) into offline Home Assistant speakers: the on-device agent
+`yastationd` + the voice front-end host `spotter-host`. What it does: [README.md](README.md). Where to start, by task:
+
+- a feature: [docs/adding-a-feature.md](docs/adding-a-feature.md); a bug: [docs/fixing-a-bug.md](docs/fixing-a-bug.md);
+  a new model: [docs/porting-a-speaker.md](docs/porting-a-speaker.md);
+- an owner's how-to (connect HA, music, calls, send diagnostics): [docs/guides/README.md](docs/guides/README.md);
+- something wrong on a unit: [docs/guides/troubleshooting.md](docs/guides/troubleshooting.md); installing/updating:
+  [docs/guides/deploying.md](docs/guides/deploying.md);
+- a change to the docs only: [docs/README.md](docs/README.md) (what goes where, links, the check) and the
+  public-repo rules at the end of this file; the rest of it is about code and devices.
+
+**Connection details: `ACCESS.local.md` (gitignored).**
 
 **Scope.** The CFW's functionality, researching new speakers and adapting the CFW to them, and
 keeping the vendor's code from running or talking to the internet. **Out of scope:** how shell access
@@ -71,8 +80,9 @@ not be recoverable by us. Hence the hard rules:
 - **Read `docs/` before planning** — always consult existing research, findings, and design docs before proposing changes or starting new work. Start from the docs index ([docs/index.md](docs/index.md), the specs) to find the relevant document; user guides and research have their own indexes ([docs/guides/README.md](docs/guides/README.md), [docs/research/README.md](docs/research/README.md)), read when the task touches them. The docs contain hard-won knowledge about API quirks, country-specific parsing rules, and known limitations.
 - **Specs, guides and research are apart** ([docs/README.md](docs/README.md)): a doc in `docs/` describes what is
   built (update it with the code); user guides (install, HA setup, diagnostics) go to
-  `docs/guides/`; findings, decompiles, measurements and designs we chose against go to
-  `docs/research/`. Each folder has its own index; [docs/index.md](docs/index.md) lists only the specs. A spec
+  `docs/guides/`; findings, decompiles and designs we chose against go to `docs/research/`;
+  a measurement goes where its subject is (one model's hardware → its board doc, a feature's →
+  its spec; `docs/README.md`). Each folder has its own index; [docs/index.md](docs/index.md) lists only the specs. A spec
   cites research instead of repeating it; splitting a doc in two, link the halves both ways. The
   map of the whole: [docs/architecture.md](docs/architecture.md).
 - **Update `docs/` before committing** — when implementation reveals new findings, edge cases, or changes to architecture/decisions, update the relevant docs first, and keep the docs index ([docs/index.md](docs/index.md)) in sync. Docs must stay in sync with the code. If a doc doesn't exist for a new area, create one and add it to the index.

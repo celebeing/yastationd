@@ -15,7 +15,7 @@ import (
 
 // Wi-Fi setup mode from the keys (docs/wifi-setup.md): with the mic muted, the voice key held for
 // setupHold enters it, and the same again leaves it. The same on every board — orion has no
-// volume keys, and its mute is a switch that cannot be held. While it lasts, the ring runs a yellow
+// volume keys, and its mute flips back by itself when held (setupKey). While it lasts, the ring runs a yellow
 // comet and the front display shows wide-open eyes with a dot ("O  O°"), above everything else.
 
 const setupHold = 5 * time.Second

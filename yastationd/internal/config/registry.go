@@ -358,11 +358,11 @@ func init() {
 		overrideV("mic_channel", intV(0, 15, func(c *Config) *int { return &c.MicChannel })))
 	reg(Key{Name: "mic_pdm_gain", Group: "voice", Label: "Mic PDM gain", Advanced: true, Doc: "Overrides the board's; -1 leaves it."},
 		overrideV("mic_pdm_gain", intV(-1, 48, func(c *Config) *int { return &c.MicPDMGain })))
-	reg(Key{Name: "spotter_libs", Group: "voice", Label: "Vendor libraries", Advanced: true, Doc: "Overrides the board's."},
+	reg(Key{Name: "spotter_libs", Group: "voice", Label: "Vendor libraries", Advanced: true, Doc: "The directory with the firmware's voice front-end libraries, over the board's (a Mini 3 on 0.6.x firmware uses the 0.369 ones copied next to the CFW). Empty uses the board's (docs/wake-word.md)."},
 		overrideV("spotter_libs", textV(func(c *Config) *string { return &c.SpotterLibs }, nil)))
-	reg(Key{Name: "wake_model", Group: "voice", Label: "Wake word model", Advanced: true, Doc: "Overrides the board's."},
+	reg(Key{Name: "wake_model", Group: "voice", Label: "Wake word model", Advanced: true, Doc: "The «Алиса» spotter model directory on the speaker, over the board's: point it at a copy with tuned thresholds to make the wake word more or less sensitive (docs/wake-word.md). Empty uses the board's."},
 		overrideV("wake_model", textV(func(c *Config) *string { return &c.WakeModel }, nil)))
-	reg(Key{Name: "command_model", Group: "voice", Label: "Command model", Advanced: true, Doc: "Overrides the board's."},
+	reg(Key{Name: "command_model", Group: "voice", Label: "Command model", Advanced: true, Doc: "The command spotter's model directory («стоп», «громче», «тише» while playing), over the board's. Empty uses the board's (docs/wake-word.md)."},
 		overrideV("command_model", textV(func(c *Config) *string { return &c.CommandModel }, nil)))
 
 	// --- voice id ---

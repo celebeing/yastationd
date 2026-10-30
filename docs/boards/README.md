@@ -22,7 +22,7 @@ cross over (below). The same table, for users, is in the main [README](../../REA
 Known vendor codenames (the VQE presets compiled into `libyandex_evil.so`) — from the
 0.369 armhf lib via `strings`, **plus** the 3.21 aarch64 lib where the names are built from
 immediates (`mov`/`movk`) and invisible to `strings`: `bergamot`, `cucumber`, `plum`,
-`yandexmini`/`mini43`/`mini50`/`mini55`/`mini65`, `yandexmidi`, `pickle`, `orion`, `nebula`,
+`yandexmini`/`mini43`/`mini50`/`mini55`/`mini65`, `yandexmini_2` (the Mini 2's), `yandexmidi`, `pickle`, `orion`, `nebula`,
 `potato`, `mango` (+ `rev1..rev5` and 16/48 kHz variants). A model whose codename is in that
 list very likely needs **no audio-front-end reversing** — just `wake.vqe_preset = <codename>` and
 its own channel layout. (bergamot's sysfs also has a `cucumber:sync:clock-0` LED, i.e. the

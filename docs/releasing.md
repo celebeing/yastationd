@@ -46,6 +46,8 @@ Go through this for everything that landed since the last tag (`git log <last-ta
 ## Cutting a release
 
 1. Update [CHANGELOG.md](../CHANGELOG.md): a new `## vX.Y.Z — date` section on top, what changed for a user.
+   It is written now, from `git log <last-tag>..` (the commit messages say what a user saw and
+   why); there is no `Unreleased` section between releases.
 2. Commit it.
 3. Tag, signed with the same SSH key as the commits: `git tag -s vX.Y.Z -m "vX.Y.Z"`.
 4. Push the commit and the tag to both remotes: `git push gitea main vX.Y.Z`, then

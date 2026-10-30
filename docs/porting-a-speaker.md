@@ -5,6 +5,11 @@ work on it. Scope: **the CFW's functionality on the device**: hardware, audio, v
 the CFW gets onto a device is out of scope here. This guide assumes you already have a root shell on
 the unit (SSH) and, ideally, a full firmware dump.
 
+**Start from a known model:** the Station Mini 2, the Station Midi and the Station 2 already have
+a brief (what is known of their hardware, what the profile can't say yet) in
+[boards/README.md](boards/README.md), "Possible ports nobody here is doing". Read it before the
+survey (and after step 0 below: an online unit can be updated at any moment).
+
 Read first: [boards/README.md](boards/README.md) (the supported boards, the profile mechanics,
 Yandex's codenames and which models are which),
 [boards/_template.md](boards/_template.md), and the two worked examples:
@@ -59,7 +64,11 @@ anything else on a unit that ran the stock firmware, do [guides/deploying.md](gu
 §0 with the owner: the reversible gate that keeps the vendor stack from starting, the update
 block, and the internet blocked at two layers (the egress lock on the device and a rule on the
 router). The router rule changes nothing on the device, so it can go first, while you read the rest. Check `/bkupgrade` (it decides `<cfw>`) and whether the firmware has `iptables` before
-you start; ask before any rootfs write and keep the `.orig` backups. The stack stays stopped from
+you start, and read the firmware's init chain statically to confirm that
+`/system/vendor/quasar/run.sh` is what starts the vendor stack on this model before gating it.
+The Makefile's step-0 targets (`deploy-egress`, `ota-block`) take `<cfw>` from the profile of
+`PLATFORM`, which defaults to `bergamot` (`/bkupgrade/cfw`): with no profile for the new model
+yet, pass `DESTDIR=<cfw>` (and `PLATFORM` of the closest arch) explicitly; ask before any rootfs write and keep the `.orig` backups. The stack stays stopped from
 then on, which is also what the input and mic captures below need.
 
 ## 1. Collect the inputs
@@ -90,22 +99,12 @@ then fold them into the profile.
 
 | Section / keys | Where the answer comes from | Watch out for |
 |---|---|---|
-| `name`, `model`, `match` | `/proc/device-tree/compatible` | `match` is one compatible string (`yandex,<codename>`), used for auto-detection |
+| `name`, `model`, `match` | `/proc/device-tree/compatible` | `match` lists the compatible strings as the device tree has them (usually `yandex,<codename>`, but the Mini 2's is `yandex,station-mini2`); used for auto-detection |
 | `platform.cfw_root`, `platform.userland_arch` | writable persistent mounts; `file` on a vendor executable | CFW root is `/bkupgrade/cfw` or `/data/cfw`; never create a missing `/bkupgrade`. Helper arch is the userland ABI (`armhf` or `aarch64`), not necessarily the kernel architecture |
 | `platform.wifi_reset` | the firmware's `/usr/bin/yandex-wifireset` (what its `WifiWatcher` runs; `strings maind`) | the Wi-Fi controller reset the network watchdog runs before rebooting ([storage.md](storage.md)); empty = none |
-| `platform.rtc_backed` | after a power cut of some minutes, `dmesg \| grep rtc` at boot ("setting system clock to …" right to the second, no low-voltage warning) | `true`: the clock shows the time before the SNTP check (orion) |
-| `platform.stop_initd` | `ps w` with the vendor stack gated: vendor processes that still draw on a surface (boot-animation players) | init.d scripts whose own `stop` the daemon runs at startup (orion: `S31animation`) |
-| `moment.<name>` | what the board's displays can show (its expressions and stock patterns), what it should sound like | per-board choice for a CFW moment (pictures, `sound:`/`phrase:`/`ring:` references; empty = nothing), overriding the display kind's defaults and the default theme ([display-expressions.md](display-expressions.md), "Moments"; [asset-packs.md](asset-packs.md)). The stock sounds are played by name from `<cfw>/sounds` (`make sounds`), so a board needs no sound keys |
-| `matrix.backlight` | `/sys/class/backlight/*` whose device is the screen | a sysfs brightness (0..255) that dims the whole screen: the display level goes there and frames keep their half-tones (orion: `fb1`) |
-| `matrix.min_brightness` | the dimmest level still readable in a dark room, on glass | the dimmest auto brightness unless `auto_brightness_min` is set, the default curve's darkest point, and the manual level's floor (bergamot, pickle 4; orion 2) |
-| `matrix.default_mode` | — | the front display mode of a fresh state: `clock` (default), `clock_date`, `off` |
-| `ring.kind/pixels/led/colors` | `/sys/class/leds` names, DT `led-controller` nodes and their labels | `{color}`/`{i}` pattern. The daemon takes the LEDs over from their default trigger (`trigger` = `none`). Pixel index = DT label number; physical order around the ring may differ (check visually). A model may have a second small "logo" ring; pick the main one. Only `sysfs-rgb` exists today (see §5 for new kinds) |
-| `ambilight.kind/pixels/led/colors/dies` | `/sys/class/leds` names and a visual index probe | Optional rear RGBW strip. `sysfs-rgbw` expands `{color}`/`{i}`/`{die}`; all listed dies at one logical position receive the same value. Verify physical index direction and whether dies are co-located |
-| `ambilight.fb` | `/sys/class/graphics/fb*/name` | Optional: the ledfb framebuffer that takes the strip in one write (orion: `ambilight`). Worth it for effects: [ambilight-stream.md](ambilight-stream.md) |
-| `ambilight.primaries`, `ambilight.response` | a measurement ([ambilight-color.md](ambilight-color.md)) | Optional colour calibration: R, G, B, W at full as `x y Y` (Y relative to W), and the drive level → light table. Without it the HA light's colours go out uncorrected |
-| `ambilight.fb_format`, `ambilight.fb_compatible` | the fb's `bits_per_pixel`, its device-tree node's `compatible`, the driver's `of_match` strings | `rgb48` (B,G,R 16-bit LE; W on sysfs; default) or `rgbw64` (B,G,R,W). With `fb_compatible`, a runtime device-tree overlay sets the node's compatible and the driver is rebound (orion: `yandex,ledfb-rgbw64`); needs the kernel's configfs overlays |
+| `ring.kind/pixels/led/colors` | `/sys/class/leds` names, DT `led-controller` nodes and their labels | `{color}`/`{i}` pattern. The daemon takes the LEDs over from their default trigger (`trigger` = `none`). Pixel index = DT label number; physical order around the ring may differ (check visually). `{i}` (and the seg7 `{digit}`) count from 0, and there is no index base key yet: a board whose LED names start at 1 (the Mini 2's `ring{1..6}`) needs that code change first: the names are expanded in `internal/hw/sysfs.go` (`NewRing`, the seg7 and ambilight builders), so a new profile key parsed in `board.go` and used there, tests on both sides, a row here. A model may have a second small "logo" ring; pick the main one. Only `sysfs-rgb` exists today (see §5 for new kinds) |
 | `matrix.*` | `/sys/class/leds/*clock*` or `/sys/class/graphics/fb*/name` | `seg7` = 4 digits × segments A–G (`{seg}{digit}`), colon LEDs, dot, degree. `dotmatrix-fb` = framebuffer whose name contains `LED screen`; geometry/stride/RGB offsets come from fbdev ioctls. Its animations are the firmware's screen patterns (`clips.dir` → `ledpatterns/screen`, mapped to expressions in `pixelAnims`, `internal/display/front.go`; `matrix.gamma` = the screen gamma from quasar.cfg `leds`); scenes without a pixel drawing fall back to the seg7 picture via `Seg7ToPixels`. `matrix.dev` optionally pins `/dev/fbN`. Extra seg7 segments (pickle has an `H`) can stay unused |
-| `input.device`, `key.N`, `switch.N`, `abs.N`, `abs_range.N` | `/proc/bus/input/devices` (`N: Name=`, `B: KEY=`/`SW=`/`ABS=` bitmaps), `EVIOCGABS`, and isolated evdev captures | Names are matched **exactly**. Decode bitmaps without pressing anything, then capture each physical control with the vendor stack stopped. Key actions: `volume_up`, `volume_down`, `voice`, `mute_key`, `panel_gesture`; switch: `mic_mute`; absolute action: `volume_ring`. `volume_ring` normally obtains its range with `EVIOCGABS`; if captured values prove that metadata wrong (Orion reports 0..3 but emits 0..1000), pin the verified `min,max` with `abs_range.N` |
+| `input.device`, `key.N`, `switch.N`, `abs.N`, `abs_range.N` | `/proc/bus/input/devices` (`N: Name=`, `B: KEY=`/`SW=`/`ABS=` bitmaps), `EVIOCGABS`, and isolated evdev captures | Names are matched **exactly**. Decode bitmaps without pressing anything, then capture each physical control with the vendor stack stopped. Key actions: `volume_up`, `volume_down`, `voice`, `mute_key`, `panel_gesture`; switch: `mic_mute`; absolute action: `volume_ring`. `volume_ring` normally obtains its range with `EVIOCGABS`; if captured values prove that metadata wrong (Orion reports 0..3 but emits 0..1000), pin the verified `min,max` with `abs_range.N`. What the daemon does with each action and the mute latch: [input.md](input.md). Touch through a SAR sensor instead of a key controller (the Mini 2's AW96103) is unexplored: find out read-only whether it reports evdev keys before planning on it |
 | `audio.playback/card/volume/volume_max` | `asound.conf`, named controls (`amixer -c0 cget name=…`; the names from the firmware dump's configs and `dmesg`), `/etc/hardvold.config` | **Never `amixer contents`** (or `controls`/`scontents`, or a loop over every control): a full dump froze a bergamot's kernel in its codec driver ([diagnostics.md](guides/diagnostics.md)); `tools/orion-verify.sh` takes one only with `FULL_MIXER=1`. Prefer the stock dmix `default`. The master control is often created by a vendor volume daemon from its own config |
 | `audio.unmute` | codec controls, `dmesg` of the amp driver while playing | **`cget` readback can lie** (it does on the ACM8625: it reads `1` while the driver logs `mute=0`). Verify by ear, with the user's OK |
 | `audio.volume_map` | `quasar.cfg` `volume_capability.volume_manager_settings.platformToAlsaMap` | Stock curve, `level:raw` points, 20 levels = 100 % (`changeStepPercent` 5). HA's percent, the keys (one level each) and the display all follow it. Without it the curve is a straight line over the raw range, which leaves the inaudible bottom as a dead zone. No map in the config: compare `volumeDbLevels` with a model that has one |
@@ -113,8 +112,23 @@ then fold them into the profile.
 | `audio.mic_gain`, `mic_gain_value` | PDM/ADC gain controls | Gains often boot at 0. A hardware mic switch can cut the mics entirely (exact zeros); check the switch before concluding that capture is broken |
 | `mic.device/channels/rate/voice` | the vendor capture device (§3) | Open the device with the channel count the hardware frame really has. A few seconds in silence and a few while it plays tell the live mics from copies and from the speaker feedback (the echo reference) |
 | `wake.*` | §4 | |
-| `power.pd/min_mv` | `/sys/class/power_supply/*` | Each PD read makes the driver re-query (and log), so poll rarely. Below `min_mv` the `power_problem` moment plays the stock `no_power` line (vendor sounds may be opus even when named `.wav`; `make sounds` decodes them) |
 | `lux.iio_prefix/gain/integration_time` | `/sys/bus/iio/devices/*/name`, `*_available` | Behind a grille the stock gain gives a couple of counts; raise gain/integration |
+
+**Optional and board-specific keys** (skip what the board doesn't have):
+
+| Section / keys | Where the answer comes from | Watch out for |
+|---|---|---|
+| `platform.rtc_backed` | after a power cut of some minutes, `dmesg \| grep rtc` at boot ("setting system clock to …" right to the second, no low-voltage warning) | `true`: the clock shows the time before the SNTP check (orion) |
+| `platform.stop_initd` | `ps w` with the vendor stack gated: vendor processes that still draw on a surface (boot-animation players) | init.d scripts whose own `stop` the daemon runs at startup (orion: `S31animation`) |
+| `moment.<name>` | what the board's displays can show (its expressions and stock patterns), what it should sound like | per-board choice for a CFW moment (pictures, `sound:`/`phrase:`/`ring:` references; empty = nothing), overriding the display kind's defaults and the default theme ([display-expressions.md](display-expressions.md), "Moments"; [asset-packs.md](asset-packs.md)). The stock sounds are played by name from `<cfw>/sounds` (`make sounds`), so a board needs no sound keys |
+| `matrix.backlight` | `/sys/class/backlight/*` whose device is the screen | a sysfs brightness (0..255) that dims the whole screen: the display level goes there and frames keep their half-tones (orion: `fb1`) |
+| `matrix.min_brightness` | the dimmest level still readable in a dark room, on glass | the dimmest auto brightness unless `auto_brightness_min` is set, the default curve's darkest point, and the manual level's floor (bergamot, pickle 4; orion 2) |
+| `matrix.default_mode` | — | the front display mode of a fresh state: `clock` (default), `clock_date`, `off` |
+| `ambilight.kind/pixels/led/colors/dies` | `/sys/class/leds` names and a visual index probe | Optional rear RGBW strip. `sysfs-rgbw` expands `{color}`/`{i}`/`{die}`; all listed dies at one logical position receive the same value. Verify physical index direction and whether dies are co-located |
+| `ambilight.fb` | `/sys/class/graphics/fb*/name` | Optional: the ledfb framebuffer that takes the strip in one write (orion: `ambilight`). Worth it for effects: [ambilight-stream.md](ambilight-stream.md) |
+| `ambilight.primaries`, `ambilight.response` | a measurement ([ambilight-color.md](ambilight-color.md)) | Optional colour calibration: R, G, B, W at full as `x y Y` (Y relative to W), and the drive level → light table. Without it the HA light's colours go out uncorrected |
+| `ambilight.fb_format`, `ambilight.fb_compatible` | the fb's `bits_per_pixel`, its device-tree node's `compatible`, the driver's `of_match` strings | `rgb48` (B,G,R 16-bit LE; W on sysfs; default) or `rgbw64` (B,G,R,W). With `fb_compatible`, a runtime device-tree overlay sets the node's compatible and the driver is rebound (orion: `yandex,ledfb-rgbw64`); needs the kernel's configfs overlays |
+| `power.pd/min_mv` | `/sys/class/power_supply/*` | Each PD read makes the driver re-query (and log), so poll rarely. Below `min_mv` the `power_problem` moment plays the stock `no_power` line (vendor sounds may be opus even when named `.wav`; `make sounds` decodes them) |
 | `lux.calibration` | a lux meter next to a unit, [sensor-calibration.md](sensor-calibration.md) | `reading:lux` points: the board's base light calibration (a unit may override with `lux_calibration`) |
 | `mic.spl_offset` | a sound level meter next to a unit (the firmware's `quasar.cfg` `spl.splCalibShift` is a hint, not a value to copy: its dBFS need not be ours) | dBFS → dB SPL for the room sound sensors |
 
@@ -240,3 +254,7 @@ as webrtc AEC3 + an open wake-word engine) means a new host binary that speaks t
 - Verified on the unit: display, ring, every key, audio out (by ear), volume, mic levels; for voice,
   push-to-talk through HA, then the wake word.
 - Known gaps listed rather than hidden (e.g. "speaker reference not yet confirmed with playback").
+- Vendor binaries the port ships instead of using the unit's own (libraries or models from another
+  firmware, as bergamot's 0.6.x units carry the 0.369 ones) are recorded in the vendor repo
+  (`tools/record-binary.sh`), and the unit is snapshotted after (`tools/snapshot-unit.sh <label>`),
+  as the "Changes that ripple" list in [CLAUDE.md](../CLAUDE.md) says.

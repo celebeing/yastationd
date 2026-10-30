@@ -464,7 +464,7 @@ code; Ghidra would be needed), and it is not worth it.
 - **NR:** optionally drop in the GTCRN model as a post-AEC mask, or use WebRTC NS.
 - **Gain:** ASR-mode gain is ×50 (about +34 dB) on the omni channel, so feed MWW a strongly amplified
   stream.
-- **Wake word:** stays microWakeWord. **Correction (2026-10-30):** the vendor spotter shipped instead of microWakeWord ([wake-word.md](../wake-word.md), "Why the vendor spotter").
+- **Wake word:** stays microWakeWord. **Correction (2026-10-30):** the vendor spotter shipped instead of microWakeWord ([wake-word.md](../wake-word.md#decision-record-the-vendor-spotter-not-microwakeword)).
 
 So VQE moves from "opaque, rewrite blind" to **"rewrite to a known spec"**, and the spec turns out to
 be small. A full clone of the vendor kernels is still not realistic or useful. Reusing the GTCRN model
