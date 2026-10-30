@@ -148,6 +148,54 @@ latter is missing or empty, so **a network baked into the rootfs's `/etc/wpa_sup
 joined after a reset with no onboarding**. Whether `fr` reflashes `system`, wipes `data`/`ota`, or
 both, is the main unknown and needs one deliberate reset on a backed-up unit.
 
+### Why the vendor's updates leave the package alone
+
+An update never passes through anything that knows partitions: maind downloads the `.swu` and
+runs `applyOtaScript` (`device_ota_update.sh`), which stops the stack and calls
+`yandex-apply-ota`; that moves the file to `/ota/yandex_io_ota.swu` and runs
+`yandex-reboot update`; U-Boot boots the recovery, whose `S01swupdate` installs it. Which
+partitions get written is decided by the `sw-description` inside each signed `.swu`. Neither
+maind nor any script or binary in the rootfs's `/usr/bin`, `/usr/sbin` or `/etc` mentions
+`aml_sysrecovery`, `swupdate` or `sw-description` (maind's `/factory_reset` string belongs to its
+Zigbee code).
+
+So it *could*: the Station 2's `sw-description` (the only one we have) writes the rootfs, `boot`,
+`dtb` and every bootloader copy, so swupdate in the recovery can write any partition it is told
+to. It is just never told to write this one. That is the usual Amlogic design: the package is the
+factory "golden" image, a reset returns to the factory version and the unit then updates itself,
+and rewriting the one image that rescues a failed update on every update would put it at risk
+(and make each update hundreds of MB heavier). Orion's own `sw-description` is unseen (no orion
+`.swu` on hand; it is normally plaintext in the cpio even when the images are encrypted). Our unit
+runs `…factory-13` and its `system` equals the package's, so it has never been updated and says
+nothing about this either way.
+
+One consequence for us: the package also carries `bootloader`. If updates raise the bootloader
+and a reset put the factory one back, anti-rollback would get in the way, which suggests `fr`
+leaves the bootloader alone; unverified. Hence a golden package changes only `system` and keeps
+the bootloader, `boot` and `recovery` items byte-identical.
+
+### The recovery itself cannot be changed, only its inputs
+
+`recovery` is the program (kernel + ramdisk, ~23 MB in a 192 MiB partition); `aml_sysrecovery` is
+the data it restores from. What it wipes and writes is decided in its ramdisk, which is encrypted
+(cannot be read) and signed with the SoC key under secure boot (a changed image is not booted, and
+the reset gesture would then lead nowhere). Its inputs:
+
+| Input | Signed | Usable |
+|---|---|---|
+| the package in `aml_sysrecovery` | no | **yes, the lever** |
+| `/ota/yandex_io_ota.swu` (how updates are installed) | yes, checked with a key inside the recovery | no: the install kit's `ota_script.pub` swap is in the rootfs, which the recovery does not read |
+| U-Boot env (`recovery_from_flash`, `bootargs`) | no | in theory; one copy only, a mistake can stop the boot. Not touched |
+| `misc` (the Android channel for recovery commands like wipe/update) | no | unknown whether this recovery reads it; zeros on the unit |
+
+Learning its logic without decrypting it: the `cache` partition, where Android recoveries keep
+logs of past runs, and `misc` are both empty on the unit (read 2026-10-31), so there is no record
+of earlier runs. That leaves the deliberate reset with marker files (above), and **UART**: the
+recovery kernel almost certainly logs to `ttyS0` at 921600 (the env's `silent=1` silences U-Boot
+only). A serial console attached during a reset would show what it checks, which partitions it
+writes, and whether it rejects a modified package, the one residual risk of the takeover. How to
+reach orion's UART (case, pads) is not researched yet.
+
 ### The two images
 
 - **Minimal ("comes back reachable"):** stock `system` plus the rootfs edits the install kit and
