@@ -1,6 +1,6 @@
 # Voice Phase 2: mic array, the vendor VQE + spotter on the device, and the yastationd plan
 
-Status: 2026-10-22. Companion to [`spotter-host/README.md`](../spotter-host/README.md), which has the exact commands and
+Status: 2026-10-22. Companion to [`spotter-host/README.md`](../../spotter-host/README.md), which has the exact commands and
 raw numbers. Static background is in [wakeword-mic-array.md](wakeword-mic-array.md), [vqe-decompile.md](vqe-decompile.md)
 and [spotter-decompile.md](spotter-decompile.md). Everything here was **measured on the device** unless marked
 **(unverified)**. Nothing in this work starts `maind`; our own host links `libyandex_evil.so` directly.

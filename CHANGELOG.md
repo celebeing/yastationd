@@ -715,7 +715,7 @@ Initial support for orion (Station 3): installed and running on a unit.
 **Docs**
 - The README lists the Wi-Fi setup mode.
 - Research on making the CFW survive a factory reset: how the reset works per model, pickle's
-  replaceable restore package, why bergamot's is not ([docs/permanent-install.md](docs/permanent-install.md)).
+  replaceable restore package, why bergamot's is not ([docs/research/permanent-install.md](docs/research/permanent-install.md)).
 
 ## v0.5.0 — 2026-10-24
 

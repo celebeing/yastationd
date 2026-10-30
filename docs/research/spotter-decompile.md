@@ -2,8 +2,8 @@
 
 **Scope:** static reverse-engineering of the on-device keyword spotter (C++ `Spotter::`, `spotter-type chen14`) in
 `libyandex_evil.so`, done to decide whether the shipped «Алиса» / «Яндекс» / "yasmina" models can be reused without the
-vendor `maind` stack. This builds on `docs/wakeword-mic-array.md` (prior pass) and uses the VQE findings of the sibling
-pass in `docs/vqe-decompile.md`. Neither of those files is edited here.
+vendor `maind` stack. This builds on `docs/research/wakeword-mic-array.md` (prior pass) and uses the VQE findings of the sibling
+pass in `docs/research/vqe-decompile.md`. Neither of those files is edited here.
 
 **Method, safety, limits:** static only. No vendor code was executed. Model files and TFLite flatbuffers were parsed
 as data. Claims are tagged **(observed)** when they come straight from bytes, disassembly or decompiler output, and
@@ -337,7 +337,7 @@ config + API)** This matters for standalone FAR.
 (omni + BNR), the fallback alisa/yandex 1 stream (omni). A raw-mic stream is optional and only used by freq-filter
 and counteractivation.
 
-### 7.2 What `vqe_0` is (from the sibling VQE pass, `docs/vqe-decompile.md` §6)
+### 7.2 What `vqe_0` is (from the sibling VQE pass, `docs/research/vqe-decompile.md` §6)
 
 On bergamot there is **no beamforming**. The chain is 48→16 kHz decimation and an RC high-pass (~178), then a
 **per-mic Kalman AEC** against the hardware amp-feedback reference, then the "healthiest" mic (default index 0) →

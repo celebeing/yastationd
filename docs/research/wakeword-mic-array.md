@@ -2,7 +2,7 @@
 
 **Device:** Yandex Station Mini 3 — codename `bergamot` (`authd.deviceName` = "Яндекс.Станция Мини 3").
 **Firmware under analysis:** quasar `3.210.369.1.46.4778262544.20261013.117` (dump at `dumps/rootfs/system/vendor/quasar/`).
-**Status:** the vendor `maind`/quasar stack is **permanently disabled** on our unit; this is a static-analysis reference for rebuilding its audio front-end with sovereign tooling. It is the low-level companion to `docs/hass-integration.md` (do not edit that file from here).
+**Status:** the vendor `maind`/quasar stack is **permanently disabled** on our unit; this is a static-analysis reference for rebuilding its audio front-end with sovereign tooling. It is the low-level companion to `docs/research/hass-integration.md` (do not edit that file from here).
 
 Everything below is derived primarily from the on-disk dump (configs, model files, and the stripped `maind` + `libyandex_evil.so` binaries); a few points were confirmed read-only against the live device. Where a claim is an inference rather than a direct observation it is labelled **(inferred)**.
 
@@ -139,7 +139,7 @@ configuration does not show whether the vendor reports an event, mutes a channel
 changes the VQE input after a detection. Use a repeated raw-capture comparison first:
 a physical fault remains disproportionately noisy or quiet across captures, while a
 single noisy interval can be room activity, electrical interference, or a transport
-glitch. The Orion retest in `boards/orion.md` is the concrete example.
+glitch. The Orion retest in `../boards/orion.md` is the concrete example.
 
 The `audiosender` component enumerates the **named channels** that exist inside the pipeline:
 

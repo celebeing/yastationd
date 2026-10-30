@@ -80,7 +80,7 @@ with the field at the top; the list stays in the URL).
   (clock, off, video), text, number, countdown, volume, brightness (and back to auto), ring colour
   and effect, ambilight.
   They are the daemon's own command handlers, the same as over MQTT (payloads as in
-  [hass-integration.md](hass-integration.md)); commands a source does not have are skipped.
+  [yastationd/README.md](../yastationd/README.md), "Entities"); commands a source does not have are skipped.
 
 ## The tap's protocol
 

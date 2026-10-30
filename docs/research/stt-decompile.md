@@ -4,9 +4,9 @@
 front-end that feeds the cloud)? If so, how far can it be reused outside the vendor stack? If not, what does the
 device send to the cloud, and how?
 
-**Builds on:** `docs/spotter-decompile.md` (spotter engine, chen14, nnet3/ynmt, fbank),
-`docs/vqe-decompile.md` (VQE / `vqe_0`), `docs/wakeword-mic-array.md`, `docs/hass-integration.md`, and the sibling
-`docs/tts-decompile.md`. Facts already established there are referenced, not repeated. No existing doc was edited.
+**Builds on:** `docs/research/spotter-decompile.md` (spotter engine, chen14, nnet3/ynmt, fbank),
+`docs/research/vqe-decompile.md` (VQE / `vqe_0`), `docs/research/wakeword-mic-array.md`, `docs/research/hass-integration.md`, and the sibling
+`docs/research/tts-decompile.md`. Facts already established there are referenced, not repeated. No existing doc was edited.
 
 **Tags.** **(observed)** = read directly from bytes, strings, relocations, disassembly or decompiler output, or
 measured by running my own code on the vendor model files. **(inferred)** = my reading of that evidence.
@@ -32,7 +32,7 @@ measured by running my own code on the vendor model files. **(inferred)** = my r
   End-of-utterance, text, normalisation and partials all come back from the server. **(observed: enum, ctor
   defaults, encoder ctls, config keys; inferred: exact wire framing, §3)**
 - **What does run locally:**
-  1. the VQE front-end (`docs/vqe-decompile.md`);
+  1. the VQE front-end (`docs/research/vqe-decompile.md`);
   2. the wake-word spotter plus a spotter-VAD gate that decides when to open the stream;
   3. on-device voice **biometry** (ECAPA-TDNN, age, gender). This is speaker ID, not STT;
   4. a **"hybrid" local path**. A **`SpotterRecognizer`** wraps the **offline command spotter**
@@ -204,7 +204,7 @@ ASR.
   audio device's **main channel**: `audiod.audioDevice.mainChannel: "vqe_0"`, `outRate: 16000`. **(observed
   config + code; "falls back to the main channel" is inferred)**
 - `vqe_0` on bergamot is a single Kalman-AEC'd, HPF'd mic. There is no beamformer, and no NR/AGC in ASR mode
-  (`docs/vqe-decompile.md` §6). `YandexVqeC_SetASRMode` is driven by `EventLoopAudioDeviceInputController::
+  (`docs/research/vqe-decompile.md` §6). `YandexVqeC_SetASRMode` is driven by `EventLoopAudioDeviceInputController::
   setASRMode`. **(observed symbols)**
 - `speechkitLogChannels: ["vqe_0","vqe_bnr"]` and `audiosender.*` are **sound logging and debug dumps**
   (`StreamSoundLogger`, `sendSpotterSound`, `spotterLogging*`). They are not the ASR input. **(observed names;

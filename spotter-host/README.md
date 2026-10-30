@@ -2,13 +2,13 @@
 
 A small armhf C program that links the stock `libyandex_evil.so` and drives two of its exported C APIs directly:
 the **spotter** (wake word + commands) and the **VQE** mic-array front-end. It
-feeds the library PCM and prints wake events. This is "Path A" from [`docs/spotter-decompile.md`](../docs/spotter-decompile.md) §8:
+feeds the library PCM and prints wake events. This is "Path A" from [`docs/research/spotter-decompile.md`](../docs/research/spotter-decompile.md) §8:
 we get the real «Алиса» spotter with no reimplementation, but the proprietary blob stays in the loop.
 
 Status (2026-10-22): **runs natively on the device** (from `/tmp/spotter/`), including the vendor VQE on live
 `hw:0,1` input and the vendor command spotter (стоп/хватит/громче/тише/пауза/…). Nothing starts `maind`.
 Real-voice recall is **not measured yet**. See "On-device results" below and
-[`docs/voice-phase2-plan.md`](../docs/voice-phase2-plan.md) for the channel map, the VQE verdict and the yastationd plan.
+[`docs/research/voice-phase2-plan.md`](../docs/research/voice-phase2-plan.md) for the channel map, the VQE verdict and the yastationd plan.
 
 **Multi-model:** the capture layout and VQE preset are flags — `-P <preset>` (default `bergamot`),
 `-N <channels>` (8), `-M <mic channels>` (`0,1,2`), `-R <speaker-feedback channel>` (6, `-1` = none);
@@ -70,7 +70,7 @@ The same mono signal goes into every channel unless noted. A "hit" is `CONFIRMAT
 | built-in «Яндекс», `0,4` | 1/2 «Яндекс» (plus one SUBHIT) | 0 |
 
 What this suggests:
-- **The bergamot model needs a real signal on the BNR input.** Feeding the same AEC'd stream into both omni and BNR works. Leaving BNR silent breaks it, so the two-channel model really does fuse its inputs. This confirms option (a) in `spotter-decompile.md` §7.3.
+- **The bergamot model needs a real signal on the BNR input.** Feeding the same AEC'd stream into both omni and BNR works. Leaving BNR silent breaks it, so the two-channel model really does fuse its inputs. This confirms option (a) in [docs/research/spotter-decompile.md](../docs/research/spotter-decompile.md) §7.3.
 - **The raw-mic channel does not affect hits.** It only feeds the freq-filter, which can reject a hit but never cause one. It must be present in the layout, but can be zeros or a raw mic.
 - **Absolute level barely matters**, at least across 0 to −40 dB with SNR held constant. That softens the "level is the main knob" worry from the decompile doc. Real far-field SNR is a separate question.
 - Caveat: this is TTS, not real speech, and there are only 30 s of negatives. It says nothing about false accepts per hour or far-field recall. Those need real recordings (§7.3 protocol).
@@ -192,7 +192,7 @@ is fine with that. Constructors in the shared libraries are run by ld.so as usua
 
 ## Next steps
 
-See [`docs/voice-phase2-plan.md`](../docs/voice-phase2-plan.md). In short:
+See [`docs/research/voice-phase2-plan.md`](../docs/research/voice-phase2-plan.md). In short:
 1. Run the user's real-voice test with `listen.sh`, comparing default, `-b` and `-x 0,0,1`.
 2. Confirm that ch6 carries playback, and that the VQE's AEC removes it, by playing something during `listen`.
 3. Add a `serve` mode for `yastationd`: raw 8-channel PCM on stdin, event lines on stdout, and optionally `vqe_0` on fd 3 for the STT stream.

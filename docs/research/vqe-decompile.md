@@ -2,7 +2,7 @@
 
 **Scope:** static reverse-engineering of the Yandex VQE (Voice Quality Enhancement) mic-array DSP in
 `libyandex_evil.so` (firmware `3.210.369.1.46.4778262544.20261013.117`). It builds on
-`docs/wakeword-mic-array.md` (the "prior pass"), which said the preset numbers were "compiled in and not
+`docs/research/wakeword-mic-array.md` (the "prior pass"), which said the preset numbers were "compiled in and not
 recoverable". **They are recoverable, and this file recovers them.**
 
 Conventions: addresses are virtual addresses in `libyandex_evil.so` (equal to file offsets for the

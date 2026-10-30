@@ -4,7 +4,8 @@ On-device Home Assistant agent for de-Yandexed Yandex Stations. It turns the spe
 normal offline MQTT device: LED ring, front clock/display, volume, mic-mute, button reflexes,
 announcements and a health/watchdog layer. No cloud, no internet.
 
-It started as Phase 1 of [`docs/yastationd-design.md`](../docs/yastationd-design.md) and has since
+It started as the MVP of the original design ([`docs/research/hass-integration.md`](../docs/research/hass-integration.md);
+how it is built now: [`docs/architecture.md`](../docs/architecture.md)) and has since
 grown voice (the Wyoming satellite, the vendor wake word and commands through `spotter-host`),
 Music Assistant playback, the intercom, wake-word arbitration, the web app and more — the
 top-level [README](../README.md) is the feature list, [CHANGELOG](../CHANGELOG.md) the history.

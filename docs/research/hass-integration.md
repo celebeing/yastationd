@@ -1,10 +1,15 @@
 # Home Assistant integration — design
 
+> **Historical (2026-10-22).** The original design the CFW grew from, kept for its reasoning and
+> for the research docs that cite its sections. Much of it was built differently or later (the
+> vendor wake word instead of microWakeWord, no `clockd`, the time zone from a setting, phases long
+> past). How it is built now: [../architecture.md](../architecture.md) and the docs of each area.
+
 Design for turning the de-Yandexed **Yandex Station Mini 3 (`bergamot`)** into a first-class,
 offline Home Assistant speaker. This is a **design document, not an implementation**. It builds on:
 
-- `../README.md` — what the CFW is (vendor stack off, internet-less, hardware shell-drivable).
-- `./device-teardown.md` — neutral hardware/interface reference.
+- `../../README.md` — what the CFW is (vendor stack off, internet-less, hardware shell-drivable).
+- `device-teardown.md` — neutral hardware/interface reference.
 - `../../<ha-config-repo>/docs/` — the **existing** home voice stack this design plugs into (see §0b):
   `voice-stack-refresh-2026-10.md`, `respeaker-voice.md`, `respeaker-wake-words.md` +
   `../../<ha-config-repo>/mww-training/`, `ru-tts-voice-cloning-research.md`,
@@ -309,7 +314,7 @@ external supervisor).
 - **Process supervision (keep the agent alive).** Init hook `/etc/init.d/S52zyastationd` starts
   a busybox-sh supervisor, `<cfw>/init.d/supervise.sh`, under `setsid`. It restarts the agent with
   a backoff, swaps in the previous binary (`yastationd.prev`) after a crash loop, and rotates the
-  log (contract in its header and in `deploying.md`). It lives in `<cfw>`, so changing it needs no
+  log (contract in its header and in `../deploying.md`). It lives in `<cfw>`, so changing it needs no
   rootfs write. **Hang detection:** the agent touches a heartbeat file every N s; a watchdog
   checks staleness and `kill`s + restarts a wedged agent. Coexists with the existing `S50clockd`
   (retired — the agent owns the clock) and `hardvold` (left running).

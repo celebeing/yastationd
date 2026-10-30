@@ -133,9 +133,6 @@ Review of 2026-10-28 (whole repo).
 - `yastationd/README.md:204-290` "Open items" is mostly history (item 5: auto-brightness, item 7:
   Wi-Fi hangs now handled); move it to sensor-calibration.md / storage.md / the changelog, keep
   the open ones. M.
-- `docs/hass-integration.md` and `docs/yastationd-design.md` are early designs ("MVP", "Phase 1",
-  "no wake word"); a status header marking them historical, with pointers to the current docs.
-  M.
 - `docs/assets.md:3`, `docs/video-mode.md:7,121` say the feature has not run on a unit; update
   after the next check on a Station 3. S.
 - `docs/index.md`: `boards/_template.md` has no entry (linked from boards/README.md). S,

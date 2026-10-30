@@ -32,7 +32,7 @@ wake word, and (b) cut a clean wake-word segment for voice ID ([voice-id.md](voi
 
 ## What the vendor gives us
 
-- **No boundaries in the API.** The exported C API (`spotter-decompile.md` §2.2) has events and the phrase,
+- **No boundaries in the API.** The exported C API (`research/spotter-decompile.md` §2.2) has events and the phrase,
   nothing per frame. `spotter_get_current_activation_info_for_online_validation` and
   `spotter_get_current_activation_metainfo` are not decoded yet. `maind` uses the first one for cloud
   re-validation with fixed windows (`requestSoundBeforeTriggerMs` / `requestSoundAfterTriggerMs`). Decoding

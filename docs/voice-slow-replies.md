@@ -56,6 +56,6 @@ wake_while_waiting = interrupt  # or ignore
 
 ## Not done
 
-- A spoken "не дождалась ответа" on the deadline: needs a pre-rendered phrase (the voice bank in
-  `hass-integration.md` §2.5). Today it is a sad face.
+- A spoken "не дождалась ответа" on the deadline: needs a pre-rendered phrase (the voice bank:
+  [wishlist.md](wishlist.md), "A bank of pre-rendered phrases"). Today it is a sad face.
 - An optional soft "still working" sound during long waits.

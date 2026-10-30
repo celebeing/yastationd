@@ -292,6 +292,21 @@ the call's two rooms). Check where a claim from one could suppress or delay the 
 context-dependent action, and whether such words need their own rule (never arbitrated, or
 arbitrated only among speakers in the same context).
 
+## A bank of pre-rendered phrases
+
+**Status:** idea, from the original design ([research/hass-integration.md](research/hass-integration.md)
+§2.5). Today the speaker can say only the firmware's own recorded phrases (`phrase:` in a moment);
+anything else comes from HA's TTS, which is slow (~1-2.5 s) and impossible exactly when HA is
+down.
+
+- Short fixed or templated replies («таймер на 5 минут», «не дождалась ответа», «нет связи с
+  сервером»), rendered offline with the same TTS voice as the pipeline, as whole phrases for the
+  frequent values (Russian number agreement makes glued fragments sound wrong), kept on the speaker
+  as WAV at the playback rate and played in tens of ms; live TTS for the rest.
+- Versioned by voice and TTS engine (a voice change re-renders the bank); the "no connection"
+  phrases must always be on the speaker, since they play when nothing upstream answers.
+- Could ship as a sound pack ([asset-packs.md](asset-packs.md)), the moments naming the phrases.
+
 ## Automated tests: CI and the gaps
 
 State on 2026-10-28: the Go tests (17 packages) pass with `-race`, but nothing runs them on a

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Priorities, high to low (hass-integration.md §2.6).
+// Priorities, high to low (docs/display-expressions.md, "Priorities").
 const (
 	PrioBase     = 0
 	PrioDegraded = 5 // subtle persistent indicator; sits just above the base

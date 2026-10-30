@@ -128,7 +128,7 @@ type Config struct {
 	MarqueeSpeed float64
 
 	// Room sound sensors for HA (sound_floor, sound_level, sound_activity: levels of a raw mic
-	// channel, once a minute; docs/hass-integration.md). Keeps the mic open even with the wake
+	// channel, once a minute; docs/sensor-calibration.md). Keeps the mic open even with the wake
 	// word off; never sends audio.
 	RoomSound bool
 

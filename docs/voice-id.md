@@ -5,14 +5,15 @@ guests with the `voice_guest` moment, the store with the album and the People ta
 voice-models`. Checked: the voiceprints against the desk pipeline (the same values) and their cost
 on a Mini 3 and a Station 3; the album and the protocol in Go tests. Not yet checked on a live
 household: how well «Алиса» plus the start of a request tells two voices apart, and how the
-grouping copes with real data. The research behind it, the comparison with a server proxy and the
-vendors' approach follow below.
+grouping copes with real data. The firmware's models and the desk check are below; why on the
+speaker and not on a server, the ready-made proxies and how the big assistants enroll voices are in
+[research/voice-id-alternatives.md](research/voice-id-alternatives.md).
 
 The speakers' firmware ships a voice biometry stack of its own (`/system/vendor/quasar/bio_lingware/`),
 run by the vendor assistant (`maind`), which the CFW keeps off. Its models are ordinary TFLite files
 that run outside `maind`. This document is about running them in the CFW: on the speaker, with no
 server and no cloud. The server-side alternative (a Wyoming STT proxy with an open model) is
-[speaker-id.md](speaker-id.md); the two can coexist.
+[speaker-id.md](research/speaker-id.md); the two can coexist.
 
 ## What the firmware has
 
@@ -151,6 +152,12 @@ yastationd: gender/age (Go) → verdict against the household's centroids
 
 ### The store and the album
 
+Calibrating and debugging voice ID should need neither a week of HA debug recordings nor labelling
+requests one by one: the speakers collect voiceprints from normal use and group them the way a
+photo album groups faces, and the owner names the groups and marks the household in the People
+tab (the log with HA's transcripts, merge, move a misheard request, forget, the threshold with a
+preview of what it does to the last requests).
+
 On the speaker with `voice_store` (`internal/app/voicestore.go`, `internal/voiceid/album.go`):
 
 - **Every event is an entry** in `<cfw>/voices/log.jsonl` (appended; the newest 3000 kept, the
@@ -178,6 +185,18 @@ On the speaker with `voice_store` (`internal/app/voicestore.go`, `internal/voice
 - **Forgetting** a person deletes the group's entries and its name; "forget everything" empties
   the log and the edits; both republish at once.
 
+- **Why one store and two one-way streams:** syncing a log, groups and edits between speakers
+  would be a mess, and it is not needed. Every speaker sends its events to the store and reads the
+  household's centroids back (retained); only the store edits, so nothing conflicts. The verdict
+  stays local (no network round trip in the middle of a phrase), the traffic is a couple of KB per
+  request, and while the store is away the speakers keep their events (up to 200) and classify
+  with the last centroids they got. Where else the store could have lived (HA, a server):
+  [research/voice-id-alternatives.md](research/voice-id-alternatives.md).
+- **Not built yet from the album's design:** guided enrollment ("Enroll a voice", five short
+  phrases into one group) for someone who rarely talks to the speakers; a switch that keeps the
+  requests' audio for ten minutes to listen while correcting; a desk tool that replays wav files
+  through the same models (the desk check's scripts were not committed).
+
 API (on every speaker; the album calls only on the store): `GET /api/voices` (`on`, `store`,
 `store_id`, `people`, `model`, `threshold`, `ignore_guests`; on the store also `groups` and
 `entries`), `GET /api/voices/log?group=&limit=`, `GET /api/voices/preview?threshold=` (the last
@@ -191,158 +210,6 @@ Every speaker that heard the wake word starts its voiceprint at once, without wa
 arbitration ([wake-arbitration.md](wake-arbitration.md)); the losers drop theirs, the winner's
 verdict counts (it gates, publishes and files the event). The hold is counted from the wake
 word, so the arbitration's wait overlaps it.
-
-## On the speaker or on the server
-
-The same feature can live in a Wyoming STT proxy next to HA's STT on a server
-([speaker-id.md](speaker-id.md)): it computes a voiceprint of each request in parallel with the
-transcription and passes the transcript on, or an empty one for a guest. Compared (2026-10-28):
-
-| | On the speaker (the firmware's models) | On the server (a proxy in front of the STT) |
-|---|---|---|
-| Added latency | none (the wake word, in parallel with the start); ≈0.1 s with hold and release | none: the voiceprint runs in parallel with the STT (CAM++ ≈30 ms on one x86 core) |
-| Stopping a guest | abort the request before the speech ends; only as clean as HA's handling of an aborted run (to check) | clean: an empty transcript, HA does nothing |
-| Judged on | «Алиса» + the start of the command | the whole phrase without the wake word (typically 2–3 s: more audio, but a different phrase each time) |
-| Models | the firmware's ECAPA (512-dim); accuracy beyond our desk check unknown | open models measured on Russian (CAM++, ERes2Net; speaker-id.md); the firmware's could run there too |
-| Gender | built in (the firmware's classifier) | needs a model of its own (or the firmware's classifier on the server) |
-| Which satellites | only speakers running the CFW (Mini 3 0.369, Mini 3 Pro, Station 3; the old Mini 3 firmware with moved files) | any HA satellite, ESPHome and ReSpeaker included |
-| What the owner needs | nothing but the option | a server with the proxy (a container or an HA add-on) between HA and its STT; few CFW users have one |
-| Load | the speaker's CPU; on a Mini 3 to be measured | the server's, negligible |
-| Arbitration | to handle (the winner's verdict counts) | not a concern: only the winner streams |
-| Calibration | the People tab on the speakers, from normal use | a page or a script on the server; the same data, collected there |
-| Where voiceprints live | on the speakers | on the server |
-
-**For CFW users in general** the speaker is the better home: nothing to install, gender for free,
-and no added latency — if HA handles an aborted run cleanly and the wake word separates voices well
-enough. **For a household with a voice server** the proxy is more accurate (bigger models, the whole
-phrase) and blocks a guest more cleanly. They do not exclude each other: the HA entities can be the
-same with either behind them, and a speaker could even send its wake-word voiceprint along for the
-server to combine.
-
-### A server proxy does more than one job
-
-The proxy sits on the path HA → STT. Three things can live there at once:
-
-- **Voice ID** for every satellite, ESPHome included, with no CFW changes.
-- **One store.** The voiceprints, the log and the groups are on the server, so the sync problem of
-  the album UX below is gone: there is nothing to sync between speakers.
-- **STT routing and fallback.** The proxy picks the STT backend and falls back to a second one
-  when the first is down, e.g. a GPU box first, then a CPU server. Otherwise that job needs a TCP
-  failover proxy (HAProxy) of its own.
-
-The cost is that the firmware's own models stay unused, except perhaps the gender classifier.
-
-### Ready-made proxies (surveyed 2026-10-28)
-
-Writing our own is not needed: several community projects put a speaker-ID proxy in front of a
-Wyoming STT. All are from 2026 and young, so pin a commit and read the code before running it.
-
-| Project | Stars / last push | What it has | Catches |
-|---|---|---|---|
-| [Murdock](https://github.com/BobMcGlobus/Murdock), a fork of [wyoming-voice-match](https://github.com/jxlarrea/wyoming-voice-match) (91 stars) | 2 / 2026-10-11 | The closest to the album UX: an "Unknown voices" tab with cluster review and assignment, a recognition log, a 2-D voice map, profile health and drift. Platt-scaled scores, per-satellite thresholds and same-mic profiles, auto-enrollment from confident matches. Wyoming and OpenAI-style STT upstreams with a fallback STT. MQTT-discovered sensors, ZIP backup | Blocks unknown voices by default (guests need it off). WeSpeaker CAM++, whose ONNX exports scored badly in our desk test ([speaker-id.md](speaker-id.md) §1); its Platt scaling may fix that. One global "current speaker" sensor. Browser recording does not work through HA ingress |
-| [home-assistant-assist-speaker-id](https://github.com/witold-gren/home-assistant-assist-speaker-id) | 0 / 2026-10-25, 5 commits | Our pick of model (3D-Speaker CAM++ via sherpa-onnx). The speaker is tied to the pipeline run, not to a global sensor. An agent wrapper, requests run as the speaker's HA user. `speaker_id.calibrate` suggests thresholds. Voice-guided enrollment through a satellite | Days old. No view of unlabelled voices, no merge |
-| [speaker-recognition](https://github.com/conorod1992/speaker-recognition), a fork of [EuleMitKeule's](https://github.com/EuleMitKeule/speaker-recognition) (56 stars) | 3 / 2026-10-25 | A sidebar panel in HA. A log of decisions you mark correct / wrong speaker / missed, and thresholds suggested from those marks. Per-turn correlation | Resemblyzer, an older and weaker model than CAM++ |
-| [ha-addon-wyoming-speaker-id](https://github.com/olegchumakov/ha-addon-wyoming-speaker-id) | 0 / 2026-10-27 | An add-on, ReDimNet2 by default, a web UI for people | Prefixes the transcript (`[speaker: Anna] …`), which breaks local intents. Unsuitable |
-
-The cheap next check needs no new voices: replay the HA recordings already collected through
-Murdock and assist-speaker-id on a desk machine and compare with our desk check.
-
-## How the big assistants do it
-
-Alexa, Google, Siri and Alice all recognise voices, and all of them need an explicit enrollment.
-Owners rarely notice because it is folded into setup:
-
-| Assistant | Enrollment | Who a voice belongs to |
-|---|---|---|
-| Alexa (Voice ID) | "Alexa, learn my voice", or the Alexa app; a few phrases. Alexa may later ask to repeat commands on other Echo devices | the person's Amazon profile in the household |
-| Google (Voice Match) | the Home app: a few phrases with "Hey Google"; up to six people per home | each person's Google account |
-| Siri (HomePod, "Recognize My Voice") | a switch in the Home app; as far as we know it reuses the "Hey Siri" training from that person's iPhone; up to six people | each person's Apple ID |
-| Alice (Yandex) | since 2019 "Алиса, запомни мой голос" and a few phrases repeated after her; now in the app ("Мой голос"), each family member with their own Yandex account, per station | the account. Early on only the owner's voice; others counted as guests |
-
-What they share:
-
-- **The identity is the account, so there is no naming step.** A person enrolls from their own
-  phone and account; the assistant never asks "who is this?" afterwards.
-- **No grouping of strangers.** Unenrolled voices are not collected or clustered; they are guests.
-  Biometric privacy laws (Illinois' BIPA has been used against voice assistants) make collecting
-  voiceprints without consent a legal risk, which is a reason vendors don't build an album.
-- **Calibration is the vendor's.** Thresholds are tuned on fleet data and shipped fixed; owners
-  see no slider. When unsure, the assistant falls back to the household default or asks; HomePod
-  sends sensitive requests to the iPhone for confirmation, and Alexa purchases use a voice code.
-  Voice alone never authorises anything security-relevant.
-- **Some features need no enrollment:** a child's voice switching Alice into the kids' mode
-  (reported by users, not documented in Yandex' help) is a classifier like the firmware's age model.
-
-The vendors' way next to the album design above (a comparison; no choice made yet):
-
-| | Enrollment first (the vendors) | The album (this design) |
-|---|---|---|
-| Who acts | each person, once, five phrases | the owner, naming groups that appeared on their own |
-| Voices that are not enrolled | not collected; guests | collected and grouped, shown for naming or "not a person" |
-| What it needs from us | a guided flow ("Алиса, запомни мой голос" or the web app), HA persons standing in for accounts | the grouping, the log, rename / merge / correct, the store |
-| Privacy | only voiceprints people agreed to give | voiceprints of everyone who speaks, guests included, kept in the household |
-| Rare speakers | have to enroll on purpose | appear once they have spoken a few times |
-| Thresholds | fixed by the vendor from fleet data | set by the owner with the preview, from their own data |
-
-The two can be combined, e.g. guided enrollment feeding a group of the album.
-
-## Calibration and debugging: voices like faces in a photo album
-
-Nobody should need a week of HA debug recordings, and nobody should label requests one by one.
-The speakers collect voiceprints from normal use and group them the way photo albums group faces:
-
-- **People appear by themselves.** Every request adds a voiceprint; similar ones are grouped
-  automatically and shown as "Person 1 · male · 87 phrases", "Person 2 · female · 4 phrases" (the
-  gender is the group's average from the firmware's classifier). A separate "not a person" group
-  takes false wakes, noise and empty transcripts (in the desk check they stand out: gender ≈ 0.5,
-  low similarity to everyone).
-- **A log of requests:** the time, the speaker it came from, HA's transcript (the satellite
-  receives it), who it was taken for and how sure. No audio by default (a "keep audio for 10
-  minutes" switch lets you listen while correcting).
-- **The owner's edits:** rename a group ("Person 1" → "me"), merge two groups, and mark a request
-  in the log as misrecognised (move it to another person, or to "not a person"). Edits are
-  constraints for the grouping, as tagged faces are in an album: later requests are grouped around
-  them, and regrouping never undoes them.
-- **Guided enrollment**, for someone who rarely talks to the speakers: "Enroll a voice" asks for
-  five short phrases and puts them in one group.
-- **The threshold with a preview**, on top of the groups: the score histogram per person and for
-  the rest, and "with this threshold, of the last 100 requests N would have been ignored: [list]".
-  Calibration is moving the slider until the list is the guests.
-- **Debug:** the sensors' attributes (score, runner-up, margin), a log line per verdict, the log
-  in the web app, `GET /api/voices/log` for scripts, and a desk tool (`tools/voice-lab/`, the fbank +
-  TFLite pipeline in Python) that replays wav files through the same models.
-
-### One store, two one-way streams
-
-Syncing all of that between speakers would be a mess; it is not needed. The speakers already share
-an MQTT broker, and two one-way streams are enough:
-
-```
-every speaker ── a request event ──────────► the store (one place)
-  (voiceprint ~2 KB, transcript, speaker, time, verdict)
-                                                │ grouping, names, the owner's edits
-the store ── the people's centroids (retained) ─► every speaker
-  (name, gender, 512 values per person: a few KB)
-```
-
-- **The verdict stays local and fast:** each speaker classifies against the centroids it holds
-  from the retained topic; no network round trip in the middle of a phrase.
-- **The log, the groups, the names and the edits live in the store only.** Speakers append events
-  and read centroids; only the store edits, so nothing can conflict.
-- **Small:** a couple of KB per request, tens of requests a day.
-- **While the store is unreachable** speakers keep their events and send them later (as
-  `log-spool` does for logs), and keep classifying with the last centroids they got.
-
-Where the store lives:
-
-1. **One of the speakers, chosen** (`voice_store = true` in its config; a Station 3 if there is
-   one: room on its eMMC, a faster CPU). The People tab lives there; the web app reaches every
-   speaker, so it shows from any. While that speaker is off, the log waits on the others and edits
-   wait. **The pick:** nothing to install besides the CFW.
-2. **HA**, through an integration of our own that keeps the log and the groups and shows them in
-   HA. A component outside the CFW to install and maintain.
-3. **A server**: the proxy of [speaker-id.md](speaker-id.md); then computing there is natural too,
-   and a speaker would send only its wake-word voiceprint.
 
 ## Privacy
 

@@ -4,7 +4,7 @@ Boots the **vendor rootfs from our own NAND dumps** under `qemu-system-aarch64 -
 substitute kernel ([`kernel/`](kernel/)), runs its stock BusyBox init and our CFW init hooks, and
 checks that `yastationd` comes up and stays up. It exists to rehearse boot-path experiments
 (init wrapper, overlay root, boot counters, power cuts; see
-[permanent-install.md](../docs/permanent-install.md)) before anyone tries them on a real speaker.
+[permanent-install.md](../docs/research/permanent-install.md)) before anyone tries them on a real speaker.
 Boards: **bergamot** (Mini 3, fw 0.369) and **pickle** (Mini 3 Pro).
 
 Nothing here talks to a real speaker except `seed-from-unit.sh`, and that only reads.

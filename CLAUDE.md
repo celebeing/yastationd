@@ -54,7 +54,7 @@ not be recoverable by us. Hence the hard rules:
   (find pids via `ps w`; don't match by substring of a command line — it hits your own ssh session).
 - Interfaces driven from the shell: LEDs/display (`/sys/class/leds/*`), ALSA, evdev input, IIO
   light sensor, USB-C PD (`/sys/class/power_supply/ya_pd`). Details in the board docs,
-  `docs/device-teardown.md`, `docs/wakeword-mic-array.md`, `docs/yastationd-design.md`.
+  `docs/research/device-teardown.md`, `docs/research/wakeword-mic-array.md`, `docs/architecture.md`.
 
 ## Repo hygiene
 - `dumps/` and `ACCESS.local.md` are **sensitive and gitignored** — never commit or share them.
@@ -69,6 +69,10 @@ not be recoverable by us. Hence the hard rules:
 
 - All configuration (URLs, API keys, DB credentials, hostnames) **must** come from configuration files, never hardcoded. Prefer stable file-based formats (yaml, toml) for config; use environment variables **only** when there is genuinely no other way (e.g. a secret that must not touch disk, or a platform that injects config solely via env). Use generic placeholders in examples.
 - **Read `docs/` before planning** — always consult existing research, findings, and design docs before proposing changes or starting new work. Start from the docs index (`docs/index.md`) to find the relevant document. The docs contain hard-won knowledge about API quirks, country-specific parsing rules, and known limitations.
+- **Specs and research are apart:** a doc in `docs/` describes what is built (update it with the
+  code); findings, decompiles, measurements and designs we chose against go to `docs/research/`.
+  A spec cites research instead of repeating it; splitting a doc in two, link the halves both ways.
+  The map of the whole: `docs/architecture.md`.
 - **Update `docs/` before committing** — when implementation reveals new findings, edge cases, or changes to architecture/decisions, update the relevant docs first, and keep the docs index (`docs/index.md`) in sync. Docs must stay in sync with the code. If a doc doesn't exist for a new area, create one and add it to the index.
 - **Language** — all committed artifacts (code, comments, identifiers, commit messages, docs, `CLAUDE.md`) are written in **English**. The agent's conversation with the user may be in **any language** — match the user; only the artifacts are English-only. **One exception:** the main `README.md` is Russian; `README.en.md` is its English twin. Change both together, so they say the same thing.
 

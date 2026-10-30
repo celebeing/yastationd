@@ -83,7 +83,7 @@ noise, and push-to-talk as a config fallback.
 **The vendor VQE has a call mode** (phase 3): `YandexVqeC_SetCommunicationMode(vqe, 1)` switches
 it at runtime to `regularCallConfig` — GTCRN neural NR fed with the playback reference (residual
 echo suppression), AGC to −18 dBFS, limiter, gain ×1 instead of the ASR path's ×50
-([vqe-decompile.md](vqe-decompile.md) §3.4). Needs a control channel in spotter-host and device
+([vqe-decompile.md](research/vqe-decompile.md) §3.4). Needs a control channel in spotter-host and device
 checks: the mode values (0 ASR / 1 call / 2 baby monitor, inferred), whether the switch loads
 `model_call.nnet` (bergamot ships it; **pickle's firmware has no `vqe_models` at all**, a copy
 from the user's own bergamot could go to `<cfw>/vqe_models`; orion 3.21 ships it as

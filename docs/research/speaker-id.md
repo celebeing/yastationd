@@ -5,7 +5,7 @@ the speakers. HA facts were read from the running container (HA 2026.9.0, `wyomi
 The experiment ran on the dev box (WSL), with scripts and models kept in the session scratchpad.
 
 **Superseded (2026-10-29):** voice ID was built on the speaker instead, with the firmware's own
-biometry models: [voice-id.md](voice-id.md) (also the comparison of the two). This server-side
+biometry models: [voice-id.md](../voice-id.md) (also the comparison of the two). This server-side
 design stays as research, for satellites without the CFW.
 
 ## 0. Recommendation (TL;DR)
@@ -280,7 +280,7 @@ Step 1 is done on the dev box (§2). Next:
 - HA code read in the container (2026.9.0): `components/conversation/{models,chat_log}.py`,
   `components/assist_pipeline/pipeline.py`, `components/assist_satellite/entity.py`, `components/wyoming/{stt,assist_satellite}.py`,
   `wyoming/asr.py` (`Transcript.context`).
-- Local context: [voice-phase2-plan.md](voice-phase2-plan.md), [../yastationd/README.md](../yastationd/README.md),
+- Local context: [voice-phase2-plan.md](voice-phase2-plan.md), [../yastationd/README.md](../../yastationd/README.md),
   `<ha-config-repo>/docs/voice-stack-refresh-2026-10.md`.
 
 ## Status log
@@ -292,11 +292,11 @@ Step 1 is done on the dev box (§2). Next:
   and Аня per satellite. **Revert after collection** (raw audio of every request): remove the
   `assist_pipeline:` block (or restore the backup), restart HA, and delete/archive `/config/assist_debug`.
 - **2026-10-28 — 6 days of recordings: 252 requests (12 min, 20 MB) from four satellites.** Used
-  for a desk check of the firmware's own biometry models ([voice-id.md](voice-id.md), "Checked on
+  for a desk check of the firmware's own biometry models ([voice-id.md](../voice-id.md), "Checked on
   the desk"): the main user's requests sit at cosine 0.7–0.95 to his centroid, the other household
   member's at 0.01–0.17 (gender classifier 0.85+), a video's voice at ≈0.5, non-speech at 0.2–0.3.
   The recording is still on (revert as above when done).
 - **2026-10-28 — ready-made proxies surveyed.** Several community Wyoming speaker-ID proxies now
   exist (Murdock, assist-speaker-id and others), so `wyoming-voiceid` need not be written from
   scratch; how big assistants enroll voices is compared in the same place:
-  [voice-id.md](voice-id.md), "Ready-made proxies" and "How the big assistants do it".
+  [voice-id.md](../voice-id.md), "Ready-made proxies" and "How the big assistants do it".
