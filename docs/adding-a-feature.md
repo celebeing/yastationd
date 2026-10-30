@@ -162,6 +162,24 @@ Files under `<cfw>` (`a.cfwFile(name)`), written atomically (`.tmp` + rename), s
 (a cap, the oldest dropped). List every new file in [deploying.md](guides/deploying.md) ("What ends up on
 the device"); personal or biometric data gets 0600 and a note on where it lives.
 
+**Flash is a budget.** Minis have raw NAND with ~200 MB of writable space and speakers run for
+years, so any write that repeats on its own needs thought. Say in the change how often it happens,
+how many bytes, and in the worst case:
+
+- **Nothing periodic reaches flash.** Counters, sensor readings, heartbeats, positions go to `/tmp`
+  or stay in memory. A background write is justified only by data that must outlive a power cycle.
+- **Log-like data is appended, never rewritten per event.** A file that grows gets a cap and is cut
+  in one go, down to about half: the flash then sees each byte about twice, **whatever the cap**
+  (1/(1−k), k being the share a trim keeps; [voice-id.md](voice-id.md), "How much is kept"). Keep
+  the cap as large as the free space and the RAM allow; a smaller one saves no wear.
+- **One trim trigger per file:** a rewrite costs the whole file, so a small category with a limit
+  of its own must not start one. Keep per-kind limits, apply them at the common trigger.
+- **Reads count too once a file is big:** don't load it whole on a timer, send it in chunks.
+- **The failure paths are where this goes wrong.** Ask what the code does when the server is gone
+  for a week or the file is full: both write amplifications found so far lived there.
+- **Debounce what a person or HA drives** (`a.store.update` does), and record the file in
+  [storage.md](storage.md)'s table.
+
 ## Tests
 
 - Logic in its own package gets plain unit tests; `internal/app` has fixtures to start from:

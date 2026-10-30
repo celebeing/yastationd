@@ -484,7 +484,7 @@ func init() {
 		Doc: "host:port of a syslog server on the LAN (TCP). Logs wait on flash while it is unreachable. Empty turns it off."},
 		textV(func(c *Config) *string { return &c.LogRemote }, nil))
 	reg(Key{Name: "log_spool_kb", Group: "logs", Label: "Log spool size", Unit: "KB", Sync: true, Advanced: true,
-		Doc: "The most logs kept on flash while the syslog server is unreachable."},
+		Doc: "The most logs kept on flash while the syslog server is unreachable: new lines are appended, and at this size the oldest half goes. A bigger spool keeps a longer outage and wears the flash no more."},
 		intV(64, 65536, func(c *Config) *int { return &c.LogSpoolKB }))
 	reg(Key{Name: "log_level", Group: "logs", Label: "Log level", Advanced: true,
 		Doc: "How much the daemon logs."}, enumV([]string{"debug", "info", "warn", "error"}, func(c *Config) *string { return &c.LogLevel }))

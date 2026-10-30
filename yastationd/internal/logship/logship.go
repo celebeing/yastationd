@@ -42,19 +42,20 @@ type Shipper struct {
 	PosFile  string // read positions, on tmpfs: a daemon restart resumes, a reboot starts over
 	Log      *slog.Logger
 
-	mu      sync.Mutex
-	pending []string // formatted lines not yet sent nor spooled
-	size    int
-	pos     map[string]filePos
-	conn    net.Conn
-	nextTry time.Time
-	down    bool // the last attempt failed (for logging only the changes)
-	spooled time.Time
-	sent    []byte    // the tail of what was written to conn: unacknowledged bytes come back from it
-	stuckAt time.Time // when the socket's unacknowledged queue was first seen non-empty
-	now     func() time.Time
-	unacked func(net.Conn) int // bytes written but not yet acknowledged by the server
-	dial    func(addr string) (net.Conn, error)
+	mu       sync.Mutex
+	pending  []string // formatted lines not yet sent nor spooled
+	size     int
+	pos      map[string]filePos
+	conn     net.Conn
+	nextTry  time.Time
+	down     bool // the last attempt failed (for logging only the changes)
+	spooled  time.Time
+	spoolOff int64     // how much of the spool file went out already (kept in memory: a restart resends it)
+	sent     []byte    // the tail of what was written to conn: unacknowledged bytes come back from it
+	stuckAt  time.Time // when the socket's unacknowledged queue was first seen non-empty
+	now      func() time.Time
+	unacked  func(net.Conn) int // bytes written but not yet acknowledged by the server
+	dial     func(addr string) (net.Conn, error)
 }
 
 type filePos struct {
@@ -248,10 +249,37 @@ func nilDash(v string) string {
 	return strings.ReplaceAll(v, " ", "_")
 }
 
-// ship sends the spool file, then the pending lines; on a failure they stay where they were.
+// spoolChunk is the next part of the spool to send, whole lines, no more than the lines a dead link
+// could take back (sentKeep), and how much of the spool is left including it.
+func (s *Shipper) spoolChunk() ([]byte, int64) {
+	fi, err := os.Stat(s.Spool)
+	if err != nil {
+		s.spoolOff = 0
+		return nil, 0
+	}
+	left := fi.Size() - s.spoolOff
+	if left <= 0 {
+		return nil, 0
+	}
+	f, err := os.Open(s.Spool)
+	if err != nil {
+		return nil, 0
+	}
+	defer f.Close()
+	b := make([]byte, min(left, sentKeep))
+	n, _ := f.ReadAt(b, s.spoolOff)
+	b = b[:n]
+	if i := bytes.LastIndexByte(b, '\n'); i >= 0 {
+		b = b[:i+1]
+	}
+	return b, left
+}
+
+// ship sends the spool file, a chunk a tick, then the pending lines; on a failure they stay where
+// they were. What went into the socket stays sent: unacknowledged lines come back through drop.
 func (s *Shipper) ship() {
-	spool, _ := os.ReadFile(s.Spool)
-	if len(spool) == 0 && len(s.pending) == 0 {
+	chunk, left := s.spoolChunk()
+	if left == 0 && len(s.pending) == 0 {
 		return
 	}
 	if s.conn == nil {
@@ -272,15 +300,20 @@ func (s *Shipper) ship() {
 		}
 		s.conn = c
 		if s.down {
-			s.Log.Info("logship: server back", "addr", s.Addr, "spooled_bytes", len(spool), "pending", len(s.pending))
+			s.Log.Info("logship: server back", "addr", s.Addr, "spooled_bytes", left, "pending", len(s.pending))
 			s.down = false
 		}
 	}
-	if len(spool) > 0 {
-		if !s.write(spool) {
+	if left > 0 {
+		if !s.write(chunk) {
+			return
+		}
+		if int64(len(chunk)) < left {
+			s.spoolOff += int64(len(chunk))
 			return
 		}
 		os.Remove(s.Spool)
+		s.spoolOff = 0
 	}
 	if len(s.pending) > 0 {
 		var b bytes.Buffer
@@ -359,21 +392,50 @@ func (s *Shipper) drop(why string, err error) {
 	s.down = true
 }
 
-// spoolPending appends the pending lines to the spool file, keeping it under SpoolMax.
+// spoolPending appends the pending lines to the spool file. Past SpoolMax it keeps only the newest
+// half of that: an outage can last for days, and rewriting a full spool every minute would cost a
+// Mini 1.4 GB of flash a day. This way the flash sees each line about twice (docs/storage.md).
 func (s *Shipper) spoolPending() {
 	s.spooled = s.now()
 	if len(s.pending) == 0 || s.Spool == "" {
 		return
 	}
-	old, _ := os.ReadFile(s.Spool)
 	var b bytes.Buffer
-	b.Write(old)
 	for _, l := range s.pending {
 		b.WriteString(l)
 		b.WriteByte('\n')
 	}
-	out := b.Bytes()
-	if over := len(out) - s.SpoolMax; over > 0 { // drop the oldest whole lines
+	var size int64
+	if fi, err := os.Stat(s.Spool); err == nil {
+		size = fi.Size() - s.spoolOff
+	}
+	var ok bool
+	if size+int64(b.Len()) > int64(s.SpoolMax) {
+		ok = s.compactSpool(b.Bytes())
+	} else {
+		ok = s.appendSpool(b.Bytes())
+	}
+	if ok {
+		s.pending, s.size = nil, 0
+	}
+}
+
+func (s *Shipper) appendSpool(lines []byte) bool {
+	f, err := os.OpenFile(s.Spool, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return false
+	}
+	_, werr := f.Write(lines)
+	serr := f.Sync()
+	f.Close()
+	return werr == nil && serr == nil
+}
+
+// compactSpool rewrites the spool as the newest SpoolMax/2 bytes of it and lines, whole lines only.
+func (s *Shipper) compactSpool(lines []byte) bool {
+	old, _ := os.ReadFile(s.Spool)
+	out := append(old[min(s.spoolOff, int64(len(old))):], lines...)
+	if over := len(out) - s.SpoolMax/2; over > 0 {
 		cut := over
 		if i := bytes.IndexByte(out[cut:], '\n'); i >= 0 {
 			cut += i + 1
@@ -385,14 +447,15 @@ func (s *Shipper) spoolPending() {
 	tmp := s.Spool + ".tmp"
 	f, err := os.Create(tmp)
 	if err != nil {
-		return
+		return false
 	}
 	_, werr := f.Write(out)
 	serr := f.Sync()
 	f.Close()
 	if werr != nil || serr != nil || os.Rename(tmp, s.Spool) != nil {
 		os.Remove(tmp)
-		return
+		return false
 	}
-	s.pending, s.size = nil, 0
+	s.spoolOff = 0
+	return true
 }

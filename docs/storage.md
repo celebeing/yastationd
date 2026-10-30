@@ -15,7 +15,8 @@ The rootfs is read-only everywhere (UBIFS on the minis, ext4 on orion) and is wr
 install.
 
 **Wear.** UBI counts erases per block: the highest erase count on the writable UBI device is
-**4-7** on the three minis, over the units' whole life (vendor years included). UBI spreads
+**4-7** on the three minis on 2026-10-26, **11 and 17** on the two bergamots on 2026-10-30, after
+four days of development deploys. UBI spreads
 writes over all ~750-930 blocks, and SLC NAND is rated for tens of thousands of cycles: the
 minis' flash is idle. On orion the eMMC reports `life_time 0x01 0x01` (0-10 % used) and
 `pre_eol_info 0x01` (normal). Measured steady writes on orion: **0 bytes in 2 min** of normal
@@ -26,15 +27,32 @@ twice (the upload and the `.prev` copy, ~17 MB each).
 
 | File | When |
 |---|---|
-| `<cfw>/yastationd.state` (~350 B, written to a temp file and renamed) | an HA-set or user-set value changes: ring/ambilight colour, display mode, volume, brightness…; debounced 2 s, so turning the volume ring is one write |
-| `<cfw>/sendspin/state.json` (sendspin-host) | a Music Assistant server pairs |
+| `<cfw>/yastationd.state` (~500 B, written to a temp file and renamed) | an HA-set or user-set value changes: ring/ambilight colour, display mode, volume, brightness…; debounced 2 s, so turning the volume ring is one write |
+| `<cfw>/sendspin/state.json` (sendspin-host) | a Music Assistant server pairs; the library also saves the last-played server and the output delay |
+| `yastationd.conf`, `.bak` | a setting saved or received from another speaker |
 | `wpa_supplicant.conf` | only from the Wi-Fi setup page |
-| `<cfw>/intercom-*.raw` | only with `intercom_record_dir` set (testing) |
+| `<cfw>/intercom-*.raw` | only with `intercom_record_dir` set (testing): every call, **no cap** |
+| `<cfw>/wakes/` | only with `wake_capture` (testing): ~110 KB per wake, the newest 200 kept (~22 MB) |
 | `<cfw>/voices/log.jsonl`, `edits.json` | only on the `voice_store` speaker: ~3 KB per request appended; the whole log rewritten once per ~1500 requests (4-9 MB, [voice-id.md](voice-id.md), "How much is kept"); `edits.json` on an owner's edit and on those rewrites |
-| `<cfw>/log-spool` | only while the log server is unreachable, once a minute, capped (`log_spool_kb`) |
+| `<cfw>/log-spool` | only while the log server is unreachable, once a minute: new lines appended; past `log_spool_kb` it is rewritten once, down to half |
 | `<cfw>/packs/<id>/pack.json` of the owner's packs | a moment saved from the web app (up to v0.21: `<cfw>/moments.json`) |
 | `<cfw>/web.secret` (32 B) | once, the first time the web server starts |
 | `<cfw>/netwatch.count` | a network-watchdog reboot (one write) |
+
+**Audit, 2026-10-30, v0.22.2** (every write in the code, then the units). In 16.5 min of normal
+running the two Station 3s wrote **0 bytes** to the eMMC and the two bergamots' highest erase
+counts did not move; in the last 24 h only settings, the state file, the voice store and, from the
+firmware, the DHCP lease (orion, ~300 B per renewal), `fw_version`, `quasar/*.log` and Bluetooth's
+`attributes` at boot had changed. Two write amplifications were found and fixed, both in paths that
+run rarely: the voice log and the log spool. What is left, none of it urgent:
+
+- `yastationd.state` is written when a command arrives even if the value did not change. An HA
+  automation repeating a colour or a display message once a minute means ~1400 writes a day (a few
+  MB of UBIFS journal, one 256 KiB block erased per ~30 writes, ~20 cycles a year over the whole
+  device): harmless, but comparing the bytes before writing would remove it. Not measured.
+- Development deploys are the largest real source: ~7-10 erase cycles in four days. They re-upload
+  binaries that did not change. Only developers pay this.
+- `intercom_record_dir` has no cap: left on, calls would fill the partition.
 
 Not written: the light-sensor readings, auto-brightness, room sound levels, the heartbeat
 (`/tmp/yastationd.heartbeat`), the once-per-boot markers (in `/tmp`).
@@ -71,9 +89,15 @@ logs to a syslog server on the LAN (`internal/logship`):
   `dropbear`…), severity from the line. Any syslog server that takes TCP works; the author's is
   VictoriaLogs.
 - **While the server is unreachable:** lines wait in memory and once a minute are appended to
-  `<cfw>/log-spool` on flash, capped at `log_spool_kb` (default 1024; the oldest lines go first).
-  When the server is back the spool is sent first, then deleted. Flash is written only during an
-  outage, once a minute.
+  `<cfw>/log-spool` on flash (with a sync: a hang ends in a power cycle). At `log_spool_kb`
+  (default 16384) the oldest lines go: the file is rewritten once, down to half of that, so
+  50-100 % of the cap is kept and the flash sees each line about twice, whatever the cap (the
+  arithmetic: [voice-id.md](voice-id.md), "How much is kept"). Until v0.22.3 the cap was 1 MB and
+  the whole spool was rewritten every minute, up to 1.4 GB a day: a wrong `log_remote` or a server
+  down for days would have cost a Mini several passes over its flash daily.
+  When the server is back the spool goes first, up to 256 KB a second (the most a dead link can
+  hand back) from where it stopped if the link breaks again, then it is deleted; a daemon restart
+  sends it from its start. Flash is written only during an outage.
 - **A dead link** (the Wi-Fi hang: writes into the socket still succeed, nothing is
   acknowledged): the connection has a 20 s TCP user timeout, and data unacknowledged for 20 s
   (`SIOCOUTQ`) drops it; the unacknowledged lines go back to the queue and from there to the spool.

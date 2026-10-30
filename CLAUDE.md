@@ -113,6 +113,9 @@ A feature is not done when the code works. In the **same change**, whenever it:
 - **puts something new on the speaker** (a file, a binary, a port, a default that changes behaviour)
   → [docs/guides/deploying.md](docs/guides/deploying.md) ("What ends up on the device", install/update steps), and
   `tools/deploy.sh` if it must be uploaded;
+- **writes to flash at runtime** → [docs/storage.md](docs/storage.md)'s table, with how often and how much. Nothing
+  periodic reaches flash; log-like data is appended and cut in one go, down to about half, never
+  rewritten per event ([docs/adding-a-feature.md](docs/adding-a-feature.md), "Data on the speaker");
 - **adds a config key or a board-profile key** → both `yastationd/configs/*.example`, and
   [docs/porting-a-speaker.md](docs/porting-a-speaker.md) for profile keys. A config key is described **only** in the registry
   (`yastationd/internal/config/registry.go`, rules in [docs/settings.md](docs/settings.md)), which feeds the parser,

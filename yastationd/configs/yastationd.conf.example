@@ -125,7 +125,7 @@ wyoming_port = 10700
 # Logs to a syslog server on the LAN (TCP), spooled on flash while it is unreachable
 # (docs/storage.md). Off when unset.
 # log_remote   = <syslog-host>:514
-# log_spool_kb = 1024
+# log_spool_kb = 16384
 # Reboot when the default gateway is unreachable this many minutes (doubling after each such
 # reboot, up to 4 h); 0 = off.
 # net_watchdog_min = 10

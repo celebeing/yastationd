@@ -346,7 +346,7 @@ func Default() Config {
 		IntercomJitterMs:    40,
 		WakeEnabled:         true,
 		RoomSound:           true,
-		LogSpoolKB:          1024,
+		LogSpoolKB:          16384,
 		Arbitration:         true,
 		HTTPAddr:            ":80",
 		LEDPreview:          true,
