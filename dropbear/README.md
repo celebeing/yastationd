@@ -11,6 +11,7 @@ this project's scope; this only keeps the server we already use current.
   `scp`. Sessions get `<cfw>/bin` on `PATH` (`localoptions.h`), so with the `scp` link there,
   `scp` to a speaker works (plain and `scp -O`). No SFTP server.
 - **Build:** `tools/build.sh dropbear` → `build/dropbearmulti` (docs/building.md).
+- **OpenSSH instead** (certificates, SFTP): [openssh/](../openssh/README.md), [docs/ssh.md](../docs/ssh.md).
 - **On a speaker:** `tools/deploy.sh` replaces the server on a first deploy or with `DROPBEAR=1`,
   through a test server on port 2222 (docs/guides/deploying.md, "Updating").
 

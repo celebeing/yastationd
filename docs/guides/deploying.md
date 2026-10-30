@@ -17,6 +17,7 @@ scripts branch on its existence.
 | `<cfw>/bin/spotter-host` | the voice front-end host, built for the device's userland arch; with `voice_id` a second process of it (`spotter-host voice`) makes the voiceprints |
 | `<cfw>/bin/sendspin-host` | the Music Assistant player (optional, `sendspin = true`), built for the userland arch |
 | `<cfw>/bin/dropbearmulti`, `<cfw>/bin/scp` (a link to it), `dropbearmulti.prev` | the SSH server, our build of dropbear (static aarch64, with scp; [dropbear/README.md](../../dropbear/README.md)), when the speaker already runs dropbear from there; replaced on a first deploy or with `DROPBEAR=1`, the one before kept as `.prev` |
+| `<cfw>/openssh/{sshd,sshd-session,sshd-auth,sftp-server,scp,dropbearconvert}` (+ `.prev`), `ssh_host_ed25519_key`; `<cfw>/init.d/ssh.sh`; `<cfw>/ssh_server` (+ `.prev`) | only with `SSH=openssh`: OpenSSH instead of dropbear, its host key converted from dropbear's, the script that starts the server `<cfw>/ssh_server` names; the owner's `trusted_user_ca_keys`, `principals/`, `sshd_config.local` next to it ([ssh.md](../ssh.md)) |
 | `<cfw>/bin/hostapd` | the access point for the Wi-Fi setup mode (static armv7, same binary for every board; [wifi-setup.md](../wifi-setup.md)) |
 | `<cfw>/sendspin/state.json` | its identity (stable client_id) and pairing records, 0600 |
 | `<cfw>/yastationd.conf` | config (generic `yastationd/configs/yastationd.conf.example`; Orion bring-up `orion.conf.example`) |
@@ -295,6 +296,12 @@ server; if port 22 does not answer, the old binary is put back through port 2222
 stops. `DROPBEAR=only` does only this, without building or updating anything else (for
 speakers that should keep their running build). The boot hook starts the same path, so a reboot keeps the new one. To go back by hand:
 `mv <cfw>/bin/dropbearmulti.prev <cfw>/bin/dropbearmulti` and restart the listener (or reboot).
+
+**OpenSSH instead of dropbear.** `SSH=openssh` (back: `SSH=dropbear`; with `DROPBEAR=only`,
+nothing else) switches port 22 the same careful way: the chosen server is tried on port 2222,
+a login through it switches, a login on 22 confirms, else the previous one comes back. A reboot
+returns to dropbear until the boot hook is changed (`SSH_HOOK=1`, a rootfs write, only with the
+owner's OK). [ssh.md](../ssh.md).
 
 **Don't** improvise the swap as one ssh command line that contains the binary's path. The init
 hook's `stop` kills processes by that path and takes your ssh session down with it, leaving the

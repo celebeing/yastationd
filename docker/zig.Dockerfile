@@ -7,7 +7,7 @@ ARG ZIG_VERSION=0.14.1
 ARG ZIG_SHA256_X86_64=24aeeec8af16c381934a6cd7d95c807a8cb2cf7df9fa40d359aa884195c4716c
 ARG ZIG_SHA256_AARCH64=f7a654acc967864f7a050ddacfaa778c7504a0eca8d2b678839c21eea47c992b
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl xz-utils bzip2 binutils git make cmake ninja-build file \
+ && apt-get install -y --no-install-recommends ca-certificates curl xz-utils bzip2 binutils git make cmake ninja-build file perl \
  && rm -rf /var/lib/apt/lists/*
 RUN set -eu; \
     arch=$(uname -m); \

@@ -9,6 +9,7 @@
 #   yastationd        tests + the daemon      yastationd/build/yastationd           (go; builds web first when stale)
 #   hostapd           the Wi-Fi setup AP      hostapd/build/hostapd                 (zig)
 #   dropbear          the SSH server          dropbear/build/dropbearmulti          (zig)
+#   openssh           the optional OpenSSH    openssh/build/{sshd,sshd-session,…}   (zig; SSH=openssh in deploy.sh)
 #   sendspin:<arch>   the music player        sendspin-host/build/<arch>/sendspin-host (zig; armhf | aarch64)
 #   spotter:<arch>    the voice front-end     spotter-host/build/<arch>/spotter-host   (cross gcc + a vendor sysroot)
 #   packtool          the asset-pack checker  yastationd/build/packtool  (go; for this host, not the speakers;
@@ -108,6 +109,11 @@ build_make() {
 	run tools yastationd "make -s IN_BUILDER=1 $1 ${MAKE_VARS:-}"
 }
 
+build_openssh() {
+	echo "== openssh"
+	run zig openssh 'make -s'
+}
+
 build_dropbear() {
 	echo "== dropbear"
 	run zig dropbear 'make -s'
@@ -179,6 +185,7 @@ for t in "$@"; do
 	yastationd) build_yastationd ;;
 	hostapd) build_hostapd ;;
 	dropbear) build_dropbear ;;
+	openssh) build_openssh ;;
 	packtool) build_hosttool packtool ;;
 	docs-check) "$here/tools/check-docs.sh" || exit 1 ;;
 	hosttool:*) build_hosttool "${t#hosttool:}" ;;

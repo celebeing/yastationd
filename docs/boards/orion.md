@@ -453,7 +453,10 @@ the other project's scope):
 - Kit state: `<cfw>` = `/bkupgrade/cfw` with dropbear, `maind_off`, the kit's own
   (IPv4-only) `egress.sh` locked, `run.sh` gated, `device_ota_update.sh` stubbed,
   `--updatesd` stripped from `launch.json`, a foreign `ota_script.pub` (each with an
-  `.orig`). No maind process; network ADB `:5555` stays up.
+  `.orig`). No maind process; network ADB `:5555` stays up: the vendor `adbd` runs as root and the
+  port answers from the whole LAN (checked 2026-10-31 on both units; whether it asks for a key
+  was not tried). The egress lock lets inbound connections in by design. The minis' `:5555` is
+  closed. Open item in [backlog.md](../backlog.md).
 - `/dev/galcore` (the NPU) is present. spotter-host's `probe` on the stock models:
   `activation/alisa` (omni + BNR + raw-mic, NPU verifier) creates fine as a 3-channel
   spotter, `yandex` and `yasmina` as 2-channel (omni + raw-mic), `command` as 1-channel.

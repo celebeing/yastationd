@@ -35,6 +35,13 @@ Review of 2026-10-28 (whole repo).
   well) — `internal/app`; the plain `go test` passes. Find the race (likely the test's own
   shared state with the intercom goroutines) before trusting `-race` runs of the package. S–M.
 
+- **orion: network ADB on `:5555` open to the LAN** (found 2026-10-31) — the vendor `adbd`
+  runs as root on both Station 3 units ([boards/orion.md](boards/orion.md)); if it takes
+  unauthenticated connections, it is a root shell for anything on the LAN, next to an SSH that
+  takes keys only. Fix: drop inbound 5555 in `egress.sh` (USB-ADB, the physical fallback, is not
+  affected), or keep `adbd` off the network. Touches a way into the speaker: only with the
+  owner's OK, tried on one unit. S, risk: access.
+
 ## Duplication
 
 
