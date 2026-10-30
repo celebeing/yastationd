@@ -277,6 +277,16 @@ export type Pack = {
   /** one of the owner's packs (made here); installed ones are read-only */
   editable?: boolean
 }
+
+/** One installed pack animation for a preview in the browser, in the LED preview stream's terms
+ * (the display as its /info, frames as its /frames: drive values, hex), painted by ledframe.ts. */
+export type PackAnimation = {
+  screen: [number, number]
+  seg7?: { digits: number; colon: boolean; dot: boolean; degree: boolean }
+  frames: { screen?: string; seg7?: string; ms: number }[]
+}
+/** PUT /api/packs: what the import did (updated: replaced another version, was; skipped: the same version is there). */
+export type PackImported = { id: string; version?: string; was?: string; updated?: boolean; skipped?: boolean }
 /** stack: the packs this speaker wears, top first (a pack left out is off); here: from
  * theme_here (v0.21.1's "Apply here"), not the theme key; target: the owner's pack edits go to. */
 export type Packs = {
@@ -301,6 +311,9 @@ export const newPack = (id: string, base: string, name: string) =>
 export const renamePack = (id: string, base: string, pack: string, name: string) =>
   authed<Packs>(id, base, `/api/packs/${encodeURIComponent(pack)}/rename`, { method: 'POST', body: JSON.stringify({ name }) })
 export const deletePack = (id: string, base: string, pack: string) => authed<Packs>(id, base, '/api/packs/' + encodeURIComponent(pack), { method: 'DELETE' })
+/** packAnimation loads an installed pack's validated frames for an in-browser preview. */
+export const packAnimation = (id: string, base: string, pack: string, name: string) =>
+  authed<PackAnimation>(id, base, `/api/packs/${encodeURIComponent(pack)}/anims/${encodeURIComponent(name)}`)
 /** packAssetPath: where a sound or animation of one of the owner's packs is put (PUT) or removed. */
 export const packAssetPath = (pack: string, kind: 'sounds' | 'anims', name: string) =>
   `/api/packs/${encodeURIComponent(pack)}/${kind}/${encodeURIComponent(name)}`

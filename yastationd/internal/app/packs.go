@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"cmp"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +20,8 @@ import (
 	"strings"
 
 	"github.com/celebeing/yastationd/yastationd/internal/display"
+	"github.com/celebeing/yastationd/yastationd/internal/frametap"
+	"github.com/celebeing/yastationd/yastationd/internal/hw"
 )
 
 // Asset packs and the theme stack (docs/asset-packs.md). A pack is <cfw>/packs/<id>/: pack.json
@@ -56,6 +59,21 @@ type pack struct {
 	Editable bool `json:"editable,omitempty"`
 	// Moments by display kind ("any" for every one): moment -> candidates.
 	Moments map[string]map[string][]show `json:"moments,omitempty"`
+}
+
+// packAnimationView is one installed animation for the browser's preview, in the LED preview
+// stream's own terms (internal/frametap: the display described as in /info, each frame as in
+// /frames: drive values, hex), so the web app draws it with the LED page's renderer.
+type packAnimationView struct {
+	Screen [2]int               `json:"screen"`         // w, h; 0, 0 = no pixel screen
+	Seg7   *frametap.Seg7       `json:"seg7,omitempty"` // a 7-segment display instead
+	Frames []packAnimationFrame `json:"frames"`
+}
+
+type packAnimationFrame struct {
+	Screen string `json:"screen,omitempty"` // RGB per pixel, as driven (the display's gamma applied)
+	Seg7   string `json:"seg7,omitempty"`   // drive level per element, hw.MatrixFrame.Drive order
+	MS     int64  `json:"ms"`
 }
 
 // packDisplay is this speaker's display kind as packs name it: seg7, pixels-<w>x<h>, "" (none).
@@ -139,6 +157,60 @@ func (a *App) packAnim(ref string) (display.Anim, bool) {
 		return l.(*display.ClipLibrary).Load(name)
 	}
 	return nil, false
+}
+
+// packAnimationView reads an installed pack's animation for this display. The upload path already
+// validated it; parsing again keeps a hand-copied or later-corrupted file out of the browser.
+func (a *App) packAnimationView(id, name string) (packAnimationView, error) {
+	a.rescanPacks()
+	if !packFileName.MatchString(name) || id != customPack && a.installedPacks()[id] == nil {
+		return packAnimationView{}, errors.New("no such pack animation")
+	}
+	kind := a.packDisplay()
+	m := packAnimDir.FindStringSubmatch(kind)
+	if m == nil {
+		return packAnimationView{}, errors.New("this speaker has no supported display")
+	}
+	ext := ".led"
+	if kind == "seg7" {
+		ext = ".scled"
+	}
+	b, err := os.ReadFile(filepath.Join(a.packDir(id), "anims", kind, name+ext))
+	if err != nil {
+		return packAnimationView{}, errors.New("no such pack animation")
+	}
+	var v packAnimationView
+	if kind == "seg7" {
+		c, err := display.ParseScled(name, bytes.NewReader(b))
+		if err != nil {
+			return packAnimationView{}, err
+		}
+		colon, dot, degree := a.matrix.Elements()
+		v.Seg7 = &frametap.Seg7{Digits: hw.Digits, Colon: colon, Dot: dot, Degree: degree}
+		for _, f := range c.Frames {
+			d := f.Drive()
+			v.Frames = append(v.Frames, packAnimationFrame{Seg7: hex.EncodeToString(d[:]), MS: f.Dur.Milliseconds()})
+		}
+		return v, nil
+	}
+	v.Screen[0], _ = strconv.Atoi(m[2])
+	v.Screen[1], _ = strconv.Atoi(m[3])
+	gamma := 1.0
+	if f, ok := a.front.(display.PixelFront); ok {
+		gamma = f.Gamma // as the screen is driven, like the stream: the web app undoes it for a monitor
+	}
+	c, err := display.ParseLed(name, bytes.NewReader(b), v.Screen[0], v.Screen[1], gamma)
+	if err != nil {
+		return packAnimationView{}, err
+	}
+	for _, f := range c.Frames {
+		data := make([]byte, 0, len(f.Px)*3)
+		for _, p := range f.Px {
+			data = append(data, p.R, p.G, p.B)
+		}
+		v.Frames = append(v.Frames, packAnimationFrame{Screen: hex.EncodeToString(data), MS: f.Dur.Milliseconds()})
+	}
+	return v, nil
 }
 
 func (a *App) installedPacks() map[string]*pack {
@@ -274,12 +346,37 @@ func readPack(zipData []byte) (*pack, map[string][]byte, error) {
 // installPack checks a pack archive and installs it, replacing an installed one of the same id
 // (never one of the owner's). Installed, a pack is read-only: an editable mark in it is dropped.
 func (a *App) installPack(zipData []byte) (*pack, error) {
+	r, err := a.importPack(zipData, false)
+	return r.pack, err
+}
+
+// packImport is what importPack did: the pack, and the version it replaced ("" for a new one), or
+// that it skipped the archive.
+type packImport struct {
+	pack    *pack
+	was     string // the version replaced
+	updated bool   // a pack of this id was installed and is now replaced
+	skipped bool   // the same version is installed already: nothing written
+}
+
+// importPack checks a pack archive and installs it. With sameSkip an installed pack of the same id
+// and version is left as it is (a batch import of archives already here); another version
+// replaces it, as an update. The owner's packs are never replaced.
+func (a *App) importPack(zipData []byte, sameSkip bool) (packImport, error) {
 	p, files, err := readPack(zipData)
 	if err != nil {
-		return nil, err
+		return packImport{}, err
+	}
+	r := packImport{pack: p}
+	if old := a.installedPacks()[p.ID]; old != nil && !a.packEditable(p.ID) {
+		if sameSkip && old.Version == p.Version {
+			r.skipped = true
+			return r, nil
+		}
+		r.updated, r.was = true, old.Version
 	}
 	if a.packEditable(p.ID) {
-		return nil, fmt.Errorf("%s is one of your packs here: export it under another id, or remove yours first", p.ID)
+		return packImport{}, fmt.Errorf("%s is one of your packs here: export it under another id, or remove yours first", p.ID)
 	}
 	if p.Editable {
 		p.Editable = false
@@ -292,38 +389,38 @@ func (a *App) installPack(zipData []byte) (*pack, error) {
 	}
 	root := a.cfwFile(packsDir)
 	if err := os.MkdirAll(root, 0o755); err != nil {
-		return nil, err
+		return packImport{}, err
 	}
 	if free := freeBytes(root); free >= 0 && int64(total) > free-assetFreeKeep {
-		return nil, errors.New("not enough room on the speaker")
+		return packImport{}, errors.New("not enough room on the speaker")
 	}
 	tmp, err := os.MkdirTemp(root, ".install-*")
 	if err != nil {
-		return nil, err
+		return packImport{}, err
 	}
 	defer os.RemoveAll(tmp)
 	for name, b := range files {
 		dst := filepath.Join(tmp, filepath.FromSlash(name))
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			return nil, err
+			return packImport{}, err
 		}
 		if err := os.WriteFile(dst, b, 0o644); err != nil {
-			return nil, err
+			return packImport{}, err
 		}
 	}
 	dir := a.packDir(p.ID)
 	old := dir + ".old"
 	os.RemoveAll(old)
 	if err := os.Rename(dir, old); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, err
+		return packImport{}, err
 	}
 	if err := os.Rename(tmp, dir); err != nil {
 		os.Rename(old, dir)
-		return nil, err
+		return packImport{}, err
 	}
 	os.RemoveAll(old)
 	a.loadPacks()
-	return p, nil
+	return r, nil
 }
 
 // packFiles reads an archive's files, by their path in the pack (a single top directory that
@@ -588,7 +685,9 @@ func dirBytes(dir string) int64 {
 // apiPacks serves the Packs page (docs/asset-packs.md):
 //
 //	GET    /api/packs                       the packs, the stack, what the stack names but is missing
-//	PUT    /api/packs                       install a pack (the zip as the body; read-only here)
+//	PUT    /api/packs[?same=skip]           install a pack (the zip as the body; read-only here), or
+//	                                        update one of its id; same=skip leaves the same version
+//	                                        as it is. imported: {id, version, updated, was, skipped}
 //	POST   /api/packs/new {"name"}          a new pack of the owner's, worn on top
 //	PUT    /api/packs/stack                 {"stack": [ids], "here": bool}: the stack worn, top first
 //	                                        (here: theme_here; [] ends it); custom left out = off
@@ -597,6 +696,7 @@ func dirBytes(dir string) int64 {
 //	POST   /api/packs/<id>/rename {"name"}  rename one of the owner's
 //	DELETE /api/packs/<id>                  remove it
 //	GET    /api/packs/<id>/export?id=&name= the pack as an archive (read-only where installed)
+//	GET    /api/packs/<id>/anims/<name>     parsed frames for browser preview
 //	PUT|DELETE /api/packs/<id>/sounds/<name>  a sound of one of the owner's packs (a WAV)
 //	PUT|DELETE /api/packs/<id>/anims/<name>   an animation of one of them, for this display
 func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
@@ -611,7 +711,10 @@ func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	}
-	var err error
+	var (
+		err      error
+		imported map[string]any // PUT: what the import did
+	)
 	switch {
 	case len(parts) == 0 && r.Method == http.MethodGet:
 	case len(parts) == 0 && r.Method == http.MethodPut:
@@ -621,9 +724,20 @@ func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
 			err = fmt.Errorf("over %d MB", maxPackZip>>20)
 		}
 		if err == nil {
-			var p *pack
-			if p, err = a.installPack(b); err == nil {
-				a.log.Info("packs: installed", "pack", p.ID, "version", p.Version)
+			var res packImport
+			if res, err = a.importPack(b, r.URL.Query().Get("same") == "skip"); err == nil {
+				p := res.pack
+				imported = map[string]any{"id": p.ID, "version": p.Version, "updated": res.updated, "skipped": res.skipped}
+				if res.updated {
+					imported["was"] = res.was
+				}
+				switch {
+				case res.skipped:
+				case res.updated:
+					a.log.Info("packs: updated", "pack", p.ID, "from", res.was, "to", p.Version)
+				default:
+					a.log.Info("packs: installed", "pack", p.ID, "version", p.Version)
+				}
 			}
 		}
 	case len(parts) == 1 && parts[0] == "new" && r.Method == http.MethodPost:
@@ -668,6 +782,14 @@ func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Disposition", `attachment; filename="`+cmp.Or(q.Get("id"), parts[0])+`.zip"`)
 		w.Write(b)
 		return
+	case len(parts) == 3 && parts[1] == "anims" && r.Method == http.MethodGet:
+		v, err := a.packAnimationView(parts[0], parts[2])
+		if err != nil {
+			writeErr(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, v)
+		return
 	case len(parts) == 3 && (parts[1] == "sounds" || parts[1] == "anims"):
 		err = a.packAsset(r, parts[0], parts[1], parts[2])
 	default:
@@ -678,5 +800,9 @@ func (a *App) apiPacks(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, a.packsNow())
+	out := a.packsNow()
+	if imported != nil {
+		out["imported"] = imported
+	}
+	writeJSON(w, http.StatusOK, out)
 }

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import * as api from './api'
 import type { Pack, Packs, Peer } from './api'
 import { toWav } from './assets'
+import { frontSize, LUT, paintFront } from './ledframe'
 
 // Behaviour → Packs and Behaviour → Sounds (docs/asset-packs.md). A pack carries sounds, animations
 // and moments; the theme stack is the packs in force, top first, over the default theme. The
@@ -51,6 +52,7 @@ export function PacksTab({ peer, base }: { peer: Peer; base: string }) {
   const [confirmDel, setConfirmDel] = useState('')
   const [renaming, setRenaming] = useState('')
   const [newName, setNewName] = useState('')
+  const [preview, setPreview] = useState<Pack | null>(null)
   if (!p) return <section class="card">{err ? <p class="err">{err}</p> : <p class="muted">Loading…</p>}</section>
   const byId = Object.fromEntries(p.packs.map((k) => [k.id, k]))
   // The stack shown is the one this speaker wears (theme_here when that is in force).
@@ -160,9 +162,14 @@ export function PacksTab({ peer, base }: { peer: Peer; base: string }) {
                 </td>
                 <td class="actions">
                   {!!k.anims?.length && (
-                    <a class="button ghost" href={`#led/@${k.id}`} title="Play its animations on the LED page">
-                      Animations
-                    </a>
+                    <>
+                      <button class="ghost" onClick={() => setPreview(k)} title="Every animation of the pack, looping here in the browser; nothing is sent to the speaker">
+                        Preview
+                      </button>
+                      <a class="button ghost" href={`#led/@${k.id}`} title="Play its animations on the speaker (the LED page), without turning the pack on">
+                        Play on the speaker
+                      </a>
+                    </>
                   )}
                   {onOff(k)}
                   <button class="ghost" disabled={busy} onClick={() => setRenaming(renaming === k.id ? '' : k.id)}>
@@ -207,9 +214,14 @@ export function PacksTab({ peer, base }: { peer: Peer; base: string }) {
                 </td>
                 <td class="actions">
                   {!!k.anims?.length && (
-                    <a class="button ghost" href={`#led/@${k.id}`} title="Play its animations on the LED page, without turning it on">
-                      Animations
-                    </a>
+                    <>
+                      <button class="ghost" onClick={() => setPreview(k)} title="Every animation of the pack, looping here in the browser; nothing is sent to the speaker">
+                        Preview
+                      </button>
+                      <a class="button ghost" href={`#led/@${k.id}`} title="Play its animations on the speaker (the LED page), without turning the pack on">
+                        Play on the speaker
+                      </a>
+                    </>
                   )}
                   {onOff(k)}
                   <button class="ghost" disabled={busy} onClick={() => act(() => api.packAction(peer.id, base, k.id, 'copy'))} title="Make an editable copy, in its place in the theme">
@@ -225,48 +237,180 @@ export function PacksTab({ peer, base }: { peer: Peer; base: string }) {
       </section>
 
       <AddPack peer={peer} base={base} max={p.max_bytes} onDone={load} onErr={setErr} />
+      {preview && <PackPreview peer={peer} base={base} pack={preview} onClose={() => setPreview(null)} />}
     </div>
   )
 }
 
-function AddPack(p: { peer: Peer; base: string; max: number; onDone: () => void; onErr: (e: string) => void }) {
-  const [file, setFile] = useState<File | null>(null)
-  const [pct, setPct] = useState(-1)
-  const [msg, setMsg] = useState('')
-  async function go() {
-    if (!file) return
-    setMsg('')
-    p.onErr('')
-    try {
-      if (file.size > p.max) throw new Error(`over ${p.max >> 20} MB`)
-      setPct(0)
-      await api.uploadAsset(p.peer.id, p.base, '/api/packs', file, (n) => setPct(n / file.size))
-      setMsg(`${file.name}: installed. Turn it on to wear it.`)
-      setFile(null)
-      p.onDone()
-    } catch (e: any) {
-      setMsg(e.message || String(e))
+function PackPreview(p: { peer: Peer; base: string; pack: Pack; onClose: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    dialog.current?.showModal()
+    return () => dialog.current?.close()
+  }, [])
+  return (
+    <dialog class="pack-preview" ref={dialog} aria-labelledby={`pack-preview-${p.pack.id}`} onClose={p.onClose}>
+      <header class="row">
+        <div class="grow">
+          <h3 id={`pack-preview-${p.pack.id}`}>{p.pack.name}</h3>
+          <p class="muted small">Browser previews of every animation for this speaker. Nothing is sent to the display.</p>
+        </div>
+        <form method="dialog">
+          <button class="ghost">Close</button>
+        </form>
+      </header>
+      <div class="pack-preview-list">
+        {(p.pack.anims || []).map((name) => (
+          <PackAnimationPreview key={name} peer={p.peer} base={p.base} pack={p.pack.id} name={name} />
+        ))}
+      </div>
+    </dialog>
+  )
+}
+
+// One animation, looping: painted plain by the LED page's own painter (ledframe.ts), only when the
+// frame changes and only while on screen; with reduced motion, its first frame.
+function PackAnimationPreview(p: { peer: Peer; base: string; pack: string; name: string }) {
+  const canvas = useRef<HTMLCanvasElement>(null)
+  const [view, setView] = useState<api.PackAnimation | null>(null)
+  const [err, setErr] = useState('')
+  useEffect(() => {
+    let live = true
+    setView(null)
+    setErr('')
+    api.packAnimation(p.peer.id, p.base, p.pack, p.name).then(
+      (animation) => live && setView(animation),
+      (e: unknown) => live && setErr(e instanceof Error ? e.message : String(e)),
+    )
+    return () => {
+      live = false
     }
+  }, [p.peer.id, p.base, p.pack, p.name])
+  useEffect(() => {
+    const c = canvas.current
+    if (!view || !c || !view.frames.length) return
+    const P = 8, // px per screen pixel
+      S7 = 0.5 // px per seg7 unit
+    const [w, h] = frontSize(view, P, S7)
+    c.width = Math.ceil(w)
+    c.height = Math.ceil(h)
+    const ctx = c.getContext('2d')!
+    const frames = view.frames.map((f) => ({ ...f, ms: Math.max(f.ms, 16) }))
+    const total = frames.reduce((n, f) => n + f.ms, 0)
+    const paint = (k: number) => {
+      ctx.fillStyle = '#000'
+      ctx.fillRect(0, 0, c.width, c.height)
+      paintFront(ctx, view, frames[k], LUT, 0, 0, P, S7)
+    }
+    paint(0)
+    if (frames.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    let raf = 0,
+      shown = 0,
+      visible = false
+    const start = performance.now()
+    const tick = (now: number) => {
+      let t = (now - start) % total,
+        k = 0
+      while (k < frames.length - 1 && t >= frames[k].ms) t -= frames[k++].ms
+      if (k !== shown) paint((shown = k))
+      raf = visible ? requestAnimationFrame(tick) : 0
+    }
+    const io = new IntersectionObserver(([e]) => {
+      visible = e.isIntersecting
+      if (visible && !raf) raf = requestAnimationFrame(tick)
+    })
+    io.observe(c)
+    return () => {
+      io.disconnect()
+      cancelAnimationFrame(raf)
+    }
+  }, [view])
+  return (
+    <figure class="pack-animation-preview">
+      {view ? <canvas ref={canvas} aria-label={`${p.name} animation preview`} /> : <div class="muted small">{err || 'Loading preview…'}</div>}
+      <figcaption>{p.name}</figcaption>
+    </figure>
+  )
+}
+
+type PackImport = { file: string; id?: string; version?: string; was?: string; updated?: boolean; skipped?: boolean; error?: string }
+
+function AddPack(p: { peer: Peer; base: string; max: number; onDone: () => void; onErr: (e: string) => void }) {
+  const [files, setFiles] = useState<File[]>([])
+  const [active, setActive] = useState(-1)
+  const [pct, setPct] = useState(-1)
+  const [imports, setImports] = useState<PackImport[]>([])
+  async function go() {
+    if (!files.length) return
+    setImports([])
+    p.onErr('')
+    let installed = false
+    for (const [i, file] of files.entries()) {
+      setActive(i)
+      setPct(0)
+      try {
+        if (file.size > p.max) throw new Error(`over ${p.max >> 20} MB`)
+        const result = (await api.uploadAsset(p.peer.id, p.base, '/api/packs?same=skip', file, (n) => setPct(n / file.size))) as { imported?: api.PackImported }
+        const im = result?.imported
+        if (!im?.skipped) installed = true
+        setImports((r) => [...r, { file: file.name, ...im }])
+      } catch (e: unknown) {
+        const error = e instanceof Error ? e.message : String(e)
+        setImports((r) => [...r, { file: file.name, error }])
+      }
+    }
+    setActive(-1)
     setPct(-1)
+    setFiles([])
+    if (installed) p.onDone()
   }
+  const importing = active >= 0
+  const selected = files.length === 1 ? '1 pack selected' : `${files.length} packs selected`
   return (
     <section class="card">
-      <h3>Add a pack</h3>
-      <p class="muted small">A pack is a .zip with pack.json at its root (docs/asset-packs.md). Its files are checked on the speaker before it is installed.</p>
+      <h3>Import packs</h3>
+      <p class="muted small">
+        Choose one or more .zip packs (docs/asset-packs.md). Each is checked on the speaker and installed by itself, so a rejected one does not stop the rest. A newer version of an installed pack updates it; the same version is skipped.
+      </p>
       <div class="row">
-        <input type="file" accept=".zip,application/zip" aria-label="Pack archive" onChange={(e) => setFile(e.currentTarget.files?.[0] || null)} />
-        <button class="primary" disabled={!file || pct >= 0} onClick={go}>
-          Upload
+        <input
+          type="file"
+          accept=".zip,application/zip"
+          multiple
+          aria-label="Pack archives"
+          disabled={importing}
+          onChange={(e) => {
+            setFiles(Array.from(e.currentTarget.files || []))
+            e.currentTarget.value = ''
+          }}
+        />
+        <button class="primary" disabled={!files.length || importing} onClick={go}>
+          {importing ? 'Importing…' : 'Import'}
         </button>
       </div>
-      {pct >= 0 && (
-        <div class="progress">
-          Uploading <span class="gauge">
+      {files.length > 0 && !importing && <p class="small muted">{selected}</p>}
+      {importing && (
+        <div class="progress" aria-live="polite">
+          Importing {active + 1} of {files.length}: {files[active].name} <span class="gauge">
             <i style={{ width: `${Math.round(pct * 100)}%` }} />
           </span>
         </div>
       )}
-      {msg && <p class="small">{msg}</p>}
+      {imports.length > 0 && (
+        <ul class="small">
+          {imports.map((r) => (
+            <li class={r.error ? 'err' : r.skipped ? 'warn-text' : ''}>
+              {r.file}:{' '}
+              {r.error ||
+                (r.skipped
+                  ? `${r.id} ${r.version || ''} is installed already: skipped.`
+                  : r.updated
+                    ? `${r.id} updated${r.was || r.version ? ` from ${r.was || '?'} to ${r.version || '?'}` : ''}.`
+                    : 'installed. Turn it on to wear it.')}
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }
