@@ -3,6 +3,19 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.22.1 — 2026-10-30
+
+**Packs** ([docs/asset-packs.md](docs/asset-packs.md)) — with rlex (#4)
+- Import several packs at once: each archive is checked and installed by itself, and a rejected
+  one doesn't stop the rest. A newer version of an installed pack updates it; the same version is
+  skipped; the page says which happened.
+- **Preview**: every animation of a pack loops in the browser, nothing sent to the speaker,
+  painted by the same code as the LED page's preview. **Play on the speaker** still opens them on
+  the LED page.
+
+**Tests** — unit tests for the MQTT client, the Wyoming server, health, the player, the Wi-Fi
+setup portal, Sendspin and more, by rlex (#6).
+
 ## v0.22.0 — 2026-10-30
 
 **Voice ID** ([docs/voice-id.md](docs/voice-id.md))
