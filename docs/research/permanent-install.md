@@ -1,6 +1,6 @@
 # Permanent install — taking over the factory reset
 
-Research (2026-10-24) into making the CFW survive a hard reset, i.e. replacing the image the
+Research (2026-10-24; orion 2026-10-31) into making the CFW survive a hard reset, i.e. replacing the image the
 speaker restores on a factory reset with our own, while keeping a convenient way back. Done with
 static analysis of the local dumps and **read-only** reads on the units (`/proc/mtd`,
 `fw_printenv`, the header of the recovery partition). Nothing was written to any device.
@@ -16,6 +16,10 @@ static analysis of the local dumps and **read-only** reads on the units (`/proc/
   rootfs" into a two-minute round trip. This is the recommended goal.
 - On **bergamot** the payload is inside the signed and encrypted recovery image and cannot be
   replaced. The reset always lands in stock. Heavy rootfs experiments belong on pickle.
+- On **orion** (2026-10-31) the payload is the same unsigned burn package as on pickle, with
+  ~900 MB of headroom and an unverified ext4 rootfs, so both a minimal "comes back reachable"
+  image and a full baked-in CFW are possible. What the reset itself does there is unknown; see
+  [orion](#orion--the-restore-payload-is-replaceable-too).
 - A second gesture in U-Boot is not doable. A soft-reset gesture in early Linux init is possible,
   but it does **not** protect against a broken rootfs. It is a convenience on top, not the safety net.
 
@@ -91,6 +95,101 @@ static analysis of the local dumps and **read-only** reads on the units (`/proc/
   only works if the compiled-in `yandex_io_check_recovery` goes through that variable (unknown); a
   bad env write can stop the boot (there is no redundant env copy); and it removes the vendor
   escape hatch. Not recommended without a UART console as the backstop.
+
+## orion — the restore payload is replaceable too
+
+Static analysis of the eMMC dump (firmware factory-13) and read-only reads on one unit
+(2026-10-31: `/proc/cmdline`, `/proc/mounts`, `/proc/partitions`, `fw_printenv`). Nothing was
+written.
+
+**Layout.** One eMMC, partitions by name under `/sys/class/block`: `bootloader` (+ `mmcblk0boot0/1`),
+`reserved` (64 MiB), `cache`, `env` (8 MiB), `misc`, `tee` (48 MiB, mounted `ro` at `/tee`),
+`aml_sysrecovery` (1.5 GiB), `boot` (64 MiB), `recovery` (192 MiB), `system` (1 GiB, ext4, the
+root, `root=PARTLABEL=system ro`), `ota` (1.5 GiB ext4, `/ota` = `/bkupgrade`), `data` (2.8 GiB ext4).
+Only `system`, `ota`, `data` and `tee` are mounted.
+
+**The restore package.** `aml_sysrecovery` holds an Amlogic image v2 package of 629 930 824 bytes,
+the same 19 items as pickle's (`DDR`/`UBOOT` and their `_ENC`, `_aml_dtb`, `boot`, `bootloader`,
+`meson1(_ENC)` dtb, `platform` conf, `recovery`, `system`, `usb_flow`, one `VERIFY` per partition
+item). Checked on the dump:
+- the header CRC is `~crc32(image[4:size])` and every `VERIFY` is `sha1sum <sha1>`, both
+  recomputed and matching. There is no signature item;
+- `system` is an Android sparse image (file type 254, 262 144 blocks of 4 KiB) of a 1 GiB ext4;
+- `boot` and `recovery` are byte-identical prefixes of the live partitions;
+- the dumped `system` partition, unsparsed, equals the package's `system` except two bytes (a
+  journal feature flag set by the first mount). Consistent with "the factory flashes `system`
+  from this package"; it does not prove that the *reset* does;
+- headroom: 1.5 GiB − 630 MB ≈ **900 MB**. The ext4 itself has ~350 MB free, against ~115 MB
+  for the whole CFW in `<cfw>` today.
+
+**What stays sealed.** `recovery` and `boot` are Android boot images with plaintext headers, but
+their kernel and ramdisk are encrypted (entropy 8.0); the bootloader too. Env:
+`forUpgrade_secureBoot=true`, `bootloader_wp=1`, `avb2=0`, no dm-verity on the cmdline, so the
+rootfs is not authenticated (the install kit's rootfs edits boot fine).
+
+**The reset path in the env.** `storeboot` → `switch_bootmode`: `reboot_mode=factory_reset` runs
+`fr`, a command compiled into U-Boot whose behaviour cannot be read; `update` and
+`recovery_quiescent` run `recovery_from_flash` (boots the recovery kernel), not USB burn. The env
+also has `readmute=gpio read 24 mute 1` (unused by any env script, likely what the compiled-in
+gesture check reads) and `rabbit_hole_debug=0` → `androidboot.rh_unlock=0` (meaning unknown).
+`usb_burning=adnl 1200` exists, but how to reach burn mode with no working Linux is unknown.
+
+**How stock ADB comes back, and why it does not survive a reset.** `onboot.sh` (from `S97quasar`,
+before `run.sh`, so it runs even with maind gated) calls `activate_adb.sh check`, which turns ADB on
+when a marker exists in `/data` (`quasar_activate_adb_{sound,quasmodrom,glagol}`, plus
+`quasar_activate_network_adb` for network ADB). A reset that empties `/data` loses them. maind
+is not needed for ADB, and none is needed for us either: an SSH server started from a rootfs hook
+does the same job.
+
+**What a reset empties.** `S00rw-partitions` runs `mkfs` on any `rw` partition from `/etc/fstab`
+that is not mounted (i.e. failed to mount), so an erased `data` or `ota` comes back empty. Stock
+`S40wifi` copies `/etc/wpa_supplicant.conf` into `/bkupgrade/data/wpa_supplicant.conf` when the
+latter is missing or empty, so **a network baked into the rootfs's `/etc/wpa_supplicant.conf` is
+joined after a reset with no onboarding**. Whether `fr` reflashes `system`, wipes `data`/`ota`, or
+both, is the main unknown and needs one deliberate reset on a backed-up unit.
+
+### The two images
+
+- **Minimal ("comes back reachable"):** stock `system` plus the rootfs edits the install kit and
+  `tools/deploy.sh` already make: the maind gate in `run.sh`, the OTA stub, the egress lock hook,
+  the SSH hook with dropbear/OpenSSH in the rootfs and `/root/.ssh/authorized_keys` (already on the
+  rootfs on orion), and the home network in `/etc/wpa_supplicant.conf`. After a reset the unit
+  joins Wi-Fi, serves SSH with the owner's key, does not start the vendor stack and has no
+  internet; restoring `<cfw>` from a backup brings the rest back. With that in place, network
+  ADB `:5555` ([backlog.md](../backlog.md)) can be closed. If the reset turns out not to touch
+  `system`, the same edits on the live rootfs give this without touching the package.
+- **Full:** the same with the CFW baked into the rootfs (the golden layer of the design below).
+
+Build: unsparse the package `system`, edit the ext4 in a container (e2fsprogs `debugfs -w`, or
+`mke2fs -d` from a tree), re-sparse, replace the item, recompute its `VERIFY` sha1 and the header
+CRC; the encrypted items stay byte-identical. Write it with `dd` to `aml_sysrecovery` (normal
+boot does not read it), read back and compare. The image carries the Wi-Fi PSK and the owner's
+key: built locally, never committed. Same residual risk as pickle: the encrypted recovery might
+check something after it starts erasing; and never put an image there that has not booted live.
+
+### Backup and restore first
+
+Before any reset experiment each unit needs a backup that restores it with Home Assistant and
+Music Assistant noticing nothing. What they depend on lives almost entirely in `/ota`:
+
+| What | Where | Why it matters |
+|---|---|---|
+| `device_id` and all config | `<cfw>/yastationd.conf` | the MQTT client id, HA entities' unique ids, intercom, wake arbitration |
+| options | `<cfw>/yastationd.state` | everything set from HA or the web app |
+| Music Assistant player identity | `<cfw>/sendspin/state.json` | the stable `client_id`; without it MA sees a new player |
+| voices | `<cfw>/voices/` | voice ID's People album |
+| `web.secret`, packs, sounds | `<cfw>/` | web login, themes |
+| SSH host key, CA, principals | `<cfw>/`, `<cfw>/openssh/` | no host-key warning, certificate login |
+| Wi-Fi | `/ota/data/wpa_supplicant.conf` | |
+| Bluetooth | `/data/bt_mac`, `/data/bluez_data` | pairings |
+| rootfs edits | the vendor repo's per-unit `paths` list | hooks, gate, OTA stub |
+| MAC, serial | probably `reserved` (Amlogic unifykey, read by `keyman` in the env's `cmdline_keys`); not dumped yet | same MAC → same DHCP lease and address |
+
+Plan (none of it built): a backup script (read-only on the unit: tars of `/ota`, `/data` and the
+edited rootfs files, `dd` of `reserved`, `env`, `misc`, `system`, with sha256s, into gitignored
+`dumps/`); a restore script for a unit reachable over SSH; then one stock reset of a dev unit with
+marker files in the rootfs, `/data` and `/ota` as the rehearsal of both, which also answers what
+`fr` does. Getting back in after a stock reset needs the install kit (out of this repo's scope).
 
 ## Our own reset gesture — in early Linux init, not in U-Boot (a convenience, not a safety net)
 
