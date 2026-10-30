@@ -2,8 +2,8 @@
 
 Custom firmware layer (CFW) that turns owned smart speakers (`bergamot` = Station Mini 3,
 `pickle` = Station Mini 3 Pro, …) into offline Home Assistant speakers: the on-device agent
-`yastationd` + the voice front-end host `spotter-host`. What it does: `README.md`. Porting it to a
-new model: `docs/porting-a-speaker.md`. Installing/updating it on a speaker: `docs/guides/deploying.md`. **Connection details: `ACCESS.local.md` (gitignored).**
+`yastationd` + the voice front-end host `spotter-host`. What it does: [README.md](README.md). Porting it to a
+new model: [docs/porting-a-speaker.md](docs/porting-a-speaker.md). Installing/updating it on a speaker: [docs/guides/deploying.md](docs/guides/deploying.md). **Connection details: `ACCESS.local.md` (gitignored).**
 
 **Scope.** The CFW's functionality, researching new speakers and adapting the CFW to them, and
 keeping the vendor's code from running or talking to the internet. **Out of scope:** how shell access
@@ -54,7 +54,7 @@ not be recoverable by us. Hence the hard rules:
   (find pids via `ps w`; don't match by substring of a command line — it hits your own ssh session).
 - Interfaces driven from the shell: LEDs/display (`/sys/class/leds/*`), ALSA, evdev input, IIO
   light sensor, USB-C PD (`/sys/class/power_supply/ya_pd`). Details in the board docs,
-  `docs/research/device-teardown.md`, `docs/research/wakeword-mic-array.md`, `docs/architecture.md`.
+  [docs/research/device-teardown.md](docs/research/device-teardown.md), [docs/research/wakeword-mic-array.md](docs/research/wakeword-mic-array.md), [docs/architecture.md](docs/architecture.md).
 
 ## Repo hygiene
 - `dumps/` and `ACCESS.local.md` are **sensitive and gitignored** — never commit or share them.
@@ -68,19 +68,19 @@ not be recoverable by us. Hence the hard rules:
 ## Directives
 
 - All configuration (URLs, API keys, DB credentials, hostnames) **must** come from configuration files, never hardcoded. Prefer stable file-based formats (yaml, toml) for config; use environment variables **only** when there is genuinely no other way (e.g. a secret that must not touch disk, or a platform that injects config solely via env). Use generic placeholders in examples.
-- **Read `docs/` before planning** — always consult existing research, findings, and design docs before proposing changes or starting new work. Start from the docs index (`docs/index.md`, the specs) to find the relevant document; user guides and research have their own indexes (`docs/guides/README.md`, `docs/research/README.md`), read when the task touches them. The docs contain hard-won knowledge about API quirks, country-specific parsing rules, and known limitations.
-- **Specs, guides and research are apart** (`docs/README.md`): a doc in `docs/` describes what is
+- **Read `docs/` before planning** — always consult existing research, findings, and design docs before proposing changes or starting new work. Start from the docs index ([docs/index.md](docs/index.md), the specs) to find the relevant document; user guides and research have their own indexes ([docs/guides/README.md](docs/guides/README.md), [docs/research/README.md](docs/research/README.md)), read when the task touches them. The docs contain hard-won knowledge about API quirks, country-specific parsing rules, and known limitations.
+- **Specs, guides and research are apart** ([docs/README.md](docs/README.md)): a doc in `docs/` describes what is
   built (update it with the code); user guides (install, HA setup, diagnostics) go to
   `docs/guides/`; findings, decompiles, measurements and designs we chose against go to
-  `docs/research/`. Each folder has its own index; `docs/index.md` lists only the specs. A spec
+  `docs/research/`. Each folder has its own index; [docs/index.md](docs/index.md) lists only the specs. A spec
   cites research instead of repeating it; splitting a doc in two, link the halves both ways. The
-  map of the whole: `docs/architecture.md`.
-- **Update `docs/` before committing** — when implementation reveals new findings, edge cases, or changes to architecture/decisions, update the relevant docs first, and keep the docs index (`docs/index.md`) in sync. Docs must stay in sync with the code. If a doc doesn't exist for a new area, create one and add it to the index.
-- **Language** — all committed artifacts (code, comments, identifiers, commit messages, docs, `CLAUDE.md`) are written in **English**. The agent's conversation with the user may be in **any language** — match the user; only the artifacts are English-only. **One exception:** the main `README.md` is Russian; `README.en.md` is its English twin. Change both together, so they say the same thing.
+  map of the whole: [docs/architecture.md](docs/architecture.md).
+- **Update `docs/` before committing** — when implementation reveals new findings, edge cases, or changes to architecture/decisions, update the relevant docs first, and keep the docs index ([docs/index.md](docs/index.md)) in sync. Docs must stay in sync with the code. If a doc doesn't exist for a new area, create one and add it to the index.
+- **Language** — all committed artifacts (code, comments, identifiers, commit messages, docs, [CLAUDE.md](CLAUDE.md)) are written in **English**. The agent's conversation with the user may be in **any language** — match the user; only the artifacts are English-only. **One exception:** the main [README.md](README.md) is Russian; [README.en.md](README.en.md) is its English twin. Change both together, so they say the same thing.
 
 ## Adding a feature: follow the house patterns
 
-Read `docs/adding-a-feature.md` before building one. In short:
+Read [docs/adding-a-feature.md](docs/adding-a-feature.md) before building one. In short:
 
 - **A setting is a key in the registry** (below); an option HA and the web app both change is
   persisted state with an HA entity, a command and, if shareable, a `syncOptions` entry.
@@ -101,12 +101,13 @@ Read `docs/adding-a-feature.md` before building one. In short:
 A feature is not done when the code works. In the **same change**, whenever it:
 
 - **puts something new on the speaker** (a file, a binary, a port, a default that changes behaviour)
-  → `docs/guides/deploying.md` ("What ends up on the device", install/update steps), and
+  → [docs/guides/deploying.md](docs/guides/deploying.md) ("What ends up on the device", install/update steps), and
   `tools/deploy.sh` if it must be uploaded;
 - **adds a config key or a board-profile key** → both `yastationd/configs/*.example`, and
-  `docs/porting-a-speaker.md` for profile keys. A config key is declared **only** in the registry
-  (`yastationd/internal/config/registry.go`, rules in `docs/settings.md`), which feeds the parser,
-  the settings pages, the API and the sync, so give it everything there:
+  [docs/porting-a-speaker.md](docs/porting-a-speaker.md) for profile keys. A config key is described **only** in the registry
+  (`yastationd/internal/config/registry.go`, rules in [docs/settings.md](docs/settings.md)), which feeds the parser,
+  the settings pages, the API and the sync (its value is a `Config` field with a default in
+  `config.go`), so give it everything there:
   - a `Group` whose section sits on the right page (`config.Groups`: by topic, never a page per
     mechanism; a new big feature may get its own section and page);
   - a `Label` and a `Doc` paragraph a user understands: what it does, the trade-off, units, what
@@ -121,27 +122,27 @@ A feature is not done when the code works. In the **same change**, whenever it:
     behaviour;
 - **needs a new build step or toolchain** (a helper, a front-end, a pinned tool) → its Makefile
   target, a target in `tools/build.sh` (and a `docker/<toolchain>.Dockerfile` when it needs a
-  new toolchain), `docs/building.md`. **The host needs only docker, sh, make, git and ssh** (plus the
+  new toolchain), [docs/building.md](docs/building.md). **The host needs only docker, sh, make, git and ssh** (plus the
   base tools: coreutils, sed, awk, grep, find, tar): every
   step a user or a sibling repo runs (building, converting sounds/clips/videos, checking packs)
   runs in a pinned container through `tools/build.sh`. A step that needs Go, node, ffmpeg, zstd,
   jq or Python on the host is a bug, even when it works on this machine (the owner's has them all;
   others don't). Check a new step on a host without those tools;
-- **is something a user would notice** → `README.md` (and `yastationd/README.md` for the daemon),
+- **is something a user would notice** → [README.md](README.md) (and [yastationd/README.md](yastationd/README.md) for the daemon),
   with any login, address or default they need;
 - **uses or produces a binary we don't rebuild from source each time** (a vendor library, a
   third-party bundle, a build we keep) → record it in `<vendor-repo>` (`tools/record-binary.sh`),
   and after changing what a unit carries, `tools/snapshot-unit.sh <label>` there.
 
-Before every release, walk `docs/releasing.md` → "Before tagging". A deploy that failed (the
+Before every release, walk [docs/releasing.md](docs/releasing.md) → "Before tagging". A deploy that failed (the
 script did not print `ok` for a unit) means that unit still runs the old build: check before
 testing on it.
 
 ## Sibling-project initialization
 
 - If you create a **sibling project** (anything at `../<name>` outside this repo), don't leave it as a bare folder. Give it the same baseline setup this project has, before writing substantial code into it:
-  - its own `CLAUDE.md` stating the project's purpose, directives, and intended visibility;
-  - a `docs/` folder with an index (`docs/index.md`) for design notes and findings;
+  - its own [CLAUDE.md](CLAUDE.md) stating the project's purpose, directives, and intended visibility;
+  - a `docs/` folder with an index ([docs/index.md](docs/index.md)) for design notes and findings;
   - its own initialized git repository with a sensible `.gitignore`.
 - First decide and record the new project's visibility (private vs. public) and apply matching precautions — e.g. keep personal data and internal hostnames/IPs out of anything that may become public.
 

@@ -2,7 +2,7 @@
 
 **Scope:** static reverse-engineering of the Yandex VQE (Voice Quality Enhancement) mic-array DSP in
 `libyandex_evil.so` (firmware `3.210.369.1.46.4778262544.20261013.117`). It builds on
-`docs/research/wakeword-mic-array.md` (the "prior pass"), which said the preset numbers were "compiled in and not
+[docs/research/wakeword-mic-array.md](wakeword-mic-array.md) (the "prior pass"), which said the preset numbers were "compiled in and not
 recoverable". **They are recoverable, and this file recovers them.**
 
 Conventions: addresses are virtual addresses in `libyandex_evil.so` (equal to file offsets for the
@@ -464,7 +464,7 @@ code; Ghidra would be needed), and it is not worth it.
 - **NR:** optionally drop in the GTCRN model as a post-AEC mask, or use WebRTC NS.
 - **Gain:** ASR-mode gain is ×50 (about +34 dB) on the omni channel, so feed MWW a strongly amplified
   stream.
-- **Wake word:** stays microWakeWord.
+- **Wake word:** stays microWakeWord. **Correction (2026-10-30):** the vendor spotter shipped instead of microWakeWord ([wake-word.md](../wake-word.md), "Why the vendor spotter").
 
 So VQE moves from "opaque, rewrite blind" to **"rewrite to a known spec"**, and the spec turns out to
 be small. A full clone of the vendor kernels is still not realistic or useful. Reusing the GTCRN model

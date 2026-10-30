@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import * as api from './api'
 import type { Pack, Packs, Peer } from './api'
 import { toWav } from './assets'
+import { Switch } from './controls'
 import { frontSize, LUT, paintFront } from './ledframe'
 
 // Behaviour → Packs and Behaviour → Sounds (docs/asset-packs.md). A pack carries sounds, animations
@@ -86,16 +87,12 @@ export function PacksTab({ peer, base }: { peer: Peer; base: string }) {
         Remove
       </button>
     )
-  const onOff = (k: Pack) =>
-    k.position >= 0 ? (
-      <button class="ghost" disabled={busy} onClick={() => off(k.id)} title="Stop wearing it (it stays installed)">
-        Turn off
-      </button>
-    ) : (
-      <button disabled={busy || !k.fits} onClick={() => on(k.id)} title="Wear it, on top">
-        Turn on
-      </button>
-    )
+  // On: the speaker wears it (on top when turned on); off: it stays installed, not worn.
+  const onOff = (k: Pack) => (
+    <span title={k.position >= 0 ? 'Worn: turn it off to stop wearing it (it stays installed)' : k.fits ? 'Turn it on to wear it, on top' : 'Has nothing for this speaker'}>
+      <Switch label={`Wear ${k.name}`} checked={k.position >= 0} disabled={busy || (k.position < 0 && !k.fits)} onChange={(v) => (v ? on(k.id) : off(k.id))} />
+    </span>
+  )
   return (
     <div class="assets">
       <section class="card">

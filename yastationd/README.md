@@ -115,7 +115,7 @@ plays, the white "thinking" comet while it waits for audio, and nothing once apl
 Optional `light` ring (`ha_ring_light = true`; with `effect_list`: none/pulse/comet/blink/rainbow
 + voice presets) · optional `light` ambilight (rear RGBW strip, on boards that declare one; hue/saturation or colour temperature) ·
 `select` display_mode (clock/off/message, clock_date and video on pixel screens —
-docs/video-mode.md; long messages scroll) · `text` display_message · `number` volume · `notify`
+[docs/video-mode.md](../docs/video-mode.md); long messages scroll) · `text` display_message · `number` volume · `notify`
 show_text · `binary_sensor` mic_mute (On/Off) · `sensor` lux (calibrated lux, the raw `reading` as
 an attribute)/health/uptime/version · `sensor` sound_floor/sound_level (dB SPL with a mic
 calibration, else dBFS)/sound_activity (%) · `sensor` supply_voltage + `binary_sensor`

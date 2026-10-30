@@ -6,17 +6,23 @@ import type { Entity } from './api'
 
 export const name = (e: Entity) => e.config.name || e.object
 
+/** Switch: the app's on/off control (a slider), for every boolean a person flips: a setting, an
+ * option, an entity. Use it rather than a checkbox or a pair of buttons (docs/design.md, "Components"). */
+export function Switch(p: { checked: boolean; label: string; onChange: (on: boolean) => void; disabled?: boolean }) {
+  return (
+    <label class="switch">
+      <input type="checkbox" aria-label={p.label} checked={p.checked} disabled={p.disabled} onChange={(x) => p.onChange(x.currentTarget.checked)} />
+      <span />
+    </label>
+  )
+}
+
 export function Control({ e, send }: { e: Entity; send: (p: string) => void }) {
   const c = e.config
   switch (e.component) {
     case 'switch': {
       const on = e.value === (c.payload_on || 'ON')
-      return (
-        <label class="switch">
-          <input type="checkbox" aria-label={name(e)} checked={on} onChange={(x) => send(x.currentTarget.checked ? c.payload_on || 'ON' : c.payload_off || 'OFF')} />
-          <span />
-        </label>
-      )
+      return <Switch label={name(e)} checked={on} onChange={(v) => send(v ? c.payload_on || 'ON' : c.payload_off || 'OFF')} />
     }
     case 'select':
       return (

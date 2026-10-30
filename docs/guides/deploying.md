@@ -2,7 +2,7 @@
 
 How to put the CFW on a speaker, update it and take it off. **Assumption:** you have root SSH to
 the speaker (how that is obtained is out of scope) and the board is supported (or you're porting
-it: [porting-a-speaker.md](../porting-a-speaker.md)). Read the safety doctrine in `CLAUDE.md` first:
+it: [porting-a-speaker.md](../porting-a-speaker.md)). Read the safety doctrine in [CLAUDE.md](../../CLAUDE.md) first:
 don't touch Wi-Fi/boot without a fallback, and make sound only on the unit the user names.
 
 ## What ends up on the device
@@ -52,9 +52,26 @@ with status 0 (SIGTERM/SIGINT) is deliberate and restarted after 1 s. Anything e
 restart after 2 s, doubling up to 60 s. After 5 crashes in a row, each within 5 min of the start, it
 swaps in `yastationd.prev`. If that crash-loops too, it keeps retrying every 5 min. There is no
 fallback to the vendor stack: the speaker stays without an agent rather than wake the vendor code.
-The log shows `=== start`, `=== exit <rc> after <n>s` and `=== supervise: …` lines. Manual rollback:
-`/etc/init.d/S52zyastationd stop; mv <cfw>/bin/yastationd.prev <cfw>/bin/yastationd;
-/etc/init.d/S52zyastationd start` (as a script on stdin, see §4).
+The log shows `=== start`, `=== exit <rc> after <n>s` and `=== supervise: …` lines.
+
+**Going back.** Only this automatic swap of the daemon has been exercised. Every deploy keeps the
+daemon it replaced as `yastationd.prev`; `spotter-host`, `sendspin-host` and `hostapd` are
+overwritten with no copy kept. Putting the previous daemon back by hand is the same swap; send it as
+a script on stdin, never as one ssh command line (the init script's `stop` matches the binary's
+path, which would be on your own ssh session's command line too, §4):
+
+```sh
+ssh root@<speaker> 'sh -s' <<'EOF'
+/etc/init.d/S52zyastationd stop
+mv <cfw>/bin/yastationd.prev <cfw>/bin/yastationd
+/etc/init.d/S52zyastationd start
+EOF
+```
+
+Going back to an older release as a whole (its daemon and its helpers) has not been worked through:
+deploying a checkout of the older tag with `tools/deploy.sh` should do it, but nobody has tried, and
+a config written by a newer web app may carry keys the older daemon skips (or, before v0.18.0,
+refuses).
 
 ## 0. Keep the vendor offline and asleep (once per speaker)
 
@@ -153,10 +170,12 @@ topics and HA device), `device_name`, `mqtt_host`, the `probe` lines (broker + H
 state; leave them out on a unit with no HA), and `wake_enabled`. The Orion example pins `board = orion`; its stock «Алиса» model runs
 with the NPU verifier on the unit.
 
-A config key the binary does not know is **fatal**, not ignored: `load config err="…: unknown
-key"`, exit 1, five times in a row, then the supervisor swaps in `yastationd.prev`. That is what a
-config newer than the binary looks like (the examples in the tree track the current source). Check
-which build you just put there:
+A config line the binary does not take (an unknown key, a value it refuses) is skipped since
+v0.18.0: the daemon logs it, the key keeps its default and the web app's settings show the line
+([settings.md](../settings.md)). Before v0.18.0 it was **fatal** (`load config err="…: unknown
+key"`, exit 1, five times, then the supervisor swaps in `yastationd.prev`). Either way it means a
+config newer than the binary (the examples in the tree track the current source). Check which
+build you just put there:
 
 ```sh
 ssh root@<speaker> '<cfw>/bin/yastationd -version'
@@ -279,7 +298,7 @@ daemon stopped. Both tools run the swap as a script on stdin for this reason.
 
 The web app comes with the binary: a deploy updates it. `make build` (which `tools/deploy.sh`
 runs) builds it from `web/` in the pinned builder container whenever its source changed, so the
-build machine needs docker (`docs/building.md`).
+build machine needs docker ([docs/building.md](../building.md)).
 
 Config changes: from the web app (Config tab: validated, restarted on trial, rolled back if worse),
 or edit `<cfw>/yastationd.conf` and `/etc/init.d/S52zyastationd restart`. Profile
@@ -321,11 +340,12 @@ tweaks without a rebuild: `<cfw>/board.conf` (+ restart).
   `controls`, `scontents`, or a loop over them) on bergamot: on 2026-10-28 that froze the kernel
   inside the codec driver and the unit needed a power cycle. Read named controls with `cget`, and
   the stream state from `/proc/asound`.
-- **`load config err="…: unknown key"`, exit 1, over and over.** The config knows a key the binary
-  does not — the binary is older than the tree the config was copied from. Unknown keys are fatal by
-  design (a typo must not be silently ignored). The supervisor counts five crashes in a row, moves
-  the old binary back from `yastationd.prev` (which is just as old) and keeps retrying every 5 min;
-  `touch <cfw>/yastationd_off` stops that. Fix the pair, don't edit around it: `yastationd -version`
+- **A config line the daemon skips** (logged at start, and the settings pages show it), or, on a
+  build before v0.18.0, **`load config err="…: unknown key"`, exit 1, over and over.** The config
+  knows a key the binary does not — the binary is older than the tree the config was copied from.
+  Since v0.18.0 the line is only skipped (the key keeps its default), so check it is not one you
+  meant to set; before, it was fatal, the supervisor moved `yastationd.prev` back (just as old)
+  and kept retrying every 5 min, and `touch <cfw>/yastationd_off` stopped that. Fix the pair, don't edit around it: `yastationd -version`
   tells you the binary, and `tools/deploy.sh` brings it up to the source. Known
   dates: `frametap_addr` and the `video_*` keys need v0.8.1+, and anything merged since the last tag
   exists only in a build from `main`. Both examples in `configs/` follow the current source, so an

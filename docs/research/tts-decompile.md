@@ -172,6 +172,7 @@ then submit_word, submit_phoneme… and submit_phoneme_timing.
 would then need to supply word and phone timings in *Yandex's* phone set, and Piper/Silero do not emit those out of
 the box. The cheaper option is to set `use-tts-blocker false` and suppress wake while our own playback is active
 (half-duplex), or rely on AEC. With microWakeWord (the recommended path) none of this applies.
+> **Correction (2026-10-30):** the vendor spotter shipped instead of microWakeWord ([wake-word.md](../wake-word.md), "Why the vendor spotter").
 
 ## 5. Inventory of pre-rendered audio (observed; not copied into the repo)
 

@@ -8,7 +8,7 @@ the unit (SSH) and, ideally, a full firmware dump.
 Read first: [boards/README.md](boards/README.md) (the supported boards, the profile mechanics,
 Yandex's codenames and which models are which),
 [boards/_template.md](boards/_template.md), and the two worked examples:
-[boards/bergamot.md](boards/bergamot.md) (armhf, the reference) and
+[boards/bergamot.md](boards/bergamot.md) (armhf, the reference: start here for an armhf board) and
 [boards/pickle.md](boards/pickle.md) (aarch64; a full port done from a dump + survey).
 
 ## Ground rules while porting
@@ -41,8 +41,8 @@ Yandex's codenames and which models are which),
 
 - **Read-only first.** Surveys, sysfs reads of named attributes, `arecord` and reads of named mixer
   controls are safe. Mixer writes, LED writes and the gain controls are reversible (gone on reboot)
-  but are still changes. Never touch Wi-Fi, the firewall, init/boot, or the vendor gate while
-  porting the CFW features.
+  but are still changes. Never touch Wi-Fi, init/boot or the network while porting; the vendor gate
+  and the egress lock are set up once, in step 0, and then left alone.
 - **Sound only with the user's OK, and only on the unit they name.** Playing a tone, TTS or an alarm
   is audible in someone's room. Ask which speaker may make sound. Visual tests (LEDs, display) are
   fine, but say what will light up.
@@ -50,6 +50,17 @@ Yandex's codenames and which models are which),
   own logs (found on `/data` of a used unit or in a dump) is how we learn what it initialises.
 - **Record as you go** in `docs/boards/<codename>.md`, marking every claim **observed** or
   **inferred**. Never commit dumps, surveys or per-device identifiers (MACs, serials, SSIDs).
+
+## 0. First: take the unit offline and keep the vendor asleep
+
+A freshly rooted speaker still runs the vendor's stack and is online: it can download a firmware
+update that wipes the root access and everything else at any moment. Before the survey, and before
+anything else on a unit that ran the stock firmware, do [guides/deploying.md](guides/deploying.md)
+§0 with the owner: the router drop for the unit first (no device change needed), then the
+reversible gate that keeps the vendor stack from starting, the update block and the on-device
+egress lock. Check `/bkupgrade` (it decides `<cfw>`) and whether the firmware has `iptables` before
+you start; ask before any rootfs write and keep the `.orig` backups. The stack stays stopped from
+then on, which is also what the input and mic captures below need.
 
 ## 1. Collect the inputs
 
@@ -164,9 +175,13 @@ and runs:
 | Channel | Content |
 |---|---|
 | stdin | raw interleaved S16LE device frames at the preset's input rate (`-N` channels; 48 kHz, orion 96 kHz) |
-| stdout | lines `READY`; `WAKE <ms> <phrase>`; `CMD <ms> <phrase>`; `SUBHIT <WAKE\|CMD> <ms> <phrase>` (near miss); optional `LEVEL …` |
+| stdout | lines `READY [call-mode]`; `AT <ms> <sample>` (the next event's position in fd 3's stream); `WAKE <ms> <phrase>`; `CMD <ms> <phrase>`; `SUBHIT <WAKE\|CMD> <ms> <phrase>` (near miss); `MODE <n> ok\|err` (the call mode switched); optional `LEVEL …` |
 | fd 3 | the clean voice stream, 16 kHz mono S16LE, streamed to HA's STT during a session (with pre-roll) |
-| args | `serve -P <preset> -N <channels> -M <mic channels> -R <ref channel> \| -Q <ref channels> -a <activation model> [-k <command model>]`, built from the profile's `wake.*` + `mic.channels` |
+| fd 4, signals | the call mode's uplink (`vqe_gain`); `SIGUSR1` / `SIGUSR2` switch the call mode on / off ([intercom.md](intercom.md)) |
+| args | `serve -P <preset> -N <channels> -M <mic channels> -R <ref channel> \| -Q <ref channels> [-m <vqe models dir>] -a <activation model> [-k <command model>]`, built from the profile's `wake.*` + `mic.channels` |
+
+The full description of what is built on it (events, per-board models, the levers, why the vendor
+spotter): [wake-word.md](wake-word.md).
 
 So **plugging in a different audio stack** (another model's front-end library, or an open one such
 as webrtc AEC3 + an open wake-word engine) means a new host binary that speaks this contract. Point

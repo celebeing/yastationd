@@ -79,7 +79,7 @@ LLM tips:
   - *finished speaking detection*: default, or relaxed for slow speakers.
 - Put the device (both the MQTT device and the satellite) in its **area**. Then "turn on the light"
   without a room name means this room, and timers ring on the speaker that set them.
-- Optional: import [`hass/scripts.json`](../hass/scripts.json). It holds scripts that play a ring
+- Optional: import [`hass/scripts.json`](../../hass/scripts.json). It holds scripts that play a ring
   animation or show text on the speaker, and exposing them to Assist lets an LLM agent use them.
 
 ## 7. What then works
@@ -227,7 +227,7 @@ speaking *at that speaker*:
 | A simple command goes to the LLM (slow) | the wake word in the transcript (§8): custom sentences with an optional wake-word prefix |
 | The answer pauses mid-sentence, the ring shows the white comet while it waits | audio arrives slower than it plays. The `wyoming: audio stop` log line has `secs` (audio length) vs `wall_secs` (delivery time), `max_gap_ms` and `rebuffers`. Big gaps on a short answer mean Wi-Fi, or a TTS that stalls between sentences. The speaker holds 0.5 s of audio before playing and again after a stall, so a stall gives one pause rather than a stutter |
 | Satellite stuck: new runs end instantly or hang in STT | a new run was started over a running one (HA's stale run-end wedges the satellite, [voice-slow-replies.md](../voice-slow-replies.md)). The speaker avoids this and heals it itself by dropping the connection; if it persists, reload the Wyoming integration entry |
-| Two speakers answer at once | both heard the wake word; areas help commands target the right room, and moving the speakers apart helps detection |
+| Two speakers answer at once | both heard the wake word. Arbitration (on by default, needs the MQTT broker) lets only the loudest answer: check it is on and the broker is up ([wake-arbitration.md](../wake-arbitration.md)); areas help commands target the right room |
 | HA API calls fail with an empty reply | HA may serve HTTPS on port 8123; use `https://` |
 
 ## 10. A character voice (RVC over Silero)

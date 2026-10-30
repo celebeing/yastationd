@@ -1,5 +1,7 @@
 # Diagnostics: archives to send when something is wrong
 
+Looking for the cause first? [troubleshooting.md](troubleshooting.md) goes by symptom.
+
 Two scripts collect what is needed to debug a problem remotely, each into one `.tar.gz`. They are
 written so that someone else's speaker or build machine can be debugged from the archive alone,
 and so that the archive can be attached to a public issue as it is: redaction is on by default.

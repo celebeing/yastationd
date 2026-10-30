@@ -1,6 +1,7 @@
 # Wake-word arbitration: the nearest speaker answers
 
-When several speakers hear one «Алиса», only the loudest — the nearest — answers. Built
+When several speakers hear one «Алиса», only the loudest — the nearest — answers (the wake word
+itself: [wake-word.md](wake-word.md)). Built
 2026-10-26 (`internal/app/arbitration.go`); on by default, `arbitration = false` turns it off.
 Background and other projects' lessons: "Background" below.
 

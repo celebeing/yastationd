@@ -44,13 +44,19 @@ contributor with the speaker is welcome to start from the notes here.
   (`mini2:{red,green,blue}:ring{1..6}`), both per-LED sysfs on IS31FL3236 drivers; LTR-308 light
   sensor; ES8156 DAC + SY6045S amp on `TDM-B`; PDM mics; touch via an AW96103 SAR (`sar0_pad0`), no
   `gpio-keys`; a headphone jack. A profile modelled on `bergamot.conf` (seg7 + `sysfs-rgb` ring) is
-  the likely start; the VQE preset `yandexmini_2` is in `libyandex_evil.so`.
+  the likely start, with two things the profile cannot say today: the LEDs are numbered from 1
+  (`clock{seg}{1..4}`, `ring{1..6}`; the profile's `{digit}` / `{i}` count from 0, so a code change
+  or an index base key is needed) and the DT compatible is `yandex,station-mini2`, not
+  `yandex,<codename>` (`match` takes it as it is). The VQE preset `yandexmini_2` is in
+  `libyandex_evil.so` (0.369 armhf). A fork of pulsar has a Mini 2 port to read for hardware hints
+  ([ste4ik/pulsar](https://github.com/ste4ik/pulsar)): it lets the vendor stack run and expects the
+  internet, which our safety rules forbid, so don't copy its setup.
 - **Station Midi** (`cucumber`, DT unknown): community wiki data only, no dump; see
   [cucumber.md](cucumber.md); start from orion's profile.
 - **Station 2** (`yandexmidi`, DT `yandex,station-midi`): its firmware `0.369.1.50` studied, no
   profile; see [yandexmidi.md](yandexmidi.md); needs a front `display.Front` for its 89×1
   checkerboard panel.
-- pulsar's `AGENTS.md` ([pulsar](https://github.com/Morvex885/pulsar), a C++ daemon for the Midi,
+- pulsar's [AGENTS.md](../../AGENTS.md) ([pulsar](https://github.com/Morvex885/pulsar), a C++ daemon for the Midi,
   Lite 2 and Mini 2) has hardware notes for those models; its "Midi" is `cucumber`.
 
 ## Porting a new model

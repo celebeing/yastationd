@@ -75,7 +75,8 @@ the gains. The vendor AEC does most of it; the daemon adds cheap safety around i
 - **Soft half-duplex:** while the far end is talking and the local uplink level is not clearly
   above the echo-expected level, the uplink is attenuated (−15 dB), released smoothly.
 - **Limiters** on both directions; no hard gating (the far end hears quiet, not dropouts).
-- **Mic mute** (the hardware latch) keeps the call up; the uplink is silence then.
+- **Mic mute** (the hardware latch) declines a ringing call and ends a running one, and incoming
+  calls are refused while muted ("Keys" below; `setMute` in `internal/app/input.go`).
 
 Later, if needed: a howl detector (sustained narrow-band peak → gain drop or push-to-talk), comfort
 noise, and push-to-talk as a config fallback.

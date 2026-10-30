@@ -135,5 +135,25 @@ Review of 2026-10-28 (whole repo).
   the open ones. M.
 - `docs/assets.md:3`, `docs/video-mode.md:7,121` say the feature has not run on a unit; update
   after the next check on a Station 3. S.
-- `docs/index.md`: `boards/_template.md` has no entry (linked from boards/README.md). S,
+- [docs/index.md](index.md): [boards/_template.md](boards/_template.md) has no entry (linked from boards/README.md). S,
   optional.
+
+Found by the docs simulation of 2026-10-30 (agents reading the docs and code for typical tasks):
+
+- `internal/wake/wake.go`: the child's stderr is not captured (`cmd.Stderr` unset), so the
+  spotter's model-load errors and "spotter lagging" never reach the log. Pipe it to the log as
+  `voiceid.Host` does. S.
+- `internal/health/health.go`: one failed probe round flips `health` / `pipeline_ok` in HA; only
+  the lifecycle's 10 s grace smooths the ring. Debounce the entities the same way. S.
+- The heartbeat file (`heartbeat_file`) is written every 10 s and read by nothing but `diag.sh`.
+  Either use it (the supervisor's liveness check) or say in health.md what it is for. S.
+- Stale comments: `spotter-host/spotter_host.c` header says serve's stdin is "8ch S16 48 kHz"
+  (it is per board, `-N`; orion 13 ch at 96 kHz); `internal/app/power.go` says the speakers want
+  a 12 V contract (orion takes 20 V, `min_mv` 15000); `internal/hw/power.go` says `ya_pd` is on
+  bergamot and pickle (orion has it too); `wakeword.go` and wake-arbitration.md give "AEC
+  unverified" as the reason a wake during playback is ignored, while the AEC has been measured
+  (intercom.md). S.
+- `/metrics` reads the daemon's RSS from `/proc/self/statm`, vitals from `/proc/self/status`: one
+  source. S.
+- The two example configs use different probe placeholders (`homeassistant.local` vs
+  `<ha-host>`). S.

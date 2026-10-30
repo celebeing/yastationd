@@ -190,9 +190,12 @@ The Ubuntu cross toolchain ships glibc 2.35, which binds `__libc_start_main@GLIB
 symbol versions. A side effect is that the 2.35 `crt1.o` passes no init function, so **constructors in the host executable itself do not run**. Plain C
 is fine with that. Constructors in the shared libraries are run by ld.so as usual.
 
-## Next steps
+## Next steps (2026-10-22; since then)
 
-See [`docs/research/voice-phase2-plan.md`](../docs/research/voice-phase2-plan.md). In short:
+Items 1 and 3 are done: real-voice tests ran on the units (bergamot «Алиса» 10/10 at 1 and 3 m,
+orion 14/14 in a room) and `serve` is what the daemon runs. What is built and still open:
+[docs/wake-word.md](../docs/wake-word.md). The list as it was, from
+[`docs/research/voice-phase2-plan.md`](../docs/research/voice-phase2-plan.md):
 1. Run the user's real-voice test with `listen.sh`, comparing default, `-b` and `-x 0,0,1`.
 2. Confirm that ch6 carries playback, and that the VQE's AEC removes it, by playing something during `listen`.
 3. Add a `serve` mode for `yastationd`: raw 8-channel PCM on stdin, event lines on stdout, and optionally `vqe_0` on fd 3 for the STT stream.

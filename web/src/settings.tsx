@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import * as api from './api'
 import type { Entity, Peer, SettingKey, Settings, SyncKind, SyncState } from './api'
-import { Control, name } from './controls'
+import { Control, name, Switch } from './controls'
 
 // Configuration (docs/settings.md): pages over one registry of config keys, by topic. Each row:
 // the name, the control, a share switch that makes every speaker take the value, and a paragraph
@@ -141,12 +141,7 @@ function KeyControl({ k, value, commit }: { k: SettingKey; value: string[]; comm
   }
   switch (k.kind) {
     case 'bool':
-      return (
-        <label class="switch">
-          <input type="checkbox" aria-label={k.label} checked={v === 'true'} onChange={(e) => commit([String(e.currentTarget.checked)])} />
-          <span />
-        </label>
-      )
+      return <Switch label={k.label} checked={v === 'true'} onChange={(on) => commit([String(on)])} />
     case 'enum':
       return (
         <select aria-label={k.label} value={v} onChange={(e) => commit([e.currentTarget.value])}>

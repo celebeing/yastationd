@@ -2,7 +2,7 @@
 
 How to get 1-to-1 calls between the speakers: the speaker side, what shows up in HA, and the one
 HA script that makes «Алиса, позвони в спальню» work. How the intercom works inside:
-[intercom.md](../intercom.md). Template: [`../hass/intercom/`](../hass/intercom/).
+[intercom.md](../intercom.md). Template: [`../hass/intercom/`](../../hass/intercom/).
 
 ```
 «Алиса, позвони в спальню» ─► speaker A ─(Wyoming)─► HA Assist (LLM) ─► script "Позвонить в комнату"
@@ -38,7 +38,7 @@ Per speaker, by MQTT discovery (no YAML):
 
 | Entity | What |
 |---|---|
-| `sensor` Intercom | `idle` / `calling` / `ringing` / `in_call`; attributes `peer`, `peer_name`, `incoming`, `since`, `ended` (why the last call ended: `missed`, `rejected: declined`, `by voice`, …) |
+| `sensor` Intercom | `idle` / `calling` / `ringing` / `in_call`; attributes `peer`, `peer_name`, `incoming`, `since`, `ended` (why the last call ended: `no answer` on the caller's side and `missed` on the callee's when nobody answered, `rejected: declined`, `by voice`, `media error`, …) |
 | `select` Intercom target | the other speakers by their `intercom_name` |
 | `button` Intercom call | calls the selected target (answers when ringing) |
 | `button` Intercom hang up | hangs up, cancels or declines |
@@ -60,7 +60,7 @@ entities:
 «Алиса, позвони в спальню» is a request to HA's conversation agent (an LLM), like «скажи в
 спальню, что…». Room names are in no spotter's vocabulary, so this one step needs HA.
 
-1. Take [`hass/intercom/intercom_call.yaml`](../hass/intercom/intercom_call.yaml), replace the
+1. Take [`hass/intercom/intercom_call.yaml`](../../hass/intercom/intercom_call.yaml), replace the
    `<PLACEHOLDERS>` with your rooms, the people they belong to (aliases the LLM can map, «позвони
    маме»), and each room's speaker `device_id`.
 2. Add it as a script: the UI's YAML editor, or `POST /api/config/script/config/intercom_call`.

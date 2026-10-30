@@ -1,7 +1,10 @@
 # Where «Алиса» ends: finding the wake-word boundary
 
-**Status (2026-10-28):** the anchoring of recommendation 1 is built (see "What the CFW does"); the
-offsets are still the desk estimates. All numbers below come from synthetic speech run through the
+The wake word as a whole: [wake-word.md](wake-word.md).
+
+**Status (2026-10-28):** the anchoring of recommendation 1 is built (see "What the CFW does"), and
+the per-board offsets now come from real recordings (`wake.preroll_ms`: bergamot 150, orion 220;
+"First real recordings" and "Station 3" below). The first estimates came from synthetic speech run through the
 real vendor spotter under qemu, a first estimate to be redone on real recordings with `wake_capture`
 (see "Validation plan").
 
@@ -32,7 +35,7 @@ wake word, and (b) cut a clean wake-word segment for voice ID ([voice-id.md](voi
 
 ## What the vendor gives us
 
-- **No boundaries in the API.** The exported C API (`research/spotter-decompile.md` §2.2) has events and the phrase,
+- **No boundaries in the API.** The exported C API ([research/spotter-decompile.md](research/spotter-decompile.md) §2.2) has events and the phrase,
   nothing per frame. `spotter_get_current_activation_info_for_online_validation` and
   `spotter_get_current_activation_metainfo` are not decoded yet. `maind` uses the first one for cloud
   re-validation with fixed windows (`requestSoundBeforeTriggerMs` / `requestSoundAfterTriggerMs`). Decoding
@@ -211,5 +214,5 @@ Same voice and phrase, eight wakes, `preroll_ms` 300 (the default then), the spe
 
 Scratch scripts (not in the repo): TTS generation (Silero v4_ru from the torch hub cache,
 espeak-ng), track builder with ground truth, `spotter-host run` under qemu (sysroot as in
-`spotter-host/README.md`), the probing harness, the DSP heuristics, and the Vosk aligner (pip
+[spotter-host/README.md](../spotter-host/README.md)), the probing harness, the DSP heuristics, and the Vosk aligner (pip
 `vosk==0.3.45`, model `vosk-model-small-ru-0.22` from 2021).

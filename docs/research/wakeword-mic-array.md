@@ -2,7 +2,7 @@
 
 **Device:** Yandex Station Mini 3 — codename `bergamot` (`authd.deviceName` = "Яндекс.Станция Мини 3").
 **Firmware under analysis:** quasar `3.210.369.1.46.4778262544.20261013.117` (dump at `dumps/rootfs/system/vendor/quasar/`).
-**Status:** the vendor `maind`/quasar stack is **permanently disabled** on our unit; this is a static-analysis reference for rebuilding its audio front-end with sovereign tooling. It is the low-level companion to `docs/research/hass-integration.md` (do not edit that file from here).
+**Status:** the vendor `maind`/quasar stack is **permanently disabled** on our unit; this is a static-analysis reference for rebuilding its audio front-end with sovereign tooling. It is the low-level companion to [docs/research/hass-integration.md](hass-integration.md) (do not edit that file from here).
 
 Everything below is derived primarily from the on-disk dump (configs, model files, and the stripped `maind` + `libyandex_evil.so` binaries); a few points were confirmed read-only against the live device. Where a claim is an inference rather than a direct observation it is labelled **(inferred)**.
 
@@ -24,7 +24,7 @@ Everything below is derived primarily from the on-disk dump (configs, model file
 > bergamot are wrong; the real front-end is per-mic Kalman AEC vs the HW feedback reference + pick the
 > healthiest omni mic + a 2-ref Kalman BNR (`vqe_bnr`) + HPF ~178 Hz + ×50 ASR-mode gain. The neural NR
 > (`model_call.nnet`) is a standard **GTCRN** used **only in call mode**, reusable standalone. Full
-> recovered spec + numbers: `vqe-decompile.md`. "Skip beamforming" is therefore exactly what Yandex
+> recovered spec + numbers: [vqe-decompile.md](vqe-decompile.md). "Skip beamforming" is therefore exactly what Yandex
 > does, not a shortcut.
 >
 > **⚠ DEVICE RESULTS (2026-10-22, see [voice-phase2-plan.md](voice-phase2-plan.md)):** measured on the unit,
@@ -139,7 +139,7 @@ configuration does not show whether the vendor reports an event, mutes a channel
 changes the VQE input after a detection. Use a repeated raw-capture comparison first:
 a physical fault remains disproportionately noisy or quiet across captures, while a
 single noisy interval can be room activity, electrical interference, or a transport
-glitch. The Orion retest in `../boards/orion.md` is the concrete example.
+glitch. The Orion retest in [../boards/orion.md](../boards/orion.md) is the concrete example.
 
 The `audiosender` component enumerates the **named channels** that exist inside the pipeline:
 
@@ -335,7 +335,7 @@ Keep the existing `asound.conf` idea but expose named PCMs for a sovereign consu
 - Cheapest useful win: **delay-sum** of the 3 mics (fixed broadside), or just **pick the loudest mic** per utterance (mirrors VQE's omni-mic fallback / `MaxRmsZoneTracker`). A full MVDR/adaptive beamformer is not worth it initially; the VQE evidence shows even Yandex often falls back to omni.
 - If wanted later: `webrtc-audio-processing` had an experimental beamformer; or a small custom frequency-domain delay-sum using the `RIGHT_TRIANGLE_43MM_LEG`-style geometry once measured. Mostly skip — single mic + good AEC/NS gets ~90% of the benefit for a near-field room speaker.
 
-**(4) Wake word — microWakeWord (TFLite-micro). Recommended.**
+**(4) Wake word — microWakeWord (TFLite-micro). Recommended.** *(Superseded: the vendor spotter shipped instead of microWakeWord ([wake-word.md](../wake-word.md), "Why the vendor spotter").)*
 - Do **not** port the Yandex Kaldi KWS. Use **microWakeWord**, which the user already trains for Russian: pipeline in `<ha-config-repo>/mww-training/` (Silero-TTS positives → `make_features.py` → GPU train → `stream_state_internal_quant.tflite` + ESPHome v2 manifest), documented in `<ha-config-repo>/docs/respeaker-wake-words.md`. MWW runs as a Wyoming wake service (`wyoming-microwakeword` / openWakeWord) on the device or on the HASS host.
 - Feed the wake-word model the **post-AEC/NS mono 16 kHz** stream (mirrors Yandex scoring `vqe_0`, not raw mic) — this materially improves robustness when the speaker is playing.
 - Concepts worth copying from Yandex conceptually: a lightweight **counteractivation/verification** second stage (openWakeWord already supports a VAD + a "melspectrogram diff" style gate; you can add a simple "is the speaker currently playing?" suppressor in the satellite), the **VAD gate** before uplink, and the **offline command spotter** idea (a second tiny MWW/openWakeWord model set for «стоп», «громче», «тише», «пауза» giving no-cloud reflexes).

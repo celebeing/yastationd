@@ -82,14 +82,39 @@ threshold, so colour on the card always means "look here". Never use warn or err
   and version, status chips), the vitals panel beside it (as many columns as fit, a thin gauge under
   each value), the everyday controls in one toolbar row under both. Nothing pushed to a far corner
   with empty space between.
-- **Navigation:** groups (Status / Controls / Configuration) with a vertical section menu beside the
-  content; pages by topic, never by mechanism ([settings.md](settings.md)).
+- **Navigation:** groups (Status / Controls / Behaviour / Configuration; the list is `GROUPS` in
+  `web/src/app.tsx`) with a vertical section menu beside the content; pages by topic, never by
+  mechanism ([settings.md](settings.md), [web-ui.md](web-ui.md)).
 - **Settings rows:** name, control, share switch on one line, the explaining paragraph under it;
   a changed value gets the accent edge and a Reset; restart-needing changes collect in one floating
   "Apply and restart" bar; rarely touched keys fold under "Advanced" at the bottom of their page.
 - Cards: 12–14 px radius, a 1 px `--line` border, no drop shadows (the floating apply bar is the one
   exception: it floats over content).
 - Narrow screens (≤ 760 px): every grid stacks into one column; nothing scrolls sideways.
+
+## Components (the web app)
+
+Build pages from these; a new look for something the app already has is a bug. The styles are in
+`web/src/style.css`, the shared components in `web/src/controls.tsx`, `settings.tsx` and
+`ledframe.ts`.
+
+| Need | Use | Not |
+|---|---|---|
+| Turn something on or off (a setting, an option, an entity, a pack) | `Switch` (`controls.tsx`: a slider, `label.switch`) | a checkbox, a pair of On / Off buttons |
+| A setting or an HA option, anywhere | `SettingRows` (`settings.tsx`): the row with its control, share switch and paragraph; `Control` for a bare entity | a control of your own for the same value |
+| Share a value with every speaker | `ShareSwitch` (`settings.tsx`, a pressed-state button "Only here" / "All speakers") | |
+| A button | plain `button` (secondary), `.primary` (the one main action of a card), `.ghost` (row actions, quiet), `.danger` (destructive), `.icon` (a glyph-only button, with an `aria-label`) | coloured or bordered one-offs |
+| Confirm a destructive action | ask in place: "Really …? Yes / No" (`.confirm`; the People tab's `Confirm`) | `confirm()`, which the app never uses |
+| A status or a count next to a name | `.badge` (status), `.tag` (a small label such as "household", "restart", "changed"), `.chip` (a verdict or a value with a tone) | |
+| A list of items with actions | `.assetlist` rows with the actions in `.actions` on the right | a table with buttons in cells |
+| A row of controls | `.row` (wraps; `.tight` for less gap, `.grow` for the element that takes the room) | |
+| Text roles | `.muted` (secondary), `.small`, `.note` (a callout), `.err` (an error, say what to do), `.linklike` (a button that reads as a link) | |
+| A card | `section.card` with an `h3` | nested cards |
+| The front display | `paintFront` (`ledframe.ts`): the LED page under its glass, previews plain | a renderer of your own |
+
+- **Reordering** (packs in a stack, …): up / down buttons today; a drag-and-drop must keep a
+  keyboard path and write once on the drop.
+- **A control that moves** (a slider) previews while it moves and saves once it rests.
 
 ## Motion and accessibility
 

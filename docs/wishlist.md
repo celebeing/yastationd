@@ -214,7 +214,7 @@ does not block array-phase work. The first experiment will still tell us whether
 With the mics' frequency response known, a speaker could serve as a reference microphone:
 measure another speaker's frequency response in the room (a sweep from one, recorded by the
 other), find room modes, check what an EQ or the amp's settings do, compare units (the Mini 3
-firmwares tune the amp differently, docs/guides/deploying.md §7). What we have and lack:
+firmwares tune the amp differently, [docs/guides/deploying.md](guides/deploying.md) §7). What we have and lack:
 
 - **No published response.** The vendor does not publish the mics' parts or curves. The PDM
   mics are probably common MEMS parts with a flat response from ~100 Hz to ~10 kHz and a rise

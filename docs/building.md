@@ -42,6 +42,7 @@ tools/build.sh make:sounds-convert        # a yastationd make target in the tool
 | `sendspin:<arch>` | `sendspin-host/build/<arch>/sendspin-host` |
 | `spotter:<arch>` | `spotter-host/build/<arch>/spotter-host` |
 | `packtool` | `yastationd/build/packtool` (for the building host, not the speakers: the asset-pack checker) |
+| `docs-check` | nothing: checks that every relative link in the repo's Markdown resolves (`tools/check-docs.sh`, sh and git on the host, no container) |
 | `hosttool:<cmd>` | `yastationd/build/<cmd>`: a tool of `cmd/` built for this host (`ledsim`, `demoreel`, `clipconv`, …) |
 | `make:<target>` | a `yastationd` make target run in `yastation-tools` with `IN_BUILDER=1`: `sounds-convert`, `clips-convert`, `video-convert-in`, `build-ringdemo`, `build-fbleddemo` (`MAKE_VARS="K=V"` passes variables) |
 

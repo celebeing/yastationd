@@ -148,6 +148,12 @@ speech. A simple AGC (for example a slow RMS normaliser to about −30 dBFS) in 
 
 ## 5. yastationd integration plan (Phase 2)
 
+> **Built differently in places (2026-10-30):** the `serve` mode exists (with `AT` positions and
+> the call mode), commands are armed only while the speaker plays (not for a few seconds after a
+> wake), there are no `wake_word_detected` / `wake_mode` entities (only the `wake_word` button
+> event), and tuned model copies go under `<cfw>`, not `/bkupgrade`. What is built:
+> [../wake-word.md](../wake-word.md).
+
 Constraints: keep the blob out of the Go process. `hw:0,1` is exclusive (no dsnoop), and **yastationd is the single mic owner**
 (`internal/hw/mic.go`: one arecord, fan-out to subscribers, push-to-talk subscribes to ch0 → 16 k mono).
 

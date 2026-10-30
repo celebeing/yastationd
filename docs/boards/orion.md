@@ -111,7 +111,7 @@ useful event to us. Its temporal count is still the reason a one-off anomalous f
 not become a hardware diagnosis: compare complete raw captures at separate times first.
 The 2026-10-24 two-pass retest did exactly that and cleared the earlier idx-5 anomaly.
 
-Generic detector limits and the bergamot instance: docs/research/wakeword-mic-array.md §2.3
+Generic detector limits and the bergamot instance: [docs/research/wakeword-mic-array.md](../research/wakeword-mic-array.md) §2.3
 “Vendor bad-mic detector”.
 
 - CPU cost of the stock 96 kHz plug chain: arecord via `mroute` 13ch **110 jiffies / 5 s
@@ -175,7 +175,7 @@ Generic detector limits and the bergamot instance: docs/research/wakeword-mic-ar
   never `CONFIRMATION_1ST_STAGE`, so `serve` now emits `WAKE` on either confirmation. A live
   60 s test in the user's room: 14 of 14 spoken «Алиса» confirmed, one verifier rejection, no
   false wakes in the silent half; room-noise floor raw ≈ −70 dBFS, speech raw −61…−65 dBFS. Fallback remains: strip the verifier (re-threshold; more false accepts) -
-  bergamot §6.4 tradeoff in docs/research/spotter-decompile.md.
+  bergamot §6.4 tradeoff in [docs/research/spotter-decompile.md](../research/spotter-decompile.md).
 - **Runtime noise-event spotter (stock unit, captured 2026-10-25):** `spotter.json` declares one
   downloaded model with `type = noise_detection`; its UUID, CDN URL and binary stay only in
   gitignored `dumps/`. `words.txt` maps labels `1..8` to clapping, snapping, crying, alarm, glass,

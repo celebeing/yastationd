@@ -15,6 +15,7 @@
 #                     builds and checks packs: docs/asset-packs.md)
 #   hosttool:<cmd>    a host tool of cmd/     yastationd/build/<cmd>     (go; for this host: ledsim, demoreel,
 #                     clipconv, …; packtool is hosttool:packtool)
+#   docs-check        every relative link in the Markdown resolves (tools/check-docs.sh; no container)
 #   make:<target>     a yastationd make target that needs ffmpeg/zstd/Go (the one-off install
 #                     conversions: sounds-convert, clips-convert, video-convert-in, build-ringdemo,
 #                     build-fbleddemo), run in the tools image; MAKE_VARS="K=V ..." are passed to it
@@ -179,6 +180,7 @@ for t in "$@"; do
 	hostapd) build_hostapd ;;
 	dropbear) build_dropbear ;;
 	packtool) build_hosttool packtool ;;
+	docs-check) "$here/tools/check-docs.sh" || exit 1 ;;
 	hosttool:*) build_hosttool "${t#hosttool:}" ;;
 	make:*) build_make "${t#make:}" ;;
 	sendspin)

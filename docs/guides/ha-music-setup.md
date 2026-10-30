@@ -4,7 +4,7 @@ How to make the speakers play music by voice: a **Music Assistant (MA)** server,
 Sendspin players, the HA integration, and the scripts/automations that turn «Алиса, включи группу
 Кино» into music in the right room. The speaker side (sendspin-host, shared mixer, ducking, wake word
 over music) is in [music-sendspin.md](../music-sendspin.md); the voice assistant itself is in
-[ha-assistant-setup.md](ha-assistant-setup.md). Templates: [`../hass/music/`](../hass/music/).
+[ha-assistant-setup.md](ha-assistant-setup.md). Templates: [`../hass/music/`](../../hass/music/).
 
 ```
 «включи группу Кино» ─► speaker ─(Wyoming)─► HA Assist ─► sentence trigger / LLM tool
@@ -40,7 +40,8 @@ The phrases are Russian (that is what the speakers speak); adapt them for anothe
 
 ## 2. The speakers as players
 
-Point each speaker at MA (`sendspin_server = ws://<ma-host>:8927/sendspin`, see
+Turn the player on (`sendspin = true`; it is off by default) and point each speaker at MA
+(`sendspin_server = ws://<ma-host>:8927/sendspin`, see
 [music-sendspin.md](../music-sendspin.md#connecting-to-music-assistant)) and give it the same
 `sendspin_name` as its name in HA. On a weak Wi-Fi link, set the player's *Preferred Sendspin
 format* in MA to FLAC/Opus to cut bandwidth.
@@ -59,11 +60,11 @@ format* in MA to FLAC/Opus to cut bandwidth.
 
 | Phrase | Handled by | Template |
 |---|---|---|
-| «пауза / стоп / хватит», «продолжи», «дальше», «назад», «громче / тише» | built-in media intents via custom sentences | [`custom_sentences_media_ru.yaml`](../hass/music/custom_sentences_media_ru.yaml) |
-| «включи исполнителя / группу / альбом / песню / трек / плейлист / радио …», «играй / сыграй / хочу послушать …», «включи музыку …», «включи мои лайки / любимое / мою любимую музыку / музыку» | automation **Music: by voice** (no LLM) | [`music_by_voice.yaml`](../hass/music/music_by_voice.yaml) |
-| other explicit music requests, e.g. «Алиса, поставь что-нибудь из Металлики» | the LLM agent → script tool **«Включить музыку»** | [`play_music.yaml`](../hass/music/play_music.yaml) |
-| «выключи», «выруби», «выключи / останови музыку» | automation **Music: stop** | [`music_stop.yaml`](../hass/music/music_stop.yaml) |
-| (all of the above that play something) | background worker **Music: find and play** | [`music_find_and_play.yaml`](../hass/music/music_find_and_play.yaml) |
+| «пауза / стоп / хватит», «продолжи», «дальше», «назад», «громче / тише» | built-in media intents via custom sentences | [`custom_sentences_media_ru.yaml`](../../hass/music/custom_sentences_media_ru.yaml) |
+| «включи исполнителя / группу / альбом / песню / трек / плейлист / радио …», «играй / сыграй / хочу послушать …», «включи музыку …», «включи мои лайки / любимое / мою любимую музыку / музыку» | automation **Music: by voice** (no LLM) | [`music_by_voice.yaml`](../../hass/music/music_by_voice.yaml) |
+| other explicit music requests, e.g. «Алиса, поставь что-нибудь из Металлики» | the LLM agent → script tool **«Включить музыку»** | [`play_music.yaml`](../../hass/music/play_music.yaml) |
+| «выключи», «выруби», «выключи / останови музыку» | automation **Music: stop** | [`music_stop.yaml`](../../hass/music/music_stop.yaml) |
+| (all of the above that play something) | background worker **Music: find and play** | [`music_find_and_play.yaml`](../../hass/music/music_find_and_play.yaml) |
 
 Setup:
 1. Replace the placeholders in the templates: `<MA_CONFIG_ENTRY_ID>`, `<LIKED_SONGS_URI>`,

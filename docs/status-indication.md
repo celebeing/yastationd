@@ -1,6 +1,8 @@
 # Status indication: boot, first connection, degraded
 
-Status (2026-10-24): implemented (`yastationd/internal/app/lifecycle.go`).
+Status (2026-10-24): implemented (`yastationd/internal/app/lifecycle.go`). Everything else the
+speaker watches about itself (the power supply, the network watchdog, vitals, the supervisor):
+[health.md](health.md); what to do when something looks wrong: [guides/troubleshooting.md](guides/troubleshooting.md).
 
 ## States
 
@@ -8,7 +10,7 @@ Status (2026-10-24): implemented (`yastationd/internal/app/lifecycle.go`).
 |---|---|---|---|
 | booting | from the daemon's start until the first connection | blue pulse | the `sleep` clip (no clock: the time is unknown) |
 | first connection failed | none within `boot_connect_timeout` (default 40 s); it keeps trying | red pulse | `sleep` |
-| ready | the first connection is made | — | `eyes` → `wink` once per device boot, then the base layer |
+| ready | the first connection is made | — (dark is the normal idle) | the `startup` moment once per device boot (eyes → wink by default), then the base layer |
 | degraded | after ready, something is missing for 10 s | dim red pulse | unchanged |
 
 "Connected" means the MQTT broker is up (when one is configured) and HA holds the Wyoming satellite
@@ -28,9 +30,10 @@ broker connects or the speaker becomes ready, so a stale probe does not show red
   sentence «К сожалению, что-то пошло не так» (the second asks to redo the setup): the
   `voice_unavailable` moment. `backend_unavailable` is decoded too, as an alternative.
 
-Every indication on this page is a moment of the default theme (`booting`, `boot_failed`,
-`ha_lost`, `voice_unavailable`, `mic_muted`; [asset-packs.md](asset-packs.md)), so a theme or the
-board profile (`moment.<name>`) can change it.
+Every indication on this page is a moment of the default theme (`startup`, `booting`,
+`boot_failed`, `ha_lost` and `ha_back`, `voice_unavailable`, `mic_muted` and `mic_unmuted`;
+[asset-packs.md](asset-packs.md)), so a theme or the board profile (`moment.<name>`) can change it.
+A bad power supply has its own moment, `power_problem` ([health.md](health.md)).
 
 ## Config
 
@@ -40,5 +43,7 @@ boot_connect_timeout = 40   # s, 1..600
 
 ## Not covered here
 
-The daemon itself being down (crash loop, no binary): the supervisor would have to draw that
-from the shell. See the wishlist.
+The daemon itself being down (crash loop, no binary): nothing shows it on the speaker (the ring
+keeps its last frame or goes dark); HA shows the speaker unavailable and the web app does not
+answer ([guides/troubleshooting.md](guides/troubleshooting.md)). The supervisor would have to draw
+it from the shell: [wishlist.md](wishlist.md), "The supervisor draws a dead daemon".

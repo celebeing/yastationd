@@ -139,8 +139,8 @@ front for an animation the display lacks. The catalogue lists the sounds this sp
 ## Phase 3: packs in the web app
 
 Behaviour → Packs (`web/src/packs.tsx`): the theme stack this speaker wears (up/down, turn off),
-the built-in behaviour under it; **Your packs** (Preview, Play on the speaker, Turn on/off, Rename,
-Export, Remove; a new one by name); **Installed** (Preview, Play on the speaker, Turn on/off, Copy
+the built-in behaviour under it; **Your packs** (Preview, Play on the speaker, an on/off switch, Rename,
+Export, Remove; a new one by name); **Installed** (Preview, Play on the speaker, an on/off switch, Copy
 to my pack, Remove); import one or more `.zip` archives. The browser sends each archive by itself
 and reports its result: installed, updated (another version of an installed pack: from → to), or
 skipped (the same version is installed); a rejected pack never stops the rest. **Preview** opens

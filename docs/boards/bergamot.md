@@ -88,7 +88,7 @@ reservations (a 20 MB CMA pool, 4 MB more), the RAM ends at 256 vs 512 MB (check
 | iptables | present | absent (we ship a static armhf bundle for the egress lock) |
 | `libyandex_evil.so` | 4.9 MB, needs `libtflite.so`; `spotter_error_*` API | 3.4 MB, **older API**: no `spotter_error_*`, no error out-param (errors print and exit), `spotter_create_multichannel` takes 7 args |
 | time sync | `chronyd` → LAN server | no chronyd; vendor `ntp_sync.sh` → public pools (blocked) → yastationd's SNTP |
-| spotter models | downloaded to `/data/quasar/data/spotter_model/<uuid>` | none downloaded; built-in multi-stage `/system/vendor/quasar/spotter_models/activation/alisa/{0,1}` |
+| spotter models | downloaded to `/data/quasar/data/spotter_model/<uuid>` (the directory ids differ per unit: the profile names one unit's; another bergamot may need `wake_model` / `command_model` set to its own, [wake-word.md](../wake-word.md)) | none downloaded; built-in multi-stage `/system/vendor/quasar/spotter_models/activation/alisa/{0,1}` |
 
 spotter-host is built against the 0.369 API, so on a 0.6.x unit we don't port it: we ship the
 0.369 `libyandex_evil.so` + `libtflite.so` + `libiconv.so` (deps beyond that: glibc ≥ 2.16 only)

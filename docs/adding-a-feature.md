@@ -3,13 +3,13 @@
 How the CFW is built and the conventions a new feature follows, so it fits next to the rest
 instead of beside it. For a new speaker model, read [porting-a-speaker.md](porting-a-speaker.md)
 instead; for what a change must touch outside the code (docs, deploy, config examples, the vendor
-repo), the "Changes that ripple" list in `CLAUDE.md`.
+repo), the "Changes that ripple" list in [CLAUDE.md](../CLAUDE.md).
 
 **The short version.** A setting is a key in the registry. Every sound, animation, ring effect or
 other show the speaker puts on in reaction to something goes through **moments**, our own
 abstraction: code names the event, the theme stack decides what plays. An HA entity and its web app control
 are one definition. The web app reuses the settings page's widgets and the LED page's painter. A
-vendor library runs in a child process. Read the doc of the area first (`docs/index.md`), and say
+vendor library runs in a child process. Read the doc of the area first ([docs/index.md](index.md)), and say
 in the doc what you built.
 
 ## Where things are
@@ -23,14 +23,26 @@ in the doc what you built.
 | `yastationd/internal/display/`, `hw/` | the display stacks and front renderers; the hardware (LEDs, ALSA, input, sensors) |
 | `yastationd/internal/<feature>/` | self-contained logic with its own tests (`intercom`, `voiceid`, `wake`, `wyoming`, `sendspin`…) |
 | `spotter-host/` | the C host of the vendor's voice libraries (wake word, VQE, voiceprints), one binary, several modes |
-| `web/src/` | the web app (Preact): `app.tsx` (tabs), `settings.tsx`, `controls.tsx`, `moments.tsx`, `packs.tsx`, `extra.tsx` (LED, log), `ledframe.ts`, `api.ts` |
+| `web/src/` | the web app (Preact), below |
+
+The web app's files: `app.tsx` (the speakers list, a speaker's page, `GROUPS` and the tabs, the
+card), `api.ts` (every API call and its types), `controls.tsx` (`Switch`, `Control` for an
+entity, the controls tab), `settings.tsx` (the Configuration pages, `SettingRows`, `ShareSwitch`),
+`moments.tsx` (the moments editor), `packs.tsx` (packs, sounds, the import, the previews),
+`assets.tsx` (videos, the browser-side audio and video conversion), `voices.tsx` (the People tab),
+`extra.tsx` (the LED page and its animation browser, the log, Wi-Fi, About), `ledframe.ts` (the
+front display painter), `seg7.ts` (the 7-segment shapes), `style.css` (every style; tokens on
+top). The only check is the type check in the build (`tools/build.sh web`); there are no web
+tests, so look at the page in a browser.
 
 ## Settings: a key in the registry
 
-Every config key is declared **once**, in `internal/config/registry.go`; that one entry gives the
+Every config key is described **once**, in `internal/config/registry.go`; that one entry gives the
 parser, the settings page row (label, control, paragraph), the API and the sync between speakers.
+The value itself is a field of `Config` with its default (`internal/config/config.go`), which the
+registry entry points at; nothing else needs touching.
 The rules (group, label, doc, the `Runtime` / `Sync` / `Advanced` / `Needs` / `Hidden` flags,
-tests, both example configs) are in `CLAUDE.md` and [settings.md](settings.md). Code reads a value
+tests, both example configs) are in [CLAUDE.md](../CLAUDE.md) and [settings.md](settings.md). Code reads a value
 through `a.cfg()` at the point of use; a runtime key copied into a variable at start is a bug.
 
 **An HA option** (a value HA and the web app both change often, e.g. `follow_up`, `auto_brightness`,
@@ -62,8 +74,9 @@ displays each get something that fits. Design: [display-expressions.md](display-
   (seg7, pixels) in `momentDefaults` (`moments.go`) when the kinds need different pictures.
   `defaulttheme_test.go` checks the two lists agree.
 - Fire it with `a.hook("name")` (its catalogue slot and priorities) or `a.moment(slot, "name",
-  ttl)`; end a held one with `a.unexpress(slot)`. Not with `express()`, a sound player call or a
-  ring effect of your own.
+  ttl)`; a held one (its catalogue entry has no TTL) is ended with `a.endHook("name")` (its layers,
+  its steps and its sound), one fired with `a.moment` with `a.unexpress(slot)`. Not with
+  `express()`, a sound player call or a ring effect of your own.
 - What it shows: an expression, `anim:`, `sound:`, `phrase:`, `ring:`, `scenario:`, or steps of
   these (`{"steps": [...]}`); `a,b` picks one at random each time (a sound `a|b`: the first this speaker has). Prefer an existing expression
   or stock animation; a new picture ships as a default only if every display kind has one.
@@ -131,8 +144,20 @@ the device"); personal or biometric data gets 0600 and a note on where it lives.
 - No fixed sleeps for things that finish: poll with a deadline; listen on `127.0.0.1:0`.
 - `go test ./...` in `yastationd/` (the Go container: `tools/build.sh yastationd` runs it).
 
+## Examples to copy
+
+| Pattern | Where |
+|---|---|
+| A watched condition → a diagnostic `binary_sensor` and a one-shot moment, once per boot | `internal/app/power.go` (`powerLoop`, `firstThisBoot`) |
+| A held state moment, started on a change and ended on the way back, with a grace period | `internal/app/lifecycle.go` (`ha_lost` / `ha_back`, `a.endHook`) |
+| An HA option end to end (state, entity, command, sync, web) | `voice_ignore_guests` (`state.go`, `discovery.go`, `voiceid.go`, `sync.go`, `settings.tsx`) |
+| A child process with a line protocol, supervised | `internal/voiceid/host.go` (and its shell stand-in test) |
+| A config key with a page section of its own | the `voice_id` group in `registry.go` |
+| A web tab that reuses the settings rows | `web/src/voices.tsx` (the Guests card) |
+| Self-monitoring: what is watched and the patterns | [health.md](health.md) |
+
 ## Before you call it done
 
-The "Changes that ripple" list in `CLAUDE.md` (docs, deploy, config examples, build steps, the
+The "Changes that ripple" list in [CLAUDE.md](../CLAUDE.md) (docs, deploy, config examples, build steps, the
 README, the vendor repo), then build and deploy to a dev unit and check it there; sound only on the
 unit the owner allows. A release walks [releasing.md](releasing.md).

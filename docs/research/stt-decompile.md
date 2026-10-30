@@ -4,9 +4,9 @@
 front-end that feeds the cloud)? If so, how far can it be reused outside the vendor stack? If not, what does the
 device send to the cloud, and how?
 
-**Builds on:** `docs/research/spotter-decompile.md` (spotter engine, chen14, nnet3/ynmt, fbank),
-`docs/research/vqe-decompile.md` (VQE / `vqe_0`), `docs/research/wakeword-mic-array.md`, `docs/research/hass-integration.md`, and the sibling
-`docs/research/tts-decompile.md`. Facts already established there are referenced, not repeated. No existing doc was edited.
+**Builds on:** [docs/research/spotter-decompile.md](spotter-decompile.md) (spotter engine, chen14, nnet3/ynmt, fbank),
+[docs/research/vqe-decompile.md](vqe-decompile.md) (VQE / `vqe_0`), [docs/research/wakeword-mic-array.md](wakeword-mic-array.md), [docs/research/hass-integration.md](hass-integration.md), and the sibling
+[docs/research/tts-decompile.md](tts-decompile.md). Facts already established there are referenced, not repeated. No existing doc was edited.
 
 **Tags.** **(observed)** = read directly from bytes, strings, relocations, disassembly or decompiler output, or
 measured by running my own code on the vendor model files. **(inferred)** = my reading of that evidence.
@@ -32,7 +32,7 @@ measured by running my own code on the vendor model files. **(inferred)** = my r
   End-of-utterance, text, normalisation and partials all come back from the server. **(observed: enum, ctor
   defaults, encoder ctls, config keys; inferred: exact wire framing, §3)**
 - **What does run locally:**
-  1. the VQE front-end (`docs/research/vqe-decompile.md`);
+  1. the VQE front-end ([docs/research/vqe-decompile.md](vqe-decompile.md));
   2. the wake-word spotter plus a spotter-VAD gate that decides when to open the stream;
   3. on-device voice **biometry** (ECAPA-TDNN, age, gender). This is speaker ID, not STT;
   4. a **"hybrid" local path**. A **`SpotterRecognizer`** wraps the **offline command spotter**
@@ -204,13 +204,13 @@ ASR.
   audio device's **main channel**: `audiod.audioDevice.mainChannel: "vqe_0"`, `outRate: 16000`. **(observed
   config + code; "falls back to the main channel" is inferred)**
 - `vqe_0` on bergamot is a single Kalman-AEC'd, HPF'd mic. There is no beamformer, and no NR/AGC in ASR mode
-  (`docs/research/vqe-decompile.md` §6). `YandexVqeC_SetASRMode` is driven by `EventLoopAudioDeviceInputController::
+  ([docs/research/vqe-decompile.md](vqe-decompile.md) §6). `YandexVqeC_SetASRMode` is driven by `EventLoopAudioDeviceInputController::
   setASRMode`. **(observed symbols)**
 - `speechkitLogChannels: ["vqe_0","vqe_bnr"]` and `audiosender.*` are **sound logging and debug dumps**
   (`StreamSoundLogger`, `sendSpotterSound`, `spotterLogging*`). They are not the ASR input. **(observed names;
   role inferred)**
 - So the cloud ASR hears **mono 16 kHz AEC'd mic0**. That is exactly the signal a Wyoming satellite should stream
-  to HA. This confirms the `hass-integration.md` design choice.
+  to HA. This confirms the [hass-integration.md](hass-integration.md) design choice.
 
 ### 3.4 Request flow (inferred from config keys, state names and class names)
 
@@ -229,7 +229,7 @@ spotter hit (vqe_0 [+vqe_bnr]) ──► SpotterVadGate / TOpenStreamPolicy.TVad
 
 ### 4.1 Already covered elsewhere
 
-The VQE (`vqe-decompile.md`), the activation/VAD/counteractivation spotters (`spotter-decompile.md`), and the
+The VQE ([vqe-decompile.md](vqe-decompile.md)), the activation/VAD/counteractivation spotters ([spotter-decompile.md](spotter-decompile.md)), and the
 on-device biometry (ECAPA-TDNN voiceprint with age/gender TFLite heads, `voicetech/bio/ondevice/*`). Biometry only
 labels *who* spoke. Its scores ride along in the request (`biometry_scoring/classification`).
 
@@ -278,7 +278,7 @@ There are two shipped variants of the same vocabulary. They share flags, vocabul
 | used by | `CommandSpotterCapability` (always-on command spotting, context-enabled) | `SpotterRecognizer` (§4.2) |
 
 The TFLite one is the better reuse target: it has standard tensor I/O and TFLite tap-order semantics, so the nnet3
-tap-order and `MultichannelAttention` ambiguities in `spotter-decompile.md` §3.2 do not apply.
+tap-order and `MultichannelAttention` ambiguities in [spotter-decompile.md](spotter-decompile.md) §3.2 do not apply.
 
 ### 5.1 I/O (observed, flatbuffer)
 
@@ -301,7 +301,7 @@ frames ─DW(1 tap: per-bin scale≈0.28–0.43, bias≈−2.5  = fixed CMVN)─
 The ops are `DEPTHWISE_CONV_2D`, `CONCATENATION`, `STRIDED_SLICE` (state roll), `HARD_SWISH`, `SOFTMAX` and `MUL`,
 all builtin, plus 10× the custom **`LINEAR_FP16`**. There are about 0.38 M MAC per frame (about 38 MMAC/s), and
 about 456 k fp16 weights. Total look-ahead is the `right_context = 16` metadata, about 160 ms
-(`spotter-decompile.md` §3.2).
+([spotter-decompile.md](spotter-decompile.md) §3.2).
 
 ### 5.3 `LINEAR_FP16` (new; observed from the bytes)
 
@@ -319,10 +319,10 @@ about 456 k fp16 weights. Total look-ahead is the `right_context = 16` metadata,
   - the network then behaves (§5.6).
 - Replacing it with a builtin `FULLY_CONNECTED` (fp32 weights) or a matmul is mechanical.
 
-### 5.4 Front-end, decoder and vocabulary (observed flags + `spotter-decompile.md`)
+### 5.4 Front-end, decoder and vocabulary (observed flags + [spotter-decompile.md](spotter-decompile.md))
 
 - **Front-end:** `feat-frontend log-mel-fbank`, 40 bins, 25/10 ms, 16 kHz, dither 0.1, empty `feat-pipeline`.
-  This is the same Kaldi fbank as `spotter-decompile.md` §4. CMVN is baked into the first DW layer, so **input
+  This is the same Kaldi fbank as [spotter-decompile.md](spotter-decompile.md) §4. CMVN is baked into the first DW layer, so **input
   level matters**.
 - **Decoder:** `spotter-type chen14`, `metric geometric`, `w-smooth 8`, `w-max 60`, `hit-at-peak subhit`,
   `interval-after-last-activation 25`, `zeroing-confidence-buffer-after-hit true`, `use-vad false`.
@@ -350,7 +350,7 @@ pcm16 mono 16 kHz (AEC'd mic, roughly native mic level)
 
 Alternatively, `dlopen` the vendor `libyandex_evil.so` and use `spotter_conf_read(".../spotterRecognizer")` →
 `spotter_create` → `spotter_submit_raw_data` → `spotter_get_next_event` → `spotter_get_current_phrase`. This is
-Path A of `spotter-decompile.md` §8; that doc lists the remaining unknown args.
+Path A of [spotter-decompile.md](spotter-decompile.md) §8; that doc lists the remaining unknown args.
 
 ### 5.6 Clean-room run (observed)
 

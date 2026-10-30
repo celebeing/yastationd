@@ -2,8 +2,8 @@
 
 **Scope:** static reverse-engineering of the on-device keyword spotter (C++ `Spotter::`, `spotter-type chen14`) in
 `libyandex_evil.so`, done to decide whether the shipped «Алиса» / «Яндекс» / "yasmina" models can be reused without the
-vendor `maind` stack. This builds on `docs/research/wakeword-mic-array.md` (prior pass) and uses the VQE findings of the sibling
-pass in `docs/research/vqe-decompile.md`. Neither of those files is edited here.
+vendor `maind` stack. This builds on [docs/research/wakeword-mic-array.md](wakeword-mic-array.md) (prior pass) and uses the VQE findings of the sibling
+pass in [docs/research/vqe-decompile.md](vqe-decompile.md). Neither of those files is edited here.
 
 **Method, safety, limits:** static only. No vendor code was executed. Model files and TFLite flatbuffers were parsed
 as data. Claims are tagged **(observed)** when they come straight from bytes, disassembly or decompiler output, and
@@ -52,7 +52,7 @@ as data. Claims are tagged **(observed)** when they come straight from bytes, di
   - **Stock Kaldi/Vosk: no.** They cannot load these graphs, and Kaldi's decoder is the wrong tool anyway.
   - The local thresholds assume cloud re-validation and the 2nd stages. A standalone «Алиса» will show **more false
     accepts** than stock until it is re-thresholded on your own negatives.
-  - **Recommendation:** keep microWakeWord as the sovereign default. Run Path A as an A/B, because Yandex's «Алиса»
+  - **Recommendation** (superseded 2026-10-30: Path A shipped; the vendor spotter shipped instead of microWakeWord ([wake-word.md](../wake-word.md), "Why the vendor spotter")): keep microWakeWord as the sovereign default. Run Path A as an A/B, because Yandex's «Алиса»
     model was trained on far more real far-field data than a TTS-trained MWW model is likely to be. Go to Path B
     only if Path A works well enough to justify removing the blob.
 
@@ -337,7 +337,7 @@ config + API)** This matters for standalone FAR.
 (omni + BNR), the fallback alisa/yandex 1 stream (omni). A raw-mic stream is optional and only used by freq-filter
 and counteractivation.
 
-### 7.2 What `vqe_0` is (from the sibling VQE pass, `docs/research/vqe-decompile.md` §6)
+### 7.2 What `vqe_0` is (from the sibling VQE pass, [docs/research/vqe-decompile.md](vqe-decompile.md) §6)
 
 On bergamot there is **no beamforming**. The chain is 48→16 kHz decimation and an RC high-pass (~178), then a
 **per-mic Kalman AEC** against the hardware amp-feedback reference, then the "healthiest" mic (default index 0) →
@@ -387,7 +387,7 @@ gain goes to `vqe_gain`, and it is not established that `vqe_0` gets it.
    Their thresholds were tuned for a pipeline that included cloud re-validation and counteractivation, which used
    cloud context we won't have. Standalone FA/h will be higher at the stock 0.928 threshold, and re-thresholding on
    our own negative audio is mandatory.
-3. **Recommendation:** keep **microWakeWord via Wyoming** as the sovereign baseline, since it is trainable for any
+3. **Recommendation** (superseded 2026-10-30: Path A shipped, see [wake-word.md](../wake-word.md)): keep **microWakeWord via Wyoming** as the sovereign baseline, since it is trainable for any
    phrase and blob-free. Add **Path A as a time-boxed A/B (≤ 2 days)**. If Yandex «Алиса» clearly beats our MWW model
    in FRR at equal FA/h on the same AEC3 stream, keep it, and later port it with Path B to drop the blob. The offline
    **command** spotter (24 commands, the same engine) comes almost free with either path.

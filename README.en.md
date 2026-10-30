@@ -145,7 +145,7 @@ packs replace any animation and add sounds to any event.
 
 **Keeps working without HA**
 - Clock, volume keys, mute and the display run locally. If the broker or HA goes away, the ring
-  shows a dim "degraded" dot, and everything reconnects and re-publishes by itself.
+  pulses a dim red, and everything reconnects and re-publishes by itself.
 - Time is kept from the LAN NTP server. The clock blinks its colon until the time is confirmed, and a
   stale clock after power-on is corrected right away.
 
@@ -232,7 +232,8 @@ of this project's scope: we assume you already have it.
   checks everything by itself.
 - **If something does not work:** collect a diagnostics archive (`<cfw>/bin/diag.sh` on the
   speaker, `tools/diag-build.sh` for the build and deploy; secrets are stripped by default) and
-  attach it to an issue — [docs/guides/diagnostics.md](docs/guides/diagnostics.md).
+  attach it to an issue — [docs/guides/diagnostics.md](docs/guides/diagnostics.md). To look for the
+  cause first, by symptom: [docs/guides/troubleshooting.md](docs/guides/troubleshooting.md).
 
 ## Repository
 

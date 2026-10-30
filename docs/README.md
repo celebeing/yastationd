@@ -21,7 +21,10 @@ Also here: `brand/` (the logo's sources), `media/` (pictures the docs and the RE
   A spec cites it instead of repeating it. Research is not kept in sync with the code; a finding
   that turned out wrong gets a correction note, not a silent rewrite.
 - **Splitting a doc** (a spec and its research, a spec and its guide): the halves link each other.
-- **Each folder has its index** (`README.md`); [index.md](index.md) lists only the specs and points
+- **Mention another doc as a link**, `[deploying.md](guides/deploying.md)`, not as `code`: a reader
+  should be one click away. Never link a gitignored `*.local.md` file (it is a broken link for
+  everyone else). `tools/build.sh docs-check` checks every relative link.
+- **Each folder has its index** ([README.md](README.md)); [index.md](index.md) lists only the specs and points
   to the others, so reading it does not load everything.
 - Not for the repo: anything private (addresses, names, real rooms) goes to gitignored
   `*.local.md` files; dumps stay in `dumps/`.

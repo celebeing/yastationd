@@ -37,7 +37,7 @@ original design this grew from (2026-10-22, MVP phases and all) is kept as resea
   A crash there never takes the daemon down, and the daemon never links a vendor library. The
   vendor's own assistant (`maind`) never runs: a reversible gate keeps it from starting, the
   speaker reaches only the LAN (an egress lock on the speaker and the router), and firmware updates
-  are blocked (the safety doctrine in `CLAUDE.md`).
+  are blocked (the safety doctrine in [CLAUDE.md](../CLAUDE.md)).
 - **Audio goes through the stock ALSA tools** (`aplay` on the firmware's dmix, one `arecord` whose
   frames the daemon fans out), so nothing links `libasound` and the firmware's mixer setup stays.
 
