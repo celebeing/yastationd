@@ -39,7 +39,7 @@ tools/build.sh make:sounds-convert        # a yastationd make target in the tool
 | `yastationd` | `yastationd/build/yastationd` |
 | `hostapd` | `hostapd/build/hostapd` |
 | `dropbear` | `dropbear/build/dropbearmulti` (static aarch64, every board; [dropbear/README.md](../dropbear/README.md)) |
-| `openssh` | `openssh/build/`: `sshd`, `sshd-session`, `sshd-auth`, `sftp-server`, `scp`, `dropbearconvert` (static aarch64 on a static OpenSSL; only for `SSH=openssh`; [openssh/README.md](../openssh/README.md)) |
+| `openssh` | `openssh/build/`: `sshd`, `sshd-session`, `sshd-auth`, `sftp-server`, `scp`, `dropbearconvert` (static aarch64 on a static OpenSSL; the speakers' default SSH server; [openssh/README.md](../openssh/README.md)) |
 | `sendspin:<arch>` | `sendspin-host/build/<arch>/sendspin-host` |
 | `spotter:<arch>` | `spotter-host/build/<arch>/spotter-host` |
 | `packtool` | `yastationd/build/packtool` (for the building host, not the speakers: the asset-pack checker) |

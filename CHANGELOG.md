@@ -3,6 +3,18 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.23.0 — 2026-10-31
+
+**OpenSSH on the speakers** ([docs/ssh.md](docs/ssh.md))
+- The speaker's SSH server is now OpenSSH 10.6 (our static build on OpenSSL 3.5 LTS): log in with
+  a certificate signed by your own CA (a CA key file and a principals file on the speaker, none
+  ship with the CFW), SFTP, and `scp` from current OpenSSH clients without `-O`. The host key is
+  dropbear's, so `known_hosts` doesn't change.
+- `tools/deploy.sh` switches each speaker carefully: the new server is tried on port 2222 first,
+  port 22 switches only after a login through it, and a login on 22 confirms or the old server
+  comes back. Then the boot starts it too. `SSH=dropbear` keeps dropbear.
+- dropbear stays on the speaker as the fallback: it starts whenever OpenSSH can't.
+
 ## v0.22.3 — 2026-10-30
 
 **Logs off the speaker** ([docs/storage.md](docs/storage.md))

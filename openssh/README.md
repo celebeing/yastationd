@@ -1,8 +1,8 @@
-# openssh — the speakers' optional SSH server
+# openssh — the speakers' SSH server
 
-Our build of [OpenSSH](https://www.openssh.com/portable.html), for a speaker whose owner wants
-user certificates (a trusted CA), SFTP or OpenSSH itself instead of dropbear. dropbear stays the
-default. How it is chosen, configured and switched to: [docs/ssh.md](../docs/ssh.md).
+Our build of [OpenSSH](https://www.openssh.com/portable.html), the speakers' SSH server by
+default since 2026-10-31 (user certificates from a trusted CA, SFTP); dropbear stays as the
+fallback. How it is chosen, configured and switched to: [docs/ssh.md](../docs/ssh.md).
 
 - **Versions:** OpenSSH 10.6p1 on OpenSSL 3.5.9 (the LTS line), the release tarballs pinned by
   sha256 in `fetch.sh`.
@@ -16,7 +16,7 @@ default. How it is chosen, configured and switched to: [docs/ssh.md](../docs/ssh
   `nobody` (the read-only rootfs has no `sshd` user) and directory `/tmp/sshd-empty` (made at
   start), the seccomp sandbox. Everything else comes from the config `ssh.sh` writes.
 - **Build:** `tools/build.sh openssh` → `build/` ([docs/building.md](../docs/building.md)).
-- **On a speaker:** `SSH=openssh tools/deploy.sh` ([docs/ssh.md](../docs/ssh.md)).
+- **On a speaker:** `tools/deploy.sh` (the default; `SSH=dropbear` keeps dropbear) ([docs/ssh.md](../docs/ssh.md)).
 
 ## A new version
 

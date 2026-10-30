@@ -16,15 +16,17 @@
 # from hostapd/build/hostapd, else from a recorded build in your vendor tree ($VENDOR/builds/hostapd/<version>/armv7/hostapd, the newest); with neither, a
 # speaker that has no hostapd yet gets a warning (its Wi-Fi setup mode cannot start).
 #
-# dropbear (the speaker's SSH server, dropbear/) is replaced only on a first deploy (no yastationd
-# on the speaker yet) or with DROPBEAR=1, and only where it runs from <cfw>/bin/dropbearmulti. The
-# new one is tried on port 2222 first and swaps itself in from there; the old one stays as
-# dropbearmulti.prev. DROPBEAR=only does just that: no build or update of anything else.
+# dropbear (dropbear/: the fallback SSH server, and port 22's until OpenSSH takes over) is replaced
+# only on a first deploy (no yastationd on the speaker yet) or with DROPBEAR=1, and only where it
+# runs from <cfw>/bin/dropbearmulti. The new one is tried on port 2222 first and swaps itself in
+# from there; the old one stays as dropbearmulti.prev. DROPBEAR=only updates the SSH servers and
+# nothing else.
 #
-# SSH=openssh | dropbear picks the speaker's SSH server (docs/ssh.md): it is tried on port 2222
-# first and switched to on port 22 from there; unset, the server stays as it is. SSH_HOOK=1 makes
-# the boot start the chosen one (a rootfs write: only with the owner's OK). With DROPBEAR=only,
-# SSH= / SSH_HOOK= do just that.
+# SSH=openssh (the default) | dropbear picks the speaker's SSH server (docs/ssh.md): a different
+# one, or new binaries, are tried on port 2222 first and switched to on port 22 from there; a
+# speaker already running these binaries is left alone. With openssh the boot hook is made to
+# start it too (once: a rootfs write, the kit's hook kept as the fallback). dropbear stays on the
+# speaker as that fallback. With DROPBEAR=only, the SSH server is all that is updated.
 #
 # Env: SSHKEY (optional: the key to use; unset, ssh picks one from the agent and ~/.ssh/config),
 # VENDOR (optional, the vendor-tree checkout), DROPBEAR=1 | only (replace dropbear, above), NATIVE=1 (build yastationd with the host's
@@ -110,15 +112,18 @@ if [ "${NATIVE:-0}" != 1 ] && [ "${DROPBEAR:-0}" != only ]; then
 	done
 fi
 
+SSH=${SSH:-openssh}
+case $SSH in openssh | dropbear) ;; *) echo "SSH=$SSH: openssh or dropbear" >&2; exit 1 ;; esac
+
 echo "== build"
 if [ "${DROPBEAR:-0}" = only ]; then
 	"$here/tools/build.sh" dropbear
-	[ "${SSH:-}" = openssh ] && "$here/tools/build.sh" openssh
+	[ "$SSH" = dropbear ] || "$here/tools/build.sh" openssh
 elif [ "${NATIVE:-0}" = 1 ]; then
 	(cd "$here/yastationd" && make -s test build)
 else
 	targets="yastationd hostapd dropbear"
-	[ "${SSH:-}" = openssh ] && targets="$targets openssh"
+	[ "$SSH" = dropbear ] || targets="$targets openssh"
 	for a in $arches; do targets="$targets sendspin:$a spotter-if:$a"; done
 	# shellcheck disable=SC2086 # targets is a list
 	"$here/tools/build.sh" $targets
@@ -141,8 +146,24 @@ DB_ARGS='args=$(tr "\0" " " </proc/$(cat /var/run/dropbear.pid)/cmdline)'
 # old binary goes back. Anything failing before the swap leaves everything as it was.
 update_dropbear() {
 	[ -x "$dbm" ] || { echo "  dropbear: no $dbm (tools/build.sh dropbear), not replaced" >&2; return 0; }
-	if ! ssh_ "$target" "test -x $cfw/bin/dropbearmulti && test -f /var/run/dropbear.pid" </dev/null; then
+	if ! ssh_ "$target" "test -x $cfw/bin/dropbearmulti" </dev/null; then
 		echo "  dropbear: not run from $cfw/bin/dropbearmulti here, not replaced" >&2
+		return 0
+	fi
+	if ! ssh_ "$target" "test -f /var/run/dropbear.pid" </dev/null; then
+		# Not running (OpenSSH serves port 22): dropbear is the fallback. The new binary must
+		# serve a login on port 2222 before it takes the old one's place.
+		put "$dbm" "cat > $cfw/bin/dropbearmulti.upload && chmod 755 $cfw/bin/dropbearmulti.upload"
+		ssh_ "$target" "$cfw/bin/dropbearmulti.upload dropbear -r $cfw/dropbear_ed25519_host_key -p 2222 -P /var/run/sshd-2222.pid" </dev/null ||
+			fail "dropbear on $target: the new one did not start on port 2222"
+		sleep 1
+		if ssh_2222 "true" </dev/null; then
+			ssh_ "$target" "kill \$(cat /var/run/sshd-2222.pid); D=$cfw/bin; cp -p \$D/dropbearmulti \$D/dropbearmulti.prev && mv \$D/dropbearmulti.upload \$D/dropbearmulti && ln -sf dropbearmulti \$D/scp && \$D/dropbearmulti dropbear -V 2>&1 | head -1" </dev/null |
+				sed 's/^/  dropbear (the fallback): /' || fail "dropbear on $target: putting the new binary in place"
+		else
+			ssh_ "$target" "kill \$(cat /var/run/sshd-2222.pid); rm -f $cfw/bin/dropbearmulti.upload" </dev/null || true
+			fail "dropbear on $target: no login through the new one on port 2222; the old one kept"
+		fi
 		return 0
 	fi
 	put "$dbm" "cat > $cfw/bin/dropbearmulti.upload && chmod 755 $cfw/bin/dropbearmulti.upload"
@@ -199,13 +220,20 @@ OSSH_BINS="sshd sshd-session sshd-auth sftp-server scp"
 # port 2222 from them first; a login through 2222 copies them into place, sets <cfw>/ssh_server
 # and restarts port 22 (sessions in progress stay up); a login on 22 confirms SERVER answers
 # there, else 2222 (still running from the .new files) puts the previous server back. Nothing
-# about boot changes: the init hook decides that (SSH_HOOK=1).
+# switched to OpenSSH, the boot hook is made to run ssh.sh (ssh_hook).
 switch_ssh() {
 	srv=$1
 	if [ "$srv" = openssh ]; then
 		for b in $OSSH_BINS dropbearconvert; do
 			[ -x "$ossh/$b" ] || fail "no $ossh/$b (tools/build.sh openssh)"
 		done
+		want=$(cd "$ossh" && md5sum $OSSH_BINS | cut -c1-32 | tr '\n' ' ')
+		have=$(ssh_ "$target" "cd $cfw/openssh 2>/dev/null && md5sum $OSSH_BINS 2>/dev/null | cut -c1-32 | tr '\n' ' '; cat $cfw/ssh_server 2>/dev/null; test -f /var/run/sshd-22.pid && kill -0 \$(cat /var/run/sshd-22.pid) && echo up;" </dev/null | tr '\n' ' ')
+		if [ "$have" = "${want}openssh up " ] && ssh_ "$target" "cat $cfw/init.d/ssh.sh" </dev/null | cmp -s - "$here/yastationd/init.d/ssh.sh"; then
+			echo "  ssh: openssh on port 22, up to date"
+			ssh_hook
+			return 0
+		fi
 		ssh_ "$target" "mkdir -p $cfw/openssh && chmod 755 $cfw/openssh" </dev/null || fail "mkdir $cfw/openssh on $target"
 		for b in $OSSH_BINS; do
 			put "$ossh/$b" "cat > $cfw/openssh/$b.new && chmod 755 $cfw/openssh/$b.new"
@@ -241,6 +269,7 @@ EOF
 	esac
 	if ssh_ "$target" "test -f $pid && kill -0 \$(cat $pid) && kill \$(cat /var/run/sshd-2222.pid); rm -f $cfw/openssh/*.new $cfw/init.d/ssh.sh.new; true" </dev/null; then
 		echo "  ssh: $srv on port 22"
+		[ "$srv" = openssh ] && ssh_hook
 		return 0
 	fi
 	# Port 22 does not answer with SERVER: the previous one back, through 2222.
@@ -258,7 +287,7 @@ EOF
 # ssh_hook: make the boot start <cfw>/init.d/ssh.sh (the server <cfw>/ssh_server names, falling
 # back to dropbear) instead of the install kit's dropbear-only hook. A rootfs write (remount rw,
 # the original kept as <cfw>/init.d/S42zdropbear.orig and used when ssh.sh is missing or fails);
-# only with SSH_HOOK=1, after the owner agreed (docs/ssh.md, "Boot").
+# done once, after OpenSSH answered on port 22 (docs/ssh.md, "Boot").
 ssh_hook() {
 	ssh_ "$target" 'sh -s' <<EOF || fail "ssh boot hook on $target"
 set -e
@@ -336,8 +365,8 @@ grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target platform cfw arc
 	esac
 
 	if [ "${DROPBEAR:-0}" = only ]; then
-		if [ -n "${SSH:-}" ]; then switch_ssh "$SSH"; else update_dropbear; fi
-		[ "${SSH_HOOK:-0}" = 1 ] && ssh_hook
+		update_dropbear
+		switch_ssh "$SSH"
 		continue
 	fi
 	first=0
@@ -385,7 +414,5 @@ EOF
 	if [ "$first" = 1 ] || [ "${DROPBEAR:-0}" = 1 ]; then
 		update_dropbear
 	fi
-	[ -n "${SSH:-}" ] && switch_ssh "$SSH"
-	[ "${SSH_HOOK:-0}" = 1 ] && ssh_hook
-	true
+	switch_ssh "$SSH"
 done

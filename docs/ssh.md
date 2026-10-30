@@ -1,7 +1,8 @@
 # SSH on the speaker: dropbear or OpenSSH
 
-Status (2026-10-31): built. dropbear stays the default; OpenSSH is the owner's choice per speaker,
-tried on two dev units (bergamot and orion). How a speaker got SSH in the first place is out of
+Status (2026-10-31): built. **OpenSSH is the default** that `tools/deploy.sh` puts on a speaker;
+dropbear stays on it as the fallback, and `SSH=dropbear` keeps dropbear instead. Tried on bergamot
+and orion, a reboot included. How a speaker got SSH in the first place is out of
 scope ([CLAUDE.md](../CLAUDE.md)).
 
 ## The two servers
@@ -50,8 +51,9 @@ Plain keys in `authorized_keys` keep working beside certificates unless the owne
 
 ## Switching: `tools/deploy.sh`
 
-`SSH=openssh` or `SSH=dropbear` (with `DROPBEAR=only`: nothing else is built or updated) makes
-that the server on port 22, in steps that can't lock you out:
+Every deploy makes `SSH` (default `openssh`; `SSH=dropbear` for dropbear; with
+`DROPBEAR=only` nothing else is built or updated) the server on port 22. A speaker already running
+the same OpenSSH binaries and `ssh.sh` is left alone; otherwise, in steps that can't lock you out:
 
 1. The files go up beside the live ones as `.new` (OpenSSH's binaries, `ssh.sh`), and
    `dropbearconvert`.
@@ -68,14 +70,21 @@ that the server on port 22, in steps that can't lock you out:
 Tried on bergamot and orion: dropbear → OpenSSH → dropbear → OpenSSH, each step confirmed on
 port 22, nothing left on 2222.
 
+**dropbear as the fallback** stays in `<cfw>/bin` and is still updated by `DROPBEAR=1` / `only`:
+when it is not running, the new binary must serve a login on port 2222 before it replaces the
+old one (kept as `.prev`).
+
 ## Boot
 
 The install kit's `/etc/init.d/S42zdropbear` starts dropbear and knows nothing of
-`<cfw>/ssh_server`, so **after a reboot a speaker runs dropbear** whatever was switched: the
-safe fallback while OpenSSH is being tried. `SSH_HOOK=1` (with `tools/deploy.sh`) replaces that
-hook with one that runs `<cfw>/init.d/ssh.sh start`, and the kit's original (kept as
-`<cfw>/init.d/S42zdropbear.orig`) when `ssh.sh` is missing or starts nothing. It is a rootfs
-write (remount rw/ro): do it only with the owner's OK, on a unit whose switch was confirmed.
+`<cfw>/ssh_server`. Once OpenSSH answers on port 22, `tools/deploy.sh` replaces that hook (once:
+a rootfs write, remount rw/ro) with one that runs `<cfw>/init.d/ssh.sh start`, and the kit's
+original, kept as `<cfw>/init.d/S42zdropbear.orig`, when `ssh.sh` is missing or starts nothing.
+`ssh.sh` itself starts dropbear when OpenSSH can't start. A speaker without that hook file (not
+seen yet) keeps it; it then boots into whatever its own hook starts.
+
+Checked on orion: the new hook run as at boot starts OpenSSH; with `sshd` renamed away it starts
+dropbear; and through real reboots the speaker came back on OpenSSH (2026-10-31).
 
 ## Trying it by hand
 
