@@ -38,6 +38,7 @@ twice (the upload and the `.prev` copy, ~17 MB each).
 | `<cfw>/packs/<id>/pack.json` of the owner's packs | a moment saved from the web app (up to v0.21: `<cfw>/moments.json`) |
 | `<cfw>/web.secret` (32 B) | once, the first time the web server starts |
 | `<cfw>/netwatch.count` | a network-watchdog reboot (one write) |
+| `<cfw>/acoustic-calibration.json` (~1 KB) | once per completed or cancelled acoustic measurement (Station 3), the last run's verdicts only — never audio ([acoustic-calibration.md](acoustic-calibration.md)) |
 
 **Audit, 2026-10-30, v0.22.2** (every write in the code, then the units). In 16.5 min of normal
 running the two Station 3s wrote **0 bytes** to the eMMC and the two bergamots' highest erase

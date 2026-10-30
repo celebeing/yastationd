@@ -68,6 +68,7 @@ to the binary. Flash is written only when the config is saved.
 | `GET /api/log?source=daemon\|system&lines=N` | the tail of the daemon's or the system log, oldest first ([storage.md](storage.md)) |
 | `GET /api/voices`, `GET /api/voices/log\|preview`, `POST /api/voices/groups/<id>\|merge\|entries/<id>`, `DELETE /api/voices[/groups/<id>]` | voice ID: where the store is; on the store the groups, the log, the threshold preview and the owner's edits ([voice-id.md](voice-id.md)) |
 | `GET\|POST\|DELETE /api/calibrate/light` | the light-sensor calibration: its state; `{"lux": N}` measures and stores a point; drop the unit's own ([sensor-calibration.md](sensor-calibration.md)) |
+| `GET\|POST\|DELETE /api/calibrate/acoustic` | Station 3 only: room/response measurement. `GET` observes a run; `{"level_dbfs": -50\|-45\|-40}` starts three ~30 s opt-in sweeps with voice paused; `DELETE` cancels. Report only — it never alters playback sound ([acoustic-calibration.md](acoustic-calibration.md)) |
 
 ### One definition for MQTT and the web
 

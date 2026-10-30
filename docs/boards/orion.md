@@ -63,32 +63,44 @@ transient (see "Mic capture"); it does not block on-device wake/VQE work.
 ## Mic capture
 
 - The PDM mic array arrives only through the TDM **loopback** (`hw:0,3` LOOPBACK-A, 14ch
-  @ 96 kHz): the 'datain' side of the loopback carries the mics, 'datalb' the speaker
-  feedback. `Loopback datain source` = `PDM` (verified) — the mic routing into the
-  loopback is kernel-side and needs no userspace setup.
-- Stock capture "default" → `mroute` (plug) → `mcapt` (multi): 13 channels interleaved at
-  96 kHz = loopback ch {0,2,3,4,5,6} **mics**, ch {8,9,11,12,13} speaker refs, + ultrasound
-  ch {0,1}. quasar.cfg: `micChannels 6, spkChannels 7, inRate 96000, mainChannel vqe_0`, and
-  the channel names `raw_mic_0..5, raw_spk_0..6` (audiosender).
-- **Verified on device (2026-10-23, stack stopped, raws + host-side RMS/Fourier):**
-  `mroute` opens 13ch/96k and captures 4.0 s exact (9984000 B). The played 1 kHz tone
-  appears at exactly **1000 Hz on all six mic channels (idx 0 loudest: 140 RMS in the tone
-  window vs 20-40 floor)** and on all five refs (15-31 RMS). Silence floor 20-40 RMS,
-  DC ≈ 0 → `mic.voice = 0` (idx 0 = loopback ch 0) confirmed, `Loopback PDM Gain` 24 kept.
-  Ref channels are silent (0.0) with the stack stopped - speaker refs only start flowing
-  when TDM-B playback is up. A later **pure-capture retest** (2026-10-24: two complete
-  30 s `mroute` captures, 150 s apart; 74880000 B each) **cleared mic idx 5** on the
-  first tested unit: RMS 27.4 vs 28.1-30.3 on its five peers in capture A and 43.8 vs
-  37.8-48.4 in B. The second unit independently passed the same test: idx 5 was 17.2
-  vs 17.4-22.0 in A and 41.6 vs 40.4-46.4 in B; B's 196-232 peak-RMS activity was
-  shared by every mic, consistent with room noise. The earlier first-unit 4 s idx-5
-  spike (RMS 3061, low-frequency junk) was therefore transient — either a local
-  acoustic/electrical event or a one-off transport glitch, not a dead capsule. All six
-  mic channels are valid VQE inputs; retain raw captures if it recurs.
-  The ultrasound pair (idx 11-12) is **dead LSB in every capture** (RMS 0-1 flat,
-  no 1 kHz leakage) — those slots are the `us` amp's own TDM-A RX lines; they only
-  carry data with a live TDM-A stream. Not captured here because the stock S94alsa
-  ultrasound aplay stops after 1 s, so no TDM-A stream was up during the captures.
+  @ 96 kHz). `Loopback datain source` = `PDM` (verified) feeds the `datain` side. The
+  `datalb` speaker-feedback side is separately muxed by `Loopback tdmin lb source`.
+- Stock capture `default` → `mroute` (plug) → `mcapt` (multi): 13 channels interleaved at
+  96 kHz = loopback ch {0,2,3,4,5,6} **mics**, ch {8,9,11,12,13} speaker references, +
+  ultrasound ch {0,1}. quasar.cfg declares 6 mics and 7 speaker-reference channels.
+- **Loopback source correction (verified 2026-10-30):** the device-tree default and observed
+  live value for `Loopback tdmin lb source` is `TDMINB` (enum value 5). That source leaves
+  loopback channels 8–13 at their −100 dBFS quantization floor, even while `default` plays
+  through the ACM8625 amplifiers. `TDMOUTB` (enum value 1) is the six-channel speaker output:
+  setting that mux before opening `hw:0,3` makes raw channels 8–13 carry the exact digital
+  playback PCM. A −60 dBFS 1 kHz test tone appeared as the original ±32-LSB waveform on all
+  six channels, while its acoustic microphone pickup was only about −88 dBFS. **CFW lifecycle
+  verification (2026-10-30):** the daemon holds value 1 while running, restores value 5 after
+  cleanly stopping `arecord`, and selects value 1 again on restart. Music playback, volume,
+  normal wake/response, and wake during music all remained functional.
+- `mroute` exposes five of those six TDM-B slots as indices 6–10; it deliberately omits raw
+  loopback channel 10. Its indices 11–12 remain the `us` codec's TDM-A capture slots, dead
+  LSB unless a TDM-A stream is active. No userspace channel-remapping bug was involved.
+- **Low-level sweep capture (2026-10-30):** direct LOOPBACK-A capture of a 100 Hz–10 kHz,
+  4 s logarithmic sweep at raw master 134 and −40 dBFS PCM produced an exact 4.0 s ±328-LSB
+  digital reference on all six TDM-B slots, with no clipping in either reference or active
+  microphone window. The PDM/loopback open transient saturated the first second; discard it.
+  Preliminary sweep correlation places acoustic arrivals 3.25–5.10 ms after the reference
+  (mic 0 earliest); use deconvolution, not a repeating sine, for final delay and response.
+- **Repeatability and room dependence (2026-10-30):** three stationary captures in one room
+  agreed within 1.9 dB worst-case across 125 Hz–8 kHz; two stationary captures in a second
+  room agreed within 0.8 dB. The two rooms differed by median 12.4 dB at 125 Hz, 9.1 dB at
+  250 Hz, and 5.1 dB at 500 Hz, but by at most about 3.1 dB above 1 kHz. A running range hood
+  in the quieter second room was stable enough to measure. Deliberate walking during a third
+  capture changed the derived response by median 2.1 dB at 1 kHz, 2.7 dB at 2 kHz, 3.6 dB at
+  4 kHz, and 5.3 dB at 8 kHz. Calibration must require repeated stationary captures and be
+  scoped to one speaker in one placement; reject active-motion captures.
+- A pure-capture retest (2026-10-24: two complete 30 s `mroute` captures, 150 s apart)
+  cleared mic idx 5 on the first tested unit: RMS 27.4 vs 28.1–30.3 on its five peers in
+  capture A and 43.8 vs 37.8–48.4 in B. The second unit independently passed the same test:
+  idx 5 was 17.2 vs 17.4–22.0 in A and 41.6 vs 40.4–46.4 in B; B's 196–232 peak-RMS activity
+  was shared by every mic, consistent with room noise. All six mic channels are valid VQE
+  inputs; retain raw captures if an anomaly recurs.
 
 ### Vendor bad-mic detector
 
@@ -195,9 +207,10 @@ Generic detector limits and the bergamot instance: [docs/research/wakeword-mic-a
   `spotter-host vqe -P orion -N 13 -M 0,1,2,3,4,5 -Q 6,7,8,9,10,11,12 < cap-tone.raw`
   → 4.00 s × 16 kHz × 4ch out, 1000 Hz tone present in vqe_0 (Goertzel), raw_mic RMS 75;
   config out_channels: raw-mic 6, sync-main 1, raw-spk 7, vqe_0 1 (+bnr/gain at runtime).
-  `listen … -k command` runs the full chain with the command spotter (no verifier needed)
-  and exits clean. The speaker refs (hw:0,3 ch 6..12) are live even with the vendor stack
-  stopped — refs ride the loopback capture, so AEC works even mid-song on our stack.
+  `listen … -k command` runs the full chain with the command spotter (no verifier needed).
+  The loopback has the hardware capacity for live speaker refs while the vendor stack is
+  stopped, but only after its `tdmin lb source` mux is switched from default `TDMINB` to
+  `TDMOUTB`; otherwise raw speaker-reference channels remain silent and AEC is degraded.
 - Profile wake keys are wired (verified offline; turned on by `wake_enabled = true` in
   yastationd.conf): `wake.vqe_preset = orion`, `wake.mics = 0,1,2,3,4,5`,
   `wake.refs = 6,7,8,9,10,11,12` (multi-ref boards; bergamot/pickle keep `wake.ref`), and

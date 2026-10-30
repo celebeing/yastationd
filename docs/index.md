@@ -50,6 +50,8 @@ have their own indexes, read when the task needs them:
 | [sensor-calibration.md](sensor-calibration.md) | The light sensor in lux and the mic in dB SPL: board base and per-speaker overrides |
 | [storage.md](storage.md) | Flash and its wear, what the daemon writes, logs and their shipping, the network watchdog |
 | [design.md](design.md) | The look: the logo, the palette, type, layout patterns, copy |
+| [ambilight-color.md](ambilight-color.md) | Station 3's ambilight colours: the measurement, the calibration, the RGBW solver
+| [acoustic-calibration.md](acoustic-calibration.md) | The speaker measuring its own room response (Station 3): opt-in sweeps, the safety cap, the report; no correction path |
 
 ## The boards
 

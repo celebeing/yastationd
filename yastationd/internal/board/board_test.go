@@ -33,7 +33,8 @@ func TestOrionBuiltin(t *testing.T) {
 	if err := p.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if p.Mic.Channels != 13 || p.Mic.Rate != 96000 || p.Mic.Voice != 0 {
+	if p.Mic.Channels != 13 || p.Mic.Rate != 96000 || p.Mic.Voice != 0 ||
+		p.Mic.RouteControl != "Loopback tdmin lb source" || p.Mic.RouteValue != 1 {
 		t.Errorf("mic = %+v", p.Mic)
 	}
 	if len(p.Audio.Unmute) != 3 {

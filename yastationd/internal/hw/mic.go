@@ -28,11 +28,13 @@ type Mic struct {
 	Channel  int    // which channel to use
 	Log      *slog.Logger
 
-	mu   sync.Mutex
-	subs map[int]func([]byte) // 16 kHz mono of Channel
-	raws map[int]func([]byte) // raw interleaved device frames
-	next int
-	cmd  *exec.Cmd
+	mu     sync.Mutex
+	subs   map[int]func([]byte) // 16 kHz mono of Channel
+	raws   map[int]func([]byte) // raw interleaved device frames
+	next   int
+	cmd    *exec.Cmd
+	done   chan struct{}
+	paused bool // a temporary exclusive capture owns the device; subscribers stay registered
 }
 
 // micRestart: the pause before reopening a capture that ended on its own (a busy device fails
@@ -42,6 +44,7 @@ const micRestart = 2 * time.Second
 const (
 	MicOutRate    = 16000 // the rate subscribers get (decimated from the capture rate)
 	micChunkFrame = 1024  // output samples per delivered chunk (64 ms)
+	micStopWait   = 2 * time.Second
 )
 
 // micReadFrames: device frames per read — 20 ms of audio, whatever the capture rate.
@@ -56,6 +59,65 @@ func (m *Mic) Subscribe(fn func([]byte)) (unsubscribe func()) { return m.add(&m.
 // shared by every raw subscriber, so fn must not modify it.
 func (m *Mic) SubscribeRaw(fn func([]byte)) (unsubscribe func()) { return m.add(&m.raws, fn) }
 
+// Stop ends capture during daemon shutdown. Subscribers remain registered, but no restart can
+// occur because cmd is cleared before arecord exits. It waits briefly for arecord's clean PCM
+// close so a board route can be restored without changing an active capture stream.
+func (m *Mic) Stop() {
+	m.mu.Lock()
+	cmd, done := m.cmd, m.done
+	if cmd != nil {
+		m.cmd, m.done = nil, nil
+	}
+	m.mu.Unlock()
+	if cmd == nil {
+		return
+	}
+	cmd.Process.Signal(syscall.SIGTERM)
+	select {
+	case <-done:
+	case <-time.After(micStopWait):
+		m.Log.Warn("mic: capture did not stop before shutdown timeout")
+	}
+}
+
+// Suspend closes the capture stream while preserving subscriptions, so an exclusive diagnostic
+// capture can open the device. The returned function restarts the stream if subscribers remain.
+// Only one exclusive owner may suspend a mic at a time.
+func (m *Mic) Suspend() (func(), error) {
+	m.mu.Lock()
+	if m.paused {
+		m.mu.Unlock()
+		return nil, fmt.Errorf("mic capture is already suspended")
+	}
+	m.paused = true
+	cmd, done := m.cmd, m.done
+	if cmd != nil {
+		m.cmd, m.done = nil, nil
+	}
+	m.mu.Unlock()
+	if cmd != nil {
+		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+			return nil, err
+		}
+		select {
+		case <-done:
+		case <-time.After(micStopWait):
+			return nil, fmt.Errorf("mic capture did not stop before timeout")
+		}
+	}
+	return func() {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		if !m.paused {
+			return
+		}
+		m.paused = false
+		if m.cmd == nil && len(m.subs)+len(m.raws) > 0 {
+			m.start()
+		}
+	}, nil
+}
+
 func (m *Mic) add(set *map[int]func([]byte), fn func([]byte)) func() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -65,7 +127,7 @@ func (m *Mic) add(set *map[int]func([]byte), fn func([]byte)) func() {
 	id := m.next
 	m.next++
 	(*set)[id] = fn
-	if m.cmd == nil {
+	if m.cmd == nil && !m.paused {
 		m.start()
 	}
 	return func() {
@@ -83,7 +145,7 @@ func (m *Mic) add(set *map[int]func([]byte), fn func([]byte)) func() {
 func (m *Mic) restart() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.cmd == nil && len(m.subs)+len(m.raws) > 0 {
+	if !m.paused && m.cmd == nil && len(m.subs)+len(m.raws) > 0 {
 		m.start()
 		if m.cmd == nil { // could not even start: try again later
 			time.AfterFunc(micRestart, m.restart)
@@ -132,12 +194,13 @@ func (m *Mic) start() {
 		m.Log.Warn("mic: start arecord", "err", err)
 		return
 	}
-	m.cmd = cmd
+	done := make(chan struct{})
+	m.cmd, m.done = cmd, done
 	m.Log.Debug("mic: capture started", "device", m.Device, "channel", m.Channel)
-	go m.read(cmd, out, stderr)
+	go m.read(cmd, out, stderr, done)
 }
 
-func (m *Mic) read(cmd *exec.Cmd, out io.Reader, stderr *tailBuffer) {
+func (m *Mic) read(cmd *exec.Cmd, out io.Reader, stderr *tailBuffer, done chan struct{}) {
 	r := bufio.NewReaderSize(out, 64<<10)
 	fsz := 2 * m.Channels
 	block := make([]byte, micReadFrames(m.Rate)*fsz)
@@ -146,6 +209,7 @@ func (m *Mic) read(cmd *exec.Cmd, out io.Reader, stderr *tailBuffer) {
 		m.Log.Warn("mic: decimator", "err", decErr)
 		cmd.Process.Kill()
 		cmd.Wait()
+		close(done)
 		return
 	}
 	hpf := NewHighpass(150, float64(m.Rate)) // the PDM channels open with a big DC/LF transient
@@ -153,9 +217,10 @@ func (m *Mic) read(cmd *exec.Cmd, out io.Reader, stderr *tailBuffer) {
 	for {
 		if _, err := io.ReadFull(r, block); err != nil {
 			werr := cmd.Wait()
+			close(done)
 			m.mu.Lock()
 			if m.cmd == cmd { // died on its own, not stopped by the last unsubscribe
-				m.cmd = nil
+				m.cmd, m.done = nil, nil
 				m.Log.Warn("mic: capture ended, restarting", "err", err, "exit", werr,
 					"stderr", strings.TrimSpace(stderr.String()))
 				time.AfterFunc(micRestart, m.restart)

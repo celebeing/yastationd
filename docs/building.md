@@ -30,8 +30,7 @@ tools/build.sh sendspin:armhf  # one arch; "sendspin" = both
 tools/build.sh spotter:aarch64 # needs a sysroot (below); "spotter" = both, skipping one without
 tools/build.sh web hostapd
 tools/build.sh packtool hosttool:ledsim   # host tools, built for this machine
-tools/build.sh make:sounds-convert        # a yastationd make target in the tools image (the Makefile calls these)
-```
+tools/analyze-sweeps.sh captures/orion-a-report.json captures/orion-a-sweep.raw captures/orion-a-sweep-r2.raw captures/orion-a-sweep-r3.raw
 
 | Target | Output (where deploy.sh and the Makefiles look) |
 |---|---|
@@ -42,9 +41,7 @@ tools/build.sh make:sounds-convert        # a yastationd make target in the tool
 | `sendspin:<arch>` | `sendspin-host/build/<arch>/sendspin-host` |
 | `spotter:<arch>` | `spotter-host/build/<arch>/spotter-host` |
 | `packtool` | `yastationd/build/packtool` (for the building host, not the speakers: the asset-pack checker) |
-| `docs-check` | nothing: checks that every relative link in the repo's Markdown resolves (`tools/check-docs.sh`, sh and git on the host, no container) |
-| `hosttool:<cmd>` | `yastationd/build/<cmd>`: a tool of `cmd/` built for this host (`ledsim`, `demoreel`, `clipconv`, …) |
-| `make:<target>` | a `yastationd` make target run in `yastation-tools` with `IN_BUILDER=1`: `sounds-convert`, `clips-convert`, `video-convert-in`, `build-ringdemo`, `build-fbleddemo` (`MAKE_VARS="K=V"` passes variables) |
+| `tools/analyze-sweeps.sh` | the caller-named JSON report; runs `cmd/sweep-analyze` in the pinned Go container over direct Orion sweep captures |
 
 - Each target is a `docker run` of its image with the repo mounted **at its own path** (so the
   CMake caches of `sendspin-host` stay valid in and out of the container), as the calling user.
@@ -116,13 +113,16 @@ versions installed by hand they work on a host (`make -C yastationd test build`,
 
 ## Host tools
 
-Not shipped to a speaker; built for the host in the Go container, so they need no Go there:
-`cmd/packtool` builds and checks an asset pack (`make -C yastationd pack PACK=<dir or .zip>`, or
-`tools/build.sh packtool` then `yastationd/build/packtool [-o x.zip] <dir or .zip>`; `-get <field>`
-and `-index <url>` read manifests for the asset repo's scripts; [asset-packs.md](asset-packs.md)),
-`cmd/ledsim` and `cmd/demoreel` simulate the LEDs (`tools/build.sh hosttool:ledsim`, then
-`yastationd/build/ledsim …`; [led-preview.md](led-preview.md)). `cmd/videoconv` needs ffmpeg, so it
-runs in the tools image (`make video-convert`, [video-mode.md](video-mode.md)).
+Not shipped to a speaker; built or run in the Go container, so the host needs no Go:
+`cmd/packtool` builds and checks an asset pack; [asset-packs.md](asset-packs.md) documents its
+`make -C yastationd pack PACK=<dir or .zip>` and `tools/build.sh packtool` entry points, plus the
+`-get` and `-index` manifest-reading commands.
+
+`tools/analyze-sweeps.sh` runs `cmd/sweep-analyze` in the Go container against direct Orion
+`hw:0,3` sweep captures. It writes a JSON measurement report atomically, never contacts a
+speaker, and compares 1–8 kHz one-third-octave response across three or more captures. A capture
+whose median high-band deviation exceeds 1.5 dB is rejected as a likely motion/noise outlier; it
+never generates or applies live filters.
 
 ## What the host needs
 

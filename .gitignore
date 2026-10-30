@@ -43,3 +43,5 @@ emu/work/
 
 # Vendor files fetched off your own speaker by tools/fetch-vendor.sh (never committed)
 /vendor-local/
+
+captures

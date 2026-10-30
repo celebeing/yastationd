@@ -57,6 +57,22 @@ func (m *Mixer) Set(control string, v int) error {
 	return nil
 }
 
+// SetRestoring writes v after reading control and returns a function that restores the observed
+// value. Its restore is a no-op when control already had v.
+func (m *Mixer) SetRestoring(control string, v int) (func() error, error) {
+	previous, err := m.Get(control)
+	if err != nil {
+		return nil, err
+	}
+	if previous == v {
+		return func() error { return nil }, nil
+	}
+	if err := m.Set(control, v); err != nil {
+		return nil, err
+	}
+	return func() error { return m.Set(control, previous) }, nil
+}
+
 // CSet runs one `amixer cset` line from config, e.g. "name='SPK mute' 0".
 func (m *Mixer) CSet(line string) error {
 	args := append([]string{"-c", m.Card, "cset"}, splitQuoted(line)...)

@@ -119,6 +119,9 @@ type App struct {
 	luxReading   atomic.Uint64                    // the same reading before the calibration (float64 bits)
 	luxUnitCal   atomic.Pointer[[]luxcal.Point]   // set from the web app (lightcal.go); nil = the config's
 	luxCalBusy   atomic.Bool                      // a calibration measurement is running
+	acousticMu   sync.Mutex
+	acoustic     acousticCalView
+	acousticStop context.CancelFunc
 
 	baseFx    display.RenderFunc[display.RingFrame] // ring effect layer; render goroutine only
 	baseFxKey string
@@ -498,6 +501,7 @@ func (a *App) Run(ctx context.Context) error {
 			a.log.Warn("set mic gain", "control", g.MicGain, "err", err)
 		}
 	}
+	restoreMicRoute := a.setupMicRoute()
 
 	if a.cfg().FrameTapAddr != "" || (a.cfg().LEDPreview && a.cfg().HTTPAddr != "") {
 		a.startFrameTap(ctx)
@@ -594,6 +598,8 @@ func (a *App) Run(ctx context.Context) error {
 	if wy != nil {
 		wy.Close()
 	}
+	a.mic.Stop()
+	restoreMicRoute()
 	if a.mqtt != nil {
 		a.mqtt.Disconnect()
 	}

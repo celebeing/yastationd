@@ -238,6 +238,10 @@ type MicSpec struct {
 	Channels int    // interleaved channels delivered
 	Rate     int    // capture rate (3 x 16 kHz)
 	Voice    int    // channel used for raw (no-VQE) voice streaming
+	// RouteControl selects the capture route before the daemon opens Device. RouteValue is its
+	// numeric ALSA value; the prior value is restored after capture stops. Empty = no route setup.
+	RouteControl string
+	RouteValue   int
 	// SPLOffset turns the voice channel's level in dBFS into dB SPL (dB SPL = dBFS + offset),
 	// measured against a sound level meter (docs/sensor-calibration.md); 0 = not calibrated.
 	SPLOffset float64
@@ -429,6 +433,10 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Mic.Rate, err = strconv.Atoi(v)
 	case k == "mic.voice":
 		p.Mic.Voice, err = strconv.Atoi(v)
+	case k == "mic.route_control":
+		p.Mic.RouteControl = v
+	case k == "mic.route_value":
+		p.Mic.RouteValue, err = strconv.Atoi(v)
 	case k == "mic.spl_offset":
 		p.Mic.SPLOffset, err = strconv.ParseFloat(v, 64)
 	case k == "wake.vqe_preset":

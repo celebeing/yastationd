@@ -58,7 +58,7 @@ in the registry (`config.Groups`, `Page`), so a new key only picks a section:
 | Home integration | Identity (name, ID, board), Home Assistant (MQTT, room sound sensors, Wyoming, health probes), Web app, Time, Logs. Usually set once |
 | Music Assistant | the Sendspin player and the music on the display |
 | Intercom | calls between speakers |
-| Calibration | the light sensor (its own tool) and the mic's dB SPL offset |
+| Calibration | the light sensor (its own tool), the mic's dB SPL offset, and (Station 3) the acoustic room measurement ([acoustic-calibration.md](acoustic-calibration.md)) |
 | Wi-Fi | the saved networks, the setup mode's settings, and what happens when the connection is lost (the reboot watchdog, Wi-Fi recovery). Always there, so the setup mode can be turned on from it |
 | Login | the web login |
 

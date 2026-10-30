@@ -118,6 +118,7 @@ func (a *App) webHandler() http.Handler {
 	api.HandleFunc("/api/assets", a.authed(a.apiAssets))
 	api.HandleFunc("/api/assets/", a.authed(a.apiAssets))
 	api.HandleFunc("/api/calibrate/light", a.authed(a.apiLightCal))
+	api.HandleFunc("/api/calibrate/acoustic", a.authed(a.apiAcousticCal))
 	api.HandleFunc("/api/packs", a.authed(a.apiPacks))
 	api.HandleFunc("/api/packs/", a.authed(a.apiPacks))
 	api.HandleFunc("/api/voices", a.authed(a.apiVoices))
