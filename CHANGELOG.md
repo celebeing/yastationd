@@ -3,6 +3,22 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.22.2 — 2026-10-30
+
+**Voice ID** ([docs/voice-id.md](docs/voice-id.md))
+- The voice log wears the flash far less: a full log used to be rewritten whole (~9 MB) on every
+  request; now it is rewritten about once per 1500 requests.
+- Limits per group instead of one for the whole log, so a voice heard rarely is not pushed out by
+  one heard all the time: 1000 requests for a named or household group, 100 for an unnamed one,
+  100 of "not a person", 20 unnamed groups. Nothing to migrate.
+- A group's name and household mark survive however long the log runs, and new requests no longer
+  fall out of a log full of pinned entries.
+- People tab: "Show more" loads the next page instead of everything again, and no longer collapses
+  the list to 100 rows at the end.
+
+**Docs** — a map of the architecture; specs, user guides and research apart, each with an index;
+guides for adding a feature and fixing a bug; a link check.
+
 ## v0.22.1 — 2026-10-30
 
 **Packs** ([docs/asset-packs.md](docs/asset-packs.md)) — with rlex (#4)
