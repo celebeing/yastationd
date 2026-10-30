@@ -78,7 +78,7 @@ volume_beep  = true
 # hostapd_bin        = <cfw>/bin/hostapd
 # wpa_conf           =                (empty = the running wpa_supplicant's -c)
 
-# --- Intercom (docs/intercom.md, HA setup docs/ha-intercom-setup.md): 1-to-1 calls to another
+# --- Intercom (docs/intercom.md, HA setup docs/guides/ha-intercom-setup.md): 1-to-1 calls to another
 # speaker on the LAN. Needs the same secret on every speaker and the MQTT broker (signalling);
 # media is UDP between the two. `make vqe-models` puts the call-mode noise reducer on the unit.
 # intercom             = true

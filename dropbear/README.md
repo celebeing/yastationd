@@ -12,7 +12,7 @@ this project's scope; this only keeps the server we already use current.
   `scp` to a speaker works (plain and `scp -O`). No SFTP server.
 - **Build:** `tools/build.sh dropbear` → `build/dropbearmulti` (docs/building.md).
 - **On a speaker:** `tools/deploy.sh` replaces the server on a first deploy or with `DROPBEAR=1`,
-  through a test server on port 2222 (docs/deploying.md, "Updating").
+  through a test server on port 2222 (docs/guides/deploying.md, "Updating").
 
 ## A new version
 

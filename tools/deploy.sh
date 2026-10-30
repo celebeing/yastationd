@@ -237,7 +237,7 @@ grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target platform cfw arc
 
 	put "$bin" "cat > $cfw/bin/yastationd.upload"
 	put "$here/yastationd/init.d/supervise.sh" "mkdir -p $cfw/init.d && cat > $cfw/init.d/supervise.sh.new && mv $cfw/init.d/supervise.sh.new $cfw/init.d/supervise.sh"
-	# The diagnostics collector (docs/diagnostics.md); nothing runs it on deploy.
+	# The diagnostics collector (docs/guides/diagnostics.md); nothing runs it on deploy.
 	put "$here/yastationd/scripts/diag.sh" "cat > $cfw/bin/diag.sh.new && chmod 755 $cfw/bin/diag.sh.new && mv $cfw/bin/diag.sh.new $cfw/bin/diag.sh"
 	if [ -n "${arch:-}" ]; then
 		sp=$here/spotter-host/build/$arch/spotter-host

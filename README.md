@@ -72,7 +72,7 @@
 - Локальные команды во время воспроизведения: «стоп», «громче», «тише» обрабатываются на колонке.
 - Голос ответов — тот, что выбран в пайплайне HA. В документации есть и голос персонажа: Silero
   через RVC на GPU сервера, отдельным пайплайном
-  ([docs/ha-assistant-setup.md](docs/ha-assistant-setup.md)).
+  ([docs/guides/ha-assistant-setup.md](docs/guides/ha-assistant-setup.md)).
 
 **Анимации на дисплее и кольце**
 - Анимации из прошивки: полоски состояния во время диалога и подмигивание в конце, приветствие при
@@ -185,7 +185,7 @@
   громче / тише / хватит». Всё это распознаётся на колонке, HA только начинает звонок (скрипт для
   LLM или селект цели с кнопкой). Звонки подписаны и зашифрованы.
   Подробнее: [docs/intercom.md](docs/intercom.md), настройка HA:
-  [docs/ha-intercom-setup.md](docs/ha-intercom-setup.md).
+  [docs/guides/ha-intercom-setup.md](docs/guides/ha-intercom-setup.md).
 
 ## Как устроено
 
@@ -233,14 +233,14 @@
 считается, что он у вас уже есть.
 
 - **Сами:** сборка в [docs/building.md](docs/building.md), установка, обновление и удаление в
-  [docs/deploying.md](docs/deploying.md).
+  [docs/guides/deploying.md](docs/guides/deploying.md).
 - **Через агента:** дайте этот репозиторий и доступ к колонке своему агенту (Claude Code и
-  подобным). [docs/deploying.md](docs/deploying.md) написан в том числе для него, правила
+  подобным). [docs/guides/deploying.md](docs/guides/deploying.md) написан в том числе для него, правила
   безопасной работы с колонкой лежат в [CLAUDE.md](CLAUDE.md). Агент соберёт, установит и
   проверит всё сам.
 - **Если что-то не работает:** соберите архив диагностики (`<cfw>/bin/diag.sh` на колонке,
   `tools/diag-build.sh` для сборки и деплоя; секреты по умолчанию вычищены) и приложите его к
-  issue — [docs/diagnostics.md](docs/diagnostics.md).
+  issue — [docs/guides/diagnostics.md](docs/guides/diagnostics.md).
 
 ## Репозиторий
 
@@ -253,9 +253,9 @@
 | [`hass/`](hass/) | Скрипты для HA, которые может вызывать агент Assist (анимация кольца, текст на дисплее) |
 | [`tools/`](tools/) | Сборка в docker (`build.sh`), деплой на несколько колонок (`deploy.sh`), обследование платы, работа с дампами прошивки |
 | [`docs/`](docs/index.md) | Дизайн-доки, заметки по железу, результаты реверса. Начинать с индекса |
-| [`docs/ha-assistant-setup.md`](docs/ha-assistant-setup.md) | Настройка голосового ассистента в HA: STT, TTS, агент, пайплайн |
+| [`docs/guides/ha-assistant-setup.md`](docs/guides/ha-assistant-setup.md) | Настройка голосового ассистента в HA: STT, TTS, агент, пайплайн |
 | [`docs/building.md`](docs/building.md) | Сборка |
-| [`docs/deploying.md`](docs/deploying.md) | **Для агентов:** установка, обновление и удаление CFW |
+| [`docs/guides/deploying.md`](docs/guides/deploying.md) | **Для агентов:** установка, обновление и удаление CFW |
 | [`docs/porting-a-speaker.md`](docs/porting-a-speaker.md) | **Для агентов:** как исследовать новую колонку и добавить её поддержку |
 
 Документация и код на английском.

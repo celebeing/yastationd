@@ -2,7 +2,7 @@
 
 Status (2026-10-25): **released in v0.6.0.** Checked on two bergamots (calls both ways, the
 VQE call mode, voice control on the spotters, HA's "call a room" script); pickle and orion not
-yet. Off by default (`intercom = false`). Setting it up in HA: [ha-intercom-setup.md](ha-intercom-setup.md).
+yet. Off by default (`intercom = false`). Setting it up in HA: [ha-intercom-setup.md](guides/ha-intercom-setup.md).
 
 A live two-way voice call from one speaker to another over the home LAN: one room talks to another
 hands-free, like a phone call. Scope (decided): **strictly 1-to-1**, plain VoIP-style media, no

@@ -28,7 +28,7 @@ original design this grew from (2026-10-22, MVP phases and all) is kept as resea
 - **One daemon** does everything the speaker does: [yastationd/README.md](../yastationd/README.md).
   Static Go, so one binary runs on every board (armhf and aarch64 userlands); started at boot by
   one init hook and kept up by a supervisor that rolls back a crash-looping update
-  ([deploying.md](deploying.md)).
+  ([deploying.md](guides/deploying.md)).
 - **Model-specific hardware is a board profile**, not code: [boards/README.md](boards/README.md),
   [porting-a-speaker.md](porting-a-speaker.md).
 - **The vendor's code runs only in our child processes**: `spotter-host` loads the vendor's voice
@@ -48,7 +48,7 @@ original design this grew from (2026-10-22, MVP phases and all) is kept as resea
   [yastationd/README.md](../yastationd/README.md), "Entities").
 - **A Wyoming satellite** for voice: the speaker streams the request's audio, HA runs STT, the
   agent and TTS, and streams the reply back; announcements and HA's voice timers come the same way
-  ([ha-assistant-setup.md](ha-assistant-setup.md), [voice-slow-replies.md](voice-slow-replies.md)).
+  ([ha-assistant-setup.md](guides/ha-assistant-setup.md), [voice-slow-replies.md](voice-slow-replies.md)).
 - **Why these two and not ESPHome:** ESPHome builds firmware for microcontrollers; a station is a
   Linux computer with ALSA, evdev and a filesystem, and ESPHome has no runtime for driving those.
   MQTT discovery is the Linux-native counterpart of ESPHome's API, Wyoming the one HA's voice

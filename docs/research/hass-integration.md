@@ -314,7 +314,7 @@ external supervisor).
 - **Process supervision (keep the agent alive).** Init hook `/etc/init.d/S52zyastationd` starts
   a busybox-sh supervisor, `<cfw>/init.d/supervise.sh`, under `setsid`. It restarts the agent with
   a backoff, swaps in the previous binary (`yastationd.prev`) after a crash loop, and rotates the
-  log (contract in its header and in `../deploying.md`). It lives in `<cfw>`, so changing it needs no
+  log (contract in its header and in `../guides/deploying.md`). It lives in `<cfw>`, so changing it needs no
   rootfs write. **Hang detection:** the agent touches a heartbeat file every N s; a watchdog
   checks staleness and `kill`s + restarts a wedged agent. Coexists with the existing `S50clockd`
   (retired — the agent owns the clock) and `hardvold` (left running).

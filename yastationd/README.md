@@ -74,7 +74,7 @@ in the pinned builder container (needs docker). Port and toggles:
 ## Deploy
 
 Full guide (first install, HA side, updates, removal, checks):
-[`../docs/deploying.md`](../docs/deploying.md). Updating speakers, one or many:
+[`../docs/guides/deploying.md`](../docs/guides/deploying.md). Updating speakers, one or many:
 `../tools/deploy.sh` (hosts list in `../tools/deploy.hosts`): it builds in docker, ships the
 daemon and its helpers, and checks each speaker. The make targets below are the one-off install
 steps and dev tools. Device address, SSH key and `PLATFORM` come from

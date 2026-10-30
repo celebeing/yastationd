@@ -230,7 +230,7 @@ export const lightCal = (id: string, base: string) => authed<LightCal>(id, base,
 export const calibrateLight = (id: string, base: string, lux: number) =>
   authed<LightCal>(id, base, '/api/calibrate/light', { method: 'POST', body: JSON.stringify({ lux }) }, 40000)
 export const removeLightCal = (id: string, base: string) => authed<LightCal>(id, base, '/api/calibrate/light', { method: 'DELETE' })
-/** diag fetches the speaker's diagnostics archive (docs/diagnostics.md): redacted unless raw. */
+/** diag fetches the speaker's diagnostics archive (docs/guides/diagnostics.md): redacted unless raw. */
 /** download GETs a file behind the login: its bytes and the name the speaker gives it. */
 async function download(id: string, base: string, path: string, fallback: string, timeoutMs = 30000): Promise<{ blob: Blob; name: string }> {
   const ctl = new AbortController()

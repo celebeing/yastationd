@@ -1,4 +1,4 @@
-# Template — see docs/ha-music-setup.md. Replace the <PLACEHOLDERS>, then paste into the HA UI
+# Template — see docs/guides/ha-music-setup.md. Replace the <PLACEHOLDERS>, then paste into the HA UI
 # (Settings → Automations & scenes → automation → ⋮ → Edit in YAML) or POST it to /api/config/automation/config/<id>.
 id: music_by_voice
 alias: 'Music: by voice'

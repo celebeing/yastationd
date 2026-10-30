@@ -3,7 +3,7 @@
 Everything the CFW puts on a speaker is built in pinned builder containers by one script,
 `tools/build.sh`. The host needs **docker** (and sh, make, git, ssh); no Go, Node, zig, cross gcc,
 ffmpeg, zstd or jq — the one-off conversions run in containers too ("What the host needs" below).
-[deploying.md](deploying.md) §1 has what each binary does on the device; this page is the
+[deploying.md](guides/deploying.md) §1 has what each binary does on the device; this page is the
 toolchain.
 
 ## The builders

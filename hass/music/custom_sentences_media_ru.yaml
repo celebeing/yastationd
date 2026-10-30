@@ -1,4 +1,4 @@
-# Media control by voice for MA players (Russian). Template — see docs/ha-music-setup.md.
+# Media control by voice for MA players (Russian). Template — see docs/guides/ha-music-setup.md.
 # Put into <ha-config-dir>/custom_sentences/ru/media.yaml and call conversation.reload {"language": "ru"}.
 # HA's built-in agent adds the satellite's area as preferred_area_id, so a bare «пауза» / «громче»
 # targets the player in the room that heard it. The optional «алиса» prefix covers the wake word left in

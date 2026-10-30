@@ -3,7 +3,7 @@
 How to make the speakers play music by voice: a **Music Assistant (MA)** server, the speakers as
 Sendspin players, the HA integration, and the scripts/automations that turn «Алиса, включи группу
 Кино» into music in the right room. The speaker side (sendspin-host, shared mixer, ducking, wake word
-over music) is in [music-sendspin.md](music-sendspin.md); the voice assistant itself is in
+over music) is in [music-sendspin.md](../music-sendspin.md); the voice assistant itself is in
 [ha-assistant-setup.md](ha-assistant-setup.md). Templates: [`../hass/music/`](../hass/music/).
 
 ```
@@ -41,7 +41,7 @@ The phrases are Russian (that is what the speakers speak); adapt them for anothe
 ## 2. The speakers as players
 
 Point each speaker at MA (`sendspin_server = ws://<ma-host>:8927/sendspin`, see
-[music-sendspin.md](music-sendspin.md#connecting-to-music-assistant)) and give it the same
+[music-sendspin.md](../music-sendspin.md#connecting-to-music-assistant)) and give it the same
 `sendspin_name` as its name in HA. On a weak Wi-Fi link, set the player's *Preferred Sendspin
 format* in MA to FLAC/Opus to cut bandwidth.
 
@@ -132,7 +132,7 @@ Add to the agent's prompt (we run them in Russian; the meaning is what matters):
 - **MA players don't support `turn_off`.** An LLM mapping «выключи» to `HassTurnOff` gets a service
   error and improvises an excuse. Hence Music: stop and the prompt rule.
 - **Cancelling a voice run doesn't stop its automation.** If the speaker drops a slow run, the
-  started script still finishes (see [voice-slow-replies.md](voice-slow-replies.md)); the music will
+  started script still finishes (see [voice-slow-replies.md](../voice-slow-replies.md)); the music will
   still start.
 - The STT model mangles foreign artist names. The LLM path fixes many of them by sound; the no-LLM
   path searches what was heard, and then the similarity check can return «не нашла».
@@ -145,4 +145,4 @@ Add to the agent's prompt (we run them in Russian; the meaning is what matters):
 | Music plays in the wrong room | the areas of the speaker devices and of the MA players |
 | A random artist plays | the request went through the LLM with a mis-heard name; check the transcript in the Assist debug view |
 | Long delay before music | MA resolving a big playlist or album; artists should be fast (top tracks) |
-| Choppy playback on one speaker | Wi-Fi; Preferred Sendspin format FLAC/Opus; see [music-sendspin.md](music-sendspin.md) |
+| Choppy playback on one speaker | Wi-Fi; Preferred Sendspin format FLAC/Opus; see [music-sendspin.md](../music-sendspin.md) |

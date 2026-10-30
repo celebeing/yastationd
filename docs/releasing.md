@@ -25,7 +25,7 @@ Go through this for everything that landed since the last tag (`git log <last-ta
    behaviour is reflected where it is described; resolved wishlist entries leave it (what is worth keeping goes into their area's doc).
 2. **User-facing:** `README.md` (and `yastationd/README.md`) mention what a user meets — features,
    addresses, logins and their defaults, keys to turn things off.
-3. **Deploying:** `docs/deploying.md` lists every file the CFW puts on a speaker and every install
+3. **Deploying:** `docs/guides/deploying.md` lists every file the CFW puts on a speaker and every install
    or update step; `tools/deploy.sh` uploads every binary that must be on the speaker.
 4. **Config:** every new key is in `yastationd/configs/yastationd.conf.example` and
    `orion.conf.example`; every new profile key in `docs/porting-a-speaker.md`.

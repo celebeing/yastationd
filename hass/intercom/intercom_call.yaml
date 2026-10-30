@@ -1,4 +1,4 @@
-# Template — see docs/ha-intercom-setup.md. Replace the <PLACEHOLDERS> (your rooms and the
+# Template — see docs/guides/ha-intercom-setup.md. Replace the <PLACEHOLDERS> (your rooms and the
 # speakers' device_id), then paste into the HA UI (Settings → Automations & scenes → Scripts →
 # ⋮ → Edit in YAML) or POST it to /api/config/script/config/intercom_call, and expose the script
 # to Assist (Settings → Voice assistants → Expose). The LLM calls it for «позвони в спальню»,

@@ -32,7 +32,7 @@ setup portal, Sendspin and more, by rlex (#6).
   request, forget a person. Ignore guests and the guest threshold are there too, with a preview of
   what a threshold does to the last requests.
 - How to tell HA's assistant who is talking: one line in the agent's prompt
-  ([docs/ha-assistant-setup.md](docs/ha-assistant-setup.md)).
+  ([docs/guides/ha-assistant-setup.md](docs/guides/ha-assistant-setup.md)).
 - `make voice-models` for the Mini 3 0.6.x firmware, whose own voice model is too old.
 
 **Station 3's rear light shows HA's colours as meant** ([docs/ambilight-color.md](docs/ambilight-color.md))
@@ -203,7 +203,7 @@ A review pass over the whole repository (the larger findings are in `docs/backlo
 - `<cfw>/bin/diag.sh` (shipped by deploy.sh) packs everything useful about a speaker into one
   tar.gz, redacted by default for bug reports; the web app downloads it (Status → Log →
   "Download diagnostics", `GET /api/diag`). `tools/diag-build.sh` does the same for a machine
-  whose build or deploy fails ([docs/diagnostics.md](docs/diagnostics.md)).
+  whose build or deploy fails ([docs/guides/diagnostics.md](docs/guides/diagnostics.md)).
 
 **Web app**
 - A logo (a deltoid on a deep-blue-to-sky disc) in the README, the favicon and beside
@@ -687,7 +687,7 @@ Initial support for orion (Station 3): installed and running on a unit.
 
 **Features**
 - Intercom, off by default: 1-to-1 calls between speakers in different rooms
-  ([docs/intercom.md](docs/intercom.md), HA setup [docs/ha-intercom-setup.md](docs/ha-intercom-setup.md)).
+  ([docs/intercom.md](docs/intercom.md), HA setup [docs/guides/ha-intercom-setup.md](docs/guides/ha-intercom-setup.md)).
   - «Алиса, позвони в спальню» through an HA script the LLM calls (template in `hass/intercom/`),
     or the HA target select and call button.
   - Answer with «продолжи / играй» or the voice key, decline with «стоп / хватит / пауза» or the

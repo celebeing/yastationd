@@ -119,7 +119,7 @@ failure.
 - **The wake word can end up in the transcript.** The speaker starts the stream a little before the
   point where the spotter heard the wake word (`preroll_ms`, by default the board's value: 150 ms on
   the Mini 3, 220 on the Station 3, 300 on the Mini 3 Pro until measured; the spotter fires near
-  the word's end, see [wake-word-boundary.md](wake-word-boundary.md)) so the first syllable isn't
+  the word's end, see [wake-word-boundary.md](../wake-word-boundary.md)) so the first syllable isn't
   cut. `wake_word_in_stream = true` sends the whole wake word on purpose. When it is still in it, STT
   returns "<wake word>, turn on the light", the built-in matcher misses, and simple commands go to
   the slower LLM. Workarounds:
@@ -152,7 +152,7 @@ failure.
 
 ### Telling the agent who is talking (voice ID)
 
-With voice ID on ([voice-id.md](voice-id.md)) every speaker has `sensor.<speaker>_voice`: the
+With voice ID on ([voice-id.md](../voice-id.md)) every speaker has `sensor.<speaker>_voice`: the
 person of the household, `guest` or `unknown`, set from «Алиса» and the start of the request before
 HA's STT is done. HA itself never passes it on: Wyoming has no field for it, and a voice request
 carries no user. The agent's prompt is a template rendered on every turn, and `llm_context.device_id`
@@ -226,7 +226,7 @@ speaking *at that speaker*:
 | Long pause before the answer | STT/LLM speed (§8); a reasoning model; the first request after a prompt change |
 | A simple command goes to the LLM (slow) | the wake word in the transcript (§8): custom sentences with an optional wake-word prefix |
 | The answer pauses mid-sentence, the ring shows the white comet while it waits | audio arrives slower than it plays. The `wyoming: audio stop` log line has `secs` (audio length) vs `wall_secs` (delivery time), `max_gap_ms` and `rebuffers`. Big gaps on a short answer mean Wi-Fi, or a TTS that stalls between sentences. The speaker holds 0.5 s of audio before playing and again after a stall, so a stall gives one pause rather than a stutter |
-| Satellite stuck: new runs end instantly or hang in STT | a new run was started over a running one (HA's stale run-end wedges the satellite, [voice-slow-replies.md](voice-slow-replies.md)). The speaker avoids this and heals it itself by dropping the connection; if it persists, reload the Wyoming integration entry |
+| Satellite stuck: new runs end instantly or hang in STT | a new run was started over a running one (HA's stale run-end wedges the satellite, [voice-slow-replies.md](../voice-slow-replies.md)). The speaker avoids this and heals it itself by dropping the connection; if it persists, reload the Wyoming integration entry |
 | Two speakers answer at once | both heard the wake word; areas help commands target the right room, and moving the speakers apart helps detection |
 | HA API calls fail with an empty reply | HA may serve HTTPS on port 8123; use `https://` |
 

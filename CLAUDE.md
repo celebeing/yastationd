@@ -3,7 +3,7 @@
 Custom firmware layer (CFW) that turns owned smart speakers (`bergamot` = Station Mini 3,
 `pickle` = Station Mini 3 Pro, …) into offline Home Assistant speakers: the on-device agent
 `yastationd` + the voice front-end host `spotter-host`. What it does: `README.md`. Porting it to a
-new model: `docs/porting-a-speaker.md`. Installing/updating it on a speaker: `docs/deploying.md`. **Connection details: `ACCESS.local.md` (gitignored).**
+new model: `docs/porting-a-speaker.md`. Installing/updating it on a speaker: `docs/guides/deploying.md`. **Connection details: `ACCESS.local.md` (gitignored).**
 
 **Scope.** The CFW's functionality, researching new speakers and adapting the CFW to them, and
 keeping the vendor's code from running or talking to the internet. **Out of scope:** how shell access
@@ -68,11 +68,13 @@ not be recoverable by us. Hence the hard rules:
 ## Directives
 
 - All configuration (URLs, API keys, DB credentials, hostnames) **must** come from configuration files, never hardcoded. Prefer stable file-based formats (yaml, toml) for config; use environment variables **only** when there is genuinely no other way (e.g. a secret that must not touch disk, or a platform that injects config solely via env). Use generic placeholders in examples.
-- **Read `docs/` before planning** — always consult existing research, findings, and design docs before proposing changes or starting new work. Start from the docs index (`docs/index.md`) to find the relevant document. The docs contain hard-won knowledge about API quirks, country-specific parsing rules, and known limitations.
-- **Specs and research are apart:** a doc in `docs/` describes what is built (update it with the
-  code); findings, decompiles, measurements and designs we chose against go to `docs/research/`.
-  A spec cites research instead of repeating it; splitting a doc in two, link the halves both ways.
-  The map of the whole: `docs/architecture.md`.
+- **Read `docs/` before planning** — always consult existing research, findings, and design docs before proposing changes or starting new work. Start from the docs index (`docs/index.md`, the specs) to find the relevant document; user guides and research have their own indexes (`docs/guides/README.md`, `docs/research/README.md`), read when the task touches them. The docs contain hard-won knowledge about API quirks, country-specific parsing rules, and known limitations.
+- **Specs, guides and research are apart** (`docs/README.md`): a doc in `docs/` describes what is
+  built (update it with the code); user guides (install, HA setup, diagnostics) go to
+  `docs/guides/`; findings, decompiles, measurements and designs we chose against go to
+  `docs/research/`. Each folder has its own index; `docs/index.md` lists only the specs. A spec
+  cites research instead of repeating it; splitting a doc in two, link the halves both ways. The
+  map of the whole: `docs/architecture.md`.
 - **Update `docs/` before committing** — when implementation reveals new findings, edge cases, or changes to architecture/decisions, update the relevant docs first, and keep the docs index (`docs/index.md`) in sync. Docs must stay in sync with the code. If a doc doesn't exist for a new area, create one and add it to the index.
 - **Language** — all committed artifacts (code, comments, identifiers, commit messages, docs, `CLAUDE.md`) are written in **English**. The agent's conversation with the user may be in **any language** — match the user; only the artifacts are English-only. **One exception:** the main `README.md` is Russian; `README.en.md` is its English twin. Change both together, so they say the same thing.
 
@@ -99,7 +101,7 @@ Read `docs/adding-a-feature.md` before building one. In short:
 A feature is not done when the code works. In the **same change**, whenever it:
 
 - **puts something new on the speaker** (a file, a binary, a port, a default that changes behaviour)
-  → `docs/deploying.md` ("What ends up on the device", install/update steps), and
+  → `docs/guides/deploying.md` ("What ends up on the device", install/update steps), and
   `tools/deploy.sh` if it must be uploaded;
 - **adds a config key or a board-profile key** → both `yastationd/configs/*.example`, and
   `docs/porting-a-speaker.md` for profile keys. A config key is declared **only** in the registry

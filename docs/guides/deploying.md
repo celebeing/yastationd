@@ -2,7 +2,7 @@
 
 How to put the CFW on a speaker, update it and take it off. **Assumption:** you have root SSH to
 the speaker (how that is obtained is out of scope) and the board is supported (or you're porting
-it: [porting-a-speaker.md](porting-a-speaker.md)). Read the safety doctrine in `CLAUDE.md` first:
+it: [porting-a-speaker.md](../porting-a-speaker.md)). Read the safety doctrine in `CLAUDE.md` first:
 don't touch Wi-Fi/boot without a fallback, and make sound only on the unit the user names.
 
 ## What ends up on the device
@@ -16,29 +16,29 @@ scripts branch on its existence.
 | `<cfw>/bin/yastationd` | the agent (static armv7, same binary for every board) |
 | `<cfw>/bin/spotter-host` | the voice front-end host, built for the device's userland arch; with `voice_id` a second process of it (`spotter-host voice`) makes the voiceprints |
 | `<cfw>/bin/sendspin-host` | the Music Assistant player (optional, `sendspin = true`), built for the userland arch |
-| `<cfw>/bin/dropbearmulti`, `<cfw>/bin/scp` (a link to it), `dropbearmulti.prev` | the SSH server, our build of dropbear (static aarch64, with scp; [dropbear/README.md](../dropbear/README.md)), when the speaker already runs dropbear from there; replaced on a first deploy or with `DROPBEAR=1`, the one before kept as `.prev` |
-| `<cfw>/bin/hostapd` | the access point for the Wi-Fi setup mode (static armv7, same binary for every board; [wifi-setup.md](wifi-setup.md)) |
+| `<cfw>/bin/dropbearmulti`, `<cfw>/bin/scp` (a link to it), `dropbearmulti.prev` | the SSH server, our build of dropbear (static aarch64, with scp; [dropbear/README.md](../../dropbear/README.md)), when the speaker already runs dropbear from there; replaced on a first deploy or with `DROPBEAR=1`, the one before kept as `.prev` |
+| `<cfw>/bin/hostapd` | the access point for the Wi-Fi setup mode (static armv7, same binary for every board; [wifi-setup.md](../wifi-setup.md)) |
 | `<cfw>/sendspin/state.json` | its identity (stable client_id) and pairing records, 0600 |
 | `<cfw>/yastationd.conf` | config (generic `yastationd/configs/yastationd.conf.example`; Orion bring-up `orion.conf.example`) |
 | `<cfw>/board.conf` | optional per-unit overrides of board-profile keys |
 | `<cfw>/yastationd.state` | persisted UI state (ring, display, volume, brightness, ambilight effects…), written by the daemon |
 | `<cfw>/sounds/*.wav` | decoded vendor voice lines and call sounds (`make sounds`) |
 | `<cfw>/vendor/vqe_models/noise_reducer/model.nnet` | the VQE's call-mode noise reducer, for the intercom (`make vqe-models`) |
-| `<cfw>/vendor/bio_lingware/` | voice ID's voiceprint model for a unit whose firmware has only the old one (Mini 3 0.6.x; `make voice-models VOICE_MODELS=<a newer firmware's bio_lingware>`; [voice-id.md](voice-id.md)) |
-| `<cfw>/voices/log.jsonl`, `<cfw>/voices/edits.json` | only on the speaker with `voice_store`: every speaker's voice requests (voiceprint, transcript, verdict; the newest 3000, ~3 KB each) and the owner's names and edits of the voices. Biometric data: 0600, never leaves the home ([voice-id.md](voice-id.md)) |
+| `<cfw>/vendor/bio_lingware/` | voice ID's voiceprint model for a unit whose firmware has only the old one (Mini 3 0.6.x; `make voice-models VOICE_MODELS=<a newer firmware's bio_lingware>`; [voice-id.md](../voice-id.md)) |
+| `<cfw>/voices/log.jsonl`, `<cfw>/voices/edits.json` | only on the speaker with `voice_store`: every speaker's voice requests (voiceprint, transcript, verdict; the newest 3000, ~3 KB each) and the owner's names and edits of the voices. Biometric data: 0600, never leaves the home ([voice-id.md](../voice-id.md)) |
 | `<cfw>/clips/*.scled` | the firmware's clock animations converted to text (`make clips`, firmware 0.369 only; others ship text clips the daemon reads in place) |
 | `<cfw>/scenarios/*.json` | your own display/ring scenarios (optional) |
 | `<cfw>/bin/yastationd.prev` | the previous agent, kept by every update; the supervisor swaps it back in if the new one crash-loops (the bad one is then kept as `.bad`) |
 | `<cfw>/egress.sh` | the egress lock, IPv4 + IPv6 (`make deploy-egress`; §0); `<cfw>/iptables/` = a bundled iptables-legacy where the firmware has none |
-| `<cfw>/yastationd.conf.bak`, `<cfw>/config.trial` | the config before the last change (web app, sync, calibration), and the trial marker while a change that needed a restart is on trial ([settings.md](settings.md)) |
-| `<cfw>/packs/<id>/` | asset packs: installed ones and the owner's own (their moments, sounds and animations, written by the web app's Behaviour tabs; [asset-packs.md](asset-packs.md)); an old `<cfw>/moments.json` is folded into `packs/custom/` and renamed `.old` |
+| `<cfw>/yastationd.conf.bak`, `<cfw>/config.trial` | the config before the last change (web app, sync, calibration), and the trial marker while a change that needed a restart is on trial ([settings.md](../settings.md)) |
+| `<cfw>/packs/<id>/` | asset packs: installed ones and the owner's own (their moments, sounds and animations, written by the web app's Behaviour tabs; [asset-packs.md](../asset-packs.md)); an old `<cfw>/moments.json` is folded into `packs/custom/` and renamed `.old` |
 | `<cfw>/web.secret` | the web app's token secret: 32 random bytes, written once, 0600 (a login then survives restarts; deleting it logs everyone out) |
-| `<cfw>/sync.pending`, `<cfw>/sync.rejected` | shared settings a running trial came from, and those whose trial failed here and are not taken again until they change ([settings.md](settings.md), "Sync") |
-| `<cfw>/wakes/` | only with the test option `wake_capture`: the audio around each wake word (WAV + JSON, the newest 200, ~22 MB) ([wake-word-boundary.md](wake-word-boundary.md)) |
-| `<cfw>/log-spool` | log lines waiting for the log server while it is unreachable (`log_remote`, [storage.md](storage.md)) |
-| `<cfw>/yastationd.conf` `frametap_addr` | optional, development only: the LED preview stream on its own port without a login (the host simulator); the web app has the same preview behind its login ([led-preview.md](led-preview.md)) |
-| runtime device-tree overlay `yastationd-ambilight` | orion: applied at start to give the ambilight framebuffer a white channel (configfs, until the next boot; nothing on flash; [ambilight-stream.md](ambilight-stream.md)) |
-| UDP 4048 (`ddp_port`) | boards with an ambilight: LED frames from LedFx / WLED tools ([ambilight-stream.md](ambilight-stream.md)); `0` = no receiver |
+| `<cfw>/sync.pending`, `<cfw>/sync.rejected` | shared settings a running trial came from, and those whose trial failed here and are not taken again until they change ([settings.md](../settings.md), "Sync") |
+| `<cfw>/wakes/` | only with the test option `wake_capture`: the audio around each wake word (WAV + JSON, the newest 200, ~22 MB) ([wake-word-boundary.md](../wake-word-boundary.md)) |
+| `<cfw>/log-spool` | log lines waiting for the log server while it is unreachable (`log_remote`, [storage.md](../storage.md)) |
+| `<cfw>/yastationd.conf` `frametap_addr` | optional, development only: the LED preview stream on its own port without a login (the host simulator); the web app has the same preview behind its login ([led-preview.md](../led-preview.md)) |
+| runtime device-tree overlay `yastationd-ambilight` | orion: applied at start to give the ambilight framebuffer a white channel (configfs, until the next boot; nothing on flash; [ambilight-stream.md](../ambilight-stream.md)) |
+| UDP 4048 (`ddp_port`) | boards with an ambilight: LED frames from LedFx / WLED tools ([ambilight-stream.md](../ambilight-stream.md)); `0` = no receiver |
 | `<cfw>/yastationd_off` | kill switch: the supervisor stops respawning while it exists |
 | `/etc/init.d/S52zyastationd` | the only rootfs file: boot hook that starts the supervisor (copy kept in `<cfw>/init.d/`) |
 | `<cfw>/init.d/supervise.sh` | the supervisor (see below); without it the hook falls back to a plain 2 s respawn loop |
@@ -95,14 +95,14 @@ Check, and set up what's missing (keep an `.orig` of every file you change):
 - **Wi-Fi.** `wpa_supplicant.conf` should list only the networks you mean it to use: a vendor
   stack that once ran may have stored extra ones. Editing it can cut your access, so only with a
   physical fallback ready and the user's go-ahead. Deploy the setup mode first — `hostapd` in
-  `<cfw>/bin` plus `wifi_setup = true` ([wifi-setup.md](wifi-setup.md)); the key combo is the one
+  `<cfw>/bin` plus `wifi_setup = true` ([wifi-setup.md](../wifi-setup.md)); the key combo is the one
   recovery path that does not depend on the network you are about to change.
 
 rootfs edits: `mount -o remount,rw /` … `sync; mount -o remount,ro /`.
 
 ## 1. Build
 
-Everything is built in pinned containers ([building.md](building.md)); the host needs docker:
+Everything is built in pinned containers ([building.md](../building.md)); the host needs docker:
 
 ```sh
 tools/build.sh            # web app, yastationd, hostapd, sendspin-host and spotter-host for both arches
@@ -120,7 +120,7 @@ tools/fetch-vendor.sh root@<speaker-ip> <board>
 
 `tools/deploy.sh` does that by itself for an arch with no sysroot yet. A `<vendor-repo>` checkout
 (`vendor/<board>/<version_full>/`) works as well, named in `tools/build.env`
-(`tools/build.env.example`; [building.md](building.md), "The sysroot").
+(`tools/build.env.example`; [building.md](../building.md), "The sysroot").
 
 `ARCH` = `armhf` (bergamot) or `aarch64` (pickle, orion; one build serves both) — `file /system/vendor/quasar/maind` tells you.
 
@@ -133,7 +133,7 @@ helper is not fatal at runtime, which is what makes it easy to miss: without `sp
 daemon logs `wake word disabled: spotter binary missing` and runs push-to-talk only; without
 `sendspin-host`, `sendspin = true` in the config is ignored.
 
-The exact toolchain versions and a container that pins them: [building.md](building.md).
+The exact toolchain versions and a container that pins them: [building.md](../building.md).
 
 ## 2. First install
 
@@ -163,7 +163,7 @@ ssh root@<speaker> '<cfw>/bin/yastationd -version'
 ```
 
 It must print the same `git describe` string that `make build` printed. `frametap_addr` for one
-needs v0.8.1 or newer ([led-preview.md](led-preview.md)); drop the key, or update the binary
+needs v0.8.1 or newer ([led-preview.md](../led-preview.md)); drop the key, or update the binary
 (`tools/deploy.sh`), until they match.
 
 **Time.** The Minis have no RTC: the clock starts at 1970 and every TLS and timestamped thing
@@ -178,7 +178,7 @@ the speaker a time source on the LAN — either:
 
 Anything speaking SNTP works: `chrony`/`ntpd` on the router or HA host, or `dnsmasq`'s built-in
 server when enabled. Until the clock is confirmed the front display shows only its blinking colon
-([status-indication.md](status-indication.md)); orion, whose RTC keeps time, shows it at once.
+([status-indication.md](../status-indication.md)); orion, whose RTC keeps time, shows it at once.
 
 Dry run in the foreground before autostart. Ring and clock will light up:
 
@@ -244,7 +244,7 @@ speaker's `yastationd.conf` as `web_user` and a `web_password` hash; each speake
 lists the other speakers by itself (they announce themselves over MQTT), shows sensors and the
 runtime controls, the LED preview, moments, the saved Wi-Fi networks (add only), and edits the
 config with a validated save: the speaker restarts with it on trial and goes back to the old one if
-it gets worse ([web-ui.md](web-ui.md)). Nothing to install: the app is embedded in `yastationd`
+it gets worse ([web-ui.md](../web-ui.md)). Nothing to install: the app is embedded in `yastationd`
 and every deploy updates it. Port 80 is open to the LAN; the egress lock only filters outgoing
 traffic.
 
@@ -345,7 +345,7 @@ tweaks without a rebuild: `<cfw>/board.conf` (+ restart).
   Assistant player's level *is* the speaker's, so a speaker at 5 % is inaudible; with `separate`
   they are independent. Music Assistant discovers the player by itself — no entry to add by hand.
 - **Front display shows a blinking digit instead of the clock.** A blinking *colon* is the
-  "time not confirmed" face ([status-indication.md](status-indication.md)); a lone blinking digit
+  "time not confirmed" face ([status-indication.md](../status-indication.md)); a lone blinking digit
   is not a documented state. If `date` is right and the log says the clock is confirmed, capture
   the display-related lines from the start and compare with a second unit on the same tag — and
   check `auto_brightness`: a lux reading near 0 (sensor behind the grille) drives brightness to
@@ -353,7 +353,7 @@ tweaks without a rebuild: `<cfw>/board.conf` (+ restart).
 - **Ring red on a fresh install.** Red pulse = no first connection within `boot_connect_timeout`
   (broker unreachable, or HA has not added the Wyoming satellite yet); dim red pulse = a `probe`
   target does not answer. Both are status, not failure — see §2 and
-  [status-indication.md](status-indication.md).
+  [status-indication.md](../status-indication.md).
 - **Two speakers, different loudness at the same %?** Check, in order: the same `yastationd`
   version on both (HA's Version sensor; deploy with `tools/deploy.sh` rather than by hand — the
   volume curve is in the board profile compiled into the binary); the same model (each board has

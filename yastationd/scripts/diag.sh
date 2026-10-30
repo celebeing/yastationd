@@ -16,7 +16,7 @@
 #            or was read safely by hand, but not all of them together; off by default, for a
 #            unit you can power-cycle.
 #
-# Never added here, whatever the flag (2026-10-28, see docs/diagnostics.md):
+# Never added here, whatever the flag (2026-10-28, see docs/guides/diagnostics.md):
 #   - `amixer contents` / `controls` / `scontents`, or any loop over every mixer control: reading
 #     every control froze bergamot's kernel in the codec driver (after the SPDIF "Channel A
 #     Status" control); the unit needed a power cycle. ALSA facts come from /proc/asound only.
@@ -30,7 +30,7 @@
 # it writes only its work directory in /tmp and the archive. It never remounts, never changes the
 # config, Wi-Fi, the egress lock or dropbear, never starts vendor binaries, never makes a sound or
 # drives an LED. Every command is time-boxed and its output capped; a failing one is noted and
-# the run goes on. docs/diagnostics.md has what is inside and what redaction does.
+# the run goes on. docs/guides/diagnostics.md has what is inside and what redaction does.
 #
 # Redaction (default; the archive is meant to be sent to someone else, maybe a public issue):
 # secrets (passwords, password hashes, PSKs, tokens, intercom/MQTT credentials), Wi-Fi SSIDs, the

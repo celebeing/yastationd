@@ -1,6 +1,6 @@
 #!/bin/sh
 # LAN-safe egress control for the station (de-Yandexed box). Lives at <cfw>/egress.sh; the boot hook
-# /etc/init.d/S99zzegress runs `lock` after the vendor's own iptables init. docs/deploying.md §0.
+# /etc/init.d/S99zzegress runs `lock` after the vendor's own iptables init. docs/guides/deploying.md §0.
 #   lock   = only LAN/loopback/established/DHCP/multicast out; public internet DROPPED (IPv4 and IPv6)
 #   open   = remove the lock (full egress) — TEMPORARY, for downloading packages/code
 #   status = show state + counters

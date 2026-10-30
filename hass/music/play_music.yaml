@@ -1,4 +1,4 @@
-# Template — see docs/ha-music-setup.md. Replace the <PLACEHOLDERS>, then paste into the HA UI
+# Template — see docs/guides/ha-music-setup.md. Replace the <PLACEHOLDERS>, then paste into the HA UI
 # (Settings → Automations & scenes → script → ⋮ → Edit in YAML) or POST it to /api/config/script/config/<id>.
 alias: Включить музыку
 description: 'Find and play music on a room''s speaker: an artist, song, album, playlist, radio station, or the

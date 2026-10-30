@@ -616,7 +616,7 @@ export function LogTab({ peer, base }: { peer: Peer; base: string }) {
   )
 }
 
-/** DiagDownload: the speaker's diagnostics archive for a bug report (docs/diagnostics.md). */
+/** DiagDownload: the speaker's diagnostics archive for a bug report (docs/guides/diagnostics.md). */
 function DiagDownload({ peer, base }: { peer: Peer; base: string }) {
   const [raw, setRaw] = useState(false)
   const [busy, setBusy] = useState(false)

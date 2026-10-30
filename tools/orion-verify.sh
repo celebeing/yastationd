@@ -67,7 +67,7 @@ getval() { amixer -c0 cget "$1" 2>/dev/null | sed -n 's/^[[:space:]]*: values=//
 setval() { amixer -c0 cset "$1" "$2" >>"$LOG" 2>&1; }
 
 # A full mixer dump (`amixer contents`) froze a bergamot's kernel in its codec driver
-# (docs/diagnostics.md, "Never in diag.sh"). It ran fine on orion during the bring-up, but it is
+# (docs/guides/diagnostics.md, "Never in diag.sh"). It ran fine on orion during the bring-up, but it is
 # opt-in now: FULL_MIXER=1 sh orion-verify.sh.
 sect "mixer BEFORE (full)"
 if [ "${FULL_MIXER:-0}" = 1 ]; then

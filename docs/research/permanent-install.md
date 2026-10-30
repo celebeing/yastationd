@@ -200,7 +200,7 @@ None of this is implemented or tried on a device yet.
 
 After a reset into stock the unit runs the vendor firmware, with the vendor stack, its updater and
 no CFW. Keep it off the internet (the router block) until the CFW is reinstalled; see
-[deploying.md](../deploying.md).
+[deploying.md](../guides/deploying.md).
 
 Golden-rootfs requirements, all of which must work with an **empty** rw partition:
 - the maind gate becomes **opt-in** (`run.sh` launches quasar only if `<cfw>/maind_on` exists), not

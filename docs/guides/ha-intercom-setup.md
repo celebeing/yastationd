@@ -2,7 +2,7 @@
 
 How to get 1-to-1 calls between the speakers: the speaker side, what shows up in HA, and the one
 HA script that makes «Алиса, позвони в спальню» work. How the intercom works inside:
-[intercom.md](intercom.md). Template: [`../hass/intercom/`](../hass/intercom/).
+[intercom.md](../intercom.md). Template: [`../hass/intercom/`](../hass/intercom/).
 
 ```
 «Алиса, позвони в спальню» ─► speaker A ─(Wyoming)─► HA Assist (LLM) ─► script "Позвонить в комнату"

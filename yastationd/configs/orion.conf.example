@@ -149,7 +149,7 @@ log_level = debug
 # music_duck_db     = -26                            (music level under the assistant, -60..0)
 # sendspin_unpaired = true                           (let MA play before it is paired)
 # sendspin_bin = <cfw>/bin/sendspin-host   sendspin_port = 8928   sendspin_state = <cfw>/sendspin/state.json
-# Intercom (docs/intercom.md, docs/ha-intercom-setup.md). Off by default.
+# Intercom (docs/intercom.md, docs/guides/ha-intercom-setup.md). Off by default.
 # intercom             = true
 # intercom_secret      = <at least 16 characters, the same on every speaker>
 # intercom_name        = <the room name others call this speaker by>   (default: device_name)

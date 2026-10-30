@@ -96,7 +96,7 @@ tick mixed over it sounded off.
   the MA player can be put in the same room. The client_id is derived from a static keypair stored
   in `sendspin_state` (`<cfw>/sendspin/state.json`, 0600), so it survives restarts and updates.
   MA wraps each Sendspin player in a "universal player" of the same name.
-- HA integration and voice control of the players: [ha-music-setup.md](ha-music-setup.md).
+- HA integration and voice control of the players: [ha-music-setup.md](guides/ha-music-setup.md).
 
 ### Encryption and pairing
 

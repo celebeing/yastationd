@@ -217,7 +217,7 @@ function About({ list, latest }: { list: Peer[]; latest: api.Release | null }) {
           ))}
         </tbody>
       </table>
-      <p class="muted small">Updating is done from a computer: docs/deploying.md.</p>
+      <p class="muted small">Updating is done from a computer: docs/guides/deploying.md.</p>
     </section>
   )
 }

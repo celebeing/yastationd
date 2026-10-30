@@ -73,7 +73,7 @@ been heard, before HA acts on it, and again on the whole request):
 
 The LLM agent learns who is talking from one templated line in its prompt, which finds the
 sensor of the speaker the request came from (`llm_context.device_id`;
-[ha-assistant-setup.md](ha-assistant-setup.md), "Telling the agent who is talking"); automations use
+[ha-assistant-setup.md](guides/ha-assistant-setup.md), "Telling the agent who is talking"); automations use
 the sensors directly.
 
 **Ignore guests** (the switch; in the web app with the Voice settings): a request from a voice

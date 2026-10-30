@@ -51,7 +51,7 @@ Profile: `yastationd/internal/board/profiles/bergamot.conf` · Survey: `dumps/su
   no support yet`; `/proc/net/wireless`); the hang came within seconds after, so which one did it is
   not known. Treat all three as unsafe: read or set the named controls you need (`cget`/`cset
   name=...`), take ALSA facts from `/proc/asound`, and Wi-Fi state from `wpa_cli status` (the daemon
-  runs it routinely). `<cfw>/bin/diag.sh` keeps them out (docs/diagnostics.md).
+  runs it routinely). `<cfw>/bin/diag.sh` keeps them out (docs/guides/diagnostics.md).
 
 ## Mic array & voice front-end
 - `hw:0,1`: 8ch S16 48 kHz (exclusive, no dsnoop). ch0–2 = PDM mics (equivalent, floor ~-61 dBFS at

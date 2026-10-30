@@ -67,7 +67,7 @@ packs replace any animation and add sounds to any event.
 - Local reflexes while audio plays: «стоп», «громче», «тише» are handled on the device.
 - The replies speak with the voice your HA pipeline picks. The docs also cover a character voice:
   Silero through RVC on a server's GPU, as a second pipeline
-  ([docs/ha-assistant-setup.md](docs/ha-assistant-setup.md)).
+  ([docs/guides/ha-assistant-setup.md](docs/guides/ha-assistant-setup.md)).
 
 **Expressions on the display and the ring**
 - The speaker's own clock animations play on the front display: the voice-state bars while the
@@ -178,7 +178,7 @@ packs replace any animation and add sounds to any event.
 - Answer with «продолжи» or the voice key, decline with «стоп» or mute; in a call «Алиса,
   громче / тише / хватит». All of that is on the speaker's own spotters; HA only starts the call
   (an LLM tool script, or the target select and call button). Calls are signed and encrypted.
-  Details: [docs/intercom.md](docs/intercom.md), HA setup: [docs/ha-intercom-setup.md](docs/ha-intercom-setup.md).
+  Details: [docs/intercom.md](docs/intercom.md), HA setup: [docs/guides/ha-intercom-setup.md](docs/guides/ha-intercom-setup.md).
 
 ## How it is built
 
@@ -225,14 +225,14 @@ Installation is manual, over SSH to the speaker. How to get shell access to your
 of this project's scope: we assume you already have it.
 
 - **Yourself:** building is in [docs/building.md](docs/building.md); installing, updating and
-  removing in [docs/deploying.md](docs/deploying.md).
+  removing in [docs/guides/deploying.md](docs/guides/deploying.md).
 - **With an agent:** give this repository and access to the speaker to your coding agent (Claude
-  Code and the like). [docs/deploying.md](docs/deploying.md) is written for it too, and
+  Code and the like). [docs/guides/deploying.md](docs/guides/deploying.md) is written for it too, and
   [CLAUDE.md](CLAUDE.md) holds the rules for working on a speaker safely. It builds, installs and
   checks everything by itself.
 - **If something does not work:** collect a diagnostics archive (`<cfw>/bin/diag.sh` on the
   speaker, `tools/diag-build.sh` for the build and deploy; secrets are stripped by default) and
-  attach it to an issue — [docs/diagnostics.md](docs/diagnostics.md).
+  attach it to an issue — [docs/guides/diagnostics.md](docs/guides/diagnostics.md).
 
 ## Repository
 
@@ -245,9 +245,9 @@ of this project's scope: we assume you already have it.
 | [`hass/`](hass/) | HA-side scripts the Assist agent can call (ring animation, show text) |
 | [`tools/`](tools/) | Builds in docker (`build.sh`), multi-speaker `deploy.sh`, a read-only board survey, firmware-dump helpers |
 | [`docs/`](docs/index.md) | Design docs, hardware notes, reverse-engineering findings — start at the index |
-| [`docs/ha-assistant-setup.md`](docs/ha-assistant-setup.md) | Setting up the voice assistant in Home Assistant (STT, TTS, agent, pipeline) |
+| [`docs/guides/ha-assistant-setup.md`](docs/guides/ha-assistant-setup.md) | Setting up the voice assistant in Home Assistant (STT, TTS, agent, pipeline) |
 | [`docs/building.md`](docs/building.md) | Building |
-| [`docs/deploying.md`](docs/deploying.md) | **For agents:** installing, updating and removing the CFW on a speaker |
+| [`docs/guides/deploying.md`](docs/guides/deploying.md) | **For agents:** installing, updating and removing the CFW on a speaker |
 | [`docs/porting-a-speaker.md`](docs/porting-a-speaker.md) | **For agents:** how to research a new speaker and add support for it |
 
 ## Repo hygiene

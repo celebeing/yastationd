@@ -116,7 +116,7 @@ Never run the vendor's stack to see what it does.
 ## Data on the speaker
 
 Files under `<cfw>` (`a.cfwFile(name)`), written atomically (`.tmp` + rename), small and bounded
-(a cap, the oldest dropped). List every new file in [deploying.md](deploying.md) ("What ends up on
+(a cap, the oldest dropped). List every new file in [deploying.md](guides/deploying.md) ("What ends up on
 the device"); personal or biometric data gets 0600 and a note on where it lives.
 
 ## Tests

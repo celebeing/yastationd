@@ -102,7 +102,7 @@ directory); `deploy.txt` (the hosts file's entry count and platforms, the ssh ch
 `image()` computes — the first 16 hex digits of the file's sha256 — and compares it with the
 `yastation.dockerfile` label of the `yastation-<name>` image: `ok`, `STALE` (the next build
 rebuilds it) or `MISSING`. An image that is rebuilt on every run although its line says `ok` is
-docker's cache, not the script (`docker builder prune`; [building.md](building.md)). Images left
+docker's cache, not the script (`docker builder prune`; [building.md](../building.md)). Images left
 from older builders (`yastation-build`, `yastation-web`) show up in the list and can go.
 
 `tools/build.sh` writes no log of its own: send the failing command's output together with the

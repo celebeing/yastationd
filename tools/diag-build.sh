@@ -16,7 +16,7 @@
 # docker, the builder images and their Dockerfile-hash labels against docker/*.Dockerfile (the
 # check build.sh's image() makes: a mismatch means the next build rebuilds that image), the build
 # cache, tools/build.env and the spotter-host sysroots, the built artifacts, host toolchains.
-# docs/diagnostics.md has the details.
+# docs/guides/diagnostics.md has the details.
 #
 # Redaction (default): remote URLs reduced to their host (a host other than a public forge
 # becomes <private-host>), $HOME shown as ~, the user name and the

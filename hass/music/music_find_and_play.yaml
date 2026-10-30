@@ -1,4 +1,4 @@
-# Template — see docs/ha-music-setup.md. Replace the <PLACEHOLDERS>, then paste into the HA UI
+# Template — see docs/guides/ha-music-setup.md. Replace the <PLACEHOLDERS>, then paste into the HA UI
 # (Settings → Automations & scenes → script → ⋮ → Edit in YAML) or POST it to /api/config/script/config/<id>.
 alias: 'Music: find and play (background)'
 description: Background worker behind «Play music» and the «Music by voice» automation. Searches Music Assistant

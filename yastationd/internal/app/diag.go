@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// The diagnostics archive (docs/diagnostics.md): GET /api/diag[?raw=1] runs <cfw>/bin/diag.sh and
+// The diagnostics archive (docs/guides/diagnostics.md): GET /api/diag[?raw=1] runs <cfw>/bin/diag.sh and
 // hands its tar.gz to the browser, redacted unless raw. One run at a time; the script bounds each
 // of its commands, diagTimeout bounds the whole.
 
