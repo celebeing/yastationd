@@ -49,6 +49,8 @@ REBOOT=1 tools/restore-unit.sh root@<speaker-ip> <dir>                  # and re
   newer than the backup stay) and starts it again: music and voice on that unit pause for a few
   seconds. **The Wi-Fi config is kept** unless the speaker's has no network in it or `WIFI=1`: a
   wrong one locks you out on the next boot.
+- A golden image's own files (`/usr/share/cfw-seed`, `S00zcfwseed`, `/etc/cfw-image*`) are left out of
+  both a backup and a restore: they belong to the image, not the unit.
 - It refuses a backup of another board (`FORCE=1` overrides) and checks `SHA256SUMS` first.
 - **The raw partitions are never written by the script.** `env` and `reserved` hold U-Boot's
   settings and the unit's identity; a bad write there can stop the boot. If one ever has to go
@@ -63,5 +65,6 @@ right after that.
 2026-10-31: backups of both Station 3s and both Mini 3s; on a Station 3, a dry run, a rootfs restore
 of one file (the remount, the saved copy, back to `ro`) and a full `rw` restore of its own backup
 (the daemon back in seconds, HA and Music Assistant connected). The Mini 3 Pro was offline: its
-backup is untried, its rw partition is `/data`. A restore after a real factory reset is still to
+backup is untried, its rw partition is `/data`. A restore after a real factory reset: on a Mini 3 Pro
+through a [golden image](golden-image.md) (2026-10-31), the unit came back whole. Otherwise still to
 be done.

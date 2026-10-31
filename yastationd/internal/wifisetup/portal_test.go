@@ -218,3 +218,57 @@ func TestPortalFinishAndRebootReplyBeforeAction(t *testing.T) {
 		t.Fatal("reboot did not run after delay")
 	}
 }
+
+func TestPortalKeys(t *testing.T) {
+	m, _, h := portalMode(t)
+	file := filepath.Join(t.TempDir(), "authorized_keys")
+	m.o.AuthorizedKeys = file
+	const key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ8kH3F6sQb2r0m8Yy0d1m9t8xq3u4Vv1pY7cW2nZk5T owner@laptop"
+	for _, bad := range []string{"", "hello", "ssh-ed25519 notbase64!", "ssh-rsa AAAAC3NzaC1lZDI1NTE5AAAAIJ8k", `command="sh" ` + key} {
+		body, _ := json.Marshal(map[string]string{"key": bad})
+		if r := portalRequest(h, "POST", "/api/keys", string(body)); r.Code != http.StatusBadRequest {
+			t.Errorf("%q: code %d", bad, r.Code)
+		}
+	}
+	if _, err := os.Stat(file); err == nil {
+		t.Fatal("a refused key wrote the file")
+	}
+	body, _ := json.Marshal(map[string]string{"key": "  " + key + "\n"})
+	for range 2 { // the second time changes nothing
+		if r := portalRequest(h, "POST", "/api/keys", string(body)); r.Code != http.StatusOK {
+			t.Fatalf("add: %d %s", r.Code, r.Body)
+		}
+	}
+	got, err := os.ReadFile(file)
+	if err != nil || string(got) != key+"\n" {
+		t.Fatalf("file %q, %v", got, err)
+	}
+	if fi, _ := os.Stat(file); fi.Mode().Perm() != 0o600 {
+		t.Errorf("mode %v", fi.Mode().Perm())
+	}
+	var st stateView
+	r := portalRequest(h, "GET", "/api/state", "")
+	if err := json.NewDecoder(r.Body).Decode(&st); err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Keys) != 1 || st.Keys[0] != "ssh-ed25519 owner@laptop" {
+		t.Errorf("keys %q", st.Keys)
+	}
+}
+
+func TestNoNetworks(t *testing.T) {
+	m, path, _ := portalMode(t)
+	if m.NoNetworks() {
+		t.Error("a conf with networks reads as none")
+	}
+	if err := os.WriteFile(path, []byte("ctrl_interface=/var/run/wpa_supplicant\nupdate_config=1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !m.NoNetworks() {
+		t.Error("an empty conf reads as having networks")
+	}
+	m.o.WPAConf = path + ".missing"
+	if m.NoNetworks() {
+		t.Error("an unreadable conf reads as none")
+	}
+}

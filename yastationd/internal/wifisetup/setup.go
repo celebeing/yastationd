@@ -48,6 +48,8 @@ type Options struct {
 	// called after leaving setup mode when they were changed, so the daemon loads them.
 	ConfFile string
 	Restart  func()
+	// AuthorizedKeys is the file the page adds SSH keys to ("" = no keys on the page).
+	AuthorizedKeys string
 	// SharedHTTP: the daemon's own HTTP server already listens on port 80 on every address; the
 	// page is then served through it (Portal) instead of a listener of its own.
 	SharedHTTP bool
@@ -128,6 +130,25 @@ func (m *Mode) Active() bool {
 
 func (m *Mode) markerPath() string { return filepath.Join(m.o.RunDir, "wpa_supplicant.argv") }
 func (m *Mode) pidPath() string    { return filepath.Join(m.o.RunDir, "hostapd.pid") }
+
+// NoNetworks reports whether the running wpa_supplicant has no saved network at all: a speaker
+// that nothing can reach until someone gives it one. False when that can't be told.
+func (m *Mode) NoNetworks() bool {
+	conf := m.o.WPAConf
+	if conf == "" {
+		wpa, ok := findWPA("/proc")
+		if !ok {
+			return false
+		}
+		conf = wpa.conf
+	}
+	data, err := os.ReadFile(conf)
+	if err != nil {
+		return false
+	}
+	c, err := ParseConf(data)
+	return err == nil && len(c.Networks) == 0
+}
 
 // Enter starts setup mode. On any failure the Wi-Fi client is restored before it returns.
 func (m *Mode) Enter() error {

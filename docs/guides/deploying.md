@@ -43,6 +43,8 @@ scripts branch on its existence.
 | `<cfw>/yastationd_off` | kill switch: the supervisor stops respawning while it exists |
 | `/etc/init.d/S52zyastationd` | the only rootfs file: boot hook that starts the supervisor (copy kept in `<cfw>/init.d/`) |
 | `<cfw>/init.d/supervise.sh` | the supervisor (see below); without it the hook falls back to a plain 2 s respawn loop |
+| `<cfw>/authorized_keys` | SSH keys added from the Wi-Fi setup page, read next to `/root/.ssh/authorized_keys` ([wifi-setup.md](../wifi-setup.md)) |
+| `/usr/share/cfw-seed/`, `/etc/init.d/S00zcfwseed`, `/etc/cfw-image`; `<cfw>/seeded`, `<cfw>/seed-dmesg.txt` | only with a [golden image](golden-image.md): the CFW it restores, the hook that does it, and the record of that first boot |
 | `<cfw>/bin/diag.sh` | the diagnostics collector (busybox sh, read-only; uploaded by `tools/deploy.sh`, nothing runs it by itself): one redacted archive in `/tmp` to send when something is wrong ([diagnostics.md](diagnostics.md)) |
 | `/tmp/yastationd.log` | log (tmpfs — gone on reboot), copy-truncated at 1 MB with one `.1` kept |
 

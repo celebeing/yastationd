@@ -517,6 +517,7 @@ func (a *App) Run(ctx context.Context) error {
 	go a.statusLoop(stop)
 	if a.setup != nil {
 		go a.setupSignalLoop(stop)
+		go a.setupWhenNoNetworks(stop)
 	}
 	go a.hmon.Run(stop, 10*time.Second, 2*time.Second)
 	go a.telemetryLoop(stop)

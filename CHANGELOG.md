@@ -3,6 +3,16 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**A factory reset that lands in the CFW** ([docs/guides/golden-image.md](docs/guides/golden-image.md))
+- `tools/golden.sh` builds a restore image from a speaker running the CFW and writes it to
+  `aml_sysrecovery`, so the vendor reset gesture brings the unit back into the CFW, without keys,
+  Wi-Fi or settings. Tried on a Mini 3 Pro, reset and restore included; Station 3 is untried.
+- A speaker with no saved Wi-Fi network enters the setup mode by itself.
+- The setup page adds SSH keys (`<cfw>/authorized_keys`, read by OpenSSH next to the rootfs's file).
+- `tools/backup-unit.sh` and `tools/restore-unit.sh` leave a golden image's own files alone.
+
 ## v0.23.0 — 2026-10-31
 
 **OpenSSH on the speakers** ([docs/ssh.md](docs/ssh.md))

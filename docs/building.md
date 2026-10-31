@@ -19,6 +19,7 @@ zig image on every target; if a build of an image keeps failing, `docker builder
 | `yastation-node` | `docker/node.Dockerfile` | the web app (`web/`), embedded in yastationd | Node 18.20.8, pnpm 8.14.1 |
 | `yastation-zig` | `docker/zig.Dockerfile` | `sendspin-host` (per arch), `hostapd`, `dropbear`, `openssh` | **zig 0.14.1** (0.11–0.13 emit armhf C++ binaries that crash before `main`; the tarball for the builder's own arch, x86_64 or aarch64, checked by sha256), cmake, ninja, git, curl, perl (OpenSSL's configure) |
 | `yastation-tools` | `docker/tools.Dockerfile` | the host-side conversions: vendor sounds (`make sounds`), binary clock clips (`make clips`), videos (`make video`) | the same Go as `yastation-go`, plus Debian bookworm's ffmpeg, zstd, jq, file |
+| `yastation-golden` | `docker/golden.Dockerfile` | a golden restore image (`tools/golden.sh`, target `golden:<dir>:<platform>`; [guides/golden-image.md](guides/golden-image.md)) | Debian bookworm's mtd-utils, e2fsprogs, libsparse utils, fakeroot, Python 3; ubi_reader 0.8.10 |
 | `yastation-cross` | `docker/cross.Dockerfile` | `spotter-host` (per arch) | Ubuntu 22.04's gcc 11 cross toolchains (glibc 2.35): the toolchain the deployed builds were made with — its output is byte-identical to them (checked 2026-10-27) |
 
 ## tools/build.sh

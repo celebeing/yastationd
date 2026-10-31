@@ -74,6 +74,9 @@ port 22, nothing left on 2222.
 when it is not running, the new binary must serve a login on port 2222 before it replaces the
 old one (kept as `.prev`).
 
+`<cfw>/authorized_keys` holds the keys added from the Wi-Fi setup page ([wifi-setup.md](wifi-setup.md));
+OpenSSH reads it next to `/root/.ssh/authorized_keys`.
+
 ## Boot
 
 The install kit's `/etc/init.d/S42zdropbear` starts dropbear and knows nothing of

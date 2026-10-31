@@ -1,0 +1,23 @@
+#!/bin/sh
+# yastation: the golden image's first boot (docs/guides/golden-image.md). A factory reset rewrites
+# the rootfs from the restore package and empties the writable partitions; this puts the CFW the
+# image carries in /usr/share/cfw-seed into <cfw>, right after S00rw-partitions mounted it and before
+# Wi-Fi, SSH and the maind gate look there. Does nothing while <cfw> holds a config.
+[ "$1" = "start" ] || exit 0
+SEED=/usr/share/cfw-seed
+[ -d "$SEED" ] || exit 0
+CFW=/bkupgrade/cfw
+[ -d /bkupgrade ] || CFW=/data/cfw
+[ -e /data/NOT_MOUNTED ] && exit 0
+[ -f "$CFW/yastationd.conf" ] && exit 0
+mkdir -p "$(dirname "$CFW")"
+rm -rf "$CFW.seed" "$CFW.broken"
+[ -e "$CFW" ] && mv "$CFW" "$CFW.broken"
+cp -a "$SEED" "$CFW.seed" || exit 0
+# A device id of its own, from the serial number: two units on one broker must not share one.
+id=$(sed -n 's/.*androidboot.serialno=\([^ ]*\).*/\1/p' /proc/cmdline | tr 'A-Z' 'a-z' | sed 's/.*\(......\)$/\1/')
+sed -i "s/@ID@/${id:-unit}/" "$CFW.seed/yastationd.conf"
+mv "$CFW.seed" "$CFW"
+{ date; cat /etc/cfw-image; } >"$CFW/seeded"
+dmesg >"$CFW/seed-dmesg.txt"
+sync

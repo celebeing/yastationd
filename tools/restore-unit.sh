@@ -60,6 +60,10 @@ case " $parts " in *" rootfs "*)
 		ssh_ 'cd / && while IFS="	" read -r path to; do [ "$(readlink "$path")" = "$to" ] || echo "$path"; done' \
 			<"$tmp/links" >>"$tmp/list"
 	fi
+	# What a golden image brings is the image's, not the unit's (docs/guides/golden-image.md); a
+	# backup of a unit running one has it, older, and an early image's seed held the Wi-Fi password.
+	grep -vE '^(usr/share/cfw-seed/|etc/init\.d/S00zcfwseed$|etc/cfw-image)' "$tmp/list" >"$tmp/list.f" || true
+	mv "$tmp/list.f" "$tmp/list"
 	if [ ! -s "$tmp/list" ]; then
 		echo "   nothing differs"
 	else

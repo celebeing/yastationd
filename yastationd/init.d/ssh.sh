@@ -18,6 +18,8 @@
 #   <cfw>/openssh/principals/<user>      the principals a certificate must name for that user
 #                                        (without it a certificate must name the user itself)
 #   <cfw>/openssh/sshd_config.local      extra sshd_config lines, read first (they win)
+#   <cfw>/authorized_keys                keys added from the Wi-Fi setup page, next to the rootfs's
+#                                        /root/.ssh/authorized_keys
 CFW=/bkupgrade/cfw
 [ -d "$CFW" ] || CFW=/data/cfw
 D=${SSH_DIR:-$CFW/openssh} # SSH_DIR: a trial copy elsewhere (docs/ssh.md, "Trying it by hand")
@@ -48,7 +50,7 @@ Subsystem sftp $D/sftp-server$2
 PermitRootLogin prohibit-password
 PasswordAuthentication no
 KbdInteractiveAuthentication no
-AuthorizedKeysFile /root/.ssh/authorized_keys
+AuthorizedKeysFile /root/.ssh/authorized_keys $CFW/authorized_keys
 UseDNS no
 # The only login is root and every file here is root's, but StrictModes would still refuse the
 # principals files: on bergamot /bkupgrade belongs to a vendor uid.

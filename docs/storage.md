@@ -12,7 +12,9 @@ on all four units on 2026-10-26 (two bergamot, one pickle, one orion), v0.9.0.
 | orion | eMMC, ~7.7 GB | `/ota` (ext4, 1.4 GB, `noatime`) → `<cfw>`; `/data` (ext4, 2.6 GB) unused | 1.3 GB + 2.5 GB | 2 GB |
 
 The rootfs is read-only everywhere (UBIFS on the minis, ext4 on orion) and is written only on an
-install.
+install. A [golden image](guides/golden-image.md) adds one write at a first boot after a reset: its
+seed into `<cfw>` (~25 MB, once). `<cfw>/authorized_keys` changes only when an owner adds a key on
+the setup page.
 
 **Wear.** UBI counts erases per block: the highest erase count on the writable UBI device is
 **4-7** on the three minis on 2026-10-26, **11 and 17** on the two bergamots on 2026-10-30, after

@@ -70,6 +70,18 @@ input[type=text], input[type=password], input[type=number], textarea { font:inhe
   <p class="sub">Seen when setup mode started. Tap one to fill in its name.</p>
   <div class="card" id="scan"><div class="empty">Loading…</div></div>
 
+  <h2>SSH keys</h2>
+  <p class="sub">Public keys allowed to log in as root over SSH, at this page's address too. Removing one takes SSH: the key file is <code>authorized_keys</code> next to the speaker's config.</p>
+  <div class="card" id="keys"><div class="empty">Loading…</div></div>
+  <div class="card" style="margin-top:8px">
+    <form id="keyform" autocomplete="off">
+      <label>Public key (the one line of your <code>.pub</code> file)
+        <textarea id="newkey" rows="3" required autocapitalize="off" spellcheck="false" placeholder="ssh-ed25519 AAAA… you@laptop"></textarea>
+      </label>
+      <div class="actions"><button class="primary" type="submit">Add key</button></div>
+    </form>
+  </div>
+
   <h2>Home settings</h2>
   <p class="sub" id="setfile"></p>
   <div class="card">
@@ -173,6 +185,9 @@ function render(st) {
       el("button", { type: "button", text: "Edit", onclick: () => startEdit(n) }),
       el("button", { type: "button", class: "danger", text: "Delete", onclick: (ev) => del(n, ev.currentTarget) })));
   }
+  const keys = $("keys"); keys.replaceChildren();
+  if (!st.keys.length) keys.append(el("div", { class: "empty", text: "No keys added here." }));
+  for (const k of st.keys) keys.append(el("div", { class: "row" }, el("div", { class: "name", text: k })));
   const scan = $("scan"); scan.replaceChildren();
   const dl = $("ssids"); dl.replaceChildren();
   if (!st.scan.length) scan.append(el("div", { class: "empty", text: "Nothing was found." }));
@@ -246,6 +261,13 @@ $("form").onsubmit = async (ev) => {
     }
     resetForm();
   } catch (e) { say(e.message, "err"); }
+  load();
+};
+
+$("keyform").onsubmit = async (ev) => {
+  ev.preventDefault();
+  try { await api("POST", "/api/keys", { key: $("newkey").value }); $("newkey").value = ""; say("Key added.", "ok"); }
+  catch (e) { say(e.message, "err"); }
   load();
 };
 

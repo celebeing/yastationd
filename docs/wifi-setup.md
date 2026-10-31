@@ -15,6 +15,10 @@ without touching the connection in use ([web-ui.md](web-ui.md)); changing and re
 stays here, in setup mode, where the setup page is now served by the same web server on the access
 point's address.
 
+A speaker with **no saved network at all** enters setup mode by itself 3 s after the daemon starts:
+a fresh [golden image](guides/golden-image.md), which nothing could reach otherwise. One that has
+networks and can't join them still waits for the key combo.
+
 ## Why
 
 A speaker that can't join its Wi-Fi (the router changed, a password changed, a bad edit) used to
@@ -82,8 +86,17 @@ The daemon loads the new values when setup mode ends: it exits 0 after restoring
 and the supervisor starts it again 1 s later (a deliberate exit, not counted as a crash). There is
 no "test the broker" button: in setup mode the speaker has no LAN.
 
-**Not on the page: SSH keys.** `/root/.ssh/authorized_keys` is on the read-only rootfs on both
-boards, and a web page doesn't remount the rootfs.
+## SSH keys
+
+The page adds public keys to `<cfw>/authorized_keys`, written atomically, 0600; OpenSSH reads it next
+to the rootfs's `/root/.ssh/authorized_keys` (`ssh.sh`), so the read-only rootfs stays out of it and
+a key works from the next login. A line is accepted only as a plain public key: a known type, valid
+base64, the type inside the key matching the one in front; options such as `command=` are refused. A
+key already there changes nothing. The page lists keys by type and comment; removing one takes SSH.
+
+dropbear, the fallback, reads only the rootfs's file: on a [golden image](guides/golden-image.md)
+that file is a symlink to `<cfw>/authorized_keys`, on other units a key added here does not reach
+dropbear.
 
 ## How it works
 
@@ -188,5 +201,5 @@ Init runs `S40wifi` → `S41dhcpcd` → … → `S52zyastationd` in order:
 
 - A setup page in Russian (the UI text follows the repo's English-only rule for now).
 - A rescan from the page: our hostapd holds the radio, so the list is the one taken on entry.
-- Entering setup mode automatically, e.g. after N minutes without a connection: deliberately
-  manual for now.
+- Entering setup mode when saved networks fail, e.g. after N minutes without a connection:
+  deliberately manual for now (with no saved network it is automatic, above).

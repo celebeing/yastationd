@@ -169,7 +169,13 @@ packs replace any animation and add sounds to any event.
   a setup page that phones open by themselves. On it you list, add, edit and remove the saved Wi-Fi
   networks and set the home settings (broker, health probes, time servers and zone, Music
   Assistant). Nothing about the mode is persistent: leaving it, or a reboot, brings the normal
-  Wi-Fi client back. Details: [docs/wifi-setup.md](docs/wifi-setup.md).
+  Wi-Fi client back. A speaker with no saved network starts this access point by itself, and the
+  page can add an SSH key. Details: [docs/wifi-setup.md](docs/wifi-setup.md).
+
+**A button reset that brings the CFW back** (tried on the Mini 3 Pro, not yet on the Station 3)
+- `tools/golden.sh` puts the CFW into the image a factory reset restores. After a reset the speaker
+  boots into the CFW with no one's keys or settings and starts its access point; a backup then
+  makes it what it was. Details: [docs/guides/golden-image.md](docs/guides/golden-image.md).
 
 **Intercom between rooms** (off by default)
 - «Алиса, позвони в спальню»: a live two-way call to the speaker in another room, over the LAN

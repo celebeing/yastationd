@@ -74,10 +74,12 @@ ssh_ "$remote_env"'cd / && tar cf - $(for m in $(rwmounts); do ls -A "$m" | grep
 gzip -t "$out/rw.tar.gz"
 
 echo "-- rootfs changes"
-ssh_ "$remote_env"'find / -xdev -newer "$ROOTREF" ! -type d 2>/dev/null | sed "s|^/||" >/tmp/backup-rootfs.$$
+# A golden image's own files are the image's, not this unit's edits (docs/guides/golden-image.md).
+notimage='grep -vE "^/(usr/share/cfw-seed/|etc/init\.d/S00zcfwseed\$|etc/cfw-image)"'
+ssh_ "$remote_env"'find / -xdev -newer "$ROOTREF" ! -type d 2>/dev/null | '"$notimage"' | sed "s|^/||" >/tmp/backup-rootfs.$$
 cd / && tar cf - -T /tmp/backup-rootfs.$$ | gzip; rm -f /tmp/backup-rootfs.$$' >"$out/rootfs.tar.gz" </dev/null
 gzip -t "$out/rootfs.tar.gz"
-ssh_ "$remote_env"'find / -xdev -newer "$ROOTREF" -type f 2>/dev/null | xargs sha256sum' >"$out/rootfs.sha256" </dev/null
+ssh_ "$remote_env"'find / -xdev -newer "$ROOTREF" -type f 2>/dev/null | '"$notimage"' | xargs sha256sum' >"$out/rootfs.sha256" </dev/null
 ssh_ 'find / -xdev -exec ls -lnd {} + 2>/dev/null' >"$out/rootfs.list" </dev/null
 echo "   $(wc -l <"$out/rootfs.sha256") changed files"
 
