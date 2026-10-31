@@ -1,638 +1,247 @@
-# Permanent install — taking over the factory reset
+# Permanent install: taking over the factory reset
 
-Research (2026-10-24; orion 2026-10-31) into making the CFW survive a hard reset, i.e. replacing the image the
-speaker restores on a factory reset with our own, while keeping a convenient way back. Done with
-static analysis of the local dumps and **read-only** reads on the units (`/proc/mtd`,
-`fw_printenv`, the header of the recovery partition). Nothing was written to any device.
+Research, 2026-10-24 to 2026-10-31: can the CFW survive a hard reset, by replacing the image the
+speaker restores with our own? What was done on real units is marked as such; the rest is static
+analysis of the local dumps and read-only reads. How to do it:
+[guides/golden-image.md](../guides/golden-image.md).
 
 **Verdict:**
-- The vendor hard reset is **the brick safety net for rootfs work**. Anything we can break from
-  Linux (deleting `maind`, assets or libs, bad init hooks) lives in the `system` partition. The reset
-  path (bootloader → recovery → restore payload) lives in other partitions that Linux never writes
-  unless we write `/dev/mtdN` directly. So a broken rootfs is always recoverable by the mute+power
-  gesture. The only question is *what* it restores.
-- On **pickle** the restore payload is an unsigned Amlogic burn package in a plain NAND partition, so
-  we **can** make the reset land in a known-good CFW instead of stock. That turns "we bricked the
-  rootfs" into a two-minute round trip. **Done once on a real unit (2026-10-31): the reset accepted
-  a rebuilt package**, see [the takeover on pickle](#the-takeover-on-pickle-tried-2026-10-31).
-- On **bergamot** the payload is inside the signed and encrypted recovery image and cannot be
-  replaced. The reset always lands in stock. Heavy rootfs experiments belong on pickle.
-- On **orion** the payload is the same unsigned burn package as on pickle, with ~900 MB of headroom
-  and an unverified ext4 rootfs. **Done on a unit (2026-10-31):** the reset accepted a rebuilt package
-  ([guides/golden-image.md](../guides/golden-image.md#orion)).
-- A second gesture in U-Boot is not doable. A soft-reset gesture in early Linux init is possible,
-  but it does **not** protect against a broken rootfs. It is a convenience on top, not the safety net.
 
-## How a hard reset works (both models)
+| Board | Restore image | Result |
+|---|---|---|
+| **pickle** (Mini 3 Pro) | unsigned burn package in `aml_sysrecovery` | **Done.** A reset took a rebuilt package, on one unit, two rounds |
+| **orion** (Station 3) | the same design | **Done.** The same, one round on each of two units |
+| **bergamot** (Mini 3) | inside the signed, encrypted recovery | **Impossible.** The reset always lands in the vendor's firmware |
 
-- User gesture (vendor manual): unplug, hold the **mic-mute button**, plug in, hold ~5 s until the
-  ring turns yellow. This happens **before Linux**: U-Boot / the always-on CPU sees the button and
-  boots the `recovery` partition. `maind` has no flash-level reset. Its `factoryReset` only resets
-  configs, counters, Zigbee and Matter state, so gating maind does not disable the gesture.
-- U-Boot env is reachable from Linux (`fw_printenv`/`fw_setenv`, `/etc/fw_env.config` →
-  `/dev/nand_env 0x0 0x10000 0x200`, one copy with no redundant one). Relevant variables (both
-  models): `switch_bootmode` = `get_rebootmode; if reboot_mode = factory_reset → run
-  recovery_from_flash; if update → USB burning`, and `recovery_from_flash` = `imgread kernel recovery
-  … ; bootm`. bergamot additionally runs a compiled-in `yandex_io_check_recovery` from `bootcmd`.
-- Secure boot is on (`AMLSECU!` headers; pickle env `forUpgrade_secureBoot=true`). U-Boot, the
-  kernel, the DTB and the **recovery kernel + ramdisk** are signed and encrypted with the SoC key.
-  They cannot be read or replaced. The **rootfs (UBIFS) is not authenticated** (no dm-verity), which
-  is why rootfs edits work at all.
-- OTA does not touch the recovery (the Station 2's (`yandexmidi`) `sw-description`: rootfs, boot, dtb and U-Boot only). OTA
-  `.swu` files are RSA-signed (`sw-description.sig`, `ota_script.pub`), so the swupdate-in-recovery
-  path cannot install our image either.
+With a golden image the vendor gesture becomes a way back from anything that leaves the reset path
+alone: whatever we break from Linux (deleted vendor files, bad hooks) lives in `system`, and the reset
+path (bootloader, recovery, package) in partitions Linux doesn't write unless told to. It is also
+what makes [vendor removal](vendor-removal.md) possible. It does not protect against a bad image:
+see [Hazards](#hazards).
 
-## pickle — the restore payload is replaceable
+## How a hard reset works
 
-- `aml_sysrecovery` (mtd6, 128 MiB) holds an **Amlogic image v2 burn package** (magic `0x27b51956`,
-  113 392 448 bytes, the rest of the partition is `0xff`). The recovery partition is only 15 MB of
-  kernel and ramdisk, so the 80 MB system image can only come from this package.
-- Package items (19): `DDR/UBOOT(.USB, _ENC)`, `_aml_dtb`, `aml_sysrecovery` (self-reference, used
-  by the USB burn tool), `boot`, `bootloader`, `meson1(_ENC).dtb`, `platform.conf`, `recovery`,
-  **`system`** (a ubinize image, 79 953 920 B), `usb_flow.aml`, plus one `VERIFY` item per partition.
-- Integrity is **all recomputable**: each `VERIFY` item is the text `sha1sum <sha1 of the item>`, and
-  the header CRC is `~crc32(image[4:size])` (zlib polynomial, inverted). There is **no signature
-  item**. The signed and encrypted items (boot, recovery, bootloader, DTB) stay byte-identical.
-- Evidence that the reset reflashes system from this package: the live `system` UBI `image_seq`
-  equals the package's. `boot.PARTITION` and `recovery.PARTITION` are byte-identical prefixes of
-  mtd8 and mtd7.
-- Headroom: 128 MiB − 113.4 MB ≈ **20 MB** for a bigger `system` item (the CFW today is ~16.5 MB
-  uncompressed and much smaller zlib-compressed).
-- UBI/UBIFS geometry of the package `system`: PEB 256 KiB, min I/O 4096, VID header 4096, data
-  offset 8192, LEB 253 952; UBIFS `-m 4096 -e 253952 -c 1120`, zlib, fanout 8, log 4 LEBs; one
-  volume `rootfs`, flag **autoresize**. 0 bad blocks on mtd6 and mtd9 on our unit. The kernel has no
-  SELinux (no selinuxfs, despite `androidboot.selinux=enforcing`), so no xattr labels are needed.
-- The reset **wipes `/data`** (`S00rw-partitions` recreates the volume). Everything the golden image
-  needs to boot into a working CFW must live in the rootfs; `/data` holds only per-unit state.
+- **The gesture:** unplug, hold the **mic-mute button**, plug in, hold ~5 s until the ring turns yellow.
+  It happens before Linux: U-Boot or the always-on CPU sees the button. orion's env has
+  `readmute=gpio read 24 mute 1`, used by no env script, likely what the compiled-in check reads.
+  `maind` has no flash-level reset (its `factoryReset` covers configs, counters, Zigbee and Matter),
+  so gating it does not disable the gesture.
+- **The env** is reachable from Linux (`fw_printenv`/`fw_setenv`; pickle: `/dev/nand_env`, a single
+  copy, no redundant one). `storeboot` → `switch_bootmode` → `get_rebootmode`:
+  - pickle: `reboot_mode=factory_reset` runs `recovery_from_flash` (`imgread kernel recovery … ; bootm`);
+  - orion: it runs **`fr`**, a command compiled into U-Boot; `update` and `recovery_quiescent` run
+    `recovery_from_flash`;
+  - bergamot additionally runs a compiled-in `yandex_io_check_recovery` from `bootcmd`.
+- **Secure boot** is on (`AMLSECU!` headers, `forUpgrade_secureBoot=true`). U-Boot, the kernel, the DTB
+  and the recovery's kernel and ramdisk are signed and encrypted with the SoC key: they cannot be read
+  or replaced. **The rootfs is not authenticated** (no dm-verity; orion: `avb2=0`), which is why rootfs
+  edits work at all.
 
-### The takeover on pickle, tried (2026-10-31)
+### What a reset does, measured
 
-One real run on our unit, by the owner's choice before any USB way back existed: if the recovery
-had refused the package there was no route back from outside. It did not refuse.
+By markers in the rootfs and the writable partitions, partition hashes and UUIDs before and after:
 
-**The design that worked: a seed, not a changed boot.** The rootfs got two additions and no edits:
-a copy of `/data/cfw` plus `wpa_supplicant.conf` in `/usr/share/cfw-seed`, and an init hook
-`S00zcfwseed`, which runs right after `S00rw-partitions`. When `/data` is mounted and has no
-`<cfw>/yastationd.conf`, it copies the seed in and writes `<cfw>/seeded`. Everything else (the SSH
-hook, the maind gate, Wi-Fi, the egress lock) finds `/data` as usual and needs no change.
+| | pickle | orion | bergamot |
+|---|---|---|---|
+| `system` | rewritten from the package | rewritten from the package | very likely kept (below) |
+| writable partition | `/data` wiped | `/ota` and `/data` reformatted, new UUIDs | `/data` kept; pairings survive |
+| `aml_sysrecovery` | untouched | untouched | n/a |
+| `boot`, `recovery`, env | unchanged | unchanged (`misc` too) | not measured |
+| `bootloader` | unchanged (`mtd0`–`mtd5`) | changed on one unit of two | not measured |
+| `reserved` | n/a | two copies of a 182 KB encrypted-looking block rewritten (`0x413600`, `0x453600`), both units | not measured |
+| Wi-Fi MAC | kept | kept | not measured |
+| dhcpcd's DUID, Bluetooth | regenerated | regenerated | kept |
+| network ADB marker | gone | gone | not measured |
+| time to Linux | ~2 min | a few minutes (at most ~3) | not measured |
 
-**Order, each step checked before the next:**
-1. fresh backup; hashes of `mtd0`–`mtd8` and the env recorded (all matched the dump);
-2. hook and seed on the live rootfs, with a marker `live-<token>` in `/etc/cfw-image-marker` and
-   `data-<token>` in `/data`. Then a real boot with `/data/cfw` and the Wi-Fi config moved aside:
-   SSH came back in 9 s from the seed. (Not all of `/data` was empty in that test.)
-3. the package built from that same rootfs, differing only in the marker (`golden-<token>`) and a
-   new UBI `image_seq`, which says at a glance where `system` came from;
-4. `mkfs.ubifs -m 4096 -e 253952 -c 1120 -x zlib -f 8 -l 4`, `ubinize -p 256KiB -m 4096 -s 4096
-   -O 4096 -Q <seq>`, `vol_flags=autoresize`: superblock and UBI headers match stock parameter
-   for parameter (`fmt 4`, zlib). `system` grew from 305 to 334 PEBs, the package to 121 MB, 13 MB
-   short of the partition;
-5. the packer first reproduced the stock package byte for byte. In the new one, `system`, its
-   `VERIFY`, the sizes in the header and in the self-referencing `aml_sysrecovery` item, and the
-   CRC changed; every other item is identical. Unpacking the result gave the same 1579 entries as
-   the live rootfs (types, modes, owners, links, hashes), the marker aside;
-6. `flash_erase` + `nandwrite -p` on `mtd6`, read-back equal.
+Whether a reset with the stock package also touches `bootloader` and `reserved` on orion is not
+known: both resets there ran on rebuilt packages, and their bootloader items are byte-identical to
+stock. The second-to-last row matters: the reset **closes** network ADB, and a restore brings it back
+with the rest of `/data`.
 
-**What the reset did** (mute held at power-on; ring yellow, then blue, then our start animation;
-Linux was up 2 minutes in, the whole thing about as long as a stock reset):
-- `system` was rewritten from the package: marker `golden`, `image_seq` the new one, the volume
-  resized by autoresize from 332 to 468 LEBs on first attach;
-- `/data` was wiped (the probe marker gone, `max_ec` 2) and rebuilt from the seed;
-- `mtd0`–`mtd5`, `recovery`, `boot` and the env kept their hashes; **`aml_sysrecovery` itself was not
-  touched**, so the next reset restores the same image;
-- the vendor stack did not start, the egress lock was on, no onboarding; Wi-Fi, SSH with the same
-  host key, MQTT and Sendspin came back with the same `device_id`, settings and player identity.
+`/sys/fs/pstore` was empty after a reset: the gesture is a cold start, and ramoops doesn't outlive
+one. `cache` and `misc` hold no record of earlier runs either. The recovery's own log stays unseen.
 
-So the recovery checks no hash of the package beyond what we recompute, and a changed `system` of
-another size is fine. That closes the first of the unknowns below, on pickle.
+**bergamot's** column is from file dates, without a test. Both units were reset at least once, yet
+the oldest vendor files in `/data` date from the factory day on one and the first setup on the
+other, pairings included, so `/data` is not reformatted. One unit runs firmware that came by an
+update and was reset after it, yet still runs it, so the reset doesn't return to the factory image.
+Whether rootfs edits survive was not seen. The 0.6.x-layout unit is unverified: don't reset it.
 
-**What did not come back: what lives in `/data` outside `<cfw>`.** The Wi-Fi MAC stayed, yet the
-router gave another lease: dhcpcd's client id is `ff` + IAID + DUID, and the DUID in
-`/data/var/db/dhcpcd/duid` is generated anew on an empty `/data`. HA then could not reach the
-satellite at the old address, so the unit showed its "no connection to HA" state. `/data/bt_mac`
-and `/data/bluez_data` were regenerated too. Putting these back from the backup and rebooting
-restored the address and the HA session at once.
+The published notes disagree with one another and with us. Community notes say a button reset clears
+`/data` and keeps rootfs edits (fits bergamot); colleagues report the rootfs comes back stock (fits
+pickle and orion). The models differ, nobody named them.
 
-**The second round: an image for a board, not a snapshot of a unit** (same day). `tools/golden.sh`
-([guides/golden-image.md](../guides/golden-image.md)) builds one with no key, Wi-Fi or settings;
-the daemon enters setup mode by itself when no network is saved, and the setup page takes SSH keys.
-That changed what the first boot does, and a mistake there can't be cured by a reset, so it was
-proved before the write, while `mtd6` still held a working image: the new hook and seed on the live
-rootfs, `<cfw>` and Wi-Fi moved aside, a temporary hook collecting the result, putting everything
-back and rebooting by itself after 2 minutes. Then the write and a real reset: the access point came
-up, a phone added a key and the Wi-Fi network, and `tools/restore-unit.sh` brought the unit's identity
-back over it (HA, MQTT, Music Assistant, the old host key, DUID and Bluetooth) with no change on
-the HA side. The owner's DHCP lease now goes by MAC. Choices made: USB ADB dropped (the owner's call),
-network ADB not added (root on an open access point).
+## The restore package
 
-The image carries no DUID or Bluetooth state, so a reset alone changes them; a backup brings them back.
+Both boards, the same design, checked on dumps of each: an **Amlogic image v2 burn package** (magic
+`0x27b51956`) of 19 items: `DDR`/`UBOOT` and their `_ENC`, `_aml_dtb`, `aml_sysrecovery` (a
+self-reference: offset 0, the whole size), `boot`, `bootloader`, `meson1(_ENC)` dtb, `platform` conf,
+`recovery`, **`system`**, `usb_flow`, one `VERIFY` per partition item.
 
-**Still not known:** whether the recovery rewrites `bootloader` (its hash is the same either way,
-the item being identical), how to reach USB burn, and whether orion behaves alike; a good reason
-to expect so, no proof.
+- **Integrity recomputes:** each `VERIFY` is the text `sha1sum <sha1 of the item>`, the header CRC is
+  `~crc32(image[4:size])`. There is no signature item. The signed items stay byte-identical.
+- `boot` and `recovery` are byte-identical prefixes of the live partitions.
+- Items after `system` are kept on 4 bytes, no more (orion's `VERIFY` sits at `…b74`).
 
-### Unknowns (encrypted, cannot be read statically)
-- ~~What the recovery program checks before it starts erasing.~~ Answered on pickle by the run above:
-  it accepted a rebuilt package.
-- Whether the restore also rewrites `bootloader` from the package. That is stock behaviour either
-  way, and we keep that item byte-identical.
-- How to force Amlogic USB-burn (ADNL) mode with no working Linux: a boot strap or pad. From a
-  running Linux it is `reboot update` → `usb_burning=adnl 1200`.
+| | pickle | orion |
+|---|---|---|
+| Partition | `mtd6`, 128 MiB NAND | `aml_sysrecovery`, 1.5 GiB eMMC |
+| Stock package | 113 392 448 B | 629 930 824 B (identical on both units) |
+| `system` item | UBI, 79 953 920 B | Android sparse (file type 254), 262 144 blocks of 4 KiB, a 1 GiB ext4 |
+| Geometry | PEB 256 KiB, min I/O 4096, VID 4096, data 8192, LEB 253 952; UBIFS `-c 1120`, zlib, fanout 8, log 4, `fmt 4`; volume `rootfs`, autoresize | features, UUID, size read from the stock image |
+| Golden image | 127 MB of 134 | 661 MB of 1610 |
+| xattrs | none needed (no SELinux in the kernel, despite the cmdline) | none in stock |
 
-## bergamot — the restore payload is not replaceable
+Hence `tools/golden.sh` reads the geometry from the item it replaces and writes nothing about a board.
 
-- The recovery is **one Android boot image spanning `recovery` + `recovery_fs`** on the 0.369-layout
-  unit: kernel 5.8 MB + ramdisk 30 MB, the ramdisk running into `recovery_fs`. It carries an
-  `AMLSECU!` header and is encrypted (entropy 8.0). Cmdline: `rootfstype=ramfs ubi.mtd=system
-  ubi.mtd=bkupgrade`. Whatever factory image it restores is inside that encrypted ramdisk. No
-  plaintext copy exists on the flash (the rest of `recovery_fs` is `0xff`; `/bkupgrade` holds only
-  `cfw` and `data`).
-- The 0.6.x-layout unit has **a different partition table**: one `recovery` of 58.75 MiB and no
-  `recovery_fs` (a later factory layout). What its reset restores (which firmware version) is not
-  verified.
-- Inside the recovery, `S01swupdate` installs `/bkupgrade/ota/yandex_io_ota.swu` when
-  `boot_to_recovery=1` (`apply_packed_ota`). This needs a Yandex signature.
-- What a reset does on bergamot (a full system reflash, or only a `/bkupgrade` wipe) is **unknown**.
-  The vendor says "all software updates are removed", which points to a full reflash to the factory
-  version.
-- One possible lever, **parked**: rewrite `recovery_from_flash` in the env to boot the normal kernel
-  with a `cfw_safe=1` argument, turning the mute+power gesture into a CFW safe mode. Problems: it
-  only works if the compiled-in `yandex_io_check_recovery` goes through that variable (unknown); a
-  bad env write can stop the boot (there is no redundant env copy); and it removes the vendor
-  escape hatch. Not recommended without a UART console as the backstop.
+**Updates leave the package alone.** maind downloads a `.swu`, `device_ota_update.sh` →
+`yandex-apply-ota` → `yandex-reboot update`, and the recovery's `S01swupdate` installs it. What gets
+written is decided by the `sw-description` inside each signed `.swu`: the Station 2's, the only one on
+hand, writes the rootfs, `boot`, `dtb` and the bootloader copies. No script or binary in the rootfs
+mentions `aml_sysrecovery`. Amlogic's design: the package is the factory image, a reset returns to it
+and the unit then updates itself. Our units have never been updated (`system` equalled the
+package's). Whether an update could rewrite the package is unseen; the update blocks stay regardless.
 
-## orion — the restore payload is replaceable too
-
-Static analysis of the eMMC dump (firmware factory-13) and read-only reads on one unit
-(2026-10-31: `/proc/cmdline`, `/proc/mounts`, `/proc/partitions`, `fw_printenv`). Nothing was
-written.
-
-**Layout.** One eMMC, partitions by name under `/sys/class/block`: `bootloader` (+ `mmcblk0boot0/1`),
-`reserved` (64 MiB), `cache`, `env` (8 MiB), `misc`, `tee` (48 MiB, mounted `ro` at `/tee`),
-`aml_sysrecovery` (1.5 GiB), `boot` (64 MiB), `recovery` (192 MiB), `system` (1 GiB, ext4, the
-root, `root=PARTLABEL=system ro`), `ota` (1.5 GiB ext4, `/ota` = `/bkupgrade`), `data` (2.8 GiB ext4).
-Only `system`, `ota`, `data` and `tee` are mounted.
-
-**The restore package.** `aml_sysrecovery` holds an Amlogic image v2 package of 629 930 824 bytes,
-the same 19 items as pickle's (`DDR`/`UBOOT` and their `_ENC`, `_aml_dtb`, `boot`, `bootloader`,
-`meson1(_ENC)` dtb, `platform` conf, `recovery`, `system`, `usb_flow`, one `VERIFY` per partition
-item). Checked on the dump:
-- the header CRC is `~crc32(image[4:size])` and every `VERIFY` is `sha1sum <sha1>`, both
-  recomputed and matching. There is no signature item;
-- `system` is an Android sparse image (file type 254, 262 144 blocks of 4 KiB) of a 1 GiB ext4;
-- `boot` and `recovery` are byte-identical prefixes of the live partitions;
-- the dumped `system` partition, unsparsed, equals the package's `system` except two bytes (a
-  journal feature flag set by the first mount). Consistent with "the factory flashes `system`
-  from this package"; it does not prove that the *reset* does;
-- headroom: 1.5 GiB − 630 MB ≈ **900 MB**. The ext4 itself has ~350 MB free, against ~115 MB
-  for the whole CFW in `<cfw>` today.
-
-**What stays sealed.** `recovery` and `boot` are Android boot images with plaintext headers, but
-their kernel and ramdisk are encrypted (entropy 8.0); the bootloader too. Env:
-`forUpgrade_secureBoot=true`, `bootloader_wp=1`, `avb2=0`, no dm-verity on the cmdline, so the
-rootfs is not authenticated (the install kit's rootfs edits boot fine).
-
-**The reset path in the env.** `storeboot` → `switch_bootmode`: `reboot_mode=factory_reset` runs
-`fr`, a command compiled into U-Boot whose behaviour cannot be read; `update` and
-`recovery_quiescent` run `recovery_from_flash` (boots the recovery kernel), not USB burn. The env
-also has `readmute=gpio read 24 mute 1` (unused by any env script, likely what the compiled-in
-gesture check reads) and `rabbit_hole_debug=0` → `androidboot.rh_unlock=0` (meaning unknown).
-`usb_burning=adnl 1200` exists, but how to reach burn mode with no working Linux is unknown.
-
-**How stock ADB comes back, and why it does not survive a reset.** `onboot.sh` (from `S97quasar`,
-before `run.sh`, so it runs even with maind gated) calls `activate_adb.sh check`, which turns ADB on
-when a marker exists in `/data` (`quasar_activate_adb_{sound,quasmodrom,glagol}`, plus
-`quasar_activate_network_adb` for network ADB). A reset that empties `/data` loses them. maind
-is not needed for ADB, and none is needed for us either: an SSH server started from a rootfs hook
-does the same job.
-
-**What a reset empties.** `S00rw-partitions` runs `mkfs` on any `rw` partition from `/etc/fstab`
-that is not mounted (i.e. failed to mount), so an erased `data` or `ota` comes back empty. Stock
-`S40wifi` copies `/etc/wpa_supplicant.conf` into `/bkupgrade/data/wpa_supplicant.conf` when the
-latter is missing or empty, so **a network baked into the rootfs's `/etc/wpa_supplicant.conf` is
-joined after a reset with no onboarding**. Whether `fr` reflashes `system`, wipes `data`/`ota`, or
-both, is the main unknown and needs one deliberate reset on a backed-up unit.
-
-### Why the vendor's updates leave the package alone
-
-An update never passes through anything that knows partitions: maind downloads the `.swu` and
-runs `applyOtaScript` (`device_ota_update.sh`), which stops the stack and calls
-`yandex-apply-ota`; that moves the file to `/ota/yandex_io_ota.swu` and runs
-`yandex-reboot update`; U-Boot boots the recovery, whose `S01swupdate` installs it. Which
-partitions get written is decided by the `sw-description` inside each signed `.swu`. Neither
-maind nor any script or binary in the rootfs's `/usr/bin`, `/usr/sbin` or `/etc` mentions
-`aml_sysrecovery`, `swupdate` or `sw-description` (maind's `/factory_reset` string belongs to its
-Zigbee code).
-
-So it *could*: the Station 2's `sw-description` (the only one we have) writes the rootfs, `boot`,
-`dtb` and every bootloader copy, so swupdate in the recovery can write any partition it is told
-to. It is just never told to write this one. That is the usual Amlogic design: the package is the
-factory "golden" image, a reset returns to the factory version and the unit then updates itself,
-and rewriting the one image that rescues a failed update on every update would put it at risk
-(and make each update hundreds of MB heavier). Orion's own `sw-description` is unseen (no orion
-`.swu` on hand; it is normally plaintext in the cpio even when the images are encrypted). Our unit
-runs `…factory-13` and its `system` equals the package's, so it has never been updated and says
-nothing about this either way.
-
-One consequence for us: the package also carries `bootloader`. If updates raise the bootloader
-and a reset put the factory one back, anti-rollback would get in the way, which suggests `fr`
-leaves the bootloader alone; unverified. Hence a golden package changes only `system` and keeps
-the bootloader, `boot` and `recovery` items byte-identical.
-
-### The recovery itself cannot be changed, only its inputs
-
-`recovery` is the program (kernel + ramdisk, ~23 MB in a 192 MiB partition); `aml_sysrecovery` is
-the data it restores from. What it wipes and writes is decided in its ramdisk, which is encrypted
-(cannot be read) and signed with the SoC key under secure boot (a changed image is not booted, and
-the reset gesture would then lead nowhere). Its inputs:
+**The recovery can't be changed, only its inputs:**
 
 | Input | Signed | Usable |
 |---|---|---|
-| the package in `aml_sysrecovery` | no | **yes, the lever** |
-| `/ota/yandex_io_ota.swu` (how updates are installed) | yes, checked with a key inside the recovery | no: the install kit's `ota_script.pub` swap is in the rootfs, which the recovery does not read |
-| U-Boot env (`recovery_from_flash`, `bootargs`) | no | in theory; one copy only, a mistake can stop the boot. Not touched |
-| `misc` (the Android channel for recovery commands like wipe/update) | no | unknown whether this recovery reads it; zeros on the unit |
+| the package in `aml_sysrecovery` | no | **yes: the lever** |
+| `/ota/yandex_io_ota.swu` | yes, by a key inside the recovery | no: the kit's `ota_script.pub` swap is in the rootfs, which the recovery doesn't read |
+| U-Boot env | no | in theory; one copy, a mistake can stop the boot. Not touched |
+| `misc` | no | unknown whether it is read; zeros on the unit |
 
-Learning its logic without decrypting it: the `cache` partition, where Android recoveries keep
-logs of past runs, and `misc` are both empty on the unit (read 2026-10-31), so there is no record
-of earlier runs. That leaves the deliberate reset with marker files (above), and **UART**: the
-recovery kernel almost certainly logs to `ttyS0` at 921600 (the env's `silent=1` silences U-Boot
-only). A serial console attached during a reset would show what it checks, which partitions it
-writes, and whether it rejects a modified package, the one residual risk of the takeover. How to
-reach orion's UART (case, pads) is not researched yet.
+**What others published** (searched 2026-10-31). Amlogic's public U-Boot (old, not these SoCs): its
+`aml_sysrecovery` command checks only magic, version and item count, the whole-image check is a
+stub, it skips `bootloader` by default and verifies each item's sha1 after writing it. No public
+report of anyone replacing this package, success or brick. Our runs are the first we know of.
 
-### The two images
+## What was done
 
-- **Minimal ("comes back reachable"):** stock `system` plus the rootfs edits the install kit and
-  `tools/deploy.sh` already make: the maind gate in `run.sh`, the OTA stub, the egress lock hook,
-  the SSH hook with dropbear/OpenSSH in the rootfs and `/root/.ssh/authorized_keys` (already on the
-  rootfs on orion), and the home network in `/etc/wpa_supplicant.conf`. After a reset the unit
-  joins Wi-Fi, serves SSH with the owner's key, does not start the vendor stack and has no
-  internet; restoring `<cfw>` from a backup brings the rest back. With that in place, network
-  ADB `:5555` ([backlog.md](../backlog.md)) can be closed. If the reset turns out not to touch
-  `system`, the same edits on the live rootfs give this without touching the package.
-- **Full:** the same with the CFW baked into the rootfs (the golden layer of the design below).
+### The design: a seed
 
-Build: unsparse the package `system`, edit the ext4 in a container (e2fsprogs `debugfs -w`, or
-`mke2fs -d` from a tree), re-sparse, replace the item, recompute its `VERIFY` sha1 and the header
-CRC; the encrypted items stay byte-identical. Write it with `dd` to `aml_sysrecovery` (normal
-boot does not read it), read back and compare. The image carries the Wi-Fi PSK and the owner's
-key: built locally, never committed. Same residual risk as pickle: the encrypted recovery might
-check something after it starts erasing; and never put an image there that has not booted live.
+The rootfs gets additions, not changes: the CFW in `/usr/share/cfw-seed` and a hook `S00zcfwseed`
+right after `S00rw-partitions`, which fills an empty `<cfw>`. Everything else (the SSH hook, the maind
+gate, the egress lock) finds `<cfw>` as usual, so a golden image needs no other logic. Stock `S40wifi`
+copies an empty `/etc/wpa_supplicant.conf` into the Wi-Fi config, and the daemon then finds no
+network and enters setup mode by itself. That is also why the "minimal image" idea fell away: a unit
+without Wi-Fi would need the vendor's BLE onboarding, which needs the internet. Only what is in the
+package survives a reset, so a golden image worth having is the whole CFW.
 
-### Backup and restore first
+### The takeover on pickle, tried (2026-10-31)
 
-Before any reset experiment each unit needs a backup that restores it with Home Assistant and
-Music Assistant noticing nothing. What they depend on lives almost entirely in `/ota`:
+**First round, a snapshot of the unit** (keys, Wi-Fi, identity in the seed): by the owner's choice,
+with no way back from outside if the recovery refused. Each step before the next:
 
-| What | Where | Why it matters |
-|---|---|---|
-| `device_id` and all config | `<cfw>/yastationd.conf` | the MQTT client id, HA entities' unique ids, intercom, wake arbitration |
-| options | `<cfw>/yastationd.state` | everything set from HA or the web app |
-| Music Assistant player identity | `<cfw>/sendspin/state.json` | the stable `client_id`; without it MA sees a new player |
-| voices | `<cfw>/voices/` | voice ID's People album |
-| `web.secret`, packs, sounds | `<cfw>/` | web login, themes |
-| SSH host key, CA, principals | `<cfw>/`, `<cfw>/openssh/` | no host-key warning, certificate login |
-| Wi-Fi | `/ota/data/wpa_supplicant.conf` | |
-| Bluetooth | `/data/bt_mac`, `/data/bluez_data` | pairings |
-| rootfs edits | the vendor repo's per-unit `paths` list | hooks, gate, OTA stub |
-| MAC, serial | probably `reserved` (Amlogic unifykey, read by `keyman` in the env's `cmdline_keys`); backed up by `tools/backup-unit.sh` | same MAC → same DHCP lease and address |
+1. a backup; hashes of `mtd0`–`mtd8` and the env, all matching the dump;
+2. hook and seed on the live rootfs, then a real boot with `/data/cfw` and Wi-Fi moved aside: SSH back
+   in 9 s from the seed;
+3. a package from that rootfs, differing only in a marker and a new UBI `image_seq`, which says at a
+   glance where `system` came from;
+4. the packer first reproducing the stock package byte for byte; superblock and UBI headers matching
+   stock's; the result unpacked and compared entry by entry;
+5. `flash_erase` + `nandwrite -p`, a read-back equal; then the reset.
 
-Built (2026-10-31): `tools/backup-unit.sh` and `tools/restore-unit.sh`
-([guides/backup.md](../guides/backup.md)); every reachable unit backed up. Getting back in after a
-stock reset needs the install kit (out of this repo's scope); with it, "reset → kit → restore"
-brings a unit back as it was.
+The recovery took it. So it checks no hash beyond what we recompute, and a `system` of another size
+is fine (305 → 334 PEBs; autoresize grew the volume from 332 to 468 LEBs on first attach).
 
-### Status: orion's takeover is parked (2026-10-31)
+What did not come back was what lives in `/data` outside `<cfw>`. The MAC stayed, yet the router gave
+another lease: dhcpcd's client id is `ff` + IAID + DUID, and the DUID is regenerated on an empty
+`/data`. HA then couldn't reach the satellite, which showed as "no connection to HA".
 
-**Superseded the same day:** a Station 3 went through it, a real reset included: `fr` rewrote `system` from
-a rebuilt package and reformatted `/ota` and `/data`. What it did: [guides/golden-image.md](../guides/golden-image.md#orion).
+**Second round, an image for a board** (no key, Wi-Fi or settings): that is `tools/golden.sh`. The
+daemon enters setup mode with no saved network, and the page takes SSH keys. First-boot logic had
+changed and a mistake there can't be cured by a reset, so it was proved **while `mtd6` still held a
+working image**: the new hook and seed on the live rootfs, `<cfw>` and Wi-Fi moved aside, a temporary
+hook collecting the result, putting everything back and rebooting by itself after 2 minutes. Then the
+write and a reset: the access point came up, a phone added a key and the network, and a backup brought
+the unit's identity back with no change on the HA side.
 
-Pickle has since gone through it ([above](#the-takeover-on-pickle-tried-2026-10-31)), which lowers the
-risk described here for orion, but does not remove it: it is a different recovery image.
+### orion (2026-10-31)
 
-**No escape hatch without opening the case.** The case is clipped and glued (sealed), and the owner
-will not open it, so UART and board pads are out. What is left from outside:
-- The vendor gesture (hold **mute**, the only hardware key, while plugging in the USB-C power; the
-  ring runs a yellow animation, then the unit boots the factory image and waits for the vendor
-  onboarding) is the **recovery** path (`aml_sysrecovery`), not USB burn. The env's
-  `readmute=gpio read 24 mute 1` suggests U-Boot itself reads the key.
-- **USB burn (ADNL)** has a U-Boot command (`usb_burning=adnl 1200`), but no env script runs it; the
-  boot ROM enters USB mode by itself only with a broken bootloader or a board strap. Reaching it
-  from outside would take an env edit (the single env copy: a boot risk taken for a safety net) or
-  feeding the unit its 20 V PD from its own supply while passing USB data to a computer (it is picky
-  about USB-C power; a PC port does not power it). The USB device controller is there
-  (`crgudc2`), so data does reach the port. Untried.
-- **Any** change to the package carries the same risk: if the encrypted recovery checks a hash of
-  it after erasing `system`, a changed byte bricks the unit as surely as a new image. So a probe
-  proves nothing a real image would not; the first write should be the minimal golden image (its
-  rootfs edits already run live), and only once a way back exists.
+The same on two units, the second the one with `voice_store`: a live first-boot test (with the egress
+lock seen `LOCKED` in the access point), the owner's key copied to `<cfw>/authorized_keys`, the write
+with `dd`, a normal reboot unchanged, the reset, the access point, a key and Wi-Fi from a phone, a
+restore. Differences found on the way: `system` is rebuilt with `mke2fs -d` + `img2simg` from stock's
+features and UUID, with raw and fill chunks where stock also has one "don't care" chunk; `debugfs
+rdump` loses setuid and sticky bits, so the check reads those from the image; and the guard for an
+unmounted `<cfw>` must look at `/ota`, not `/data`.
 
-**Without that way back the takeover is not worth it now**: "reset → kit → restore" already brings
-a unit back, and the golden package would save only the kit step. Why it stays on the table: the
-kit's way in partly depends on vendor services, which may not work forever; a golden package (or a
-working USB burn) would make recovery independent of them.
+Details and the steps: [guides/golden-image.md](../guides/golden-image.md#orion).
 
-**Still useful at stock risk, not done yet:** one stock reset of a dev unit with marker files in
-the rootfs, `/ota` and `/data` (placed on one Station 3, with partition hashes, ext4 UUIDs and the
-env recorded before), to learn what besides `system` is wiped, whether the MAC survives, and to
-rehearse the restore. orion keeps a **ramoops** console log of the previous boot
-(`/sys/fs/pstore/console-ramoops-0`): the first normal boot after a reset may hold the recovery
-kernel's log (what it mounted, formatted and wrote), provided nothing reboots the unit again before
-it is read.
+## orion — the restore payload is replaceable too
 
-### What others published (2026-10-31)
+**Layout.** One eMMC, partitions by name under `/sys/class/block`: `bootloader` (+ `mmcblk0boot0/1`),
+`reserved` (64 MiB), `cache`, `env` (8 MiB), `misc`, `tee` (48 MiB, `ro` at `/tee`),
+`aml_sysrecovery` (1.5 GiB), `boot` (64 MiB), `recovery` (192 MiB), `system` (1 GiB ext4, the root,
+`root=PARTLABEL=system ro`), `ota` (1.5 GiB ext4, `/ota` = `/bkupgrade`), `data` (2.8 GiB ext4).
 
-A web search found:
-- **Amlogic's public U-Boot** (an old vendor tree): the `aml_sysrecovery` command checks only the package magic, version and item count; its "check the whole image before
-  burning" is a stub (`//TODO: return 0;`), so the header CRC is not checked on the device; it
-  skips the `bootloader` item by default (it can burn one when told to), writes each `PARTITION`
-  item and only **then**, if asked, reads it back and compares the `VERIFY` sha1. No signature
-  anywhere. A package with a changed `system` and recomputed sha1s would pass that code. Caveats:
-  old code, not A5; Yandex's `fr` appears in no public tree, and Amlogic's default env sends
-  `factory_reset` to `recovery_from_flash` (the recovery kernel), not to `aml_sysrecovery`. And
-  write-then-verify means a probe is no safer than a real image: a rejection comes after the write.
-- **No public report** of anyone replacing the contents of `aml_sysrecovery` on any device, neither
-  a success nor a brick. Closest: on another vendor's Amlogic speaker a modified `system` boots while
-  a rebuilt `boot` is refused (boot images are signed, the rootfs is not), which matches what we see.
-- Community notes on Yandex Stations say the button reset **clears `/data` and does not roll back**
-  edits in `/etc/init.d` and `/system/vendor/quasar`, without naming the models; nothing on what it
-  does on a Station 3. The owner's colleagues report the opposite (the rootfs comes back stock).
-  Our own units disagree with both, by model: [below](#what-the-reset-does-on-our-units).
-- No verified way into USB burn mode on any Station; ADNL host tools exist for the newer SoCs (A5
-  among them), untried.
+**What else the env holds.** `bootloader_wp=1`, `rabbit_hole_debug=0` → `androidboot.rh_unlock=0`
+(meaning unknown), `usb_burning=adnl 1200`.
 
-### What the reset does on our units
+**ADB.** `onboot.sh` (from the boot hook, before `run.sh`, so even with maind gated) calls
+`activate_adb.sh check`, which turns ADB on when a marker exists in `/data`
+(`quasar_activate_adb_{sound,quasmodrom,glagol}`, `quasar_activate_network_adb` for the network).
+maind isn't needed for it. A reset empties `/data` and closes it; a restore of `/data` reopens it.
 
-Read-only, 2026-10-31, from file dates, the UBI erase counters and the owner's history of each unit.
-The trick: a reset that recreates a partition leaves its oldest files dated at the reset; a reset
-that rewrites the rootfs from an image leaves it as that image, edits and update included gone.
+## bergamot — the restore payload is not replaceable
 
-**bergamot (Mini 3; no package, its restore image is inside the encrypted recovery): `/data`
-survives, and very likely the rootfs too.** Both units were reset at least once (one several
-times), yet the oldest vendor files in their `/data` (= `/bkupgrade/data`) date from the factory day
-on one and from the first setup a year and a half ago on the other, Bluetooth pairings included. So
-the reset does not reformat `/data` there (it may delete some files, e.g. the account). The second
-unit runs firmware that came by an update (built 2026-10-13, newer than its factory one) and was
-reset after that update, during the install, yet still runs it: a reset back to the factory image
-would have taken the update away. Whether the rootfs edits themselves survive a reset is not seen
-directly (the edits came after the last reset).
-
-**pickle (Mini 3 Pro; the same `aml_sysrecovery` package design as orion): `/data` is wiped and the
-rootfs is rewritten from the package.** The unit went through the reset about ten times, each
-followed by the install kit's rootfs edits. Today:
-- firmware `factory-14`, the same as the package; no sign of an update;
-- `/data`'s oldest files date three minutes before the last kit run: it was recreated by that reset;
-- the kit's `run.sh.orig` is stock and dated by the last kit run: before that run the rootfs held
-  none of the earlier runs' edits;
-- the UBI erase counters of `system` are 0–2 (295 PEBs at 0, 213 at 1, 4 at 2; every PEB of the
-  package's `system` item has 0), while the `data` volume's maximum is 7 (erased about as often as
-  it was reset). Ten rounds of rootfs edits on a never-rewritten `system` would leave its counters
-  at least as high; near-zero counters are what a fresh write from the package leaves.
-
-**orion: answered since, `system` rewritten, `/ota` and `/data` reformatted** ([guide](../guides/golden-image.md#orion)). As it read before: Same package design as pickle, so the same behaviour is the likely one, which
-matches the colleagues' reports; the community note fits bergamot instead. The Station 3s have not
-been reset after any edit, and their file dates cannot tell. The marker test on a Station 3 answers
-it. For experiments with the package and the rootfs, the Mini 3 Pro is the better first candidate:
-the same design, unused, half the price of a Station 3, and its reset is well exercised.
-
-### If the rootfs survives and `/data` is wiped: what is left of the CFW
-
-Checked against the rootfs edits in the backups of a Station 3 and both Mini 3s (2026-10-31). On pickle this is what a reset does to `/data` (above); on bergamot `/data` survives, so this table is about pickle and, if `/ota` goes too, orion.
-
-**Not a brick.** The edits are plain files (no symlinks into `<cfw>` or `/data`); stock `rcS`
-runs `S??*` one after another, skips dangling links and goes on after a failing script; and every
-hook of ours tests for its file in `<cfw>` and waits for nothing:
-
-| Rootfs hook | With an empty `<cfw>` |
-|---|---|
-| `S42zdropbear` (SSH, ours) | neither `ssh.sh` nor `S42zdropbear.orig` → **no SSH server** |
-| `S52zyastationd` | no binary → exits; no daemon |
-| `S99zzegress` | no `egress.sh` → **no on-device firewall**, only the router's block |
-| `run.sh` (maind gate) | no `maind_off` → **the vendor stack starts**, as on stock |
-| `device_ota_update.sh` stub, `launch.json` without `--updatesd`, the foreign `ota_script.pub` | live in the rootfs → updates stay blocked |
-| `S42zadbusb` (the minis only) | recreates `/bkupgrade/cfw` and brings up USB ADB, a way in on the minis |
-
-Worst case: a unit running the vendor stack, without our daemon, without SSH, without the
-on-device firewall, but with updates blocked; and in practice offline, because the same wipe
-takes the Wi-Fi config with `<cfw>`, and the router blocks it anyway.
-
-**Where each board keeps what:**
-
-| Board | `<cfw>` | Wi-Fi config | If only `/data` is wiped |
-|---|---|---|---|
-| orion | `/ota/cfw` | `/ota/data` | the CFW and Wi-Fi survive; Bluetooth pairings (`/data/bluez_data`) and the ADB markers go. The daemon writes nothing to `/data` |
-| pickle | `/data/cfw` | `/data/wpa_supplicant.conf` | everything goes: the table above |
-| bergamot | `/bkupgrade/cfw` | `/bkupgrade/data` | its `/data` is a directory in the `bkupgrade` volume; whether the whole volume is wiped is unknown |
-
-**A rootfs layer that does not need `<cfw>`** (an idea, not built; a plain rootfs edit with
-`.orig` copies, no boot risk) would keep a unit reachable after any wipe of `/data` or `/ota`, the
-"minimal image" without touching the package:
-1. SSH: `S42zdropbear` falls back to a dropbear kept in the rootfs (host key generated at boot,
-   `authorized_keys` already in the rootfs);
-2. the maind gate honours a rootfs flag too, so the vendor stack stays off with an empty `<cfw>`
-   (the "vendor code must not run" rule then holds here as well);
-3. `S99zzegress` falls back to a rootfs copy of `egress.sh`;
-4. Wi-Fi (the owner's call: it puts the PSK in the rootfs): the home network in
-   `/etc/wpa_supplicant.conf`, which stock `S40wifi` copies into an empty config.
-
-Each can be tried live without wiping anything (the SSH fallback on port 2222, as OpenSSH was).
-
-**Dropped (2026-10-31).** Without a Wi-Fi config the unit still has to go through the vendor's BLE
-onboarding, which needs the internet, so the egress lock and the maind gate would only get in its
-way; what is left is a fallback SSH after onboarding. And even that does not live to be used: on
-bergamot the reset keeps `/data` and the rootfs (and so, most likely, `<cfw>` next to `/data` in
-`/bkupgrade`), so there is nothing to rescue; on pickle, and probably orion, the reset rewrites
-`system` from the package, and a rootfs layer goes with it. Only what is inside the package survives
-a reset there.
-
-So the minimal image collapses into the full one: a golden image worth having is the whole CFW,
-which already brings its own vendor-free onboarding (the Wi-Fi setup mode with its access point,
-[wifi-setup.md](../wifi-setup.md), on every board; the daemon comes up ~30 s after boot without a
-network), the maind gate, the update blocks, the egress lock and SSH with the owner's key; then
-`tools/restore-unit.sh` brings the unit's identity back. Still open: a way back if the package is
-refused (the blocker), and keeping the owner's key in the image apart from each unit's state.
-
-## Our own reset gesture — in early Linux init, not in U-Boot (a convenience, not a safety net)
-
-A second gesture in U-Boot ("vendor gesture → factory, our gesture → our image") is **not doable**:
-U-Boot is signed and encrypted, so we cannot add code. We control only the env scripts. A gesture
-there would need a key or GPIO command in this U-Boot build, and its command set is unknown: the
-binary is unreadable and the console is `silent=1` with `bootdelay` 0/1. Any env experiment risks
-the boot, and the env has no redundant copy. On pickle the vendor gesture itself is probably caught
-by the always-on CPU, outside U-Boot.
-
-The same result is available where we already own the code: **the rootfs init**. The kernel is
-stock and starts our `S0x` hooks a few seconds after power-on, so:
-
-- **vendor gesture** (mute held while plugging in) stays untouched → stock factory image (pickle:
-  `aml_sysrecovery` stays original, so there is **no restore-engine risk at all**);
-- **our gesture**, checked by an early hook (before Wi-Fi and before any `<cfw>` code runs), resets to
-  the golden CFW. Example gestures: a different key held while plugging in (vol−, or the Alice touch
-  key; never mute, which is the vendor gesture), or the mute switch toggled N times within T seconds
-  after boot. Read the key state with a tiny probe (`yastationd --probe-keys`, EVIOCGKEY/EVIOCGSW).
-  The touch keys (`aw933xx`) and `gpio-keys`/`mute` are kernel-probed before `rcS`;
-- the golden CFW lives **read-only in the rootfs**. Free space: pickle ~34 MB, bergamot ~88 MB,
-  against ~16.5 MB of CFW. Our reset wipes `<cfw>` (the dev overlay, config, `wpa_supplicant.conf`)
-  and lets the golden hooks boot into AP mode;
-- **limit:** it only covers failures that leave the rootfs and its early init intact. It does not
-  help once we have edited the rootfs itself (deleted vendor files, broken busybox, libc or init).
-  That case needs the hard reset, which is why the takeover below matters;
-- the same mechanism works on bergamot, where replacing the restore image is impossible anyway.
-
-## Snapshot the current system as the restore image (pickle)
-
-This is the simplest form of the takeover: once the onboard CFW is finished, take the running
-system, clear the per-unit state (`<cfw>` config, `wpa_supplicant.conf`, host keys) and make that
-the restore payload. It is the same pipeline as in the plan below, with the **live rootfs** as the
-source: a file-level copy, then `mkfs.ubifs` + `ubinize`. A raw mtd9 dump does not work: a live UBI
-partition fills all 128 MiB with data spread across PEBs by wear levelling, so it cannot be
-truncated, and it would not fit next to the other package items.
-
-## Working on the rootfs safely
-
-- Never write `mtd0`–`mtd8` (pickle) or `mtd0`–`mtd2`, `mtd4`, `mtd6`, `mtd7` (bergamot). The reset
-  path lives there. `aml_sysrecovery` is written only in the deliberate takeover step.
-- "Delete" without deleting first: hide a directory with `mount --bind <empty-dir> <dir>` from a
-  hook or by hand. Reboot and check. Only then remove it for real in a `remount,rw` session, with a
-  tarball of what was removed kept on the host.
-- Do heavy rootfs experiments (freeing space, removing the vendor stack) on pickle once its reset
-  lands in the golden CFW. On bergamot the reset lands in stock, and on the 0.6.x-layout unit what it
-  lands in is unknown.
-
-## Hardening rootfs work: layers, snapshots, boot counting
-
-Kernel facts (read on the units 2026-10-24):
-
-| | pickle | bergamot |
-|---|---|---|
-| overlayfs | **yes** | **no** |
-| squashfs, loop | yes | yes |
-| fuse | no | yes |
-| `kernel.panic` | 5 (reboot 5 s after a panic) | 5 |
-| free on the rw partition | `/data` ~139 MB | `/bkupgrade` ~169 MB |
-
-UBIFS has no snapshots, and both UBI devices have no free LEBs for a second volume, so all of the
-below works at the file level.
-
-1. **Overlay root (pickle).** Change one rootfs file, once: `/sbin/init` becomes a tiny busybox-only
-   wrapper (the original is kept as `init.orig`). The wrapper mounts `ubi1:data`, mounts overlayfs
-   with lower = the read-only stock rootfs and upper = `/data/overlay/upper`, runs `pivot_root`, and
-   then `exec`s the real init. From then on every change, including deleting `maind` or assets, is
-   a write or a whiteout in the upper layer, and **the stock rootfs is never modified again**. On any
-   error the wrapper `exec`s `init.orig` without the overlay. Rollback = drop the upper dir. This does
-   not free space in the lower layer, and it does not need to: our files live in `/data`.
-   `S00rw-partitions` skips `/data` when it is already mounted.
-2. **Snapshots = copies of the upper layer.** It is small: `/data/overlay/snap-<date>` plus a copy on
-   the host. Rolling back to one means telling the wrapper "use snap-X as upper on the next boot".
-3. **Boot counter with automatic rollback.** The wrapper increments a counter in `/data` on every
-   boot. The CFW clears it once the system is healthy (yastationd up, network up, N minutes
-   uptime). After 3 failed boots in a row the wrapper boots **without** the overlay (stock plus the
-   SSH hook) or with the last good snapshot. Kernel panics reboot by themselves (`panic=5`), so boot
-   loops count too. Side effect: "pull the power 3 times in a row" becomes a manual rollback
-   gesture that works with any broken userland, as long as the wrapper itself is intact.
-4. **bergamot: hide, don't delete.** No overlayfs, so vendor files are hidden by a hook on every boot
-   (`mount --bind <empty-dir> <dir>`), which lasts only until the next reboot. The same init wrapper
-   and boot counter decide whether our hooks apply. Space is not an issue (88 MB free in the
-   rootfs).
-5. **Smaller aids.** Remote syslog (busybox `syslogd -R <log-host>`) or netconsole shows where a boot
-   died without SSH. Test a new tree in a `chroot` on `/data` before booting it. UART is the last
-   resort for debugging (needs opening the case).
-
-**What stays vulnerable.** The init wrapper is the single rootfs edit. Break it and the kernel finds
-no init and boot-loops, which only the hard reset cures (stock on pickle unless the takeover is
-done). Keep it tiny, busybox-only, with the `init.orig` fallback, and install it once. The reset
-wipes `/data`, snapshots included, so keep copies on the host.
-
-**Recommendation.** pickle: init wrapper + overlay + boot counter + host-side snapshots. That covers
-"we deleted maind and bricked it" without touching `aml_sysrecovery`. The `aml_sysrecovery` takeover
-becomes an optional later stage whose only gain is that a hard reset lands in the CFW instead of
-stock. bergamot: bind-mount hiding + the same wrapper with the boot counter.
-
-None of this is implemented or tried on a device yet.
-
-## Design: three layers
-
-| Layer | Where | What gets you there |
-|---|---|---|
-| **dev** | `<cfw>` on the rw partition (`/data/cfw`, `/bkupgrade/cfw`) — today's `tools/deploy.sh` | normal |
-| **golden** | CFW baked into the rootfs (both models) **and** into `aml_sysrecovery` (pickle) | safe-mode boot (both); hard reset (pickle, wipes `/data`) |
-| **stock** | the original dumps on the host (`dumps/pickle/mtd6_aml_sysrecovery.img`, …) | write the original mtd6 back and hard-reset (pickle); hard reset (bergamot) |
-
-After a reset into stock the unit runs the vendor firmware, with the vendor stack, its updater and
-no CFW. Keep it off the internet (the router block) until the CFW is reinstalled; see
-[deploying.md](../guides/deploying.md).
-
-Golden-rootfs requirements, all of which must work with an **empty** rw partition:
-- the maind gate becomes **opt-in** (`run.sh` launches quasar only if `<cfw>/maind_on` exists), not
-  `maind_off`-on-`/data`;
-- `device_ota_update.sh` = `exit 0`, the `egress.sh lock` hook and the dropbear hook with the
-  owner's `authorized_keys` all live in the rootfs. Host keys are generated on first boot into
-  `<cfw>`;
-- the baked binaries are in `/usr/lib/cfw` (or similar). The init hooks prefer `<cfw>/bin/*` (dev)
-  unless safe mode is on;
-- **safe mode**: the mute switch ON at boot (read by `yastationd --probe-mute` or similar), or a
-  `<cfw>/safe` flag, makes the hooks ignore `<cfw>/bin` and the dev config overrides. This is the
-  cheap rollback and keeps Wi-Fi and config;
-- with no Wi-Fi config, the CFW's own AP-mode setup takes over.
-
-The golden image contains vendor files and the owner's key: it is **built locally and never
-committed or published**. Only the build tooling goes into the repo.
-
-## Plan (pickle first)
-
-**Phase 0 — tooling, host only, no device writes**
-1. `tools/amlimg` — parse and repack Amlogic v2 packages. Acceptance: repacking the original items
-   reproduces `mtd6_aml_sysrecovery.img` **byte-for-byte**, including the CRC.
-2. `tools/mkgolden` — unpack the package `system` (ubi_reader under `fakeroot`), lay the CFW overlay
-   on top, `mkfs.ubifs` + `ubinize` with the parameters above (mtd-utils on the host), then rebuild
-   the package. Acceptance: building the **unmodified** rootfs through the pipeline gives the same
-   file list, modes, owners, links and contents as the original (compared with a read-only
-   `find / -xdev` listing from the device); the superblock and volume-table parameters match.
-3. Golden-rootfs changes from the list above (opt-in gate, baked hooks, safe mode, AP fallback).
-
-**Phase 1 — prove the overlay on the live rootfs (already common practice)**
-4. Apply exactly the golden overlay file set to pickle's live rootfs with `remount,rw` (keep `.orig`
-   files), reboot, and verify the hooks with an emptied `<cfw>` (move it aside, not delete) and the
-   safe-mode gesture.
-
-**Phase 2 — escape hatch before touching mtd6** (needs the user present, USB cable)
-5. Get an Amlogic ADNL host tool working. Confirm that `reboot update` brings the unit into burn mode
-   and that the tool identifies it, **without writing**. Find the strap or pad for ROM USB mode in
-   case Linux is dead (optional but strongly preferred).
-6. Verify the safety net itself: a **stock** hard reset with a marker file in the rootfs. Expect
-   stock factory-14, the marker gone and `/data` empty. This proves the reset rewrites `system` from
-   `aml_sysrecovery` (so it recovers any rootfs brick) and shows the trigger, timing and wipe
-   semantics, all at stock risk. Cost: the unit is back on stock firmware until the CFW is
-   reinstalled.
-
-**Phase 3 — the takeover**
-7. Stage the golden package in `/data`, check its sha256, keep the original mtd6 dump on the host
-   (sha256 in `dumps/pickle/MANIFEST.txt`), then `flash_erase /dev/mtd6 0 0` and
-   `nandwrite -p /dev/mtd6 pkg.img`. Read it back and compare hashes. Normal boot does not read
-   mtd6, so a failure here is still harmless.
-8. Hard reset → expect the golden CFW, empty `/data`, AP mode, SSH with the baked key.
-   Rollback: rewrite the original mtd6 and hard-reset; if Linux is dead, USB burn of the original
-   package.
-
-**bergamot**: phase 0 step 3 and phase 1 apply as they are (golden overlay in the rootfs, safe mode).
-Do **not** hard-reset the 0.6.x-layout unit: what it restores is unknown, and getting the CFW back
-onto that firmware is unverified.
+- The recovery is one Android boot image spanning `recovery` + `recovery_fs` on the 0.369-layout unit:
+  kernel 5.8 MB + ramdisk 30 MB, `AMLSECU!`, encrypted (entropy 8.0), cmdline `rootfstype=ramfs
+  ubi.mtd=system ubi.mtd=bkupgrade`. Whatever it restores is in that ramdisk; no plaintext copy on
+  the flash.
+- The 0.6.x-layout unit has another table: one `recovery` of 58.75 MiB, no `recovery_fs`.
+- Inside the recovery, `S01swupdate` installs `/bkupgrade/ota/yandex_io_ota.swu` when
+  `boot_to_recovery=1`. This needs a Yandex signature.
+- One lever, parked: rewrite `recovery_from_flash` in the env to boot the normal kernel with a safe
+  flag. It works only if the compiled-in check goes through that variable, a bad env write can stop
+  the boot, and it removes the vendor's escape hatch.
 
 ## Hazards
 
-- **Both copies bad.** A golden image that does not boot, sitting in mtd6, makes the hard reset
-  restore the same broken image. Never put an image in mtd6 that has not been proven live first
-  (phase 1). The image pipeline must pass the identity test in phase 0.
-- **Restore engine rejects the modified package after it has started erasing** (unreadable recovery
-  logic): this is the residual risk. The only cure is USB burn → phase 2 first.
-- **Power loss** while writing mtd6 leaves the live system intact; just rewrite. Losing power during
-  the reset itself is a vendor-level risk.
-- **Env writes** (bergamot lever): a single copy and no redundancy. Avoid.
-- **Bad blocks**: mtd6 has none today. `nandwrite -p` skips bad blocks the same way the Amlogic store
-  driver reads them. Verify by read-back, never assume.
-- **Sizes**: the package must fit in 128 MiB minus bad blocks. The `system` item must keep the same
-  UBI geometry. The rootfs volume has autoresize, so a smaller image is fine.
-- **Host key change** after every reset: expect the SSH host-key warning.
-- The OTA blocks remain mandatory. An OTA would replace the rootfs and possibly the recovery path
-  semantics. Whether a pickle OTA rewrites `aml_sysrecovery` is unknown.
+- **Both copies bad.** A golden image that gives no way in is restored by every reset, and there is no
+  other way to write one. Never write an image whose first boot hasn't been proved live on that
+  board, while a good package is still in the partition.
+- **No USB burn.** Nothing has reached burn mode from outside. `usb_burning=adnl 1200` exists, no env
+  script runs it, the boot ROM enters USB mode only with a broken bootloader or a strap; from a
+  running Linux it would be `reboot update`. On orion, reaching it takes an env edit, or feeding the
+  unit 20 V PD from its own supply while passing USB data to a computer (a PC port doesn't power it).
+  The case is glued, so UART and pads are out: the recovery's logic stays unread.
+- **The recovery might differ between firmware versions.** Two boards and three units took a rebuilt
+  package; every one runs the firmware of its own package.
+- **Power loss** while writing the partition leaves the live system intact: write again. During the
+  reset itself it is a vendor-level risk, with a long window.
+- **Bad blocks** (NAND): `flash` refuses a partition with any.
+- **Host keys and the DUID change** with a reset, until a restore: expect the SSH warning, and a new
+  lease if the router binds by client id.
+- **A restore reintroduces what a backup holds**, an older `<cfw>`, network ADB, keys since removed.
+- **The update blocks stay mandatory:** an update would replace the rootfs, and whether it can touch
+  the package is unseen.
+
+## Working on the rootfs safely
+
+- Never write pickle's `mtd0`–`mtd5`, `mtd7`, `mtd8`, or bergamot's `mtd0`–`mtd2`, `mtd4`, `mtd6`,
+  `mtd7`. `aml_sysrecovery` is written only by `tools/golden.sh flash`.
+- "Delete" without deleting first: hide a directory with `mount --bind <empty-dir> <dir>`, reboot and
+  check; then remove it in a `remount,rw` session with a tarball on the host.
+- Heavy rootfs work belongs on a unit with a golden image. On bergamot the reset lands in stock.
+
+## Ideas not built
+
+Kept for the reasoning; none was needed for what is above.
+
+- **A second gesture in U-Boot:** not doable. U-Boot is signed, its command set unknown, the env single.
+- **A gesture in early Linux init:** a different key held at power-on, read by a hook before Wi-Fi,
+  resetting `<cfw>` to a read-only copy in the rootfs. With the seed that copy exists, but it covers
+  only failures that leave the rootfs intact, and the Wi-Fi setup combo and SSH cover most of those.
+- **A safe mode** (the mute switch at boot makes hooks ignore `<cfw>/bin`): the same limit.
+- **An overlay root on pickle:** `/sbin/init` as a tiny wrapper mounting overlayfs with the rootfs below
+  and `/data/overlay/upper` above, so the rootfs is never written again, with a boot counter rolling back
+  after 3 failed boots. pickle's kernel has overlayfs, bergamot's doesn't. The wrapper itself is the one
+  edit that can brick. A golden image gives the same safety by a longer road, so it stayed on paper.
+- **bergamot:** the same counter with bind-mount hiding, which lasts until the next reboot.
+
+Kernel facts behind these (2026-10-24): overlayfs on pickle only; squashfs and loop on both; fuse on
+bergamot only; `kernel.panic` 5 on both. UBIFS has no snapshots, and neither UBI device has free LEBs
+for a second volume.

@@ -3,6 +3,19 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.25.0 — 2026-10-31
+
+**Golden images on the Station 3, and vendor removal**
+- `tools/golden.sh` went through real resets on two Station 3s, voices and all: a reset there lands in
+  the CFW now, as on the Mini 3 Pro. (v0.24.0's note said untried.)
+- `tools/devendor.sh` takes the vendor's software off a Mini 3 Pro with a golden image
+  ([docs/guides/devendor.md](docs/guides/devendor.md)); its last step is yours to run.
+
+**Voice ID**
+- Speakers keep their voice events while the store is away, as they did only for the broker: they
+  used to go nowhere.
+- A store starting with an empty album no longer clears the household on every speaker.
+
 ## v0.24.1 — 2026-10-31
 
 **Fixes**

@@ -7,7 +7,7 @@ into the CFW, in the Wi-Fi setup mode, instead of the vendor's firmware.
 | Board | State |
 |---|---|
 | **pickle** (Mini 3 Pro) | **Proven:** two full rounds on one unit, 2026-10-31: the reset took a rebuilt package, a clean image came up with its access point, a backup put the unit back as it was. |
-| **orion** (Station 3) | **Proven once:** one full round on one unit, 2026-10-31: a reset took a rebuilt package, a clean image came up with its access point, a backup put the unit back. See [Orion](#orion). |
+| **orion** (Station 3) | **Proven:** a full round on two units, 2026-10-31: a reset took a rebuilt package, a clean image came up with its access point, a backup put the unit back. See [Orion](#orion). |
 | **bergamot** (Mini 3) | **Impossible:** its restore image is inside the signed recovery. |
 
 Why it works and what was measured: [research/permanent-install.md](../research/permanent-install.md).
@@ -78,7 +78,7 @@ address, since dhcpcd's DUID is new; a lease by MAC keeps it.
 
 ## Orion
 
-One real round on a Station 3, 2026-10-31. Before it: the first boot proved live with `<cfw>` and
+Two real rounds, on two Station 3s, 2026-10-31, one of them the unit with `voice_store`. Before it: the first boot proved live with `<cfw>` and
 Wi-Fi moved aside (the seed, setup mode 3 s after the daemon, the access point 14 s later, a key through
 the page's API), a login by a key only in `<cfw>/authorized_keys`, the write and a normal reboot.
 
@@ -88,15 +88,17 @@ the page's API), a login by a key only in `<cfw>/authorized_keys`, the write and
 - `/ota` and `/data` were both reformatted: new UUIDs, markers gone. So on orion, as on pickle, a reset
   takes the CFW and Wi-Fi, and network ADB with them;
 - `aml_sysrecovery`, `boot`, `recovery`, `misc` and the env kept their hashes, and the Wi-Fi MAC stayed;
-- **`bootloader` and `reserved` changed**, unlike on pickle: `bootloader`'s hash differs from before, and
-  two copies of an encrypted-looking 182 KB block in `reserved` (at `0x413600`, `0x453600`) were
-  rewritten. Whether a stock reset does the same is not known; the unit boots and its identity holds. A
-  Station 3 that was not reset differs from it only in 48 bytes at `0x160` of `bootloader`.
+- **`reserved` changed on both**, unlike anything on pickle: two copies of an encrypted-looking 182 KB
+  block (at `0x413600`, `0x453600`) were rewritten. `bootloader` changed on the first unit and not on the
+  second; the two units differ in 48 bytes at `0x160` of it. Whether a stock reset does the same is not
+  known; both units boot and their identity holds.
 - `/sys/fs/pstore` was empty on the first boot: no log of the recovery (the gesture is a cold start, and
   ramoops doesn't outlive one).
 
 **It takes long:** a few minutes before Linux is up (at most about 3 here, by the clock; a 618 MB `system`
 goes to eMMC), with nothing to show for it but the ring, and it feels longer. Leave the power alone.
+
+The egress lock was seen `LOCKED` in the access point on a first-boot test.
 
 Then the access point, a key, the Wi-Fi network; a restore brought the unit's identity back with no
 change on the HA side. A restore also brings back the `/data` marker that opens **network ADB on
@@ -108,9 +110,9 @@ Before a write on an orion, copy your key where a golden image reads it, in case
 the way back, and both our Station 3s' packages are byte-identical.
 
 `/usr/share/cfw-seed` comes out of the fixed list, so a donor's `media`, `packs` and voices stay out; the
-speaker runs on the built-in theme until a backup or you bring them. **The unit with `voice_store`:**
-restore its `voices/` along with its config, or the empty album clears every speaker's household
-([voice-id.md](../voice-id.md)).
+speaker runs on the built-in theme until a backup or you bring them. **The unit with `voice_store`:** `tools/restore-unit.sh`
+brings `voices/` back with its config; until then the others keep classifying with what they hold
+and keep their events in memory, up to 200 ([voice-id.md](../voice-id.md)).
 
 ## Limits
 

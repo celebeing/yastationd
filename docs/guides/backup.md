@@ -64,7 +64,6 @@ right after that.
 
 2026-10-31: backups of both Station 3s and both Mini 3s; on a Station 3, a dry run, a rootfs restore
 of one file (the remount, the saved copy, back to `ro`) and a full `rw` restore of its own backup
-(the daemon back in seconds, HA and Music Assistant connected). The Mini 3 Pro was offline: its
-backup is untried, its rw partition is `/data`. A restore after a real factory reset: on a Mini 3 Pro
-through a [golden image](golden-image.md) (2026-10-31), the unit came back whole. Otherwise still to
-be done.
+(the daemon back in seconds, HA and Music Assistant connected). A restore after a real factory reset:
+on a Mini 3 Pro and two Station 3s through a [golden image](golden-image.md) (2026-10-31), each came
+back whole, voices included. A restore reopens network ADB on orion: the marker is in `/data`.

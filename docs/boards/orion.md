@@ -278,9 +278,8 @@ Generic detector limits and the bergamot instance: [docs/research/wakeword-mic-a
   The firmware ships `/bkupgrade` as a symlink to `/ota` (dated with the firmware build), so the
   CFW root is `/bkupgrade/cfw`, like bergamot: every hook, `run.sh`'s gate, `egress.sh` and the
   daemon's fallback probe `/bkupgrade/cfw` first, and the install kit puts its files there. `/ota`
-  is the OTA staging partition; with updates blocked nothing rewrites it. What a factory reset
-  does to `/ota` and `/data` is not characterised yet; the restore package, the partition map
-  and what must be backed up: [permanent-install.md](../research/permanent-install.md#orion--the-restore-payload-is-replaceable-too).
+  is the OTA staging partition; with updates blocked nothing rewrites it. A factory reset
+  reformats `/ota` and `/data`; what else it does, the restore package and the partition map: [permanent-install.md](../research/permanent-install.md#orion--the-restore-payload-is-replaceable-too).
 
 - Ambient light: ltr308 (I2C 0-0053) registered as IIO `light-sensor-top`, `in_intensity_*`
   only; the stock S80light-sensor sets gain 18 / 0.4 s — max values, nothing to override.
