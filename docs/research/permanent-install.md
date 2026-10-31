@@ -13,7 +13,8 @@ static analysis of the local dumps and **read-only** reads on the units (`/proc/
   gesture. The only question is *what* it restores.
 - On **pickle** the restore payload is an unsigned Amlogic burn package in a plain NAND partition, so
   we **can** make the reset land in a known-good CFW instead of stock. That turns "we bricked the
-  rootfs" into a two-minute round trip. This is the recommended goal.
+  rootfs" into a two-minute round trip. **Done once on a real unit (2026-10-31): the reset accepted
+  a rebuilt package**, see [the takeover on pickle](#the-takeover-on-pickle-tried-2026-10-31).
 - On **bergamot** the payload is inside the signed and encrypted recovery image and cannot be
   replaced. The reset always lands in stock. Heavy rootfs experiments belong on pickle.
 - On **orion** (2026-10-31) the payload is the same unsigned burn package as on pickle, with
@@ -65,10 +66,75 @@ static analysis of the local dumps and **read-only** reads on the units (`/proc/
 - The reset **wipes `/data`** (`S00rw-partitions` recreates the volume). Everything the golden image
   needs to boot into a working CFW must live in the rootfs; `/data` holds only per-unit state.
 
+### The takeover on pickle, tried (2026-10-31)
+
+One real run on our unit, by the owner's choice before any USB way back existed: if the recovery
+had refused the package there was no route back from outside. It did not refuse.
+
+**The design that worked: a seed, not a changed boot.** The rootfs got two additions and no edits:
+a copy of `/data/cfw` plus `wpa_supplicant.conf` in `/usr/share/cfw-seed`, and an init hook
+`S00zcfwseed`, which runs right after `S00rw-partitions`. When `/data` is mounted and has no
+`<cfw>/yastationd.conf`, it copies the seed in and writes `<cfw>/seeded`. Everything else (the SSH
+hook, the maind gate, Wi-Fi, the egress lock) finds `/data` as usual and needs no change.
+
+**Order, each step checked before the next:**
+1. fresh backup; hashes of `mtd0`–`mtd8` and the env recorded (all matched the dump);
+2. hook and seed on the live rootfs, with a marker `live-<token>` in `/etc/cfw-image-marker` and
+   `data-<token>` in `/data`. Then a real boot with `/data/cfw` and the Wi-Fi config moved aside:
+   SSH came back in 9 s from the seed. (Not all of `/data` was empty in that test.)
+3. the package built from that same rootfs, differing only in the marker (`golden-<token>`) and a
+   new UBI `image_seq`, which says at a glance where `system` came from;
+4. `mkfs.ubifs -m 4096 -e 253952 -c 1120 -x zlib -f 8 -l 4`, `ubinize -p 256KiB -m 4096 -s 4096
+   -O 4096 -Q <seq>`, `vol_flags=autoresize`: superblock and UBI headers match stock parameter
+   for parameter (`fmt 4`, zlib). `system` grew from 305 to 334 PEBs, the package to 121 MB, 13 MB
+   short of the partition;
+5. the packer first reproduced the stock package byte for byte. In the new one, `system`, its
+   `VERIFY`, the sizes in the header and in the self-referencing `aml_sysrecovery` item, and the
+   CRC changed; every other item is identical. Unpacking the result gave the same 1579 entries as
+   the live rootfs (types, modes, owners, links, hashes), the marker aside;
+6. `flash_erase` + `nandwrite -p` on `mtd6`, read-back equal.
+
+**What the reset did** (mute held at power-on; ring yellow, then blue, then our start animation;
+Linux was up 2 minutes in, the whole thing about as long as a stock reset):
+- `system` was rewritten from the package: marker `golden`, `image_seq` the new one, the volume
+  resized by autoresize from 332 to 468 LEBs on first attach;
+- `/data` was wiped (the probe marker gone, `max_ec` 2) and rebuilt from the seed;
+- `mtd0`–`mtd5`, `recovery`, `boot` and the env kept their hashes; **`aml_sysrecovery` itself was not
+  touched**, so the next reset restores the same image;
+- the vendor stack did not start, the egress lock was on, no onboarding; Wi-Fi, SSH with the same
+  host key, MQTT and Sendspin came back with the same `device_id`, settings and player identity.
+
+So the recovery checks no hash of the package beyond what we recompute, and a changed `system` of
+another size is fine. That closes the first of the unknowns below, on pickle.
+
+**What did not come back: what lives in `/data` outside `<cfw>`.** The Wi-Fi MAC stayed, yet the
+router gave another lease: dhcpcd's client id is `ff` + IAID + DUID, and the DUID in
+`/data/var/db/dhcpcd/duid` is generated anew on an empty `/data`. HA then could not reach the
+satellite at the old address, so the unit showed its "no connection to HA" state. `/data/bt_mac`
+and `/data/bluez_data` were regenerated too. Putting these back from the backup and rebooting
+restored the address and the HA session at once.
+
+**The second round: an image for a board, not a snapshot of a unit** (same day). `tools/golden.sh`
+([guides/golden-image.md](../guides/golden-image.md)) builds one with no key, Wi-Fi or settings;
+the daemon enters setup mode by itself when no network is saved, and the setup page takes SSH keys.
+That changed what the first boot does, and a mistake there can't be cured by a reset, so it was
+proved before the write, while `mtd6` still held a working image: the new hook and seed on the live
+rootfs, `<cfw>` and Wi-Fi moved aside, a temporary hook collecting the result, putting everything
+back and rebooting by itself after 2 minutes. Then the write and a real reset: the access point came
+up, a phone added a key and the Wi-Fi network, and `tools/restore-unit.sh` brought the unit's identity
+back over it (HA, MQTT, Music Assistant, the old host key, DUID and Bluetooth) with no change on
+the HA side. The owner's DHCP lease now goes by MAC. Choices made: USB ADB dropped (the owner's call),
+network ADB not added (root on an open access point).
+
+The image carries no DUID or Bluetooth state, so a reset alone changes them; a backup brings them back.
+
+**Still not known:** whether the recovery rewrites `bootloader` (its hash is the same either way,
+the item being identical), how to reach USB burn, and whether orion behaves alike; a good reason
+to expect so, no proof.
+
 ### Unknowns (encrypted, cannot be read statically)
-- What the recovery program checks before it starts erasing. The package format has no signature,
-  but the recovery *could* contain a hard-coded hash. We consider that unlikely, but it is the one
-  residual risk of the takeover.
+- ~~What the recovery program checks before it starts erasing.~~ Answered on pickle by the run above:
+  it accepted a rebuilt package.
 - Whether the restore also rewrites `bootloader` from the package. That is stock behaviour either
   way, and we keep that item byte-identical.
 - How to force Amlogic USB-burn (ADNL) mode with no working Linux: a boot strap or pad. From a
@@ -238,7 +304,10 @@ Built (2026-10-31): `tools/backup-unit.sh` and `tools/restore-unit.sh`
 stock reset needs the install kit (out of this repo's scope); with it, "reset → kit → restore"
 brings a unit back as it was.
 
-### Status: the takeover is parked (2026-10-31)
+### Status: orion's takeover is parked (2026-10-31)
+
+Pickle has since gone through it ([above](#the-takeover-on-pickle-tried-2026-10-31)), which lowers the
+risk described here for orion, but does not remove it: it is a different recovery image.
 
 **No escape hatch without opening the case.** The case is clipped and glued (sealed), and the owner
 will not open it, so UART and board pads are out. What is left from outside:
