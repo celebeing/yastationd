@@ -80,6 +80,7 @@ type App struct {
 	muted      atomic.Bool      // mic-mute switch latch
 	clock      *timesync.Syncer // nil when time_sync is off
 	setup      *wifisetup.Mode  // Wi-Fi setup mode; nil when off
+	cpu        cpuMeter         // /proc/stat between two reads
 	combo      keyCombo
 	ic         *icState         // intercom; nil when off
 	ship       *logship.Shipper // logs to the LAN syslog server; nil when off

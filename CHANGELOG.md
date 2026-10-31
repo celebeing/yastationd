@@ -3,6 +3,20 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.24.1 — 2026-10-31
+
+**Fixes**
+- Two shared settings changing together could send every speaker into an endless exchange of old
+  values, rewriting `yastationd.conf` many times a second: wear on the flash, high load, a log that
+  turned over in a minute. Two edits of the config no longer undo each other, and a value taken
+  from the other speakers is never sent back.
+- A fuse for whatever else could start that: a shared item changing hands too often pauses the
+  sync on that speaker, 10 minutes and up. A slider dragged on one speaker doesn't trigger it.
+
+**The processor's load as a percentage**
+- The web app's card shows CPU, 0-100 %, in place of the load average, which reads high on these
+  speakers for no reason. `/metrics` gains `yastation_cpu_percent` and keeps `yastation_load`.
+
 ## v0.24.0 — 2026-10-31
 
 **A factory reset that lands in the CFW** ([docs/guides/golden-image.md](docs/guides/golden-image.md))

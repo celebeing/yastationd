@@ -2,12 +2,14 @@ package app
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/celebeing/yastationd/yastationd/internal/mqtt"
 )
@@ -443,5 +445,123 @@ func TestSyncDefaultsStayDefaults(t *testing.T) {
 	s3.onShared("setting", "volume_step", []byte(`{"v":["2"],"at":2,"by":"old"}`))
 	if s3.cfg().VolumeStep != 2 {
 		t.Fatalf("a real override not taken: %d", s3.cfg().VolumeStep)
+	}
+}
+
+// Two shared keys arriving at once: neither edit undoes the other, and nothing goes back out. Before
+// the fix the second edit put the first key back, which read as a local change and was published;
+// on a real broker every speaker then answered every other, without end.
+func TestSyncConcurrentTakesDoNotEcho(t *testing.T) {
+	a := speaker(t, "a")
+	b := newBroker()
+	b.attach(a)
+	msg := func(v string) []byte { return []byte(`{"v":["` + v + `"],"at":1,"by":"b"}`) }
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		speed, wake := "2.25", "ignore"
+		if i%2 == 1 {
+			speed, wake = "1.5", "interrupt"
+		}
+		if i == 49 {
+			speed, wake = "2.25", "ignore"
+		}
+		wg.Add(2)
+		go func() { defer wg.Done(); a.onShared("setting", "marquee_speed", msg(speed)) }()
+		go func() { defer wg.Done(); a.onShared("setting", "wake_while_waiting", msg(wake)) }()
+		wg.Wait()
+	}
+	b.mu.Lock()
+	sent := len(b.queue)
+	b.mu.Unlock()
+	if sent != 0 {
+		t.Errorf("a speaker taking values sent %d messages back", sent)
+	}
+	data, err := os.ReadFile(a.cfg().File)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"marquee_speed = 2.25", "wake_while_waiting = ignore"} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("config lost %q:\n%s", want, data)
+		}
+	}
+}
+
+func fuseSpeaker(t *testing.T) (*App, *fakeBroker, *time.Time, *[]time.Duration) {
+	t.Helper()
+	a := speaker(t, "a")
+	b := newBroker()
+	b.attach(a)
+	now := time.Unix(1000, 0)
+	pauses := &[]time.Duration{}
+	a.shared.now = func() time.Time { return now }
+	a.shared.afterPause = func(d time.Duration) { *pauses = append(*pauses, d) }
+	return a, b, &now, pauses
+}
+
+func sharedSpeed(v, by string) []byte {
+	return []byte(`{"v":["` + v + `"],"at":1,"by":"` + by + `"}`)
+}
+
+func TestSyncFuseAuthorsTakingTurns(t *testing.T) {
+	a, _, now, pauses := fuseSpeaker(t)
+	for i := 0; i < 12; i++ {
+		*now = now.Add(100 * time.Millisecond)
+		a.onShared("setting", "marquee_speed", sharedSpeed(fmt.Sprintf("1.%d", i+1), []string{"b", "c"}[i%2]))
+	}
+	if len(*pauses) != 1 || (*pauses)[0] != fusePause {
+		t.Fatalf("pauses %v", *pauses)
+	}
+	if v := a.cfg().MarqueeSpeed; v == 1.12 {
+		t.Fatalf("speed %v: the change that blew the fuse was taken", v)
+	}
+	// Paused: a new value is kept, not taken, and comes in at the end.
+	a.onShared("setting", "marquee_speed", sharedSpeed("3", "b"))
+	if a.cfg().MarqueeSpeed == 3 {
+		t.Fatal("taken during the pause")
+	}
+	if a.syncViewNow().PausedUntil == 0 {
+		t.Error("the sync view shows no pause")
+	}
+	*now = now.Add(fusePause + time.Second)
+	a.syncResume()
+	if a.cfg().MarqueeSpeed != 3 {
+		t.Fatalf("speed %v after the pause", a.cfg().MarqueeSpeed)
+	}
+}
+
+func TestSyncFuseSliderIsNoStorm(t *testing.T) {
+	a, _, now, pauses := fuseSpeaker(t)
+	for i := 0; i < 100; i++ { // a drag: one author, ten changes a second
+		*now = now.Add(100 * time.Millisecond)
+		a.onShared("setting", "marquee_speed", sharedSpeed(fmt.Sprintf("%.2f", 1+float64(i)/100), "b"))
+	}
+	if len(*pauses) != 0 {
+		t.Fatalf("a slider blew the fuse: %v", *pauses)
+	}
+}
+
+func TestSyncFuseCeilingAndBackoff(t *testing.T) {
+	f := &syncFuse{}
+	now := time.Unix(1000, 0)
+	blow := func() time.Duration {
+		for i := 0; i < 2*fuseChanges; i++ {
+			now = now.Add(10 * time.Millisecond)
+			if d := f.note("setting/x", "a", now); d != 0 {
+				return d
+			}
+		}
+		return 0
+	}
+	want := []time.Duration{fusePause, 2 * fusePause, 4 * fusePause, fusePauseMax, fusePauseMax}
+	for i, w := range want {
+		if d := blow(); d != w {
+			t.Fatalf("trip %d: %v, want %v", i, d, w)
+		}
+		now = f.until.Add(time.Minute)
+	}
+	now = now.Add(fuseForgetsIn + time.Minute)
+	if d := blow(); d != fusePause {
+		t.Fatalf("after quiet hours: %v", d)
 	}
 }

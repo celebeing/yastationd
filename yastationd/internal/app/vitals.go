@@ -22,6 +22,7 @@ type vitals struct {
 	DaemonUptime int64      `json:"daemon_uptime_s"`
 	SystemUptime int64      `json:"system_uptime_s,omitempty"` // since the speaker booted
 	Load         []float64  `json:"load,omitempty"`            // 1, 5, 15 min
+	CPUPercent   *float64   `json:"cpu_percent,omitempty"`     // 0-100, all cores (cpu.go)
 	CPUs         int        `json:"cpus"`
 	MemTotal     int64      `json:"mem_total,omitempty"` // bytes
 	MemFree      int64      `json:"mem_free,omitempty"`
@@ -58,6 +59,9 @@ func (a *App) readVitals() vitals {
 				v.Load = nil
 			}
 		}
+	}
+	if pct, ok := a.cpuPercent(c.Path("/proc/stat")); ok {
+		v.CPUPercent = &pct
 	}
 	v.MemTotal, v.MemFree, v.MemAvailable = memField(c.Path("/proc/meminfo"), "MemTotal:", "MemFree:", "MemAvailable:")
 	v.DaemonRSS, _, _ = memField(c.Path("/proc/self/status"), "VmRSS:", "", "")
@@ -178,6 +182,9 @@ func (a *App) systemMetrics(w io.Writer, dev string) {
 		for i, span := range []string{"1m", "5m", "15m"} {
 			fmt.Fprintf(w, "yastation_load{device=%q,span=%q} %s\n", dev, span, strconv.FormatFloat(v.Load[i], 'f', 2, 64))
 		}
+	}
+	if v.CPUPercent != nil {
+		fmt.Fprintf(w, "# TYPE yastation_cpu_percent gauge\nyastation_cpu_percent{device=%q} %s\n", dev, strconv.FormatFloat(*v.CPUPercent, 'f', 1, 64))
 	}
 	if len(v.Temps) > 0 {
 		fmt.Fprintf(w, "# TYPE yastation_temperature_celsius gauge\n")

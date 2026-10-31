@@ -476,3 +476,11 @@ the other project's scope):
   done.
 - The aarch64 spotter-host built against pickle's sysroot runs here unchanged (both
   firmwares have glibc 2.36), so `build/aarch64/` serves both boards.
+
+## Load average reads high
+
+A kernel thread `vmap_thread` sits in uninterruptible sleep all the time (`msleep`), which counts as
+one full running process, and the audio threads' short bursts add the rest: load average runs at
+about 2 on an idle-looking unit with most of the processor free (measured 2026-10-31). The web app
+shows the processor's percentage instead; `yastation_load` stays in `/metrics`, next to
+`yastation_cpu_percent`.
