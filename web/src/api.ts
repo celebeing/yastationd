@@ -230,6 +230,21 @@ export const lightCal = (id: string, base: string) => authed<LightCal>(id, base,
 export const calibrateLight = (id: string, base: string, lux: number) =>
   authed<LightCal>(id, base, '/api/calibrate/light', { method: 'POST', body: JSON.stringify({ lux }) }, 40000)
 export const removeLightCal = (id: string, base: string) => authed<LightCal>(id, base, '/api/calibrate/light', { method: 'DELETE' })
+/** Acoustic measurement (Station 3): three -40 dBFS-or-quieter sweeps, voice paused. */
+export type AcousticCal = {
+  supported: boolean
+  running: boolean
+  stage?: string
+  level_dbfs?: number
+  captures?: { reference_peak_lsb: number; mic_clipped: boolean; accepted: boolean }[]
+  error?: string
+  updated?: number
+}
+export const acousticCal = (id: string, base: string) => authed<AcousticCal>(id, base, '/api/calibrate/acoustic')
+export const startAcousticCal = (id: string, base: string, level: number) =>
+  authed<AcousticCal>(id, base, '/api/calibrate/acoustic', { method: 'POST', body: JSON.stringify({ level_dbfs: level }) })
+export const cancelAcousticCal = (id: string, base: string) =>
+  authed<AcousticCal>(id, base, '/api/calibrate/acoustic', { method: 'DELETE' })
 /** diag fetches the speaker's diagnostics archive (docs/guides/diagnostics.md): redacted unless raw. */
 /** download GETs a file behind the login: its bytes and the name the speaker gives it. */
 async function download(id: string, base: string, path: string, fallback: string, timeoutMs = 30000): Promise<{ blob: Blob; name: string }> {

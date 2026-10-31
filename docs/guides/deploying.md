@@ -23,6 +23,7 @@ scripts branch on its existence.
 | `<cfw>/yastationd.conf` | config (generic `yastationd/configs/yastationd.conf.example`; Orion bring-up `orion.conf.example`) |
 | `<cfw>/board.conf` | optional per-unit overrides of board-profile keys |
 | `<cfw>/yastationd.state` | persisted UI state (ring, display, volume, brightness, ambilight effects…), written by the daemon |
+| `<cfw>/acoustic-calibration.json` | the last acoustic measurement run's verdicts (Station 3; never audio), written by the daemon when a run ends |
 | `<cfw>/sounds/*.wav` | decoded vendor voice lines and call sounds (`make sounds`) |
 | `<cfw>/vendor/vqe_models/noise_reducer/model.nnet` | the VQE's call-mode noise reducer, for the intercom (`make vqe-models`) |
 | `<cfw>/vendor/bio_lingware/` | voice ID's voiceprint model for a unit whose firmware has only the old one (Mini 3 0.6.x; `make voice-models VOICE_MODELS=<a newer firmware's bio_lingware>`; [voice-id.md](../voice-id.md)) |

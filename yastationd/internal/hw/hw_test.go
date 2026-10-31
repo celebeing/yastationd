@@ -131,6 +131,32 @@ func TestMixerArgs(t *testing.T) {
 	}
 }
 
+func TestMixerSetRestoring(t *testing.T) {
+	var got [][]string
+	m := &Mixer{Card: "0", run: func(args ...string) (string, error) {
+		got = append(got, args)
+		if args[2] == "cget" {
+			return "numid=30,iface=MIXER,name='Loopback tdmin lb source'\n  : values=5\n", nil
+		}
+		return "", nil
+	}}
+	restore, err := m.SetRestoring("Loopback tdmin lb source", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := restore(); err != nil {
+		t.Fatal(err)
+	}
+	want := [][]string{
+		{"-c", "0", "cget", "name=Loopback tdmin lb source"},
+		{"-c", "0", "cset", "name=Loopback tdmin lb source", "1"},
+		{"-c", "0", "cset", "name=Loopback tdmin lb source", "5"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("argv = %q, want %q", got, want)
+	}
+}
+
 // The decimator passes speech-band tones, suppresses what would alias above 8 kHz, and works
 // for both capture rates in use (bergamot/pickle 48 kHz, orion 96 kHz through mroute).
 func TestDecimator(t *testing.T) {

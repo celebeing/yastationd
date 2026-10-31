@@ -709,6 +709,7 @@ export function CalibrationTab({ peer, base }: { peer: Peer; base: string }) {
   }
 
   return (
+    <>
     <section class="card narrow">
       <h3>Light sensor</h3>
       {cal && (
@@ -781,6 +782,94 @@ export function CalibrationTab({ peer, base }: { peer: Peer; base: string }) {
           ))}
       </div>
       {msg && <p class="small ok">{msg}</p>}
+      {err && <p class="err">{err}</p>}
+    </section>
+    <AcousticCalCard peer={peer} base={base} />
+    </>
+  )
+}
+
+/** AcousticCalCard: the speaker measuring its own response in the room (Station 3). Opt-in,
+ * never automatic: the owner starts an audible ~20 s run of three sweeps; the level picker only
+ * goes quieter than the tested -40 dBFS ceiling, and voice/wake come back by themselves afterwards. */
+export function AcousticCalCard({ peer, base }: { peer: Peer; base: string }) {
+  const [cal, setCal] = useState<api.AcousticCal | null>(null)
+  const [level, setLevel] = useState(-40)
+  const [confirm, setConfirm] = useState(false)
+  const [err, setErr] = useState('')
+  const load = () => api.acousticCal(peer.id, base).then(setCal, (e: any) => setErr(e.message || String(e)))
+  useEffect(() => {
+    load()
+  }, [peer.id])
+  useEffect(() => {
+    if (!cal?.running) return
+    const t = setInterval(load, 1000)
+    return () => clearInterval(t)
+  }, [cal?.running, peer.id])
+
+  async function start() {
+    setConfirm(false)
+    setErr('')
+    try {
+      setCal(await api.startAcousticCal(peer.id, base, level))
+    } catch (e: any) {
+      setErr(e.message || String(e))
+    }
+  }
+  async function cancel() {
+    setErr('')
+    try {
+      setCal(await api.cancelAcousticCal(peer.id, base))
+    } catch (e: any) {
+      setErr(e.message || String(e))
+    }
+  }
+  if (cal && !cal.supported) return null
+  const done = cal && !cal.running && cal.captures?.length ? cal.captures : null
+  return (
+    <section class="card narrow" id="acoustic">
+      <h3>Speaker and room response</h3>
+      <p class="small">
+        The speaker plays three soft 4-second measurement sweeps and records them itself — about 20 seconds in
+        total. You will hear them. The wake word and voice control pause for the run and come back on their own.
+      </p>
+      <ul class="small steps">
+        <li>Stop music, calls and speech before starting — the measurement needs a quiet, still room.</li>
+        <li>Stay still and keep others out of the room while it runs.</li>
+        <li>The result is a report only: nothing is changed in how the speaker sounds.</li>
+      </ul>
+      {cal?.running ? (
+        <div class="row">
+          <button disabled>{cal.stage || 'Measuring…'}</button>
+          <button class="ghost" onClick={cancel}>Cancel</button>
+        </div>
+      ) : confirm ? (
+        <div class="row">
+          <span class="small">Play three audible sweeps now?</span>
+          <button class="primary" onClick={start}>Start calibration</button>
+          <button onClick={() => setConfirm(false)}>Not now</button>
+        </div>
+      ) : (
+        <div class="row">
+          <label class="inline small">
+            Level
+            <select value={level} onChange={(e) => setLevel(+e.currentTarget.value)}>
+              <option value={-40}>Standard (-40 dBFS)</option>
+              <option value={-45}>Quiet (-45 dBFS)</option>
+              <option value={-50}>Very quiet (-50 dBFS)</option>
+            </select>
+          </label>
+          <button class="primary" onClick={() => setConfirm(true)}>Start calibration…</button>
+        </div>
+      )}
+      {done && (
+        <p class="small">
+          {done.some((c) => !c.accepted)
+            ? 'Rejected: a capture was invalid — keep the room still and quiet, then try again.'
+            : `Accepted: ${done.length} capture${done.length > 1 ? 's' : ''} measured.`}
+        </p>
+      )}
+      {cal && !cal.running && cal.error && <p class="err">{cal.error}</p>}
       {err && <p class="err">{err}</p>}
     </section>
   )

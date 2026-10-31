@@ -254,12 +254,29 @@ does not block array-phase work. The first experiment will still tell us whether
 
 ## The mics' frequency response: a speaker as a measurement mic
 
-**Status:** idea (2026-10-26); nothing measured.
+**Status:** measured on orion (2026-10-30); offline analyzer built; on-device measurement
+shipped (2026-10-31, [acoustic-calibration.md](acoustic-calibration.md)) — report only;
+correction not built.
 
-With the mics' frequency response known, a speaker could serve as a reference microphone:
+An orion can record its own six-channel `TDMOUTB` digital playback reference together with the
+raw PDM microphones. A low-level logarithmic sweep and cross-spectrum analysis now measure a
+speaker/room's *relative* response and reject moved-capture outliers: three stationary captures
+from one room varied by at most 1.9 dB per band; two from another room varied by at most 0.8 dB;
+a capture made while a person walked nearby was rejected at 2.78 dB. This is not a calibrated
+microphone response: the speaker, its room and its placement are part of the result.
+
+Any owner-facing acoustic analysis or correction is **per-speaker opt-in**. It is off by default:
+opening its UI, restarting the daemon, or upgrading the CFW must neither play a sweep, retain a
+calibration, nor alter audio. The owner must explicitly start an audible measurement and
+explicitly enable any derived correction; the UI must show the accepted/rejected captures and
+provide a bypass and delete-calibration action. The current host-side analyzer only produces a
+report and has no path that changes speaker playback or DSP.
+
+With an absolute mic response known, a speaker could also serve as a reference microphone:
 measure another speaker's frequency response in the room (a sweep from one, recorded by the
 other), find room modes, check what an EQ or the amp's settings do, compare units (the Mini 3
-firmwares tune the amp differently, [docs/guides/deploying.md](guides/deploying.md) §7). What we have and lack:
+firmwares tune the amp differently, [docs/guides/deploying.md](guides/deploying.md) §7). What we
+have and lack:
 
 - **No published response.** The vendor does not publish the mics' parts or curves. The PDM
   mics are probably common MEMS parts with a flat response from ~100 Hz to ~10 kHz and a rise

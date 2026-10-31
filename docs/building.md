@@ -124,6 +124,12 @@ and `-index <url>` read manifests for the asset repo's scripts; [asset-packs.md]
 `cmd/ledsim` and `cmd/demoreel` simulate the LEDs (`tools/build.sh hosttool:ledsim`, then
 `yastationd/build/ledsim …`; [led-preview.md](led-preview.md)). `cmd/videoconv` needs ffmpeg, so it
 runs in the tools image (`make video-convert`, [video-mode.md](video-mode.md)).
+`cmd/sweep-analyze` analyses orion's direct `hw:0,3` sweep captures offline
+(`tools/analyze-sweeps.sh <report.json> <capture.raw>…` builds it with `hosttool:sweep-analyze` and
+runs it): it writes a JSON report atomically, never contacts a speaker, compares the 1–8 kHz
+one-third-octave response across three or more captures and rejects a capture whose median
+high-band deviation exceeds 1.5 dB as a likely motion/noise outlier
+([acoustic-calibration.md](acoustic-calibration.md)).
 
 ## What the host needs
 
@@ -142,8 +148,8 @@ ssh.
 | `make pack` | Go (`cmd/packtool`) | `tools/build.sh packtool`, then the static binary on the host |
 | `make stage-ringdemo` / `stage-fbleddemo` | Go | `make:build-ringdemo` / `make:build-fbleddemo`, then ssh |
 | `make vqe-models`, `deploy-egress`, `ota-block`, `deploy` | — | ssh only (`deploy` = `tools/deploy.sh`) |
-| `tools/fetch-vendor.sh`, `tools/board-survey.sh`, `tools/orion-*.sh` | — | ssh and tar only |
-| ledsim, demoreel | Go | `tools/build.sh hosttool:<cmd>`, then the binary |
+| `tools/fetch-vendor.sh`, `tools/board-survey.sh`, `tools/orion-*.sh`, `tools/capture-raw.sh` | — | ssh and tar only |
+| ledsim, demoreel, sweep-analyze | Go | `tools/build.sh hosttool:<cmd>`, then the binary (`tools/analyze-sweeps.sh` does both) |
 | the asset repo's `tools/build-packs.sh`, `pack-index.sh` | Go, jq (before) | packtool built here (`packtool`, `-get`, `-index`) |
 
 `make build`, `make test`, `make vet` and the `*-convert`/`*-in` targets are what the images run

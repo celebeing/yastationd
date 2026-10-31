@@ -90,6 +90,11 @@ func TestIntercomVoiceScenario(t *testing.T) {
 	office.cmdIntercomCall([]byte(`{"to":"bedroom"}`))
 	wait(office, intercom.Calling)
 	wait(bedroom, intercom.Ringing)
+	for end := time.Now().Add(3 * time.Second); time.Now().Before(end); time.Sleep(5 * time.Millisecond) {
+		if bedroom.ringStack.Has("intercom") {
+			break
+		}
+	}
 	if !bedroom.ringStack.Has("intercom") {
 		t.Error("no ringing indication")
 	}

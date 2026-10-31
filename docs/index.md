@@ -49,6 +49,7 @@ have their own indexes, read when the task needs them:
 | [ssh.md](ssh.md) | SSH on the speaker: dropbear (default) or OpenSSH (certificates, SFTP), how it is chosen, switching through port 2222, boot |
 | [wifi-setup.md](wifi-setup.md) | The Wi-Fi setup mode: the key combo, the access point, the setup page, the handoff back |
 | [sensor-calibration.md](sensor-calibration.md) | The light sensor in lux and the mic in dB SPL: board base and per-speaker overrides |
+| [acoustic-calibration.md](acoustic-calibration.md) | The speaker measuring its own room response (Station 3): opt-in sweeps, the safety cap, the report; no correction path |
 | [storage.md](storage.md) | Flash and its wear, what the daemon writes, logs and their shipping, the network watchdog |
 | [design.md](design.md) | The look: the logo, the palette, type, layout patterns, copy |
 
