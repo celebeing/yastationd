@@ -3,7 +3,7 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.24.0 — 2026-10-31
 
 **A factory reset that lands in the CFW** ([docs/guides/golden-image.md](docs/guides/golden-image.md))
 - `tools/golden.sh` builds a restore image from a speaker running the CFW and writes it to
