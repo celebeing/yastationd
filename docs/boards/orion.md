@@ -88,10 +88,18 @@ transient (see "Mic capture"); it does not block on-device wake/VQE work.
   | 129 | −35 | −39…−52 | 37–41 dB | 7 → 12 dB | −81…−85 / −51…−55 | −122…−138 / −55…−88 |
 
   Echo reduction is raw mic to `vqe_0` over 5–16 s. The value-1 capture with its references
-  replaced by silence gives 1–4 dB, so value 5 is a working reference, and at the higher volume
-  a much worse one. It improved within the take, so 14 s may be short for it to converge. The
-  room alone: `vqe_0` −86, `vqe_bnr` −90. One take per case, no voice in them: recall over music
-  is not measured, and a BNR output far below the room's floor may take speech with it.
+  replaced by silence gives 1–4 dB, so value 5 is a working reference. The 129 row is not its
+  settled state: value 5 only converges slowly, see the next point.
+- **«Алиса» over music, same A/B (2026-11-01):** raw master 129, four 40 s blocks in the order
+  1-5-5-1, one owner's voice from one place every ~2 s, each capture run offline through
+  `spotter-host serve` with the live arguments. Value 1: 29 wakes of about 34 words. Value 5: 33
+  of about 36. The value-1 blocks with their references silenced: 11. The word counts are
+  estimates (speech bursts in `vqe_0`, near misses, gaps), so the two are level, and the AEC is what
+  makes the word work over music. `vqe_0` settles at about −62 dBFS within 5 s with value 1,
+  and reaches the same level only after 20–30 s with value 5; `vqe_bnr` is −75…−82 against
+  −65…−67. Value 5 also gave two false commands in the music (`включи свет`, `выше`), value 1
+  none; too few to mean much. The speaker stays on value 5: value 1 gains faster convergence and
+  no measured recall.
 - `mroute` exposes five of those six TDM-B slots as indices 6–10; it deliberately omits raw
   loopback channel 10. Its indices 11–12 remain the `us` codec's TDM-A capture slots, dead
   LSB unless a TDM-A stream is active. No userspace channel-remapping bug was involved.
