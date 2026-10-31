@@ -66,7 +66,11 @@ overwritten.
 5. Add your Wi-Fi network, fill in the home settings, press **Connect now**.
 
 Until someone does that, anyone in Wi-Fi range can do it: the network is open, as setup mode always
-is. There is no USB or network ADB on this path, deliberately.
+is. USB ADB is not on this path, by the owner's choice. Network ADB isn't either, for now, though the
+policy in [ssh.md](../ssh.md) allows it until the first SSH login ([backlog.md](../backlog.md)).
+
+**On a unit running on certificates** ([ssh.md](../ssh.md)): the key you add here stays in
+`<cfw>/authorized_keys` after a restore. Empty that file when the certificate works again.
 
 **Your old unit back:** `tools/restore-unit.sh root@<speaker-ip> <backup-dir>` then a reboot
 (`REBOOT=1`): config, identity, Sendspin, voices, host keys, DUID, Bluetooth pairings

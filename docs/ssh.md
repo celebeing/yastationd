@@ -77,6 +77,20 @@ old one (kept as `.prev`).
 `<cfw>/authorized_keys` holds the keys added from the Wi-Fi setup page ([wifi-setup.md](wifi-setup.md));
 OpenSSH reads it next to `/root/.ssh/authorized_keys`.
 
+**Open ADB is a break-glass, not a hole, while either holds:**
+
+- a reset of the unit lands in the factory firmware;
+- the unit has not yet joined its target Wi-Fi and been logged into over SSH.
+
+Past both, it goes. So a unit with a golden image, once reached over SSH, has no business with ADB.
+
+A speaker can run on certificates alone: with the CA and principals in place, empty
+`authorized_keys`, and on orion remove `/data/quasar_activate_*` and `yandex-debugctl stop` to close
+ADB. **Check a login by certificate only first** (`ssh -F /dev/null -i <key> -o IdentityAgent=none`;
+your own `~/.ssh/config` may hide what really logged in). The way back without a certificate is the
+key combo's setup page, which adds a key; dropbear, the fallback, takes no certificates. A restore of
+an older backup brings its keys and ADB markers back.
+
 ## Boot
 
 The install kit's `/etc/init.d/S42zdropbear` starts dropbear and knows nothing of

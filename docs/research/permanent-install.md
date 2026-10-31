@@ -183,7 +183,9 @@ Details and the steps: [guides/golden-image.md](../guides/golden-image.md#orion)
 **ADB.** `onboot.sh` (from the boot hook, before `run.sh`, so even with maind gated) calls
 `activate_adb.sh check`, which turns ADB on when a marker exists in `/data`
 (`quasar_activate_adb_{sound,quasmodrom,glagol}`, `quasar_activate_network_adb` for the network).
-maind isn't needed for it. A reset empties `/data` and closes it; a restore of `/data` reopens it.
+maind isn't needed for it. A reset empties `/data` and closes it; a restore of `/data` reopens it if
+the backup has the markers. Removing them and `yandex-debugctl stop` closes it for good, reboots
+included (both Station 3s, 2026-10-31). When it may stay open: the policy in [ssh.md](../ssh.md).
 
 ## bergamot — the restore payload is not replaceable
 
