@@ -233,9 +233,8 @@ Music Assistant noticing nothing. What they depend on lives almost entirely in `
 | rootfs edits | the vendor repo's per-unit `paths` list | hooks, gate, OTA stub |
 | MAC, serial | probably `reserved` (Amlogic unifykey, read by `keyman` in the env's `cmdline_keys`); not dumped yet | same MAC → same DHCP lease and address |
 
-Plan (none of it built): a backup script (read-only on the unit: tars of `/ota`, `/data` and the
-edited rootfs files, `dd` of `reserved`, `env`, `misc`, `system`, with sha256s, into gitignored
-`dumps/`); a restore script for a unit reachable over SSH; then one stock reset of a dev unit with
+Built (2026-10-31): `tools/backup-unit.sh` and `tools/restore-unit.sh`
+([guides/backup.md](../guides/backup.md)); every reachable unit backed up. Next: one stock reset of a dev unit with
 marker files in the rootfs, `/data` and `/ota` as the rehearsal of both, which also answers what
 `fr` does. Getting back in after a stock reset needs the install kit (out of this repo's scope).
 

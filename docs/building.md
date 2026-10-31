@@ -142,7 +142,7 @@ ssh.
 | `make pack` | Go (`cmd/packtool`) | `tools/build.sh packtool`, then the static binary on the host |
 | `make stage-ringdemo` / `stage-fbleddemo` | Go | `make:build-ringdemo` / `make:build-fbleddemo`, then ssh |
 | `make vqe-models`, `deploy-egress`, `ota-block`, `deploy` | — | ssh only (`deploy` = `tools/deploy.sh`) |
-| `tools/fetch-vendor.sh`, `tools/board-survey.sh`, `tools/orion-*.sh` | — | ssh and tar only |
+| `tools/fetch-vendor.sh`, `tools/board-survey.sh`, `tools/orion-*.sh`, `tools/backup-unit.sh`, `tools/restore-unit.sh` | — | ssh, tar, gzip, sha256sum only |
 | ledsim, demoreel | Go | `tools/build.sh hosttool:<cmd>`, then the binary |
 | the asset repo's `tools/build-packs.sh`, `pack-index.sh` | Go, jq (before) | packtool built here (`packtool`, `-get`, `-index`) |
 
