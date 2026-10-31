@@ -41,7 +41,7 @@ not be recoverable by us. Hence the hard rules:
   not remove the flag and do not run the vendor binaries or `onboot.sh` in ways that start the
   stack. Reusing the vendor voice front-end through our own host that `dlopen`s
   `libyandex_evil.so` is fine (it does not start the stack). You may add a second guard
-  (`chmod -x maind`), but **never delete** the vendor blobs: the front-end library is needed, deletion
+  (`chmod -x maind`), but **never delete** the vendor blobs (the one exception: `tools/devendor.sh`, on a unit with a golden image, [docs/guides/devendor.md](docs/guides/devendor.md)): the front-end library is needed, deletion
   loses reversibility, and a bad delete can break boot. Internet egress stays blocked at two
   independent layers (on-device `egress.sh lock` + the router), and the CFW talks only to the LAN.
 - **Never allow a firmware update.** An update replaces the rootfs, removes the CFW and brings the
