@@ -77,16 +77,21 @@ transient (see "Mic capture"); it does not block on-device wake/VQE work.
   six channels, while its acoustic microphone pickup was only about −88 dBFS. The daemon
   leaves the mux at value 5 and takes value 1 only for an acoustic measurement, with its own
   capture closed ([acoustic-calibration.md](../acoustic-calibration.md)).
-- **The AEC reference, A/B on one unit (2026-11-01):** the same 14 s of music at raw master 71,
-  daemon stopped, each `mroute` capture run offline through `spotter-host vqe`. With value 5 the
-  reference indices 6–10 are live, not silent: −67, −67, −62, −54, −54 dBFS against −7.5 on all
-  five with value 1. They are weak below 300 Hz; what feeds them is not established (the amps'
-  feedback is the guess). Echo reduction, raw mic to `vqe_0` over 5–16 s: 29–30 dB with value 1,
-  25–33 dB with value 5, falling within the take; the same value-1 capture with the references
-  replaced by silence, 1 dB. So the AEC already works on stock routing. The difference is in
-  `vqe_bnr`: −108…−117 dBFS with value 1, −68…−82 with value 5, against −84…−90 for the room
-  alone. One take at one quiet volume, no voice in it: recall over music is not measured, and
-  a BNR output below the room's floor may take speech with it. Value 1 stays a candidate.
+- **The AEC reference, A/B on one unit (2026-11-01):** the same 14 s of music, daemon stopped,
+  each `mroute` capture run offline through `spotter-host vqe`, the sound levels in dBFS RMS.
+  With value 5 the reference indices 6–10 are live, not silent, and follow the volume; with
+  value 1 they stay at −7.5 whatever the volume, so that signal is taken before `Master`.
+
+  | Raw master | Mic 0 | Refs, value 5 | Echo reduction, value 1 | Echo reduction, value 5 | `vqe_0`, value 1 / 5 | `vqe_bnr`, value 1 / 5 |
+  |---|---|---|---|---|---|---|
+  | 71 | −50 | −54…−67 | 29–30 dB | 33 → 25 dB | −80…−82 / −76…−85 | −108…−117 / −68…−82 |
+  | 129 | −35 | −39…−52 | 37–41 dB | 7 → 12 dB | −81…−85 / −51…−55 | −122…−138 / −55…−88 |
+
+  Echo reduction is raw mic to `vqe_0` over 5–16 s. The value-1 capture with its references
+  replaced by silence gives 1–4 dB, so value 5 is a working reference, and at the higher volume
+  a much worse one. It improved within the take, so 14 s may be short for it to converge. The
+  room alone: `vqe_0` −86, `vqe_bnr` −90. One take per case, no voice in them: recall over music
+  is not measured, and a BNR output far below the room's floor may take speech with it.
 - `mroute` exposes five of those six TDM-B slots as indices 6–10; it deliberately omits raw
   loopback channel 10. Its indices 11–12 remain the `us` codec's TDM-A capture slots, dead
   LSB unless a TDM-A stream is active. No userspace channel-remapping bug was involved.
