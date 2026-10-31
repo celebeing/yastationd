@@ -5,11 +5,15 @@
 #   tools/golden.sh build <ssh-target> <platform> [work-dir]
 #       From a donor running the CFW: its rootfs, its restore package and the part of <cfw> that is
 #       not the owner's (a list below) go into a new package in work-dir (default
-#       dumps/golden/<platform>-<time>, gitignored: it holds vendor files, never publish it).
+#       dumps/golden/<platform>-<time>, gitignored: it holds vendor files, never publish it). The
+#       unit's package stays there as stock.img.
 #       Nothing on the speaker changes (a bind mount, undone at once). No keys, Wi-Fi, settings.
 #   tools/golden.sh flash <ssh-target> <image>
 #       Write a package (golden.img, or a stock dump to go back) into the unit's aml_sysrecovery,
 #       check it by reading it back. A normal boot never reads that partition; a reset does.
+#
+#       Only pickle has been through a reset. On any other board it refuses without
+#       UNTRIED=<board>: a package the recovery refuses there has no way back.
 #
 # Env: SSHKEY as for deploy.sh. The host needs docker, sh, ssh.
 set -eu
@@ -74,6 +78,14 @@ flash() {
 	[ -f "$img" ] || die "no $img"
 	magic=$(od -An -tx4 -j8 -N4 "$img" | tr -d ' ')
 	[ "$magic" = 27b51956 ] || die "$img is not a restore package"
+	compat=$(ssh_ 'tr "\0" " " </proc/device-tree/compatible' </dev/null) || die "ssh to $target"
+	case $compat in
+	*yandex,pickle*) ;;
+	*)
+		board=$(echo "$compat" | sed -n 's/.*yandex,\([a-z0-9]*\) .*/\1/p')
+		[ "${UNTRIED:-}" = "$board" ] || die "nobody has reset a $board with a rebuilt package yet (docs/guides/golden-image.md); a refusal has no way back. UNTRIED=$board to write it anyway"
+		;;
+	esac
 	sum=$(sha256sum "$img" | cut -d' ' -f1)
 	size=$(wc -c <"$img")
 	ssh_ "$FINDDEV"'
@@ -116,5 +128,5 @@ cmd=${1:-}
 case $cmd in
 build) build "$@" ;;
 flash) flash "$@" ;;
-*) sed -n '2,15p' "$0" >&2; exit 2 ;;
+*) sed -n '2,18p' "$0" >&2; exit 2 ;;
 esac

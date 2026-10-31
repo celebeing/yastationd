@@ -68,7 +68,7 @@ def repack(stock, new):
     if ver["off"] != tail:
         die("no VERIFY right after `system`: an unknown package layout")
     delta = len(new) - sysit["sz"]
-    if delta % 16:
+    if delta % 4:  # stock packages keep the items after `system` on 4 bytes (orion's on no more)
         die("the new `system` breaks the items' alignment")
     verify = b"sha1sum " + hashlib.sha1(new).hexdigest().encode()
     if len(verify) != ver["sz"]:
@@ -248,27 +248,54 @@ def build_ext4(work, t, item):
     return (work / "system.new").read_bytes()
 
 
-def verify_ubi(work, t, new):
-    """Unpack the new image with another tool: the same entries, owners, modes and contents."""
-    (work / "system.new").write_bytes(new)
+def unpack_ubi(work):
     out = work / "check"
-    shutil.rmtree(out, ignore_errors=True)
     run("ubireader_extract_files", "-k", "-o", out, work / "system.new", stdout=subprocess.DEVNULL)
-    got = next(out.glob("*/*"))
+    return next(out.glob("*/*"))
+
+
+def unpack_ext4(work):
+    out = work / "check"
+    out.mkdir()
+    run("debugfs", "-R", f"rdump / {out}", work / "system.ext4", stderr=subprocess.DEVNULL)
+    return out
+
+
+def ext4_mode(work, path):
+    out = subprocess.run(["debugfs", "-R", f"stat /{path}", str(work / "system.ext4")],
+                         capture_output=True, text=True).stdout
+    return int(re.search(r"Mode:\s+(\d+)", out).group(1), 8)
+
+
+def verify(work, t, unpack):
+    """Unpack the new image with another tool: the same entries, owners, modes and contents."""
+    shutil.rmtree(work / "check", ignore_errors=True)
+    got = unpack(work)
 
     def listing(root):
         r = {}
-        for p in [root, *root.rglob("*")]:
+        for p in root.rglob("*"):
+            if p.relative_to(root).parts[0] == "lost+found":
+                continue
             st = p.lstat()
             kind = "l" + os.readlink(p) if p.is_symlink() else "d" if p.is_dir() else hashlib.sha256(p.read_bytes()).hexdigest()
-            r[p.relative_to(root).as_posix()] = (st.st_mode & 0o7777 if not p.is_symlink() else 0, st.st_uid, st.st_gid, kind)
+            # debugfs's rdump drops setuid and sticky: those are read from the image below.
+            r[p.relative_to(root).as_posix()] = (st.st_mode & mask if not p.is_symlink() else 0, st.st_uid, st.st_gid, kind)
         return r
 
+    sparse = unpack is unpack_ext4
+    mask = 0o777 if sparse else 0o7777
     a, b = listing(t), listing(got)
+    if sparse:
+        for p in t.rglob("*"):
+            want = p.lstat().st_mode & 0o7777
+            if not p.is_symlink() and want & 0o7000 and ext4_mode(work, p.relative_to(t).as_posix()) != want:
+                die(f"special mode bits lost on {p.relative_to(t)}")
     if a != b:
         bad = sorted(k for k in a.keys() | b.keys() if a.get(k) != b.get(k))
         die(f"the unpacked image differs from the tree in {len(bad)} entries: {bad[:8]}")
     print(f"  unpacked image matches the tree: {len(a)} entries", flush=True)
+    shutil.rmtree(work / "check")
 
 
 def main():
@@ -286,7 +313,8 @@ def main():
     sparse = struct.unpack_from("<I", item, 0)[0] == SPARSE
     new = build_ext4(work, t, item) if sparse else build_ubi(work, t, item)
     if not sparse:
-        verify_ubi(work, t, new)
+        (work / "system.new").write_bytes(new)
+    verify(work, t, unpack_ext4 if sparse else unpack_ubi)
     print("== package", flush=True)
     out = repack(stock, new)
     _, oi = parse(out)
@@ -302,6 +330,8 @@ def main():
         f"platform {platform}\nversion {(work / 'version').read_text().strip()}\nsize {len(out)}\n"
         f"sha256 {sha}\nimage_seq {SEQ}\nsystem {len(new)} (stock {len(item)})\n")
     print((work / "golden.txt").read_text())
+    for f in ("stock.ext4", "stock.sparse", "system.ext4", "system.new", "rootfs.ubifs"):
+        (work / f).unlink(missing_ok=True)  # up to a GiB each
 
 
 main()

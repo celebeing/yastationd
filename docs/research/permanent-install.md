@@ -306,6 +306,10 @@ brings a unit back as it was.
 
 ### Status: orion's takeover is parked (2026-10-31)
 
+An image for orion builds and passes the host's checks (`tools/golden.sh build`, 2026-10-31): 661 MB, 2018 entries equal to
+the donor's, read-only on the unit. That says nothing about the reset; nothing was written. What remains
+and how outcomes would read: [guides/golden-image.md](../guides/golden-image.md#orion-untried).
+
 Pickle has since gone through it ([above](#the-takeover-on-pickle-tried-2026-10-31)), which lowers the
 risk described here for orion, but does not remove it: it is a different recovery image.
 
