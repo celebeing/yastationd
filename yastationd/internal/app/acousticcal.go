@@ -94,7 +94,7 @@ func (a *App) apiAcousticCal(w http.ResponseWriter, r *http.Request) {
 		a.acousticStop = cancel
 		a.acousticMu.Unlock()
 		go a.runAcousticCalibration(ctx, in.LevelDBFS)
-	writeJSON(w, http.StatusAccepted, a.acousticView())
+		writeJSON(w, http.StatusAccepted, a.acousticView())
 	case http.MethodDelete:
 		a.acousticMu.Lock()
 		if a.acousticStop != nil {
@@ -238,7 +238,7 @@ func acousticSweep(levelDBFS int) []byte {
 	out := make([]byte, n*2)
 	amplitude := 32767 * math.Pow(10, float64(levelDBFS)/20)
 	fade := acousticSweepRate / 10
-	k := math.Log(10000.0 / 100.0) / acousticSweepSeconds
+	k := math.Log(10000.0/100.0) / acousticSweepSeconds
 	for i := 0; i < acousticSweepRate*acousticSweepSeconds; i++ {
 		t := float64(i) / acousticSweepRate
 		gain := 1.0
@@ -247,7 +247,7 @@ func acousticSweep(levelDBFS int) []byte {
 		} else if i >= acousticSweepRate*acousticSweepSeconds-fade {
 			gain = float64(acousticSweepRate*acousticSweepSeconds-i) / float64(fade)
 		}
-		phase := 2 * math.Pi * 100 * (math.Exp(k*t)-1) / k
+		phase := 2 * math.Pi * 100 * (math.Exp(k*t) - 1) / k
 		binary.LittleEndian.PutUint16(out[2*(lead+i):], uint16(int16(math.Round(amplitude*gain*math.Sin(phase)))))
 	}
 	return out

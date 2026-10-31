@@ -790,8 +790,8 @@ export function CalibrationTab({ peer, base }: { peer: Peer; base: string }) {
 }
 
 /** AcousticCalCard: the speaker measuring its own response in the room (Station 3). Opt-in,
- * never automatic: the owner starts an audible ~30 s sweep run; delta controls only quieter
- * than the tested -40 dBFS ceiling, and voice/wake come back by themselves afterwards. */
+ * never automatic: the owner starts an audible ~20 s run of three sweeps; the level picker only
+ * goes quieter than the tested -40 dBFS ceiling, and voice/wake come back by themselves afterwards. */
 export function AcousticCalCard({ peer, base }: { peer: Peer; base: string }) {
   const [cal, setCal] = useState<api.AcousticCal | null>(null)
   const [level, setLevel] = useState(-40)
@@ -830,7 +830,7 @@ export function AcousticCalCard({ peer, base }: { peer: Peer; base: string }) {
     <section class="card narrow" id="acoustic">
       <h3>Speaker and room response</h3>
       <p class="small">
-        The speaker plays three soft 30-second measurement sweeps and records them itself — about 30 seconds in
+        The speaker plays three soft 4-second measurement sweeps and records them itself — about 20 seconds in
         total. You will hear them. The wake word and voice control pause for the run and come back on their own.
       </p>
       <ul class="small steps">

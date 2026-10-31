@@ -56,3 +56,28 @@ func TestMicStopWaitsForCaptureClose(t *testing.T) {
 		t.Fatal("capture remained registered after Stop")
 	}
 }
+
+// A capture that ignores SIGTERM makes Suspend fail; the mic must not stay paused, or the wake
+// word and voice would be off until the daemon restarts.
+func TestMicSuspendFailureResumes(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "arecord"), []byte("#!/bin/sh\ntrap '' TERM\nexec cat /dev/zero\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+	m := &Mic{Device: "x", Channels: 1, Rate: 16000, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	var blocks atomic.Int32
+	defer m.SubscribeRaw(func([]byte) { blocks.Add(1) })()
+	for deadline := time.Now().Add(time.Second); blocks.Load() == 0 && time.Now().Before(deadline); {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if _, err := m.Suspend(); err == nil {
+		t.Fatal("Suspend succeeded with a capture that ignores SIGTERM")
+	}
+	m.mu.Lock()
+	paused, running := m.paused, m.cmd != nil
+	m.mu.Unlock()
+	if paused || !running {
+		t.Fatalf("after a failed Suspend: paused=%v running=%v", paused, running)
+	}
+}

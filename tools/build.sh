@@ -13,9 +13,9 @@
 #   spotter:<arch>    the voice front-end     spotter-host/build/<arch>/spotter-host   (cross gcc + a vendor sysroot)
 #   packtool          the asset-pack checker  yastationd/build/packtool  (go; for this host, not the speakers;
 #                     builds and checks packs: docs/asset-packs.md)
-#   hosttool:<cmd>    a tool of cmd/     yastationd/build/<cmd>     (go; for this host: ledsim, demoreel,
+#   hosttool:<cmd>    a host tool of cmd/     yastationd/build/<cmd>     (go; for this host: ledsim, demoreel,
 #                     clipconv, …; packtool is hosttool:packtool)
-#   sweep-analyze     analyze Orion direct sweep captures (SWEEP_ANALYZE_ARGS required; Go)
+#   docs-check        every relative link in the Markdown resolves (tools/check-docs.sh; no container)
 #   make:<target>     a yastationd make target that needs ffmpeg/zstd/Go (the one-off install
 #                     conversions: sounds-convert, clips-convert, video-convert-in, build-ringdemo,
 #                     build-fbleddemo), run in the tools image; MAKE_VARS="K=V ..." are passed to it
@@ -40,10 +40,7 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 for v in SPOTTER_SYSROOT_ARMHF SPOTTER_SYSROOT_AARCH64; do eval "env_$v=\${$v:-}"; done
 if [ -f "$here/tools/build.env" ]; then . "$here/tools/build.env"; fi
 for v in SPOTTER_SYSROOT_ARMHF SPOTTER_SYSROOT_AARCH64; do eval "[ -z \"\$env_$v\" ] || $v=\$env_$v"; done
-command -v docker >/dev/null 2>&1 || {
-	echo "build.sh: docker not found (docs/building.md)" >&2
-	exit 2
-}
+command -v docker >/dev/null 2>&1 || { echo "build.sh: docker not found (docs/building.md)" >&2; exit 2; }
 cache=${XDG_CACHE_HOME:-$HOME/.cache}/yastation-build
 mkdir -p "$cache/go" "$cache/gomod" "$cache/zig"
 
@@ -59,10 +56,7 @@ image() {
 	[ "$have" = "$sum" ] && return 0
 	echo "== image yastation-$1 (docker/$1.Dockerfile changed or missing: building it once)"
 	docker build -t "yastation-$1" --label "yastation.dockerfile=$sum" -f "$df" "$here/docker" ||
-		{
-			echo "build.sh: building the yastation-$1 image failed; if it keeps failing, try: docker builder prune" >&2
-			exit 1
-		}
+		{ echo "build.sh: building the yastation-$1 image failed; if it keeps failing, try: docker builder prune" >&2; exit 1; }
 }
 
 # run NAME DIR CMD [extra docker args via $RUN_ARGS]: CMD in DIR (relative to the repo).
@@ -102,21 +96,9 @@ build_yastationd() {
 # hosttool CMD: a tool of cmd/ that runs on the host (packtool for the asset repo's
 # tools/build-packs.sh, ledsim, demoreel…), built for the builder's own platform, not the speakers'.
 build_hosttool() {
-	[ -d "$here/yastationd/cmd/$1" ] || {
-		echo "hosttool:$1: no yastationd/cmd/$1" >&2
-		exit 2
-	}
+	[ -d "$here/yastationd/cmd/$1" ] || { echo "hosttool:$1: no yastationd/cmd/$1" >&2; exit 2; }
 	echo "== $1 (host tool)"
 	run go yastationd "CGO_ENABLED=0 GOOS=linux GOARCH=\$(go env GOHOSTARCH) GOARM= go build -o build/$1 ./cmd/$1"
-}
-
-analyze_sweeps() {
-	[ -n "${SWEEP_ANALYZE_ARGS:-}" ] || {
-		echo "sweep-analyze: use tools/analyze-sweeps.sh (or set SWEEP_ANALYZE_ARGS)" >&2
-		exit 2
-	}
-	echo "== sweep-analyze"
-	run go yastationd "go run ./cmd/sweep-analyze $SWEEP_ANALYZE_ARGS"
 }
 
 # make TARGET: a yastationd make target in the tools image (IN_BUILDER=1: the Makefile does the
@@ -137,11 +119,7 @@ build_hostapd() {
 }
 
 build_sendspin() {
-	case $1 in armhf | aarch64) ;; *)
-		echo "sendspin:$1: arch must be armhf or aarch64" >&2
-		exit 2
-		;;
-	esac
+	case $1 in armhf | aarch64) ;; *) echo "sendspin:$1: arch must be armhf or aarch64" >&2; exit 2 ;; esac
 	echo "== sendspin-host ($1)"
 	run zig sendspin-host "make -s ARCH=$1 binary"
 }
@@ -173,10 +151,7 @@ build_spotter() {
 	case $1 in
 	armhf) sr=${SPOTTER_SYSROOT_ARMHF:-} ;;
 	aarch64) sr=${SPOTTER_SYSROOT_AARCH64:-} ;;
-	*)
-		echo "spotter: arch must be armhf or aarch64" >&2
-		exit 2
-		;;
+	*) echo "spotter: arch must be armhf or aarch64" >&2; exit 2 ;;
 	esac
 	[ -n "$sr" ] || sr=$(local_sysroot "$1")
 	if [ -z "$sr" ]; then
@@ -207,7 +182,7 @@ for t in "$@"; do
 	packtool) build_hosttool packtool ;;
 	docs-check) "$here/tools/check-docs.sh" || exit 1 ;;
 	hosttool:*) build_hosttool "${t#hosttool:}" ;;
-	sweep-analyze) analyze_sweeps ;;
+	make:*) build_make "${t#make:}" ;;
 	sendspin)
 		build_sendspin armhf
 		build_sendspin aarch64
@@ -219,7 +194,7 @@ for t in "$@"; do
 		;;
 	spotter:*) build_spotter "${t#spotter:}" 1 ;;
 	spotter-if:*) build_spotter "${t#spotter-if:}" 0 ;; # skipped without a sysroot (deploy.sh)
-	has-sysroot:*)                                      # deploy.sh: is there a sysroot for this arch? (exit status only)
+	has-sysroot:*) # deploy.sh: is there a sysroot for this arch? (exit status only)
 		a=${t#has-sysroot:}
 		eval "sr=\${SPOTTER_SYSROOT_$(echo "$a" | tr a-z A-Z):-}"
 		[ -n "$sr" ] || sr=$(local_sysroot "$a" 2>/dev/null)
@@ -235,9 +210,6 @@ for t in "$@"; do
 		build_spotter armhf 0
 		build_spotter aarch64 0
 		;;
-	*)
-		echo "build.sh: unknown target '$t' (see the header)" >&2
-		exit 2
-		;;
+	*) echo "build.sh: unknown target '$t' (see the header)" >&2; exit 2 ;;
 	esac
 done

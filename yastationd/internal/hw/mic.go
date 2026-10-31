@@ -95,17 +95,7 @@ func (m *Mic) Suspend() (func(), error) {
 		m.cmd, m.done = nil, nil
 	}
 	m.mu.Unlock()
-	if cmd != nil {
-		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
-			return nil, err
-		}
-		select {
-		case <-done:
-		case <-time.After(micStopWait):
-			return nil, fmt.Errorf("mic capture did not stop before timeout")
-		}
-	}
-	return func() {
+	resume := func() {
 		m.mu.Lock()
 		defer m.mu.Unlock()
 		if !m.paused {
@@ -115,7 +105,23 @@ func (m *Mic) Suspend() (func(), error) {
 		if m.cmd == nil && len(m.subs)+len(m.raws) > 0 {
 			m.start()
 		}
-	}, nil
+	}
+	if cmd != nil {
+		// On failure resume at once: the capture is already detached from m, so leaving the mic
+		// paused would keep the wake word and voice off until the daemon restarts.
+		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+			resume()
+			return nil, err
+		}
+		select {
+		case <-done:
+		case <-time.After(micStopWait):
+			cmd.Process.Kill()
+			resume()
+			return nil, fmt.Errorf("mic capture did not stop before timeout")
+		}
+	}
+	return resume, nil
 }
 
 func (m *Mic) add(set *map[int]func([]byte), fn func([]byte)) func() {

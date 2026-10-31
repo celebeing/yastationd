@@ -4,11 +4,14 @@ Status (2026-10-31): first on-device pass on Station 3 (orion) — measure and r
 correction, no filter applied anywhere.
 
 The host-side analysis (cross-spectrum, one-third-octave bands, motion rejection) that this grew
-from lives in the capture notes under `captures/` and [boards/orion.md](boards/orion.md); the
-analyzer itself stays a host tool, `cmd/sweep-analyze` ([building.md](building.md)).
+from: the measurements in [boards/orion.md](boards/orion.md) ("Mic capture"); the analyzer stays a
+host tool, `cmd/sweep-analyze` run by `tools/analyze-sweeps.sh` ([building.md](building.md)). The
+captures it reads come from the research scripts `tools/orion-safe-sweep-capture.sh` (a sweep),
+`tools/orion-safe-tone-capture.sh` (a 1 kHz tone), `tools/capture-raw.sh` (a plain capture) and
+`tools/orion-audio-inspect.sh` (the mixer and PCM state); each states its bounds in its header.
 
 An opt-in measurement the owner starts from **Settings → Calibration**: the speaker plays three
-soft audible sweeps (~30 s total) while recording itself through the direct LOOPBACK-A capture
+soft audible 4 s sweeps (~20 s in all) while recording itself through the direct LOOPBACK-A capture
 (`hw:0,3`, 14 ch @ 96 kHz). The wake word and voice capture pause for the run and resume on
 their own; music, calls and speech must be stopped first, and the API refuses to start otherwise.
 
@@ -42,7 +45,7 @@ sound only when the owner presses the button, on the unit they pressed it on.
    without the skip, the transient made every capture fail on a live unit. A capture that
    fails either check ends the run with a reported reason; three passes are wanted.
 4. **No raw audio is kept**: frames are inspected in memory and discarded. The compact per-run
-   result (peaks, clipping flags, accept verdicts) is appended to the JSON report below.
+   result (peaks, clipping flags, accept verdicts) replaces the JSON report below.
 
 ## API and storage
 
