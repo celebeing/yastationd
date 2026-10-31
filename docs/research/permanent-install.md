@@ -17,10 +17,9 @@ static analysis of the local dumps and **read-only** reads on the units (`/proc/
   a rebuilt package**, see [the takeover on pickle](#the-takeover-on-pickle-tried-2026-10-31).
 - On **bergamot** the payload is inside the signed and encrypted recovery image and cannot be
   replaced. The reset always lands in stock. Heavy rootfs experiments belong on pickle.
-- On **orion** (2026-10-31) the payload is the same unsigned burn package as on pickle, with
-  ~900 MB of headroom and an unverified ext4 rootfs, so both a minimal "comes back reachable"
-  image and a full baked-in CFW are possible. What the reset itself does there is unknown; see
-  [orion](#orion--the-restore-payload-is-replaceable-too).
+- On **orion** the payload is the same unsigned burn package as on pickle, with ~900 MB of headroom
+  and an unverified ext4 rootfs. **Done on a unit (2026-10-31):** the reset accepted a rebuilt package
+  ([guides/golden-image.md](../guides/golden-image.md#orion)).
 - A second gesture in U-Boot is not doable. A soft-reset gesture in early Linux init is possible,
   but it does **not** protect against a broken rootfs. It is a convenience on top, not the safety net.
 
@@ -306,9 +305,8 @@ brings a unit back as it was.
 
 ### Status: orion's takeover is parked (2026-10-31)
 
-An image for orion builds and passes the host's checks (`tools/golden.sh build`, 2026-10-31): 661 MB, 2018 entries equal to
-the donor's, read-only on the unit. That says nothing about the reset; nothing was written. What remains
-and how outcomes would read: [guides/golden-image.md](../guides/golden-image.md#orion-untried).
+**Superseded the same day:** a Station 3 went through it, a real reset included: `fr` rewrote `system` from
+a rebuilt package and reformatted `/ota` and `/data`. What it did: [guides/golden-image.md](../guides/golden-image.md#orion).
 
 Pickle has since gone through it ([above](#the-takeover-on-pickle-tried-2026-10-31)), which lowers the
 risk described here for orion, but does not remove it: it is a different recovery image.
@@ -392,7 +390,7 @@ followed by the install kit's rootfs edits. Today:
   it was reset). Ten rounds of rootfs edits on a never-rewritten `system` would leave its counters
   at least as high; near-zero counters are what a fresh write from the package leaves.
 
-**orion: open.** Same package design as pickle, so the same behaviour is the likely one, which
+**orion: answered since, `system` rewritten, `/ota` and `/data` reformatted** ([guide](../guides/golden-image.md#orion)). As it read before: Same package design as pickle, so the same behaviour is the likely one, which
 matches the colleagues' reports; the community note fits bergamot instead. The Station 3s have not
 been reset after any edit, and their file dates cannot tell. The marker test on a Station 3 answers
 it. For experiments with the package and the rootfs, the Mini 3 Pro is the better first candidate:

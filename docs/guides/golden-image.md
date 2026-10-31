@@ -7,7 +7,7 @@ into the CFW, in the Wi-Fi setup mode, instead of the vendor's firmware.
 | Board | State |
 |---|---|
 | **pickle** (Mini 3 Pro) | **Proven:** two full rounds on one unit, 2026-10-31: the reset took a rebuilt package, a clean image came up with its access point, a backup put the unit back as it was. |
-| **orion** (Station 3) | **Nothing proven.** An image builds and passes every check on the host (below), and that is all: none has been written to a unit, none has been through a reset, and it is not known what a reset does there. Read [Orion](#orion-untried) before anything. `tools/golden.sh flash` refuses it unless told otherwise. |
+| **orion** (Station 3) | **Proven once:** one full round on one unit, 2026-10-31: a reset took a rebuilt package, a clean image came up with its access point, a backup put the unit back. See [Orion](#orion). |
 | **bergamot** (Mini 3) | **Impossible:** its restore image is inside the signed recovery. |
 
 Why it works and what was measured: [research/permanent-install.md](../research/permanent-install.md).
@@ -49,7 +49,7 @@ every entry (`ubi_reader` on NAND, `debugfs` on ext4). `flash` checks the board'
 parent, else `/tmp`), uploads, writes, and compares a read-back. A normal boot never reads this
 partition, so a write by itself changes nothing until the next reset.
 
-On a board other than pickle `flash` stops unless `UNTRIED=<board>` is set ([Orion](#orion-untried)).
+On a board other than pickle and orion `flash` stops unless `UNTRIED=<board>` is set.
 
 **Going back to the vendor's image:** `tools/golden.sh flash root@<speaker-ip> <stock package>`,
 then a reset. Keep a dump of the stock package off the speaker; the package on the unit is gone once
@@ -76,44 +76,41 @@ brings the CFW binaries of its day: deploy again afterwards.
 The Wi-Fi MAC survives a reset. A router that binds its lease to the client id will give another
 address, since dhcpcd's DUID is new; a lease by MAC keeps it.
 
-## Orion: untried
+## Orion
 
-**Nobody has done this. Everything in this section is reasoning, not experience.** A brick here means
-a Station 3 with no way back: its case is glued, USB burn is unreached.
+One real round on a Station 3, 2026-10-31. Before it: the first boot proved live with `<cfw>` and
+Wi-Fi moved aside (the seed, setup mode 3 s after the daemon, the access point 14 s later, a key through
+the page's API), a login by a key only in `<cfw>/authorized_keys`, the write and a normal reboot.
 
-What carries over from pickle: the package format, and the fact that a rebuilt package can pass a
-recovery of this family. What does not:
+**What the reset did** (mute held at power-on), by markers put there first:
 
-- **Another reset path.** pickle's env sends `factory_reset` to `recovery_from_flash`; orion's runs `fr`,
-  a command inside U-Boot that we cannot read.
-- **Another `system` format.** An Android sparse ext4 image, so another code path writes it. Ours is
-  made by `mke2fs` + `img2simg`, with stock's features, UUID and size; it has raw and fill chunks
-  where stock also has one "don't care" chunk.
-- **Unknown wipe.** Whether `/ota` (where `<cfw>` and the Wi-Fi config live) goes with `/data`.
+- `system` was rewritten from the package: the rootfs marker gone, the golden image's in place;
+- `/ota` and `/data` were both reformatted: new UUIDs, markers gone. So on orion, as on pickle, a reset
+  takes the CFW and Wi-Fi, and network ADB with them;
+- `aml_sysrecovery`, `boot`, `recovery`, `misc` and the env kept their hashes, and the Wi-Fi MAC stayed;
+- **`bootloader` and `reserved` changed**, unlike on pickle: `bootloader`'s hash differs from before, and
+  two copies of an encrypted-looking 182 KB block in `reserved` (at `0x413600`, `0x453600`) were
+  rewritten. Whether a stock reset does the same is not known; the unit boots and its identity holds. A
+  Station 3 that was not reset differs from it only in 48 bytes at `0x160` of `bootloader`.
+- `/sys/fs/pstore` was empty on the first boot: no log of the recovery (the gesture is a cold start, and
+  ramoops doesn't outlive one).
 
-What each outcome would mean:
+**It takes long:** a few minutes before Linux is up (at most about 3 here, by the clock; a 618 MB `system`
+goes to eMMC), with nothing to show for it but the ring, and it feels longer. Leave the power alone.
 
-| The reset | Result |
-|---|---|
-| rewrites `system`, empties `/ota` | as on pickle: the access point, a key, a restore |
-| rewrites `system`, keeps `/ota` | the old `<cfw>` stays, the hook does nothing, the unit rejoins Wi-Fi. **The rootfs's own key is gone** (`/root/.ssh/authorized_keys` points to `<cfw>/authorized_keys`): SSH refuses until a key is in that file, hence the step below; else the key combo's setup page can add one |
-| empties `/data` only | the CFW stays as it is; a golden image is not needed; Bluetooth pairings go |
-| refuses the package after erasing | a brick |
+Then the access point, a key, the Wi-Fi network; a restore brought the unit's identity back with no
+change on the HA side. A restore also brings back the `/data` marker that opens **network ADB on
+`:5555`**, which the reset had closed ([backlog.md](../backlog.md)).
 
-Before a write on an orion, beyond the steps above:
+Before a write on an orion, copy your key where a golden image reads it, in case a reset ever keeps
+`/ota` (the rootfs's file is replaced by a link to `<cfw>/authorized_keys`):
+`cat /root/.ssh/authorized_keys >> <cfw>/authorized_keys`. Keep `stock.img` from the work dir: it is
+the way back, and both our Station 3s' packages are byte-identical.
 
-1. Copy your key where a golden image reads it, so the second outcome doesn't lock you out:
-   `cat /root/.ssh/authorized_keys >> <cfw>/authorized_keys`.
-2. Prove the first boot live, as was done on pickle ([research](../research/permanent-install.md#the-takeover-on-pickle-tried-2026-10-31)):
-   the hook and seed on the live rootfs, `<cfw>` and Wi-Fi moved aside, a temporary hook that collects
-   the result, puts everything back and reboots by itself. Automatic entry into setup mode and the
-   page's SSH keys have never run on this board either (the access point itself has, by the key combo).
-3. `UNTRIED=orion tools/golden.sh flash root@<speaker-ip> <image>` writes it with `dd`, untried too.
-   The stock package is on the unit only: `tools/golden.sh build` leaves it as `stock.img` in the work
-   dir; keep that file.
-
-`/usr/share/cfw-seed` comes out of the fixed list, so a donor's `media`, `packs` and voices stay out
-(checked on a real build); the speaker runs on the built-in theme until a backup or you bring them.
+`/usr/share/cfw-seed` comes out of the fixed list, so a donor's `media`, `packs` and voices stay out; the
+speaker runs on the built-in theme until a backup or you bring them. **The unit with `voice_store`:**
+restore its `voices/` along with its config, or the empty album clears every speaker's household
+([voice-id.md](../voice-id.md)).
 
 ## Limits
 

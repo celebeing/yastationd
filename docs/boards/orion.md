@@ -484,3 +484,8 @@ one full running process, and the audio threads' short bursts add the rest: load
 about 2 on an idle-looking unit with most of the processor free (measured 2026-10-31). The web app
 shows the processor's percentage instead; `yastation_load` stays in `/metrics`, next to
 `yastation_cpu_percent`.
+
+## Factory reset
+
+A reset rewrites `system` from `aml_sysrecovery` and reformats `/ota` and `/data`, and changes parts of
+`bootloader` and `reserved`; a rebuilt package is accepted: [guides/golden-image.md](../guides/golden-image.md#orion).

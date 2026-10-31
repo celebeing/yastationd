@@ -12,7 +12,7 @@
 #       Write a package (golden.img, or a stock dump to go back) into the unit's aml_sysrecovery,
 #       check it by reading it back. A normal boot never reads that partition; a reset does.
 #
-#       Only pickle has been through a reset. On any other board it refuses without
+#       pickle and orion have been through a reset. On any other board it refuses without
 #       UNTRIED=<board>: a package the recovery refuses there has no way back.
 #
 # Env: SSHKEY as for deploy.sh. The host needs docker, sh, ssh.
@@ -80,7 +80,7 @@ flash() {
 	[ "$magic" = 27b51956 ] || die "$img is not a restore package"
 	compat=$(ssh_ 'tr "\0" " " </proc/device-tree/compatible' </dev/null) || die "ssh to $target"
 	case $compat in
-	*yandex,pickle*) ;;
+	*yandex,pickle* | *yandex,orion*) ;;
 	*)
 		board=$(echo "$compat" | sed -n 's/.*yandex,\([a-z0-9]*\) .*/\1/p')
 		[ "${UNTRIED:-}" = "$board" ] || die "nobody has reset a $board with a rebuilt package yet (docs/guides/golden-image.md); a refusal has no way back. UNTRIED=$board to write it anyway"
@@ -89,8 +89,13 @@ flash() {
 	sum=$(sha256sum "$img" | cut -d' ' -f1)
 	size=$(wc -c <"$img")
 	ssh_ "$FINDDEV"'
-p=$(cat /proc/partitions 2>/dev/null | awk -v d="${DEV##*/}" "\$4==d{print \$3*1024}")
-[ -n "$p" ] || p=$(($(cat /sys/class/mtd/${DEV##*/}/size 2>/dev/null || echo 0)))
+p=$(cat /sys/class/mtd/${DEV##*/}/size 2>/dev/null)
+if [ -z "$p" ]; then
+	for u in /sys/class/block/*/uevent; do
+		grep -q "^PARTNAME=aml_sysrecovery$" "$u" 2>/dev/null && p=$(($(cat "${u%/uevent}/size") * 512))
+	done
+fi
+[ -n "$p" ] || p=0
 [ "$p" -ge '"$size"' ] || { echo "the partition holds $p bytes, the image '"$size"'" >&2; exit 1; }
 b=$(cat /sys/class/mtd/${DEV##*/}/bad_blocks 2>/dev/null || echo 0)
 [ "$b" = 0 ] || { echo "$b bad blocks in $DEV: not handled" >&2; exit 1; }

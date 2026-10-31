@@ -172,7 +172,7 @@ packs replace any animation and add sounds to any event.
   Wi-Fi client back. A speaker with no saved network starts this access point by itself, and the
   page can add an SSH key. Details: [docs/wifi-setup.md](docs/wifi-setup.md).
 
-**A button reset that brings the CFW back** (tried on the Mini 3 Pro, not yet on the Station 3)
+**A button reset that brings the CFW back** (Mini 3 Pro and Station 3)
 - `tools/golden.sh` puts the CFW into the image a factory reset restores. After a reset the speaker
   boots into the CFW with no one's keys or settings and starts its access point; a backup then
   makes it what it was. Details: [docs/guides/golden-image.md](docs/guides/golden-image.md).
