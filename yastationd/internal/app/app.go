@@ -722,7 +722,7 @@ func (a *App) onMQTTConnect() {
 	a.publishWebInfo()
 	a.voiceFlush()
 	if a.vstore != nil {
-		a.voicePublish()
+		a.voiceAnnounce()
 	}
 }
 

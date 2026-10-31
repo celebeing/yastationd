@@ -78,6 +78,21 @@ func (t Topics) Arbitration() string { return fmt.Sprintf("%s/arbitration", t.pr
 // Voice ID (docs/voice-id.md): every speaker posts what it heard to VoiceEvents (not retained);
 // the store speaker publishes the household's voices, retained, on VoicePeople.
 func (t Topics) VoiceEvents() string { return fmt.Sprintf("%s/voice/event", t.prefix) }
+
+// VoiceStore names the speaker that keeps the voices (retained), with or without a household yet.
+func (t Topics) VoiceStore() string { return fmt.Sprintf("%s/voice/store", t.prefix) }
+
+// AvailabilityAll matches every speaker's availability; AvailabilityID is the speaker of one.
+func (t Topics) AvailabilityAll() string { return fmt.Sprintf("%s/+/availability", t.prefix) }
+
+func (t Topics) AvailabilityID(topic string) string {
+	id, ok := strings.CutSuffix(strings.TrimPrefix(topic, t.prefix+"/"), "/availability")
+	if !ok || strings.Contains(id, "/") {
+		return ""
+	}
+	return id
+}
+
 func (t Topics) VoicePeople() string { return fmt.Sprintf("%s/voice/people", t.prefix) }
 
 // DisplayCmd is the one-shot overlay command topic (JSON {surface,op,args,ttl_ms,priority}).

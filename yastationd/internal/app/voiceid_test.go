@@ -173,3 +173,44 @@ func TestVoiceStoreNamesAPerson(t *testing.T) {
 		t.Fatalf("reloaded %d entries, %d people", len(st.al.Entries), len(st.al.People()))
 	}
 }
+
+func TestVoiceEmptyStoreKeepsTheHousehold(t *testing.T) {
+	a := voiceTestApp(t, "1 0 0")
+	c := config.Default()
+	c.SysRoot, c.VoiceStore = t.TempDir(), true
+	a.conf.Store(&c)
+	a.vstore = a.newVoiceStore()
+	a.voiceAnnounce() // an empty album, as after a restore without voices/
+	if len(a.vid.household()) != 1 {
+		t.Fatal("an empty store cleared the household")
+	}
+	a.voicePublish() // "forget everything" does clear it
+	if len(a.vid.household()) != 0 {
+		t.Fatal("forgetting left the household")
+	}
+}
+
+func TestVoiceEventsWaitForTheStore(t *testing.T) {
+	a := voiceTestApp(t, "1 0 0")
+	if a.voiceStoreUp() {
+		t.Fatal("up with no store known")
+	}
+	a.onVoiceAvailability("station3", true)
+	if a.voiceStoreUp() {
+		t.Fatal("up before the store is named")
+	}
+	a.onVoiceStore([]byte("station3"))
+	if !a.voiceStoreUp() {
+		t.Fatal("down with the store online")
+	}
+	a.onVoiceAvailability("station3", false)
+	if a.voiceStoreUp() {
+		t.Fatal("up with the store offline")
+	}
+	for range voiceSpoolMax + 5 {
+		a.voiceSend(&voiceTake{wake: time.Now()}, voiceid.Verdict{Embedding: []float32{1}}, false)
+	}
+	if n := len(a.vid.spool); n != voiceSpoolMax {
+		t.Fatalf("spool %d", n)
+	}
+}

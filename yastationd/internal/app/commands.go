@@ -76,6 +76,10 @@ func (a *App) subscribe() {
 	a.syncSubscribe()
 	if a.vid != nil {
 		a.mqtt.Subscribe(t.VoicePeople(), a.onVoicePeople)
+		a.mqtt.Subscribe(t.VoiceStore(), a.onVoiceStore)
+		a.mqtt.SubscribeTopic(t.AvailabilityAll(), func(topic string, payload []byte) {
+			a.onVoiceAvailability(a.topics.AvailabilityID(topic), string(payload) == "online")
+		})
 	}
 	if a.vstore != nil {
 		a.mqtt.Subscribe(t.VoiceEvents(), a.onVoiceEvent)
