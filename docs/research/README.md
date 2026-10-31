@@ -19,5 +19,6 @@ a doc whose recommendation was not taken says so where it makes it.
 | [voice-phase2-plan.md](voice-phase2-plan.md) | The vendor VQE and spotter measured on the device, and the plan that became the wake word integration | done: the plan was built, differently in places (noted in §5) |
 | [hass-integration.md](hass-integration.md) | The original Home Assistant integration design (historical; the current map is [../architecture.md](../architecture.md)) | historical: the original design |
 | [permanent-install.md](permanent-install.md) | Whether the CFW can survive a factory reset by replacing the recovery image: the verdict per board (pickle, orion yes; bergamot no), a backup-first plan for orion | current verdict; the backup tools built, no takeover yet |
+| [vendor-removal.md](vendor-removal.md) | Deleting the vendor's software instead of gating it, on pickle: what the CFW needs, what can reach the network, what the egress counters say. |
 | [speaker-id.md](speaker-id.md) | Speaker identification on a server (a Wyoming STT proxy with open models measured on Russian); superseded by voice ID on the speaker | superseded by voice ID on the speaker |
 | [voice-id-alternatives.md](voice-id-alternatives.md) | Voice ID: on the speaker or on a server, the ready-made proxies, how Alexa, Google, Siri and Alice enroll voices | current: the reasoning behind voice-id.md |
