@@ -231,12 +231,44 @@ Music Assistant noticing nothing. What they depend on lives almost entirely in `
 | Wi-Fi | `/ota/data/wpa_supplicant.conf` | |
 | Bluetooth | `/data/bt_mac`, `/data/bluez_data` | pairings |
 | rootfs edits | the vendor repo's per-unit `paths` list | hooks, gate, OTA stub |
-| MAC, serial | probably `reserved` (Amlogic unifykey, read by `keyman` in the env's `cmdline_keys`); not dumped yet | same MAC → same DHCP lease and address |
+| MAC, serial | probably `reserved` (Amlogic unifykey, read by `keyman` in the env's `cmdline_keys`); backed up by `tools/backup-unit.sh` | same MAC → same DHCP lease and address |
 
 Built (2026-10-31): `tools/backup-unit.sh` and `tools/restore-unit.sh`
-([guides/backup.md](../guides/backup.md)); every reachable unit backed up. Next: one stock reset of a dev unit with
-marker files in the rootfs, `/data` and `/ota` as the rehearsal of both, which also answers what
-`fr` does. Getting back in after a stock reset needs the install kit (out of this repo's scope).
+([guides/backup.md](../guides/backup.md)); every reachable unit backed up. Getting back in after a
+stock reset needs the install kit (out of this repo's scope); with it, "reset → kit → restore"
+brings a unit back as it was.
+
+### Status: the takeover is parked (2026-10-31)
+
+**No escape hatch without opening the case.** The case is clipped and glued (sealed), and the owner
+will not open it, so UART and board pads are out. What is left from outside:
+- The vendor gesture (hold **mute**, the only hardware key, while plugging in the USB-C power; the
+  ring runs a yellow animation, then the unit boots the factory image and waits for the vendor
+  onboarding) is the **recovery** path (`aml_sysrecovery`), not USB burn. The env's
+  `readmute=gpio read 24 mute 1` suggests U-Boot itself reads the key.
+- **USB burn (ADNL)** has a U-Boot command (`usb_burning=adnl 1200`), but no env script runs it; the
+  boot ROM enters USB mode by itself only with a broken bootloader or a board strap. Reaching it
+  from outside would take an env edit (the single env copy: a boot risk taken for a safety net) or
+  feeding the unit its 20 V PD from its own supply while passing USB data to a computer (it is picky
+  about USB-C power; a PC port does not power it). The USB device controller is there
+  (`crgudc2`), so data does reach the port. Untried.
+- **Any** change to the package carries the same risk: if the encrypted recovery checks a hash of
+  it after erasing `system`, a changed byte bricks the unit as surely as a new image. So a probe
+  proves nothing a real image would not; the first write should be the minimal golden image (its
+  rootfs edits already run live), and only once a way back exists.
+
+**Without that way back the takeover is not worth it now**: "reset → kit → restore" already brings
+a unit back, and the golden package would save only the kit step. Why it stays on the table: the
+kit's way in partly depends on vendor services, which may not work forever; a golden package (or a
+working USB burn) would make recovery independent of them.
+
+**Still useful at stock risk, not done yet:** one stock reset of a dev unit with marker files in
+the rootfs, `/ota` and `/data` (placed on one Station 3, with partition hashes, ext4 UUIDs and the
+env recorded before), to learn what besides `system` is wiped, whether the MAC survives, and to
+rehearse the restore. orion keeps a **ramoops** console log of the previous boot
+(`/sys/fs/pstore/console-ramoops-0`): the first normal boot after a reset may hold the recovery
+kernel's log (what it mounted, formatted and wrote), provided nothing reboots the unit again before
+it is read.
 
 ## Our own reset gesture — in early Linux init, not in U-Boot (a convenience, not a safety net)
 
