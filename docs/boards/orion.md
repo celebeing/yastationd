@@ -69,17 +69,24 @@ transient (see "Mic capture"); it does not block on-device wake/VQE work.
   96 kHz = loopback ch {0,2,3,4,5,6} **mics**, ch {8,9,11,12,13} speaker references, +
   ultrasound ch {0,1}. quasar.cfg declares 6 mics and 7 speaker-reference channels.
 - **Loopback source correction (verified 2026-10-30):** the device-tree default and observed
-  live value for `Loopback tdmin lb source` is `TDMINB` (enum value 5). That source leaves
-  loopback channels 8–13 at their −100 dBFS quantization floor, even while `default` plays
-  through the ACM8625 amplifiers. `TDMOUTB` (enum value 1) is the six-channel speaker output:
+  live value for `Loopback tdmin lb source` is `TDMINB` (enum value 5). With a −60 dBFS tone
+  that source leaves loopback channels 8–13 at their −100 dBFS quantization floor; with music
+  it does not (the A/B below). `TDMOUTB` (enum value 1) is the six-channel speaker output:
   setting that mux before opening `hw:0,3` makes raw channels 8–13 carry the exact digital
   playback PCM. A −60 dBFS 1 kHz test tone appeared as the original ±32-LSB waveform on all
   six channels, while its acoustic microphone pickup was only about −88 dBFS. The daemon
   leaves the mux at value 5 and takes value 1 only for an acoustic measurement, with its own
-  capture closed ([acoustic-calibration.md](../acoustic-calibration.md)), so the wake word,
-  the intercom and the sound sensors run without a reference. Holding value 1 all the time, a
-  trial on 2026-10-30, kept music, volume, wake and wake during music working. Whether it helps
-  the VQE is not measured; it would change what those three hear on every unit.
+  capture closed ([acoustic-calibration.md](../acoustic-calibration.md)).
+- **The AEC reference, A/B on one unit (2026-11-01):** the same 14 s of music at raw master 71,
+  daemon stopped, each `mroute` capture run offline through `spotter-host vqe`. With value 5 the
+  reference indices 6–10 are live, not silent: −67, −67, −62, −54, −54 dBFS against −7.5 on all
+  five with value 1. They are weak below 300 Hz; what feeds them is not established (the amps'
+  feedback is the guess). Echo reduction, raw mic to `vqe_0` over 5–16 s: 29–30 dB with value 1,
+  25–33 dB with value 5, falling within the take; the same value-1 capture with the references
+  replaced by silence, 1 dB. So the AEC already works on stock routing. The difference is in
+  `vqe_bnr`: −108…−117 dBFS with value 1, −68…−82 with value 5, against −84…−90 for the room
+  alone. One take at one quiet volume, no voice in it: recall over music is not measured, and
+  a BNR output below the room's floor may take speech with it. Value 1 stays a candidate.
 - `mroute` exposes five of those six TDM-B slots as indices 6–10; it deliberately omits raw
   loopback channel 10. Its indices 11–12 remain the `us` codec's TDM-A capture slots, dead
   LSB unless a TDM-A stream is active. No userspace channel-remapping bug was involved.
@@ -210,9 +217,8 @@ Generic detector limits and the bergamot instance: [docs/research/wakeword-mic-a
   → 4.00 s × 16 kHz × 4ch out, 1000 Hz tone present in vqe_0 (Goertzel), raw_mic RMS 75;
   config out_channels: raw-mic 6, sync-main 1, raw-spk 7, vqe_0 1 (+bnr/gain at runtime).
   `listen … -k command` runs the full chain with the command spotter (no verifier needed).
-  The loopback has the hardware capacity for live speaker refs while the vendor stack is
-  stopped, but only after its `tdmin lb source` mux is switched from default `TDMINB` to
-  `TDMOUTB`; otherwise raw speaker-reference channels remain silent and AEC is degraded.
+  The speaker refs (hw:0,3 ch 6..12) are live with the vendor stack stopped, on the stock
+  `TDMINB` too ("Mic capture", the A/B).
 - Profile wake keys are wired (verified offline; turned on by `wake_enabled = true` in
   yastationd.conf): `wake.vqe_preset = orion`, `wake.mics = 0,1,2,3,4,5`,
   `wake.refs = 6,7,8,9,10,11,12` (multi-ref boards; bergamot/pickle keep `wake.ref`), and
