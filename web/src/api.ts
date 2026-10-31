@@ -431,6 +431,7 @@ export type Vitals = {
   daemon_uptime_s: number
   system_uptime_s?: number
   load?: number[]
+  cpu_percent?: number
   cpus: number
   mem_total?: number
   mem_free?: number

@@ -3,6 +3,55 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.25.0 — 2026-10-31
+
+**Golden images on the Station 3, and vendor removal**
+- `tools/golden.sh` went through real resets on two Station 3s, voices and all: a reset there lands in
+  the CFW now, as on the Mini 3 Pro. (v0.24.0's note said untried.)
+- `tools/devendor.sh` takes the vendor's software off a Mini 3 Pro with a golden image
+  ([docs/guides/devendor.md](docs/guides/devendor.md)); its last step is yours to run.
+
+**Voice ID**
+- Speakers keep their voice events while the store is away, as they did only for the broker: they
+  used to go nowhere.
+- A store starting with an empty album no longer clears the household on every speaker.
+
+## v0.24.1 — 2026-10-31
+
+**Fixes**
+- Two shared settings changing together could send every speaker into an endless exchange of old
+  values, rewriting `yastationd.conf` many times a second: wear on the flash, high load, a log that
+  turned over in a minute. Two edits of the config no longer undo each other, and a value taken
+  from the other speakers is never sent back.
+- A fuse for whatever else could start that: a shared item changing hands too often pauses the
+  sync on that speaker, 10 minutes and up. A slider dragged on one speaker doesn't trigger it.
+
+**The processor's load as a percentage**
+- The web app's card shows CPU, 0-100 %, in place of the load average, which reads high on these
+  speakers for no reason. `/metrics` gains `yastation_cpu_percent` and keeps `yastation_load`.
+
+## v0.24.0 — 2026-10-31
+
+**A factory reset that lands in the CFW** ([docs/guides/golden-image.md](docs/guides/golden-image.md))
+- `tools/golden.sh` builds a restore image from a speaker running the CFW and writes it to
+  `aml_sysrecovery`, so the vendor reset gesture brings the unit back into the CFW, without keys,
+  Wi-Fi or settings. Tried on a Mini 3 Pro, reset and restore included; Station 3 is untried.
+- A speaker with no saved Wi-Fi network enters the setup mode by itself.
+- The setup page adds SSH keys (`<cfw>/authorized_keys`, read by OpenSSH next to the rootfs's file).
+- `tools/backup-unit.sh` and `tools/restore-unit.sh` leave a golden image's own files alone.
+
+## v0.23.0 — 2026-10-31
+
+**OpenSSH on the speakers** ([docs/ssh.md](docs/ssh.md))
+- The speaker's SSH server is now OpenSSH 10.6 (our static build on OpenSSL 3.5 LTS): log in with
+  a certificate signed by your own CA (a CA key file and a principals file on the speaker, none
+  ship with the CFW), SFTP, and `scp` from current OpenSSH clients without `-O`. The host key is
+  dropbear's, so `known_hosts` doesn't change.
+- `tools/deploy.sh` switches each speaker carefully: the new server is tried on port 2222 first,
+  port 22 switches only after a login through it, and a login on 22 confirms or the old server
+  comes back. Then the boot starts it too. `SSH=dropbear` keeps dropbear.
+- dropbear stays on the speaker as the fallback: it starts whenever OpenSSH can't.
+
 ## v0.22.3 — 2026-10-30
 
 **Logs off the speaker** ([docs/storage.md](docs/storage.md))

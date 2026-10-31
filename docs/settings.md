@@ -126,7 +126,19 @@ An item the owner shares lives in one retained topic, `<prefix>/shared/<kind>/<i
   travels as a value.
 - **A local change** of a shared item (any writer: the pages, HA, the config editor, a restart key
   on its way down) goes out with the new value. A speaker that already holds the shared value
-  publishes nothing, which is what stops loops.
+  publishes nothing, and a value taken from the others never goes out again: that is what stops
+  loops. Edits of the file are read and written under one lock, since two taken at once must not
+  undo each other (v0.24.0 and before: two shared keys changing together sent all speakers into an
+  endless exchange, rewriting the config many times a second).
+- **The fuse.** Speakers trading an item without end rewrite the config on flash, so a speaker stops
+  the sync by itself when one item changes hands too often, whatever the cause: more than 10 changes
+  in a minute whose author differs from the change before (A, B, A, B), or more than 120 changes in
+  a minute by anyone. The first is the sign of a storm; a slider dragged on one speaker has one
+  author and doesn't count there, the ceiling only catches a speaker looping by itself. For 10
+  minutes (doubling on each repeat, up to an hour; two quiet hours start again from 10) it takes and
+  sends no shared item, logs `sync: speakers keep changing a shared item`, and `GET /api/sync` shows
+  `paused_until`. Local changes in that time stay local; at the end it takes the latest shared
+  values, so a local change of a shared item is overwritten. Unsharing still works.
 - **Two changes at once:** every speaker takes the messages in the broker's order and ends on the
   last one. No timestamps decide, no leader is needed.
 - **Offline speakers** get the retained values when they connect.

@@ -107,7 +107,7 @@ publishes. The web uses the same three, nothing is described twice:
 `GET /metrics` (no login), Prometheus text, every series labelled `device`:
 `yastation_info{board,version}`, `yastation_uptime_seconds`, the process (`yastation_rss_bytes`,
 `yastation_go_heap_bytes`, `yastation_goroutines`), the system (`yastation_memory_bytes{kind=total|
-available|free}`, `yastation_load{span=1m|5m|15m}`, `yastation_temperature_celsius{zone}` per
+available|free}`, `yastation_cpu_percent` (0-100, all cores), `yastation_load{span=1m|5m|15m}`, `yastation_temperature_celsius{zone}` per
 thermal zone — `soc_thermal` on every board so far, `yastation_system_uptime_seconds`), and every numeric or on/off state the app
 publishes (`yastation_lux`, `yastation_sound_floor`, `yastation_volume`, `yastation_mic_mute`…;
 `yastation_health{state}`).

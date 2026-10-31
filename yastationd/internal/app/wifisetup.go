@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -19,6 +20,9 @@ import (
 // comet and the front display shows wide-open eyes with a dot ("O  O°"), above everything else.
 
 const setupHold = 5 * time.Second
+
+// setupAutoDelay lets the daemon's start finish before setup mode takes the interface.
+const setupAutoDelay = 3 * time.Second
 
 // keyCombo tracks the hold of the voice key while muted.
 type keyCombo struct {
@@ -40,18 +44,23 @@ func (a *App) newWifiSetup() *wifisetup.Mode {
 	if c.WPAConf != "" {
 		wpaConf = c.Path(c.WPAConf)
 	}
+	authorizedKeys := ""
+	if c.File != "" {
+		authorizedKeys = filepath.Join(filepath.Dir(c.File), "authorized_keys")
+	}
 	return wifisetup.New(wifisetup.Options{
-		HostapdBin: c.Path(c.HostapdBin),
-		SSID:       ssid,
-		PSK:        c.WifiSetupPSK,
-		Channel:    c.WifiSetupChannel,
-		Address:    c.WifiSetupAddress,
-		WPAConf:    wpaConf,
-		DeviceName: c.DeviceName,
-		Log:        a.log,
-		OnExit:     func() { a.showSetup(false) },
-		ConfFile:   c.File,
-		SharedHTTP: c.HTTPAddr != "",
+		HostapdBin:     c.Path(c.HostapdBin),
+		SSID:           ssid,
+		PSK:            c.WifiSetupPSK,
+		Channel:        c.WifiSetupChannel,
+		Address:        c.WifiSetupAddress,
+		WPAConf:        wpaConf,
+		DeviceName:     c.DeviceName,
+		Log:            a.log,
+		OnExit:         func() { a.showSetup(false) },
+		ConfFile:       c.File,
+		AuthorizedKeys: authorizedKeys,
+		SharedHTTP:     c.HTTPAddr != "",
 		Restart: func() {
 			if a.quit != nil {
 				a.quit() // Run returns, the daemon exits 0 and the supervisor starts it again in 1 s
@@ -141,6 +150,22 @@ func (a *App) showSetup(on bool) {
 	} else {
 		a.endHook("wifi_setup")
 	}
+}
+
+// setupWhenNoNetworks enters setup mode by itself when the speaker has no saved network: a fresh
+// install or a restore image (docs/guides/golden-image.md), which nothing could reach otherwise.
+// A speaker that has networks and can't join them still waits for the key combo.
+func (a *App) setupWhenNoNetworks(stop <-chan struct{}) {
+	select {
+	case <-stop:
+		return
+	case <-time.After(setupAutoDelay):
+	}
+	if a.setup.Active() || !a.setup.NoNetworks() {
+		return
+	}
+	a.log.Info("wifi setup: no saved networks, entering by itself")
+	a.toggleSetup()
 }
 
 // setupSignalLoop: SIGUSR1 toggles setup mode like the key combo, for testing over SSH

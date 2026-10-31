@@ -207,8 +207,11 @@ On the speaker with `voice_store` (`internal/app/voicestore.go`, `internal/voice
   would be a mess, and it is not needed. Every speaker sends its events to the store and reads the
   household's centroids back (retained); only the store edits, so nothing conflicts. The verdict
   stays local (no network round trip in the middle of a phrase), the traffic is a couple of KB per
-  request, and while the store is away the speakers keep their events (up to 200) and classify
-  with the last centroids they got. Where else the store could have lived (HA, a server):
+  request. While the broker or the store is away a speaker keeps its events in memory (up to 200,
+  the store's presence read from its availability topic and retained `<prefix>/voice/store`), and
+  classifies with the last centroids it got. A store with an empty album publishes no household
+  until it has one, or until "forget" empties it: a new store, or a config restored without
+  `<cfw>/voices/`, doesn't clear what the other speakers hold. Where else the store could have lived (HA, a server):
   [research/voice-id-alternatives.md](research/voice-id-alternatives.md).
 - **Not built yet from the album's design:** guided enrollment ("Enroll a voice", five short
   phrases into one group) for someone who rarely talks to the speakers; a switch that keeps the

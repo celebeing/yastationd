@@ -169,7 +169,13 @@ packs replace any animation and add sounds to any event.
   a setup page that phones open by themselves. On it you list, add, edit and remove the saved Wi-Fi
   networks and set the home settings (broker, health probes, time servers and zone, Music
   Assistant). Nothing about the mode is persistent: leaving it, or a reboot, brings the normal
-  Wi-Fi client back. Details: [docs/wifi-setup.md](docs/wifi-setup.md).
+  Wi-Fi client back. A speaker with no saved network starts this access point by itself, and the
+  page can add an SSH key. Details: [docs/wifi-setup.md](docs/wifi-setup.md).
+
+**A button reset that brings the CFW back** (Mini 3 Pro and Station 3)
+- `tools/golden.sh` puts the CFW into the image a factory reset restores. After a reset the speaker
+  boots into the CFW with no one's keys or settings and starts its access point; a backup then
+  makes it what it was. Details: [docs/guides/golden-image.md](docs/guides/golden-image.md).
 
 **Intercom between rooms** (off by default)
 - «Алиса, позвони в спальню»: a live two-way call to the speaker in another room, over the LAN
@@ -230,6 +236,10 @@ of this project's scope: we assume you already have it.
   Code and the like). [docs/guides/deploying.md](docs/guides/deploying.md) is written for it too, and
   [CLAUDE.md](CLAUDE.md) holds the rules for working on a speaker safely. It builds, installs and
   checks everything by itself.
+
+The speaker's SSH server is our OpenSSH build: user certificates signed by your own CA, SFTP and
+scp, modern algorithms including post-quantum key exchange. dropbear stays as the fallback:
+[docs/ssh.md](docs/ssh.md).
 - **If something does not work:** collect a diagnostics archive (`<cfw>/bin/diag.sh` on the
   speaker, `tools/diag-build.sh` for the build and deploy; secrets are stripped by default) and
   attach it to an issue — [docs/guides/diagnostics.md](docs/guides/diagnostics.md). To look for the

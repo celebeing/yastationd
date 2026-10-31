@@ -17,6 +17,7 @@ scripts branch on its existence.
 | `<cfw>/bin/spotter-host` | the voice front-end host, built for the device's userland arch; with `voice_id` a second process of it (`spotter-host voice`) makes the voiceprints |
 | `<cfw>/bin/sendspin-host` | the Music Assistant player (optional, `sendspin = true`), built for the userland arch |
 | `<cfw>/bin/dropbearmulti`, `<cfw>/bin/scp` (a link to it), `dropbearmulti.prev` | the SSH server, our build of dropbear (static aarch64, with scp; [dropbear/README.md](../../dropbear/README.md)), when the speaker already runs dropbear from there; replaced on a first deploy or with `DROPBEAR=1`, the one before kept as `.prev` |
+| `<cfw>/openssh/{sshd,sshd-session,sshd-auth,sftp-server,scp,dropbearconvert}` (+ `.prev`), `ssh_host_ed25519_key`; `<cfw>/init.d/ssh.sh`; `<cfw>/ssh_server` (+ `.prev`) | the SSH server (the default; not with `SSH=dropbear`): OpenSSH, dropbear staying as the fallback, its host key converted from dropbear's, the script that starts the server `<cfw>/ssh_server` names; the owner's `trusted_user_ca_keys`, `principals/`, `sshd_config.local` next to it ([ssh.md](../ssh.md)) |
 | `<cfw>/bin/hostapd` | the access point for the Wi-Fi setup mode (static armv7, same binary for every board; [wifi-setup.md](../wifi-setup.md)) |
 | `<cfw>/sendspin/state.json` | its identity (stable client_id) and pairing records, 0600 |
 | `<cfw>/yastationd.conf` | config (generic `yastationd/configs/yastationd.conf.example`; Orion bring-up `orion.conf.example`) |
@@ -43,6 +44,8 @@ scripts branch on its existence.
 | `<cfw>/yastationd_off` | kill switch: the supervisor stops respawning while it exists |
 | `/etc/init.d/S52zyastationd` | the only rootfs file: boot hook that starts the supervisor (copy kept in `<cfw>/init.d/`) |
 | `<cfw>/init.d/supervise.sh` | the supervisor (see below); without it the hook falls back to a plain 2 s respawn loop |
+| `<cfw>/authorized_keys` | SSH keys added from the Wi-Fi setup page, read next to `/root/.ssh/authorized_keys` ([wifi-setup.md](../wifi-setup.md)) |
+| `/usr/share/cfw-seed/`, `/etc/init.d/S00zcfwseed`, `/etc/cfw-image`; `<cfw>/seeded`, `<cfw>/seed-dmesg.txt` | only with a [golden image](golden-image.md): the CFW it restores, the hook that does it, and the record of that first boot |
 | `<cfw>/bin/diag.sh` | the diagnostics collector (busybox sh, read-only; uploaded by `tools/deploy.sh`, nothing runs it by itself): one redacted archive in `/tmp` to send when something is wrong ([diagnostics.md](diagnostics.md)) |
 | `/tmp/yastationd.log` | log (tmpfs — gone on reboot), copy-truncated at 1 MB with one `.1` kept |
 
@@ -296,6 +299,12 @@ server; if port 22 does not answer, the old binary is put back through port 2222
 stops. `DROPBEAR=only` does only this, without building or updating anything else (for
 speakers that should keep their running build). The boot hook starts the same path, so a reboot keeps the new one. To go back by hand:
 `mv <cfw>/bin/dropbearmulti.prev <cfw>/bin/dropbearmulti` and restart the listener (or reboot).
+
+**OpenSSH on port 22.** Every deploy then makes OpenSSH the server on port 22 (`SSH=dropbear`
+keeps dropbear; with `DROPBEAR=only`, nothing else is updated), the same careful way: tried on
+port 2222, a login through it switches, a login on 22 confirms, else the previous one comes back.
+After the first switch the boot hook is made to start it too (a rootfs write, once; the kit's
+hook kept as the fallback). A speaker already on the same build is left alone. [ssh.md](../ssh.md).
 
 **Don't** improvise the swap as one ssh command line that contains the binary's path. The init
 hook's `stop` kills processes by that path and takes your ssh session down with it, leaving the

@@ -33,10 +33,11 @@ type voiceID struct {
 	mu      sync.Mutex
 	people  []voiceid.Person // the household, from the store (VoicePeople, retained)
 	storeID string           // the speaker that keeps the voices
-	spool   []string         // events waiting for the broker
+	online  map[string]bool  // speakers' availability, by id
+	spool   []string         // events waiting for the broker and the store
 }
 
-// voiceSpoolMax bounds the events kept while the broker is away (a few KB each).
+// voiceSpoolMax bounds the events kept while the broker or the store is away (a few KB each).
 const voiceSpoolMax = 200
 
 // voiceModelDim: the voiceprint model spotter-host runs (the 512-dim next_tdnn of Mini 3 0.369,
@@ -129,9 +130,48 @@ func (a *App) onVoicePeople(payload []byte) {
 		p.People = nil
 	}
 	a.vid.mu.Lock()
-	a.vid.people, a.vid.storeID = p.People, p.Store
+	a.vid.people = p.People
+	if p.Store != "" {
+		a.vid.storeID = p.Store
+	}
 	a.vid.mu.Unlock()
 	a.log.Info("voice id: household", "people", len(p.People))
+	a.voiceFlush()
+}
+
+// onVoiceStore learns which speaker keeps the voices (retained).
+func (a *App) onVoiceStore(payload []byte) {
+	a.vid.mu.Lock()
+	a.vid.storeID = string(payload)
+	a.vid.mu.Unlock()
+	a.voiceFlush()
+}
+
+// onVoiceAvailability follows the speakers' availability (retained, with the LWT): events wait
+// for the store, since the broker keeps nothing of them for a speaker that is away.
+func (a *App) onVoiceAvailability(id string, online bool) {
+	if id == "" {
+		return
+	}
+	a.vid.mu.Lock()
+	if a.vid.online == nil {
+		a.vid.online = map[string]bool{}
+	}
+	a.vid.online[id] = online
+	a.vid.mu.Unlock()
+	if online {
+		a.voiceFlush()
+	}
+}
+
+// voiceStoreUp: the store can take an event now.
+func (a *App) voiceStoreUp() bool {
+	if a.vstore != nil {
+		return true
+	}
+	a.vid.mu.Lock()
+	defer a.vid.mu.Unlock()
+	return a.vid.online[a.vid.storeID]
 }
 
 // voiceTake is one voiceprint in the making: the utterance and the audio feeding it.
@@ -305,8 +345,8 @@ type voiceEvent struct {
 	Emb        string           `json:"emb,omitempty"`   // base64 float32 LE
 }
 
-// voiceSend posts the request's voiceprint and verdict to the store (spooled while the broker is
-// away). A request without a voiceprint is not sent.
+// voiceSend posts the request's voiceprint and verdict to the store (spooled while the broker or
+// the store is away). A request without a voiceprint is not sent.
 func (a *App) voiceSend(t *voiceTake, v voiceid.Verdict, ignored bool) {
 	if len(v.Embedding) == 0 {
 		return
@@ -333,9 +373,9 @@ func (a *App) voiceSend(t *voiceTake, v voiceid.Verdict, ignored bool) {
 	a.voiceFlush()
 }
 
-// voiceFlush sends the spooled events while the broker is there.
+// voiceFlush sends the spooled events while the broker and the store are there.
 func (a *App) voiceFlush() {
-	if a.vid == nil || a.mqtt == nil || !a.mqtt.Connected() {
+	if a.vid == nil || a.mqtt == nil || !a.mqtt.Connected() || !a.voiceStoreUp() {
 		return
 	}
 	a.vid.mu.Lock()

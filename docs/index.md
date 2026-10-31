@@ -46,6 +46,7 @@ have their own indexes, read when the task needs them:
 | [voice-id.md](voice-id.md) | Who is talking, on the speaker: the voiceprint host, the verdict, ignoring guests, the People album |
 | [music-sendspin.md](music-sendspin.md) | The speaker as a Music Assistant player: `sendspin-host`, ducking, volume, the wake word over music |
 | [intercom.md](intercom.md) | Calls between speakers: audio, signalling, the voice scenario |
+| [ssh.md](ssh.md) | SSH on the speaker: dropbear (default) or OpenSSH (certificates, SFTP), how it is chosen, switching through port 2222, boot |
 | [wifi-setup.md](wifi-setup.md) | The Wi-Fi setup mode: the key combo, the access point, the setup page, the handoff back |
 | [sensor-calibration.md](sensor-calibration.md) | The light sensor in lux and the mic in dB SPL: board base and per-speaker overrides |
 | [acoustic-calibration.md](acoustic-calibration.md) | The speaker measuring its own room response (Station 3): opt-in sweeps, the safety cap, the report; no correction path |

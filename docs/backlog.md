@@ -35,6 +35,12 @@ Review of 2026-10-28 (whole repo).
   well) — `internal/app`; the plain `go test` passes. Find the race (likely the test's own
   shared state with the intercom goroutines) before trusting `-race` runs of the package. S–M.
 
+- **Golden image: network ADB as a break-glass until the first SSH login** — the policy in
+  [ssh.md](ssh.md) allows it, the image has none: after a reset the setup page is the only way in, and
+  a mistake there has no second one. It would start `adbd` on a unit with no key, closing itself after a
+  login. It is root for anyone in range of the open access point meanwhile. Needs a rebuilt image and a
+  first-boot proof before a write. M, risk: access.
+
 ## Duplication
 
 

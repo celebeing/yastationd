@@ -38,6 +38,17 @@ type shared struct {
 	rejected map[string]int64     // kind + "/" + item → the At of a shared value whose trial failed here
 	lastAt   atomic.Int64         // the last At this speaker gave (sharedNow)
 	bus      publisher            // tests: in place of the MQTT client
+	fuse     syncFuse
+	// tests: in place of the clock and the timer of a pause
+	now        func() time.Time
+	afterPause func(time.Duration)
+}
+
+func (s *shared) clock() time.Time {
+	if s.now != nil {
+		return s.now()
+	}
+	return time.Now()
 }
 
 type publisher interface {
@@ -171,6 +182,9 @@ func (a *App) publishShared(kind, item string, on bool) bool {
 
 // sendShared stamps v as this speaker's change of an item, keeps it, and publishes it.
 func (a *App) sendShared(bus publisher, kind, item string, v json.RawMessage) {
+	if a.shared.fuse.paused(a.shared.clock()) || a.fuseNote(kind+"/"+item, a.cfg().DeviceID) {
+		return // stays local; the shared value comes back when the pause ends
+	}
 	m := sharedMsg{V: v, At: a.sharedNow(), By: a.cfg().DeviceID}
 	b, _ := json.Marshal(m)
 	a.sharedSet(kind, item, &m)
@@ -215,11 +229,19 @@ func (a *App) onShared(kind, item string, payload []byte) {
 		return
 	}
 	a.sharedSet(kind, item, &m)
+	a.takeShared(kind, item, m)
+}
+
+// takeShared applies a shared value this speaker doesn't hold, unless the fuse says otherwise.
+func (a *App) takeShared(kind, item string, m sharedMsg) {
 	if v, ok := a.localShared(kind, item); !ok || sameJSON(v, normShared(kind, item, m.V)) {
 		return
 	}
 	if a.syncRejected(kind+"/"+item) == m.At {
 		return // this value failed its trial here; a later change is tried again
+	}
+	if a.shared.fuse.paused(a.shared.clock()) || a.fuseNote(kind+"/"+item, m.By) {
+		return // kept in the items: syncResume takes the latest
 	}
 	if err := a.applyShared(kind, item, m.V); err != nil {
 		a.log.Warn("sync: not taken", "kind", kind, "item", item, "from", m.By, "err", err)
@@ -235,7 +257,7 @@ func (a *App) applyShared(kind, item string, v json.RawMessage) error {
 		if err := json.Unmarshal(normShared(kind, item, v), &vals); err != nil {
 			return err
 		}
-		restart, _, err := a.applyConfigKeys(map[string][]string{item: vals}, "shared by the other speakers", "sync")
+		restart, _, err := a.applyConfigKeys(map[string][]string{item: vals}, "shared by the other speakers", whySync)
 		if err == nil && restart {
 			m, _ := a.sharedGet(kind, item)
 			a.notePendingSync(kind+"/"+item, m.At)
@@ -281,6 +303,8 @@ type syncView struct {
 	// Rejected: shared settings whose value failed its trial here and is not taken
 	// ("setting/<key>"; until the item changes again).
 	Rejected []string `json:"rejected"`
+	// PausedUntil: unix ms while the sync's fuse holds it (0: not paused).
+	PausedUntil int64 `json:"paused_until"`
 }
 
 type sharedAt struct {
@@ -310,6 +334,11 @@ func (a *App) syncViewNow() syncView {
 		}
 	}
 	a.shared.mu.Unlock()
+	if a.shared.fuse.paused(a.shared.clock()) {
+		a.shared.fuse.mu.Lock()
+		v.PausedUntil = a.shared.fuse.until.UnixMilli()
+		a.shared.fuse.mu.Unlock()
+	}
 	cmds := a.commands()
 	for _, o := range syncOptions {
 		if cmds[o] != nil {

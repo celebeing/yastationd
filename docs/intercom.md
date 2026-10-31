@@ -31,6 +31,9 @@ mode, not vqe_0 with our gain; voice control is on the spotters, not on HA's tra
   (`wake.Spotter.SubscribeVQE`): echo-cancelled against the hardware playback reference, which is
   post-dmix, so the far end's voice we play is in it and is cancelled. The reference is in the
   same capture stream as the mics, so it is sample-locked to them (no drift on the AEC side).
+  On orion the reference slots are silent: the loopback's feedback mux stays on the firmware's
+  `TDMINB` ([boards/orion.md](boards/orion.md), "Mic capture"), so what is measured here
+  is bergamot's, and on orion a call runs without this cancellation.
 - **Without the wake word** (no spotter-host) the uplink falls back to the plain mic
   (`hw.Mic.Subscribe`): no echo cancellation, so the echo guard (below) works harder. Supported,
   but expect echo.

@@ -26,6 +26,15 @@ import (
 func (a *App) applyConfigText(data []byte, why string) (restart bool, changed []string, err error) {
 	a.confMu.Lock()
 	defer a.confMu.Unlock()
+	return a.applyConfigLocked(data, why)
+}
+
+// whySync is applyConfigKeys's why for a value taken from the other speakers: it is not a local
+// change, so it never goes out again.
+const whySync = "sync"
+
+// applyConfigLocked is applyConfigText with confMu held.
+func (a *App) applyConfigLocked(data []byte, why string) (restart bool, changed []string, err error) {
 	cur := a.cfg()
 	if cur.File == "" {
 		return false, nil, errors.New("no config file")
@@ -48,7 +57,9 @@ func (a *App) applyConfigText(data []byte, why string) (restart bool, changed []
 			return false, nil, err
 		}
 		a.log.Info("config: saved, restarting on trial", "why", why, "keys", changed)
-		a.shareSettings(&next, changed)
+		if why != whySync {
+			a.shareSettings(&next, changed)
+		}
 		go func() {
 			time.Sleep(500 * time.Millisecond) // the reply goes out first
 			if a.quit != nil {
@@ -64,18 +75,24 @@ func (a *App) applyConfigText(data []byte, why string) (restart bool, changed []
 	if len(changed) > 0 {
 		a.log.Info("config: applied live", "why", why, "keys", changed)
 	}
-	a.shareSettings(&next, changed)
+	if why != whySync {
+		a.shareSettings(&next, changed)
+	}
 	return false, changed, nil
 }
 
 // applyConfigKeys sets keys in the config file (an empty list removes a key) with a note, and
-// applies the result as applyConfigText does.
+// applies the result as applyConfigText does. The read is under confMu: two edits at once must each
+// see the other's result, or the second puts the first's key back, and that reads as a local change
+// (two shared keys arriving together made every speaker send old values back, without end).
 func (a *App) applyConfigKeys(changes map[string][]string, note, why string) (restart bool, changed []string, err error) {
+	a.confMu.Lock()
+	defer a.confMu.Unlock()
 	old, err := os.ReadFile(a.cfg().File)
 	if err != nil {
 		return false, nil, err
 	}
-	return a.applyConfigText(config.EditNote(old, changes, note), why)
+	return a.applyConfigLocked(config.EditNote(old, changes, note), why)
 }
 
 // checkConfigEdit parses the new text of the config file. A bad line is refused unless it was

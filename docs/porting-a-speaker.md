@@ -159,6 +159,9 @@ How the CFW uses audio (independent of the model):
   fallback (`mic.voice` channel, decimated to 16 kHz). `mic.rate` is per board — any
   1..6 multiple of 16 kHz (48 kHz on bergamot/pickle; 96 kHz on orion via the stock 13ch
   `mroute`), decimated in-process by `hw.Decimator`.
+  `mic.route_control` / `mic.route_value`: the mixer control and numeric value an acoustic
+  measurement selects for its run ([acoustic-calibration.md](acoustic-calibration.md)); the daemon's
+  own capture never touches them.
 
 Finding the capture layout for a new model:
 1. Read the vendor audio config: the capture device name, `micChannels`, `spkChannels`, rates,

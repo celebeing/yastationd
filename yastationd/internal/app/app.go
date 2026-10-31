@@ -80,6 +80,7 @@ type App struct {
 	muted      atomic.Bool      // mic-mute switch latch
 	clock      *timesync.Syncer // nil when time_sync is off
 	setup      *wifisetup.Mode  // Wi-Fi setup mode; nil when off
+	cpu        cpuMeter         // /proc/stat between two reads
 	combo      keyCombo
 	ic         *icState         // intercom; nil when off
 	ship       *logship.Shipper // logs to the LAN syslog server; nil when off
@@ -501,7 +502,6 @@ func (a *App) Run(ctx context.Context) error {
 			a.log.Warn("set mic gain", "control", g.MicGain, "err", err)
 		}
 	}
-	restoreMicRoute := a.setupMicRoute()
 
 	if a.cfg().FrameTapAddr != "" || (a.cfg().LEDPreview && a.cfg().HTTPAddr != "") {
 		a.startFrameTap(ctx)
@@ -521,6 +521,7 @@ func (a *App) Run(ctx context.Context) error {
 	go a.statusLoop(stop)
 	if a.setup != nil {
 		go a.setupSignalLoop(stop)
+		go a.setupWhenNoNetworks(stop)
 	}
 	go a.hmon.Run(stop, 10*time.Second, 2*time.Second)
 	go a.telemetryLoop(stop)
@@ -598,8 +599,6 @@ func (a *App) Run(ctx context.Context) error {
 	if wy != nil {
 		wy.Close()
 	}
-	a.mic.Stop()
-	restoreMicRoute()
 	if a.mqtt != nil {
 		a.mqtt.Disconnect()
 	}
@@ -726,7 +725,7 @@ func (a *App) onMQTTConnect() {
 	a.publishWebInfo()
 	a.voiceFlush()
 	if a.vstore != nil {
-		a.voicePublish()
+		a.voiceAnnounce()
 	}
 }
 

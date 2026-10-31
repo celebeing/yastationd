@@ -74,10 +74,12 @@ transient (see "Mic capture"); it does not block on-device wake/VQE work.
   through the ACM8625 amplifiers. `TDMOUTB` (enum value 1) is the six-channel speaker output:
   setting that mux before opening `hw:0,3` makes raw channels 8–13 carry the exact digital
   playback PCM. A −60 dBFS 1 kHz test tone appeared as the original ±32-LSB waveform on all
-  six channels, while its acoustic microphone pickup was only about −88 dBFS. **CFW lifecycle
-  verification (2026-10-30):** the daemon holds value 1 while running, restores value 5 after
-  cleanly stopping `arecord`, and selects value 1 again on restart. Music playback, volume,
-  normal wake/response, and wake during music all remained functional.
+  six channels, while its acoustic microphone pickup was only about −88 dBFS. The daemon
+  leaves the mux at value 5 and takes value 1 only for an acoustic measurement, with its own
+  capture closed ([acoustic-calibration.md](../acoustic-calibration.md)), so the wake word,
+  the intercom and the sound sensors run without a reference. Holding value 1 all the time, a
+  trial on 2026-10-30, kept music, volume, wake and wake during music working. Whether it helps
+  the VQE is not measured; it would change what those three hear on every unit.
 - `mroute` exposes five of those six TDM-B slots as indices 6–10; it deliberately omits raw
   loopback channel 10. Its indices 11–12 remain the `us` codec's TDM-A capture slots, dead
   LSB unless a TDM-A stream is active. No userspace channel-remapping bug was involved.
@@ -291,8 +293,8 @@ Generic detector limits and the bergamot instance: [docs/research/wakeword-mic-a
   The firmware ships `/bkupgrade` as a symlink to `/ota` (dated with the firmware build), so the
   CFW root is `/bkupgrade/cfw`, like bergamot: every hook, `run.sh`'s gate, `egress.sh` and the
   daemon's fallback probe `/bkupgrade/cfw` first, and the install kit puts its files there. `/ota`
-  is the OTA staging partition; with updates blocked nothing rewrites it. What a factory reset
-  does to `/ota` and `/data` is not characterised yet.
+  is the OTA staging partition; with updates blocked nothing rewrites it. A factory reset
+  reformats `/ota` and `/data`; what else it does, the restore package and the partition map: [permanent-install.md](../research/permanent-install.md#orion--the-restore-payload-is-replaceable-too).
 
 - Ambient light: ltr308 (I2C 0-0053) registered as IIO `light-sensor-top`, `in_intensity_*`
   only; the stock S80light-sensor sets gain 18 / 0.4 s — max values, nothing to override.
@@ -466,7 +468,10 @@ the other project's scope):
 - Kit state: `<cfw>` = `/bkupgrade/cfw` with dropbear, `maind_off`, the kit's own
   (IPv4-only) `egress.sh` locked, `run.sh` gated, `device_ota_update.sh` stubbed,
   `--updatesd` stripped from `launch.json`, a foreign `ota_script.pub` (each with an
-  `.orig`). No maind process; network ADB `:5555` stays up.
+  `.orig`). No maind process; network ADB `:5555` stays up: the vendor `adbd` runs as root and the
+  port answers from the whole LAN (checked 2026-10-31 on both units; whether it asks for a key
+  was not tried). The egress lock lets inbound connections in by design. The minis' `:5555` is
+  closed. Open item in [backlog.md](../backlog.md).
 - `/dev/galcore` (the NPU) is present. spotter-host's `probe` on the stock models:
   `activation/alisa` (omni + BNR + raw-mic, NPU verifier) creates fine as a 3-channel
   spotter, `yandex` and `yasmina` as 2-channel (omni + raw-mic), `command` as 1-channel.
@@ -485,3 +490,16 @@ the other project's scope):
   done.
 - The aarch64 spotter-host built against pickle's sysroot runs here unchanged (both
   firmwares have glibc 2.36), so `build/aarch64/` serves both boards.
+
+## Load average reads high
+
+A kernel thread `vmap_thread` sits in uninterruptible sleep all the time (`msleep`), which counts as
+one full running process, and the audio threads' short bursts add the rest: load average runs at
+about 2 on an idle-looking unit with most of the processor free (measured 2026-10-31). The web app
+shows the processor's percentage instead; `yastation_load` stays in `/metrics`, next to
+`yastation_cpu_percent`.
+
+## Factory reset
+
+A reset rewrites `system` from `aml_sysrecovery` and reformats `/ota` and `/data`, and changes parts of
+`bootloader` and `reserved`; a rebuilt package is accepted: [guides/golden-image.md](../guides/golden-image.md#orion).

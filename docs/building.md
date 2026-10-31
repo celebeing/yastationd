@@ -17,8 +17,9 @@ zig image on every target; if a build of an image keeps failing, `docker builder
 |---|---|---|---|
 | `yastation-go` | `docker/go.Dockerfile` | `yastationd` (tests too) | Go 1.22.5 (`golang:1.22.5-bookworm`), `GOTOOLCHAIN=local`; one static armv7 binary for every board |
 | `yastation-node` | `docker/node.Dockerfile` | the web app (`web/`), embedded in yastationd | Node 18.20.8, pnpm 8.14.1 |
-| `yastation-zig` | `docker/zig.Dockerfile` | `sendspin-host` (per arch), `hostapd`, `dropbear` | **zig 0.14.1** (0.11–0.13 emit armhf C++ binaries that crash before `main`; the tarball for the builder's own arch, x86_64 or aarch64, checked by sha256), cmake, ninja, git, curl |
+| `yastation-zig` | `docker/zig.Dockerfile` | `sendspin-host` (per arch), `hostapd`, `dropbear`, `openssh` | **zig 0.14.1** (0.11–0.13 emit armhf C++ binaries that crash before `main`; the tarball for the builder's own arch, x86_64 or aarch64, checked by sha256), cmake, ninja, git, curl, perl (OpenSSL's configure) |
 | `yastation-tools` | `docker/tools.Dockerfile` | the host-side conversions: vendor sounds (`make sounds`), binary clock clips (`make clips`), videos (`make video`) | the same Go as `yastation-go`, plus Debian bookworm's ffmpeg, zstd, jq, file |
+| `yastation-golden` | `docker/golden.Dockerfile` | a golden restore image (`tools/golden.sh`, target `golden:<dir>:<platform>`; [guides/golden-image.md](guides/golden-image.md)) | Debian bookworm's mtd-utils, e2fsprogs, libsparse utils, fakeroot, Python 3; ubi_reader 0.8.10 |
 | `yastation-cross` | `docker/cross.Dockerfile` | `spotter-host` (per arch) | Ubuntu 22.04's gcc 11 cross toolchains (glibc 2.35): the toolchain the deployed builds were made with — its output is byte-identical to them (checked 2026-10-27) |
 
 ## tools/build.sh
@@ -39,6 +40,7 @@ tools/build.sh make:sounds-convert        # a yastationd make target in the tool
 | `yastationd` | `yastationd/build/yastationd` |
 | `hostapd` | `hostapd/build/hostapd` |
 | `dropbear` | `dropbear/build/dropbearmulti` (static aarch64, every board; [dropbear/README.md](../dropbear/README.md)) |
+| `openssh` | `openssh/build/`: `sshd`, `sshd-session`, `sshd-auth`, `sftp-server`, `scp`, `dropbearconvert` (static aarch64 on a static OpenSSL; the speakers' default SSH server; [openssh/README.md](../openssh/README.md)) |
 | `sendspin:<arch>` | `sendspin-host/build/<arch>/sendspin-host` |
 | `spotter:<arch>` | `spotter-host/build/<arch>/spotter-host` |
 | `packtool` | `yastationd/build/packtool` (for the building host, not the speakers: the asset-pack checker) |
@@ -51,7 +53,7 @@ tools/build.sh make:sounds-convert        # a yastationd make target in the tool
 - Caches survive between runs in `${XDG_CACHE_HOME:-~/.cache}/yastation-build` (Go build and
   module caches, zig's cache; the pnpm store sits in `web/node_modules/`). A warm `yastationd`
   build takes seconds.
-- `sendspin-host`, `hostapd` and `dropbear` fetch their pinned sources on the first build (network needed
+- `sendspin-host`, `hostapd`, `dropbear` and `openssh` fetch their pinned sources on the first build (network needed
   once); everything else builds offline.
 - A `sendspin-host/build/<arch>` configured in another directory (a moved checkout, or the
   builder before v0.16.2 that mounted the repo at `/src`) is wiped and built anew by its Makefile:
@@ -147,7 +149,7 @@ ssh.
 | `make pack` | Go (`cmd/packtool`) | `tools/build.sh packtool`, then the static binary on the host |
 | `make stage-ringdemo` / `stage-fbleddemo` | Go | `make:build-ringdemo` / `make:build-fbleddemo`, then ssh |
 | `make vqe-models`, `deploy-egress`, `ota-block`, `deploy` | — | ssh only (`deploy` = `tools/deploy.sh`) |
-| `tools/fetch-vendor.sh`, `tools/board-survey.sh`, `tools/orion-*.sh`, `tools/capture-raw.sh` | — | ssh and tar only |
+| `tools/fetch-vendor.sh`, `tools/board-survey.sh`, `tools/orion-*.sh`, `tools/capture-raw.sh`, `tools/backup-unit.sh`, `tools/restore-unit.sh` | — | ssh, tar, gzip, sha256sum only |
 | ledsim, demoreel, sweep-analyze | Go | `tools/build.sh hosttool:<cmd>`, then the binary (`tools/analyze-sweeps.sh` does both) |
 | the asset repo's `tools/build-packs.sh`, `pack-index.sh` | Go, jq (before) | packtool built here (`packtool`, `-get`, `-index`) |
 

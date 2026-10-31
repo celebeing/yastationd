@@ -29,11 +29,12 @@ const (
 )
 
 type voiceStore struct {
-	mu    sync.Mutex
-	dir   string
-	al    *voiceid.Album
-	model string // the voiceprint model of the newest entry
-	pub   *time.Timer
+	published bool // this run published the people at least once
+	mu        sync.Mutex
+	dir       string
+	al        *voiceid.Album
+	model     string // the voiceprint model of the newest entry
+	pub       *time.Timer
 }
 
 // storedEntry is a log line: the entry and its voiceprint.
@@ -172,7 +173,28 @@ func (a *App) voicePublishSoon() {
 	if st.pub != nil {
 		st.pub.Stop()
 	}
-	st.pub = time.AfterFunc(voicePublishIn, a.voicePublish)
+	st.pub = time.AfterFunc(voicePublishIn, a.voicePublishAny)
+}
+
+// voiceAnnounce tells the speakers this one keeps the voices, and what it has of them.
+func (a *App) voiceAnnounce() {
+	if a.mqtt != nil {
+		a.mqtt.Publish(a.topics.VoiceStore(), a.cfg().DeviceID)
+	}
+	a.voicePublishAny()
+}
+
+// voicePublishAny publishes the people unless there are none and never were here: a store that
+// starts with an empty album (a new speaker, a config restored without <cfw>/voices/) must not
+// clear the household every speaker holds. Forgetting people goes through voicePublish itself.
+func (a *App) voicePublishAny() {
+	st := a.vstore
+	st.mu.Lock()
+	none := len(st.al.People()) == 0 && !st.published
+	st.mu.Unlock()
+	if !none {
+		a.voicePublish()
+	}
 }
 
 // voicePublish sends the named people's centroids to every speaker (retained).
@@ -180,6 +202,7 @@ func (a *App) voicePublish() {
 	st := a.vstore
 	st.mu.Lock()
 	msg := map[string]any{"model": st.model, "store": a.cfg().DeviceID, "people": st.al.People()}
+	st.published = true
 	st.mu.Unlock()
 	if msg["people"] == nil {
 		msg["people"] = []voiceid.Person{}

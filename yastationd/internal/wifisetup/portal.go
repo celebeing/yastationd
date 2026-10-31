@@ -36,6 +36,7 @@ type stateView struct {
 	Conf     string       `json:"conf"`
 	Networks []netView    `json:"networks"`
 	Scan     []ScanResult `json:"scan"`
+	Keys     []string     `json:"keys"`
 }
 
 type netEdit struct {
@@ -78,6 +79,7 @@ func (m *Mode) portalHandler(ip net.IP) http.Handler {
 	mux.HandleFunc("/api/state", m.apiState)
 	mux.HandleFunc("/api/networks", m.apiNetworks)
 	mux.HandleFunc("/api/networks/", m.apiNetwork)
+	mux.HandleFunc("/api/keys", m.apiKeys)
 	mux.HandleFunc("/api/settings", m.apiSettings)
 	mux.HandleFunc("/api/finish", m.apiFinish)
 	mux.HandleFunc("/api/reboot", m.apiReboot)
@@ -145,7 +147,7 @@ func (m *Mode) apiState(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusInternalServerError, err)
 		return
 	}
-	st := stateView{Device: m.o.DeviceName, Conf: m.conf, Networks: []netView{}, Scan: m.scanned}
+	st := stateView{Device: m.o.DeviceName, Conf: m.conf, Networks: []netView{}, Scan: m.scanned, Keys: m.keyLabels()}
 	if st.Scan == nil {
 		st.Scan = []ScanResult{}
 	}

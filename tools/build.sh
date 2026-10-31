@@ -9,12 +9,14 @@
 #   yastationd        tests + the daemon      yastationd/build/yastationd           (go; builds web first when stale)
 #   hostapd           the Wi-Fi setup AP      hostapd/build/hostapd                 (zig)
 #   dropbear          the SSH server          dropbear/build/dropbearmulti          (zig)
+#   openssh           the optional OpenSSH    openssh/build/{sshd,sshd-session,…}   (zig; SSH=openssh in deploy.sh)
 #   sendspin:<arch>   the music player        sendspin-host/build/<arch>/sendspin-host (zig; armhf | aarch64)
 #   spotter:<arch>    the voice front-end     spotter-host/build/<arch>/spotter-host   (cross gcc + a vendor sysroot)
 #   packtool          the asset-pack checker  yastationd/build/packtool  (go; for this host, not the speakers;
 #                     builds and checks packs: docs/asset-packs.md)
 #   hosttool:<cmd>    a host tool of cmd/     yastationd/build/<cmd>     (go; for this host: ledsim, demoreel,
 #                     clipconv, …; packtool is hosttool:packtool)
+#   golden:<dir>:<p>  a golden restore image   <dir>/golden.img  (from what tools/golden.sh pulled into <dir>)
 #   docs-check        every relative link in the Markdown resolves (tools/check-docs.sh; no container)
 #   make:<target>     a yastationd make target that needs ffmpeg/zstd/Go (the one-off install
 #                     conversions: sounds-convert, clips-convert, video-convert-in, build-ringdemo,
@@ -103,9 +105,20 @@ build_hosttool() {
 
 # make TARGET: a yastationd make target in the tools image (IN_BUILDER=1: the Makefile does the
 # work itself instead of calling back here).
+# build_golden <work-dir>:<platform>: a golden restore image out of what tools/golden.sh pulled.
+build_golden() {
+	echo "== golden image"
+	run golden . "fakeroot python3 -I tools/golden/mkgolden.py '${1%:*}' '${1##*:}'"
+}
+
 build_make() {
 	echo "== make $1"
 	run tools yastationd "make -s IN_BUILDER=1 $1 ${MAKE_VARS:-}"
+}
+
+build_openssh() {
+	echo "== openssh"
+	run zig openssh 'make -s'
 }
 
 build_dropbear() {
@@ -179,7 +192,9 @@ for t in "$@"; do
 	yastationd) build_yastationd ;;
 	hostapd) build_hostapd ;;
 	dropbear) build_dropbear ;;
+	openssh) build_openssh ;;
 	packtool) build_hosttool packtool ;;
+	golden:*) build_golden "${t#golden:}" ;; # tools/golden.sh: golden:<work-dir>:<platform>
 	docs-check) "$here/tools/check-docs.sh" || exit 1 ;;
 	hosttool:*) build_hosttool "${t#hosttool:}" ;;
 	make:*) build_make "${t#make:}" ;;

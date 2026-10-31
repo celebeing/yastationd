@@ -59,27 +59,6 @@ func (m *Mic) Subscribe(fn func([]byte)) (unsubscribe func()) { return m.add(&m.
 // shared by every raw subscriber, so fn must not modify it.
 func (m *Mic) SubscribeRaw(fn func([]byte)) (unsubscribe func()) { return m.add(&m.raws, fn) }
 
-// Stop ends capture during daemon shutdown. Subscribers remain registered, but no restart can
-// occur because cmd is cleared before arecord exits. It waits briefly for arecord's clean PCM
-// close so a board route can be restored without changing an active capture stream.
-func (m *Mic) Stop() {
-	m.mu.Lock()
-	cmd, done := m.cmd, m.done
-	if cmd != nil {
-		m.cmd, m.done = nil, nil
-	}
-	m.mu.Unlock()
-	if cmd == nil {
-		return
-	}
-	cmd.Process.Signal(syscall.SIGTERM)
-	select {
-	case <-done:
-	case <-time.After(micStopWait):
-		m.Log.Warn("mic: capture did not stop before shutdown timeout")
-	}
-}
-
 // Suspend closes the capture stream while preserving subscriptions, so an exclusive diagnostic
 // capture can open the device. The returned function restarts the stream if subscribers remain.
 // Only one exclusive owner may suspend a mic at a time.

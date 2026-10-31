@@ -484,9 +484,9 @@ function VitalsStrip({ peer, base }: { peer: Peer; base: string }) {
   const tone = (f: number, warn: number, bad: number) => (f >= bad ? 'bad' : f >= warn ? 'warn' : '')
   if (v.system_uptime_s) cells.push({ l: 'Speaker up', v: fmtSpan(v.system_uptime_s), title: 'Since the speaker booted' })
   cells.push({ l: 'Daemon up', v: fmtSpan(v.daemon_uptime_s), title: 'Since yastationd started' })
-  if (v.load) {
-    const f = v.load[0] / Math.max(1, v.cpus)
-    cells.push({ l: 'Load', v: v.load.map((l) => l.toFixed(2)).join(' '), title: `Load average over 1, 5 and 15 min; the gauge: the last minute over ${v.cpus} cores`, tone: tone(f, 0.7, 1), frac: f })
+  if (v.cpu_percent !== undefined) {
+    const f = v.cpu_percent / 100
+    cells.push({ l: 'CPU', v: Math.round(v.cpu_percent) + ' %', title: `Processor load over all ${v.cpus} cores, now`, tone: tone(f, 0.8, 0.95), frac: f })
   }
   if (v.temps && v.temps.length) {
     const hot = v.temps.reduce((a, b) => (b.c > a.c ? b : a))

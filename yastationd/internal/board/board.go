@@ -238,8 +238,8 @@ type MicSpec struct {
 	Channels int    // interleaved channels delivered
 	Rate     int    // capture rate (3 x 16 kHz)
 	Voice    int    // channel used for raw (no-VQE) voice streaming
-	// RouteControl selects the capture route before the daemon opens Device. RouteValue is its
-	// numeric ALSA value; the prior value is restored after capture stops. Empty = no route setup.
+	// RouteControl and RouteValue (numeric ALSA value) select the route an acoustic measurement
+	// captures through, for that run only: the daemon's own capture stays on the firmware's route.
 	RouteControl string
 	RouteValue   int
 	// SPLOffset turns the voice channel's level in dBFS into dB SPL (dB SPL = dBFS + offset),
