@@ -366,7 +366,21 @@ takes the Wi-Fi config with `<cfw>`, and the router blocks it anyway.
    `/etc/wpa_supplicant.conf`, which stock `S40wifi` copies into an empty config.
 
 Each can be tried live without wiping anything (the SSH fallback on port 2222, as OpenSSH was).
-With it in place, the stock reset with markers costs at worst a login over the rootfs SSH.
+
+**Dropped (2026-10-31).** Without a Wi-Fi config the unit still has to go through the vendor's BLE
+onboarding, which needs the internet, so the egress lock and the maind gate would only get in its
+way; what is left is a fallback SSH after onboarding. And even that does not live to be used: on
+bergamot the reset keeps `/data` and the rootfs (and so, most likely, `<cfw>` next to `/data` in
+`/bkupgrade`), so there is nothing to rescue; on pickle, and probably orion, the reset rewrites
+`system` from the package, and a rootfs layer goes with it. Only what is inside the package survives
+a reset there.
+
+So the minimal image collapses into the full one: a golden image worth having is the whole CFW,
+which already brings its own vendor-free onboarding (the Wi-Fi setup mode with its access point,
+[wifi-setup.md](../wifi-setup.md), on every board; the daemon comes up ~30 s after boot without a
+network), the maind gate, the update blocks, the egress lock and SSH with the owner's key; then
+`tools/restore-unit.sh` brings the unit's identity back. Still open: a way back if the package is
+refused (the blocker), and keeping the owner's key in the image apart from each unit's state.
 
 ## Our own reset gesture — in early Linux init, not in U-Boot (a convenience, not a safety net)
 
