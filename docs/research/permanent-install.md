@@ -272,10 +272,8 @@ it is read.
 
 ### What others published (2026-10-31)
 
-A web search (by the owner, two key links rechecked) found:
-- **Amlogic's public U-Boot** (2015.01 vendor tree, e.g. hardkernel's mirror,
-  `drivers/usb/gadget/v2_burning/aml_sysrecovery/aml_sysrecovery.c`): the `aml_sysrecovery`
-  command checks only the package magic, version and item count; its "check the whole image before
+A web search found:
+- **Amlogic's public U-Boot** (an old vendor tree): the `aml_sysrecovery` command checks only the package magic, version and item count; its "check the whole image before
   burning" is a stub (`//TODO: return 0;`), so the header CRC is not checked on the device; it
   skips the `bootloader` item by default (it can burn one when told to), writes each `PARTITION`
   item and only **then**, if asked, reads it back and compares the `VERIFY` sha1. No signature
@@ -284,20 +282,52 @@ A web search (by the owner, two key links rechecked) found:
   `factory_reset` to `recovery_from_flash` (the recovery kernel), not to `aml_sysrecovery`. And
   write-then-verify means a probe is no safer than a real image: a rejection comes after the write.
 - **No public report** of anyone replacing the contents of `aml_sysrecovery` on any device, neither
-  a success nor a brick. Closest: on a Xiaomi Amlogic speaker a modified `system` boots while a
-  rebuilt `boot` is refused (boot images are signed, the rootfs is not), which matches what we see.
-- A community wiki on Yandex Stations (Marker284/yandex-station-extended,
-  `docs/start/recovery.md`) says the button reset **clears `/data` and does not roll back** edits in
-  `/etc/init.d` and `/system/vendor/quasar`, without naming the models tried; its Station 3 page
-  says nothing about what a reset does. The owner's colleagues report the opposite (the rootfs
-  comes back stock). Our dump cannot tell (the unit was never updated, so its `system` equals the
-  package either way). On orion this stays open, and the marker test answers it.
-- No verified way into USB burn mode on any Station (the same wiki says so); ADNL host tools exist
-  for the newer SoCs (A5 among them), untried.
+  a success nor a brick. Closest: on another vendor's Amlogic speaker a modified `system` boots while
+  a rebuilt `boot` is refused (boot images are signed, the rootfs is not), which matches what we see.
+- Community notes on Yandex Stations say the button reset **clears `/data` and does not roll back**
+  edits in `/etc/init.d` and `/system/vendor/quasar`, without naming the models; nothing on what it
+  does on a Station 3. The owner's colleagues report the opposite (the rootfs comes back stock).
+  Our own units disagree with both, by model: [below](#what-the-reset-does-on-our-units).
+- No verified way into USB burn mode on any Station; ADNL host tools exist for the newer SoCs (A5
+  among them), untried.
+
+### What the reset does on our units
+
+Read-only, 2026-10-31, from file dates, the UBI erase counters and the owner's history of each unit.
+The trick: a reset that recreates a partition leaves its oldest files dated at the reset; a reset
+that rewrites the rootfs from an image leaves it as that image, edits and update included gone.
+
+**bergamot (Mini 3; no package, its restore image is inside the encrypted recovery): `/data`
+survives, and very likely the rootfs too.** Both units were reset at least once (one several
+times), yet the oldest vendor files in their `/data` (= `/bkupgrade/data`) date from the factory day
+on one and from the first setup a year and a half ago on the other, Bluetooth pairings included. So
+the reset does not reformat `/data` there (it may delete some files, e.g. the account). The second
+unit runs firmware that came by an update (built 2026-10-13, newer than its factory one) and was
+reset after that update, during the install, yet still runs it: a reset back to the factory image
+would have taken the update away. Whether the rootfs edits themselves survive a reset is not seen
+directly (the edits came after the last reset).
+
+**pickle (Mini 3 Pro; the same `aml_sysrecovery` package design as orion): `/data` is wiped and the
+rootfs is rewritten from the package.** The unit went through the reset about ten times, each
+followed by the install kit's rootfs edits. Today:
+- firmware `factory-14`, the same as the package; no sign of an update;
+- `/data`'s oldest files date three minutes before the last kit run: it was recreated by that reset;
+- the kit's `run.sh.orig` is stock and dated by the last kit run: before that run the rootfs held
+  none of the earlier runs' edits;
+- the UBI erase counters of `system` are 0–2 (295 PEBs at 0, 213 at 1, 4 at 2; every PEB of the
+  package's `system` item has 0), while the `data` volume's maximum is 7 (erased about as often as
+  it was reset). Ten rounds of rootfs edits on a never-rewritten `system` would leave its counters
+  at least as high; near-zero counters are what a fresh write from the package leaves.
+
+**orion: open.** Same package design as pickle, so the same behaviour is the likely one, which
+matches the colleagues' reports; the community note fits bergamot instead. The Station 3s have not
+been reset after any edit, and their file dates cannot tell. The marker test on a Station 3 answers
+it. For experiments with the package and the rootfs, the Mini 3 Pro is the better first candidate:
+the same design, unused, half the price of a Station 3, and its reset is well exercised.
 
 ### If the rootfs survives and `/data` is wiped: what is left of the CFW
 
-Checked against the rootfs edits in the backups of a Station 3 and both Mini 3s (2026-10-31).
+Checked against the rootfs edits in the backups of a Station 3 and both Mini 3s (2026-10-31). On pickle this is what a reset does to `/data` (above); on bergamot `/data` survives, so this table is about pickle and, if `/ota` goes too, orion.
 
 **Not a brick.** The edits are plain files (no symlinks into `<cfw>` or `/data`); stock `rcS`
 runs `S??*` one after another, skips dangling links and goes on after a failing script; and every
