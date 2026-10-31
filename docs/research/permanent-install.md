@@ -270,6 +270,74 @@ rehearse the restore. orion keeps a **ramoops** console log of the previous boot
 kernel's log (what it mounted, formatted and wrote), provided nothing reboots the unit again before
 it is read.
 
+### What others published (2026-10-31)
+
+A web search (by the owner, two key links rechecked) found:
+- **Amlogic's public U-Boot** (2015.01 vendor tree, e.g. hardkernel's mirror,
+  `drivers/usb/gadget/v2_burning/aml_sysrecovery/aml_sysrecovery.c`): the `aml_sysrecovery`
+  command checks only the package magic, version and item count; its "check the whole image before
+  burning" is a stub (`//TODO: return 0;`), so the header CRC is not checked on the device; it
+  skips the `bootloader` item by default (it can burn one when told to), writes each `PARTITION`
+  item and only **then**, if asked, reads it back and compares the `VERIFY` sha1. No signature
+  anywhere. A package with a changed `system` and recomputed sha1s would pass that code. Caveats:
+  old code, not A5; Yandex's `fr` appears in no public tree, and Amlogic's default env sends
+  `factory_reset` to `recovery_from_flash` (the recovery kernel), not to `aml_sysrecovery`. And
+  write-then-verify means a probe is no safer than a real image: a rejection comes after the write.
+- **No public report** of anyone replacing the contents of `aml_sysrecovery` on any device, neither
+  a success nor a brick. Closest: on a Xiaomi Amlogic speaker a modified `system` boots while a
+  rebuilt `boot` is refused (boot images are signed, the rootfs is not), which matches what we see.
+- A community wiki on Yandex Stations (Marker284/yandex-station-extended,
+  `docs/start/recovery.md`) says the button reset **clears `/data` and does not roll back** edits in
+  `/etc/init.d` and `/system/vendor/quasar`, without naming the models tried; its Station 3 page
+  says nothing about what a reset does. The owner's colleagues report the opposite (the rootfs
+  comes back stock). Our dump cannot tell (the unit was never updated, so its `system` equals the
+  package either way). On orion this stays open, and the marker test answers it.
+- No verified way into USB burn mode on any Station (the same wiki says so); ADNL host tools exist
+  for the newer SoCs (A5 among them), untried.
+
+### If the rootfs survives and `/data` is wiped: what is left of the CFW
+
+Checked against the rootfs edits in the backups of a Station 3 and both Mini 3s (2026-10-31).
+
+**Not a brick.** The edits are plain files (no symlinks into `<cfw>` or `/data`); stock `rcS`
+runs `S??*` one after another, skips dangling links and goes on after a failing script; and every
+hook of ours tests for its file in `<cfw>` and waits for nothing:
+
+| Rootfs hook | With an empty `<cfw>` |
+|---|---|
+| `S42zdropbear` (SSH, ours) | neither `ssh.sh` nor `S42zdropbear.orig` → **no SSH server** |
+| `S52zyastationd` | no binary → exits; no daemon |
+| `S99zzegress` | no `egress.sh` → **no on-device firewall**, only the router's block |
+| `run.sh` (maind gate) | no `maind_off` → **the vendor stack starts**, as on stock |
+| `device_ota_update.sh` stub, `launch.json` without `--updatesd`, the foreign `ota_script.pub` | live in the rootfs → updates stay blocked |
+| `S42zadbusb` (the minis only) | recreates `/bkupgrade/cfw` and brings up USB ADB, a way in on the minis |
+
+Worst case: a unit running the vendor stack, without our daemon, without SSH, without the
+on-device firewall, but with updates blocked; and in practice offline, because the same wipe
+takes the Wi-Fi config with `<cfw>`, and the router blocks it anyway.
+
+**Where each board keeps what:**
+
+| Board | `<cfw>` | Wi-Fi config | If only `/data` is wiped |
+|---|---|---|---|
+| orion | `/ota/cfw` | `/ota/data` | the CFW and Wi-Fi survive; Bluetooth pairings (`/data/bluez_data`) and the ADB markers go. The daemon writes nothing to `/data` |
+| pickle | `/data/cfw` | `/data/wpa_supplicant.conf` | everything goes: the table above |
+| bergamot | `/bkupgrade/cfw` | `/bkupgrade/data` | its `/data` is a directory in the `bkupgrade` volume; whether the whole volume is wiped is unknown |
+
+**A rootfs layer that does not need `<cfw>`** (an idea, not built; a plain rootfs edit with
+`.orig` copies, no boot risk) would keep a unit reachable after any wipe of `/data` or `/ota`, the
+"minimal image" without touching the package:
+1. SSH: `S42zdropbear` falls back to a dropbear kept in the rootfs (host key generated at boot,
+   `authorized_keys` already in the rootfs);
+2. the maind gate honours a rootfs flag too, so the vendor stack stays off with an empty `<cfw>`
+   (the "vendor code must not run" rule then holds here as well);
+3. `S99zzegress` falls back to a rootfs copy of `egress.sh`;
+4. Wi-Fi (the owner's call: it puts the PSK in the rootfs): the home network in
+   `/etc/wpa_supplicant.conf`, which stock `S40wifi` copies into an empty config.
+
+Each can be tried live without wiping anything (the SSH fallback on port 2222, as OpenSSH was).
+With it in place, the stock reset with markers costs at worst a login over the rootfs SSH.
+
 ## Our own reset gesture — in early Linux init, not in U-Boot (a convenience, not a safety net)
 
 A second gesture in U-Boot ("vendor gesture → factory, our gesture → our image") is **not doable**:
