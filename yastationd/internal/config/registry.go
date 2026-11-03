@@ -393,7 +393,7 @@ func init() {
 		Doc: "The speaker's ID in MQTT topics and in Home Assistant's entity IDs. Changing it makes HA see a new device."},
 		textV(func(c *Config) *string { return &c.DeviceID }, nonEmpty))
 	reg(Key{Name: "device_name", Group: "identity", Label: "Name",
-		Doc: "The device's name in Home Assistant and in the web app; also the intercom and Music Assistant name unless those are set."},
+		Doc: "The device's name in Home Assistant, the web app and the Bluetooth picker; also the intercom and Music Assistant name unless those are set."},
 		textV(func(c *Config) *string { return &c.DeviceName }, nonEmpty))
 	reg(Key{Name: "board", Group: "identity", Label: "Board", Advanced: true,
 		Doc: "auto detects the model from the device tree; or a codename (bergamot, pickle, orion)."},

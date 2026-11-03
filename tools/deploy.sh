@@ -35,11 +35,11 @@
 #
 # `make deploy` in yastationd/ runs this script for local.mk's one speaker.
 #
-# What it does per speaker: upload the binary next to the live one (and the supervisor script,
-# bin/diag.sh and the helpers), then run stop -> swap -> start as a script on stdin, keeping the
-# old binary as yastationd.prev for the supervisor's crash-loop rollback. Keep it that way: the
-# init hook's stop matches processes by the binary's path, and an ssh command line that mentions
-# the path would be killed along with the daemon.
+# What it does per speaker: checksum every deployable file and upload only changes. A changed
+# daemon, supervisor or helper runs the existing stop -> swap -> start script; diagnostics-only
+# and no-change runs leave yastationd running. The old daemon stays as yastationd.prev for the
+# supervisor's crash-loop rollback. Keep the swap on stdin: the init hook's stop matches processes
+# by binary path, and an ssh command line that mentions that path would be killed with the daemon.
 set -eu
 
 here=$(cd "$(dirname "$0")/.." && pwd)
@@ -67,6 +67,13 @@ fail() {
 # put FILE REMOTE_CMD: stream a file to the speaker.
 put() { ssh_ "$target" "$2" <"$1" || fail "upload of $(basename "$1") to $target"; }
 
+# same_file LOCAL REMOTE: checksum equality is enough for deployment identity; this is not a
+# security boundary. The speaker has busybox md5sum and the script already needs md5sum for OpenSSH.
+same_file() {
+	want=$(md5sum "$1" | awk '{print $1}')
+	have=$(ssh_ "$target" "md5sum $2 2>/dev/null | awk '{print \$1}'" </dev/null) || return 1
+	[ "$want" = "$have" ]
+}
 
 profile_value() {
 	awk -F= -v wanted="$2" '
@@ -82,7 +89,6 @@ profile_value() {
 		}
 	' "$1"
 }
-
 
 # Build what goes out, each in its pinned container (tools/build.sh): yastationd, hostapd, and
 # sendspin-host / spotter-host for every userland arch in the hosts file (spotter-host only where
@@ -113,7 +119,11 @@ if [ "${NATIVE:-0}" != 1 ] && [ "${DROPBEAR:-0}" != only ]; then
 fi
 
 SSH=${SSH:-openssh}
-case $SSH in openssh | dropbear) ;; *) echo "SSH=$SSH: openssh or dropbear" >&2; exit 1 ;; esac
+case $SSH in openssh | dropbear) ;; *)
+	echo "SSH=$SSH: openssh or dropbear" >&2
+	exit 1
+	;;
+esac
 
 echo "== build"
 if [ "${DROPBEAR:-0}" = only ]; then
@@ -145,7 +155,10 @@ DB_ARGS='args=$(tr "\0" " " </proc/$(cat /var/run/dropbear.pid)/cmdline)'
 # restarts the port-22 listener (sessions in progress stay up); a login on 22 confirms it, else the
 # old binary goes back. Anything failing before the swap leaves everything as it was.
 update_dropbear() {
-	[ -x "$dbm" ] || { echo "  dropbear: no $dbm (tools/build.sh dropbear), not replaced" >&2; return 0; }
+	[ -x "$dbm" ] || {
+		echo "  dropbear: no $dbm (tools/build.sh dropbear), not replaced" >&2
+		return 0
+	}
 	if ! ssh_ "$target" "test -x $cfw/bin/dropbearmulti" </dev/null; then
 		echo "  dropbear: not run from $cfw/bin/dropbearmulti here, not replaced" >&2
 		return 0
@@ -167,18 +180,19 @@ update_dropbear() {
 		return 0
 	fi
 	put "$dbm" "cat > $cfw/bin/dropbearmulti.upload && chmod 755 $cfw/bin/dropbearmulti.upload"
-	if ! ssh_ "$target" 'sh -s' <<EOF; then
+	if ! ssh_ "$target" 'sh -s' <<EOF
 set -e
 $DB_ARGS
 \$(echo "\$args" | sed -e 's|/dropbearmulti |/dropbearmulti.upload |' -e 's| -p [0-9]*| -p 2222|' \
 	-e 's| -P [^ ]*| -P /var/run/dropbear-test.pid|')
 EOF
+	then
 		echo "  dropbear: the new one did not start, not replaced" >&2
 		ssh_ "$target" "rm -f $cfw/bin/dropbearmulti.upload" </dev/null || true
 		return 0
 	fi
 	sleep 1
-	if ! ssh_2222 'sh -s' <<EOF; then
+	if ! ssh_2222 'sh -s' <<EOF
 set -e
 D=$cfw/bin
 $DB_ARGS
@@ -189,6 +203,7 @@ kill \$(cat /var/run/dropbear.pid)
 sleep 1
 \$args
 EOF
+	then
 		ssh_ "$target" "kill \$(cat /var/run/dropbear-test.pid); rm -f $cfw/bin/dropbearmulti.upload" </dev/null || true
 		echo "  dropbear: no login through the new one on port 2222, not replaced" >&2
 		return 0
@@ -244,7 +259,7 @@ switch_ssh() {
 	ssh_ "$target" "SERVER=$srv sh $cfw/init.d/ssh.sh.new test 2222 .new" </dev/null ||
 		fail "ssh: $srv did not start on port 2222 of $target; nothing changed"
 	sleep 1
-	if ! ssh_2222 'sh -s' <<EOF; then
+	if ! ssh_2222 'sh -s' <<EOF
 set -e
 C=$cfw
 for b in $OSSH_BINS; do
@@ -259,6 +274,7 @@ sh \$C/init.d/ssh.sh stop
 sleep 1
 sh \$C/init.d/ssh.sh start
 EOF
+	then
 		ssh_ "$target" "kill \$(cat /var/run/sshd-2222.pid)" </dev/null || true
 		fail "ssh: no login through $srv on port 2222 of $target; port 22 unchanged"
 	fi
@@ -371,46 +387,93 @@ grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target platform cfw arc
 	fi
 	first=0
 	ssh_ "$target" "test -e $cfw/bin/yastationd" </dev/null || first=1
+	# A failed earlier deploy can leave staged files. Never activate those during an unrelated
+	# later helper update: only uploads staged by this run may reach the swap below.
+	ssh_ "$target" "rm -f $cfw/bin/yastationd.upload $cfw/bin/spotter-host.upload $cfw/bin/sendspin-host.upload $cfw/bin/hostapd.upload" </dev/null ||
+		fail "remove stale uploads on $target"
 
-	put "$bin" "cat > $cfw/bin/yastationd.upload"
-	put "$here/yastationd/init.d/supervise.sh" "mkdir -p $cfw/init.d && cat > $cfw/init.d/supervise.sh.new && mv $cfw/init.d/supervise.sh.new $cfw/init.d/supervise.sh"
+	restart=0
+	changed=
+	diag_changed=0
+	if same_file "$bin" "$cfw/bin/yastationd"; then
+		echo "  yastationd: up to date"
+	else
+		put "$bin" "cat > $cfw/bin/yastationd.upload"
+		changed="$changed yastationd"
+		restart=1
+	fi
+	if same_file "$here/yastationd/init.d/supervise.sh" "$cfw/init.d/supervise.sh"; then
+		echo "  supervise: up to date"
+	else
+		put "$here/yastationd/init.d/supervise.sh" "mkdir -p $cfw/init.d && cat > $cfw/init.d/supervise.sh.new && mv $cfw/init.d/supervise.sh.new $cfw/init.d/supervise.sh"
+		changed="$changed supervise"
+		restart=1
+	fi
 	# The diagnostics collector (docs/guides/diagnostics.md); nothing runs it on deploy.
-	put "$here/yastationd/scripts/diag.sh" "cat > $cfw/bin/diag.sh.new && chmod 755 $cfw/bin/diag.sh.new && mv $cfw/bin/diag.sh.new $cfw/bin/diag.sh"
+	if same_file "$here/yastationd/scripts/diag.sh" "$cfw/bin/diag.sh"; then
+		echo "  diag: up to date"
+	else
+		put "$here/yastationd/scripts/diag.sh" "cat > $cfw/bin/diag.sh.new && chmod 755 $cfw/bin/diag.sh.new && mv $cfw/bin/diag.sh.new $cfw/bin/diag.sh"
+		diag_changed=1
+	fi
 	if [ -n "${arch:-}" ]; then
 		sp=$here/spotter-host/build/$arch/spotter-host
 		[ -x "$sp" ] || fail "no $sp — set SPOTTER_SYSROOT_* in tools/build.env (docs/building.md)"
-		put "$sp" "cat > $cfw/bin/spotter-host.upload"
+		if same_file "$sp" "$cfw/bin/spotter-host"; then
+			echo "  spotter-host: up to date"
+		else
+			put "$sp" "cat > $cfw/bin/spotter-host.upload"
+			changed="$changed spotter-host"
+			restart=1
+		fi
 		ss=$here/sendspin-host/build/$arch/sendspin-host
 		if [ -x "$ss" ]; then
-			put "$ss" "cat > $cfw/bin/sendspin-host.upload"
+			if same_file "$ss" "$cfw/bin/sendspin-host"; then
+				echo "  sendspin-host: up to date"
+			else
+				put "$ss" "cat > $cfw/bin/sendspin-host.upload"
+				changed="$changed sendspin-host"
+				restart=1
+			fi
 		fi
 	fi
 	if [ -n "$hap" ]; then
-		put "$hap" "cat > $cfw/bin/hostapd.upload"
+		if same_file "$hap" "$cfw/bin/hostapd"; then
+			echo "  hostapd: up to date"
+		else
+			put "$hap" "cat > $cfw/bin/hostapd.upload"
+			changed="$changed hostapd"
+			restart=1
+		fi
 	elif ! ssh_ "$target" "test -x $cfw/bin/hostapd" </dev/null; then
 		echo "  warning: no hostapd here and none to install (tools/build.sh hostapd, or set VENDOR) — the Wi-Fi setup mode cannot start" >&2
 	fi
 
-	# The swap runs from stdin; it restarts the daemon, which restarts spotter-host with it.
-	ssh_ "$target" 'sh -s' <<EOF || fail "update on $target (see above)"
-
+	if [ "$restart" = 1 ]; then
+		# The swap runs from stdin; it restarts the daemon, which restarts spotter-host with it.
+		ssh_ "$target" 'sh -s' <<EOF || fail "update on $target (see above)"
 set -e
 D=$cfw
-chmod +x \$D/bin/yastationd.upload
+[ -f \$D/bin/yastationd.upload ] && chmod +x \$D/bin/yastationd.upload
 for h in spotter-host sendspin-host hostapd; do [ -f \$D/bin/\$h.upload ] && chmod +x \$D/bin/\$h.upload; done
 /etc/init.d/S52zyastationd stop >/dev/null 2>&1 || true
 sleep 1
 l0=\$(cat /tmp/yastationd.log 2>/dev/null | wc -l)
-[ -f \$D/bin/yastationd ] && cp -p \$D/bin/yastationd \$D/bin/yastationd.prev
-mv \$D/bin/yastationd.upload \$D/bin/yastationd
+if [ -f \$D/bin/yastationd.upload ]; then
+	[ -f \$D/bin/yastationd ] && cp -p \$D/bin/yastationd \$D/bin/yastationd.prev
+	mv \$D/bin/yastationd.upload \$D/bin/yastationd
+fi
 for h in spotter-host sendspin-host hostapd; do [ -f \$D/bin/\$h.upload ] && mv \$D/bin/\$h.upload \$D/bin/\$h; done
 /etc/init.d/S52zyastationd start >/dev/null
 sleep 8
 n=\$(ps w | awk -v b="\$D/bin/yastationd" '\$3 == b' | wc -l)
 [ "\$n" -ge 1 ] || { echo "  yastationd not running:"; tail -20 /tmp/yastationd.log; exit 1; }
 tail -n +\$((l0 + 1)) /tmp/yastationd.log | grep -E 'level=(ERROR|WARN)' | tail -3 | sed 's/^/  log: /'
-echo "  ok"
+echo "  updated:$changed; yastationd restarted"
 EOF
+	elif [ "$diag_changed" = 1 ]; then
+		echo "  diag updated; yastationd left running"
+	fi
 	if [ "$first" = 1 ] || [ "${DROPBEAR:-0}" = 1 ]; then
 		update_dropbear
 	fi

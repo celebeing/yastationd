@@ -230,10 +230,11 @@ make install-initd                                 # copies the hook into /etc/i
 DROPBEAR=1 ../tools/deploy.sh <hosts-file>         # this speaker's line (§4)
 ```
 
-The deploy builds everything in docker, ships the helpers (`spotter-host`, `sendspin-host` when
-built, `hostapd`), starts the daemon through the hook and checks that it runs; `DROPBEAR=1` also
-puts our SSH server in (§4, optional). Now `wake: spotter ready` shows in the log if the wake word
-is on.
+The deploy builds everything in docker, compares the daemon, supervisor, diagnostics collector and
+helpers with the speaker, and uploads only changed files. A daemon, supervisor or helper change
+restarts and checks the daemon; a diagnostics-only or no-change deploy leaves it running.
+`DROPBEAR=1` also puts our SSH server in (§4, optional). Now `wake: spotter ready` shows in the log
+if the wake word is on.
 
 Reboot once (with the user's OK) and check that it all comes back on its own. On pickle, the first
 start after boot fails once (the ring LEDs appear late) and the supervisor restarts it 2 s later

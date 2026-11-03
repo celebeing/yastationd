@@ -40,6 +40,9 @@ func TestOrionBuiltin(t *testing.T) {
 	if len(p.Audio.Unmute) != 3 {
 		t.Errorf("unmute = %q", p.Audio.Unmute)
 	}
+	if p.Audio.BluetoothVolume != "Bluetooth Master Playback Volume" || p.Audio.BluetoothVolumeDefault != 255 {
+		t.Errorf("Bluetooth volume = %q/%d", p.Audio.BluetoothVolume, p.Audio.BluetoothVolumeDefault)
+	}
 	if p.Matrix.Kind != "dotmatrix-fb" || p.Ring.Pixels != 36 ||
 		p.Ambilight.Kind != "sysfs-rgbw" || p.Ambilight.Pixels != 12 ||
 		len(p.Ambilight.Colors) != 4 || len(p.Ambilight.Dies) != 2 ||

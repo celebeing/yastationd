@@ -95,6 +95,7 @@ func (a *App) onWakeEvent(ev wake.Event) {
 			}
 		default:
 			a.log.Info("wake: detected", "phrase", ev.Phrase, "at", ev.At)
+			a.duckBluetoothNow()
 			if a.arbitrationOn() {
 				a.arbitrateWake(ev) // the loudest of the speakers that heard it answers
 				return

@@ -72,6 +72,12 @@ func (a *App) applyConfigLocked(data []byte, why string) (restart bool, changed 
 		return false, nil, err
 	}
 	a.conf.Store(&next)
+	for _, key := range changed {
+		if key == "volume_max" {
+			a.clampVolumeToCap()
+			break
+		}
+	}
 	if len(changed) > 0 {
 		a.log.Info("config: applied live", "why", why, "keys", changed)
 	}

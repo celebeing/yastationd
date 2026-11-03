@@ -58,36 +58,42 @@ type App struct {
 	loc            *time.Location
 	start          time.Time
 
-	ring       *hw.Ring
-	ambilight  *hw.Ambilight
-	fx         ambilightFx   // streamed effects on it (ambilightfx.go)
-	matrix     *hw.Matrix    // seg7 sysfs display
-	screen     *hw.DotMatrix // fbdev pixel display
-	mixer      *hw.Mixer
-	player     *hw.Player
-	mic        *hw.Mic
-	spot       *wake.Spotter              // nil when the wake word is off
-	vid        *voiceID                   // voice ID (voiceid.go); nil when off
-	vstore     *voiceStore                // the voices' store (voicestore.go); nil unless voice_store
-	lastSubhit atomic.Pointer[wake.Event] // the spotter's last near miss of the wake word (wakecapture.go)
-	diagBusy   atomic.Bool                // a diagnostics archive is being made (diag.go)
-	lifeState  atomic.Int32               // lifecycle (lifecycle.go)
-	front      display.Front              // the front display's scenes and animations; nil = no front display
-	seqs       sequences
-	music      musicState  // Music Assistant player; music.host nil when off
-	playing    atomic.Bool // our aplay is running
-	sat        *satellite
-	muted      atomic.Bool      // mic-mute switch latch
-	clock      *timesync.Syncer // nil when time_sync is off
-	setup      *wifisetup.Mode  // Wi-Fi setup mode; nil when off
-	cpu        cpuMeter         // /proc/stat between two reads
-	combo      keyCombo
-	ic         *icState         // intercom; nil when off
-	ship       *logship.Shipper // logs to the LAN syslog server; nil when off
-	room       *roomSound       // mic levels (room sensors, arbitration); nil when not needed
-	arb        arbiter
-	states     stateMirror // the last value of every state object (statemirror.go)
-	web        webServer
+	ring                 *hw.Ring
+	ambilight            *hw.Ambilight
+	fx                   ambilightFx   // streamed effects on it (ambilightfx.go)
+	matrix               *hw.Matrix    // seg7 sysfs display
+	screen               *hw.DotMatrix // fbdev pixel display
+	mixer                *hw.Mixer
+	player               *hw.Player
+	mic                  *hw.Mic
+	spot                 *wake.Spotter              // nil when the wake word is off
+	vid                  *voiceID                   // voice ID (voiceid.go); nil when off
+	vstore               *voiceStore                // the voices' store (voicestore.go); nil unless voice_store
+	lastSubhit           atomic.Pointer[wake.Event] // the spotter's last near miss of the wake word (wakecapture.go)
+	diagBusy             atomic.Bool                // a diagnostics archive is being made (diag.go)
+	lifeState            atomic.Int32               // lifecycle (lifecycle.go)
+	front                display.Front              // the front display's scenes and animations; nil = no front display
+	seqs                 sequences
+	music                musicState  // Music Assistant player; music.host nil when off
+	playing              atomic.Bool // our aplay is running
+	sat                  *satellite
+	muted                atomic.Bool      // mic-mute switch latch
+	clock                *timesync.Syncer // nil when time_sync is off
+	setup                *wifisetup.Mode  // Wi-Fi setup mode; nil when off
+	cpu                  cpuMeter         // /proc/stat between two reads
+	combo                keyCombo
+	ic                   *icState         // intercom; nil when off
+	ship                 *logship.Shipper // logs to the LAN syslog server; nil when off
+	room                 *roomSound       // mic levels (room sensors, arbitration); nil when not needed
+	arb                  arbiter
+	states               stateMirror // the last value of every state object (statemirror.go)
+	web                  webServer
+	btMu                 sync.RWMutex
+	bt                   bluetoothControl
+	bluetoothVolumeReady atomic.Bool
+	bluetoothDuckMu      sync.Mutex
+	bluetoothDuckRaw     int
+	bluetoothWakeUntil   atomic.Int64
 
 	ringStack   *display.Stack[display.RingFrame]
 	matrixStack *display.Stack[display.FrontFrame]
@@ -486,6 +492,8 @@ func (a *App) Run(ctx context.Context) error {
 		a.log.Warn("no mqtt_host configured; running local-only")
 	}
 	a.publishAllState() // fills the state mirror for the web too, broker or not
+	a.startBluetooth(ctx)
+
 	if a.cfg().HTTPAddr != "" {
 		if err := a.startWeb(ctx); err != nil {
 			a.log.Warn("web: cannot listen", "addr", a.cfg().HTTPAddr, "err", err)
@@ -552,6 +560,9 @@ func (a *App) Run(ctx context.Context) error {
 		go a.music.host.Run(stop)
 		go a.duckLoop(stop)
 	}
+	if a.prof.Audio.BluetoothVolume != "" {
+		go a.bluetoothDuckLoop(stop)
+	}
 	if a.spot != nil {
 		go a.spot.Run(stop)
 		unsubRaw := a.mic.SubscribeRaw(a.spot.Feed) // the mic stays open while the wake word is on
@@ -577,6 +588,9 @@ func (a *App) Run(ctx context.Context) error {
 		a.setup.Leave() // never leave the speaker as an access point without its daemon
 	}
 	a.stopVideo("shutdown")
+	if b := a.bluetoothControl(); b != nil {
+		b.Close()
+	}
 	close(stop)
 	<-renderDone // no final clock frame may race with the screen blank below
 	// A failed blank is only logged: an error from Run means exit 1, which the supervisor
@@ -621,6 +635,7 @@ func (a *App) restoreVolume() {
 	v = min(v, a.volumeCap()) // a state saved before volume_max was lowered
 	for i := 0; i < 20; i++ {
 		if err := a.mixer.Set(a.prof.Audio.Volume, v); err == nil {
+			a.restoreBluetoothVolume()
 			a.log.Info("volume restored", "master", v, "pct", a.percentFromRaw(v))
 			a.publish(a.topics.State("volume"), strconv.Itoa(a.percentFromRaw(v)))
 			return
@@ -628,6 +643,23 @@ func (a *App) restoreVolume() {
 		time.Sleep(500 * time.Millisecond)
 	}
 	a.log.Warn("volume restore failed: no Master control")
+}
+
+// restoreBluetoothVolume removes only the board-declared Bluetooth softvol attenuation. It runs
+// after the capped Master write, so Bluetooth can never briefly bypass volume_max at startup.
+func (a *App) restoreBluetoothVolume() {
+	g := a.prof.Audio
+	if g.BluetoothVolume == "" || g.BluetoothVolumeDefault == 0 {
+		return
+	}
+	if err := a.mixer.Set(g.BluetoothVolume, g.BluetoothVolumeDefault); err != nil {
+		a.log.Warn("set Bluetooth volume", "control", g.BluetoothVolume, "err", err)
+		return
+	}
+	a.bluetoothDuckMu.Lock()
+	a.bluetoothDuckRaw = g.BluetoothVolumeDefault
+	a.bluetoothDuckMu.Unlock()
+	a.bluetoothVolumeReady.Store(true)
 }
 
 // Front-display transitions: a layer coming on top fades in fast, a lower one coming back slowly;

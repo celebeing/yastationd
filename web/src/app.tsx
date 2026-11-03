@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import * as api from './api'
 import type { Entity, Features, Peer } from './api'
 import { CalibrationTab, LedTab, LogTab, WifiTab } from './extra'
+import { BluetoothTab } from './bluetooth'
 import { MomentsTab } from './moments'
 import { Control, name } from './controls'
 import { ConfigPage } from './settings'
@@ -223,13 +224,13 @@ function About({ list, latest }: { list: Peer[]; latest: api.Release | null }) {
 }
 
 // Two levels: a group, then its tabs (docs/web-ui.md).
-type Tab = 'overview' | 'log' | 'controls' | 'led' | 'packs' | 'sounds' | 'videos' | 'general' | 'voice' | 'voices' | 'moments' | 'home' | 'music' | 'intercom' | 'calibration' | 'wifi' | 'account'
+type Tab = 'overview' | 'log' | 'controls' | 'led' | 'packs' | 'sounds' | 'videos' | 'general' | 'voice' | 'voices' | 'moments' | 'home' | 'music' | 'intercom' | 'calibration' | 'wifi' | 'bluetooth' | 'account'
 
 const GROUPS: { id: string; name: string; tabs: Tab[] }[] = [
   { id: 'status', name: 'Status', tabs: ['overview', 'log'] },
   { id: 'controls', name: 'Controls', tabs: ['controls', 'led'] },
   { id: 'behaviour', name: 'Behaviour', tabs: ['moments', 'packs', 'sounds', 'videos'] },
-  { id: 'configuration', name: 'Configuration', tabs: ['general', 'voice', 'voices', 'home', 'music', 'intercom', 'calibration', 'wifi', 'account'] },
+  { id: 'configuration', name: 'Configuration', tabs: ['general', 'voice', 'voices', 'home', 'music', 'intercom', 'calibration', 'wifi', 'bluetooth', 'account'] },
 ]
 
 const TAB_NAMES: Record<Tab, string> = {
@@ -249,6 +250,7 @@ const TAB_NAMES: Record<Tab, string> = {
   intercom: 'Intercom',
   calibration: 'Calibration',
   wifi: 'Wi-Fi',
+  bluetooth: 'Bluetooth audio',
   account: 'Login',
 }
 
@@ -297,7 +299,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; peers: Peer[
   }, [peer.id])
 
   const available = (t: Tab) =>
-    t === 'led' ? !!features.led_preview : t === 'moments' ? !!features.moments : t === 'videos' ? !!features.videos : t === 'packs' || t === 'sounds' ? !!features.packs : t === 'voices' ? !!features.voices : true
+    t === 'led' ? !!features.led_preview : t === 'moments' ? !!features.moments : t === 'videos' ? !!features.videos : t === 'packs' || t === 'sounds' ? !!features.packs : t === 'voices' ? !!features.voices : t === 'bluetooth' ? !!features.bluetooth : true
 
   if (props.status === 'offline') return <div class="card">{peer.name} does not answer at {peer.url}.</div>
   if (needLogin || props.status === 'login')
@@ -353,6 +355,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; peers: Peer[
           <p class="muted">The Wi-Fi setup mode is off on this speaker: turn it on below to manage the saved networks here.</p>
         ))}
       {tab === 'wifi' && <ConfigPage page="wifi" peer={peer} base={base} />}
+      {tab === 'bluetooth' && features.bluetooth && <BluetoothTab peer={peer} base={base} />}
       {tab === 'log' && <LogTab peer={peer} base={base} />}
       {tab === 'account' && <Account peer={peer} base={base} />}
         </div>

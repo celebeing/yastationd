@@ -64,6 +64,7 @@ to the binary. Flash is written only when the config is saved.
 | `GET /api/sync`, `POST /api/sync` | what is shared with the other speakers; share or stop sharing an item |
 | `POST /api/password` | change the login |
 | `GET /api/wifi`, `POST /api/wifi/networks` | the saved Wi-Fi networks (no passwords), the current one, whether setup mode is on; add a network (`{ssid, psk, hidden, priority}`) — only with `wifi_setup` on ([wifi-setup.md](wifi-setup.md)) |
+| `/api/bluetooth…` | the bounded phone-pairing window and paired A2DP devices ([bluetooth.md](bluetooth.md)) |
 | `GET /api/moments[?pack=]`, `PUT\|DELETE /api/moments/<name>[?pack=]`, `POST /api/moment/<name>` | the moments, the layer each comes from, the owner's packs and the catalogue; set or remove a moment in one of the owner's packs; show one (a body of candidates previews an unsaved draft) |
 | `GET /api/log?source=daemon\|system&lines=N` | the tail of the daemon's or the system log, oldest first ([storage.md](storage.md)) |
 | `GET /api/voices`, `GET /api/voices/log\|preview`, `POST /api/voices/groups/<id>\|merge\|entries/<id>`, `DELETE /api/voices[/groups/<id>]` | voice ID: where the store is; on the store the groups, the log, the threshold preview and the owner's edits ([voice-id.md](voice-id.md)) |

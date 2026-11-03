@@ -109,6 +109,8 @@ func (a *App) webHandler() http.Handler {
 	api.HandleFunc("/api/sync", a.authed(a.apiSync))
 	api.HandleFunc("/api/wifi", a.authed(a.apiWifi))
 	api.HandleFunc("/api/wifi/networks", a.authed(a.apiWifiAdd))
+	api.HandleFunc("/api/bluetooth", a.authed(a.apiBluetooth))
+	api.HandleFunc("/api/bluetooth/", a.authed(a.apiBluetooth))
 	api.HandleFunc("/api/moments", a.authed(a.apiMoments))
 	api.HandleFunc("/api/moments/", a.authed(a.apiMoments))
 	api.HandleFunc("/api/moment/", a.authed(a.apiMoment))

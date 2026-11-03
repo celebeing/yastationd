@@ -353,6 +353,21 @@ func (a *App) unscaleVolume(raw int) int {
 	return min(int(math.Round(float64(raw)*float64(a.prof.Audio.VolumeMax)/float64(c))), a.prof.Audio.VolumeMax)
 }
 
+// cappedStoredVolume reports whether a saved live volume exceeds the current cap.
+func (a *App) cappedStoredVolume() (int, bool) {
+	v := a.store.get().Volume
+	cap := a.volumeCap()
+	return cap, v >= 0 && v > cap
+}
+
+// clampVolumeToCap lowers a live Master value when the owner lowers volume_max. It never raises
+// volume after the cap increases.
+func (a *App) clampVolumeToCap() {
+	if cap, over := a.cappedStoredVolume(); over {
+		a.setMaster(cap, 0, true)
+	}
+}
+
 // rawFromPercent / percentFromRaw: the user's 0..100 against Master, through the curve and the cap.
 func (a *App) rawFromPercent(pct int) int { return a.scaleVolume(a.prof.Audio.RawFromPercent(pct)) }
 func (a *App) percentFromRaw(raw int) int {
@@ -398,6 +413,9 @@ func (a *App) setMaster(v, edge int, report bool) {
 	if err := a.mixer.Set(a.prof.Audio.Volume, v); err != nil {
 		a.log.Warn("volume set", "err", err)
 		return
+	}
+	if !a.bluetoothVolumeReady.Load() {
+		a.restoreBluetoothVolume()
 	}
 	a.store.update(func(s *persistState) { s.Volume = v })
 	pct := a.percentFromRaw(v)

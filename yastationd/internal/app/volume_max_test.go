@@ -27,6 +27,11 @@ func TestVolumeMaxScalesAfterTheCurve(t *testing.T) {
 	if got, want := a.rawFromPercent(50), (163*top+127)/255; got != want {
 		t.Errorf("50 %% = %d, want the curve's 163 scaled to %d", got, want)
 	}
+	a.store = newStateStore("", defaultState(128, 128, 128, false))
+	a.store.update(func(s *persistState) { s.Volume = prof.Audio.VolumeMax })
+	if cap, over := a.cappedStoredVolume(); !over || cap != top {
+		t.Errorf("stored max must clamp to %d: cap=%d over=%v", top, cap, over)
+	}
 	for pct := 0; pct <= 100; pct += 5 {
 		if got := a.percentFromRaw(a.rawFromPercent(pct)); got != pct {
 			t.Errorf("round trip %d %% -> %d %%", pct, got)

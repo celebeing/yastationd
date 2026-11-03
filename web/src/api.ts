@@ -178,8 +178,9 @@ export async function setPassword(id: string, base: string, user: string, passwo
   setCred(user, password)
 }
 
-export type Features = { wifi?: boolean; led_preview?: boolean; moments?: boolean; videos?: boolean; packs?: boolean; voices?: boolean }
+export type Features = { wifi?: boolean; bluetooth?: boolean; led_preview?: boolean; moments?: boolean; videos?: boolean; packs?: boolean; voices?: boolean }
 export type Net = { id: number; ssid: string; security: string; priority: number; disabled: boolean; hidden: boolean }
+export type Bluetooth = { available: boolean; pairing: boolean; pending: boolean; code?: string; device?: string; expires?: number; error?: string; devices: { id: string; name: string; connected: boolean }[] }
 /** A moment's candidate: a reference ("wink", "anim:media/Like", "scenario:startup") or a sequence. */
 /** A step of a sequence (docs/asset-packs.md): what it shows and plays at once; a step with none is a pause. */
 export type Step = {
@@ -215,6 +216,14 @@ export const infoFull = (base: string) => req<Peer & { features?: Features; ddp?
 export const wifi = (id: string, base: string) => authed<{ networks: Net[]; current: string; setup_mode: boolean }>(id, base, '/api/wifi')
 export const wifiAdd = (id: string, base: string, n: { ssid: string; psk: string; hidden: boolean; priority: number }) =>
   authed<{ ok: boolean }>(id, base, '/api/wifi/networks', { method: 'POST', body: JSON.stringify(n) })
+export const bluetooth = (id: string, base: string) => authed<Bluetooth>(id, base, '/api/bluetooth')
+export const startBluetoothPair = (id: string, base: string) => authed<Bluetooth>(id, base, '/api/bluetooth/pair', { method: 'POST' })
+export const confirmBluetoothPair = (id: string, base: string) => authed<Bluetooth>(id, base, '/api/bluetooth/pair/confirm', { method: 'POST' })
+export const cancelBluetoothPair = (id: string, base: string) => authed<Bluetooth>(id, base, '/api/bluetooth/pair', { method: 'DELETE' })
+export const disconnectBluetooth = (id: string, base: string, device: string) =>
+  authed<Bluetooth>(id, base, '/api/bluetooth/devices/' + encodeURIComponent(device) + '/disconnect', { method: 'POST' })
+export const forgetBluetooth = (id: string, base: string, device: string) =>
+  authed<Bluetooth>(id, base, '/api/bluetooth/devices/' + encodeURIComponent(device), { method: 'DELETE' })
 /** One of the owner's packs, as the Moments page offers it to edit (on: worn). */
 export type OwnPack = { id: string; name: string; on: boolean }
 /** The moments with pack's own entries as `custom` (target: the pack they are of). */

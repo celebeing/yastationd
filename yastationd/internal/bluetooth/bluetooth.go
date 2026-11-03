@@ -1,0 +1,412 @@
+// Package bluetooth owns the deliberately bounded BlueZ pairing surface.
+package bluetooth
+
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/godbus/dbus/v5"
+)
+
+const (
+	bluezName  = "org.bluez"
+	propsName  = "org.freedesktop.DBus.Properties"
+	agentPath  = dbus.ObjectPath("/io/yastationd/BluetoothAgent")
+	agentIface = "org.bluez.Agent1"
+	pairFor    = 2 * time.Minute
+	a2dpSink   = "0000110b-0000-1000-8000-00805f9b34fb"
+)
+
+type Device struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Connected bool   `json:"connected"`
+}
+
+type View struct {
+	Available bool     `json:"available"`
+	Pairing   bool     `json:"pairing"`
+	Pending   bool     `json:"pending"`
+	Code      string   `json:"code,omitempty"`
+	Device    string   `json:"device,omitempty"`
+	Expires   int64    `json:"expires,omitempty"`
+	Error     string   `json:"error,omitempty"`
+	Devices   []Device `json:"devices"`
+}
+
+type Controller interface {
+	View() View
+	Pair() error
+	Confirm() error
+	Cancel()
+	Disconnect(string) error
+	Forget(string) error
+	Close()
+}
+
+type Manager struct {
+	mu       sync.Mutex
+	conn     *dbus.Conn
+	adapter  dbus.ObjectPath
+	view     View
+	pending  dbus.ObjectPath
+	confirm  chan bool
+	allowed  map[dbus.ObjectPath]bool
+	pairSeq  uint64
+	stop     context.CancelFunc
+	onChange func(View)
+}
+
+// Open connects to the existing system BlueZ instance. Failure leaves Bluetooth unavailable; it
+// never starts vendor daemons or powers an adapter on.
+func Open(parent context.Context, name string, onChange func(View)) (*Manager, error) {
+	conn, err := dbus.SystemBus()
+	if err != nil {
+		return nil, err
+	}
+	m := &Manager{conn: conn, onChange: onChange, allowed: map[dbus.ObjectPath]bool{}, view: View{Devices: []Device{}}}
+	if err := m.findAdapter(); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	if name != "" {
+		if err := m.setLocked("Alias", name); err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("set BlueZ adapter alias: %w", err)
+		}
+	}
+	if err := conn.Export(&agent{m: m}, agentPath, agentIface); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	mgr := conn.Object(bluezName, "/org/bluez")
+	if err := mgr.Call("org.bluez.AgentManager1.RegisterAgent", 0, agentPath, "DisplayYesNo").Err; err != nil {
+		conn.Close()
+		return nil, err
+	}
+	if err := mgr.Call("org.bluez.AgentManager1.RequestDefaultAgent", 0, agentPath).Err; err != nil {
+		m.Close()
+		return nil, err
+	}
+	ctx, cancel := context.WithCancel(parent)
+	m.stop = cancel
+	m.mu.Lock()
+	m.view.Available = true
+	m.refreshLocked()
+	m.emitLocked()
+	m.mu.Unlock()
+	go m.watch(ctx)
+	return m, nil
+}
+
+func (m *Manager) findAdapter() error {
+	var objects map[dbus.ObjectPath]map[string]map[string]dbus.Variant
+	err := m.conn.Object(bluezName, "/").Call("org.freedesktop.DBus.ObjectManager.GetManagedObjects", 0).Store(&objects)
+	if err != nil {
+		return err
+	}
+	for path, ifaces := range objects {
+		if _, ok := ifaces["org.bluez.Adapter1"]; ok {
+			m.adapter = path
+			return nil
+		}
+	}
+	return fmt.Errorf("no BlueZ adapter")
+}
+
+func (m *Manager) View() View {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	v := m.view
+	v.Devices = make([]Device, len(v.Devices))
+	copy(v.Devices, m.view.Devices)
+	return v
+}
+
+func (m *Manager) Pair() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.view.Available {
+		return fmt.Errorf("Bluetooth is unavailable")
+	}
+	if m.view.Pairing {
+		return fmt.Errorf("a Bluetooth pairing session is already active")
+	}
+	if err := m.setLocked("PairableTimeout", uint32(pairFor.Seconds())); err != nil {
+		return err
+	}
+	if err := m.setLocked("DiscoverableTimeout", uint32(pairFor.Seconds())); err != nil {
+		return err
+	}
+	if err := m.setLocked("Pairable", true); err != nil {
+		return err
+	}
+	if err := m.setLocked("Discoverable", true); err != nil {
+		_ = m.setLocked("Pairable", false)
+		return err
+	}
+	m.pairSeq++
+	seq := m.pairSeq
+	m.view.Pairing, m.view.Error, m.view.Expires = true, "", time.Now().Add(pairFor).Unix()
+	m.emitLocked()
+	go func() {
+		time.Sleep(pairFor)
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		if m.pairSeq == seq && m.view.Pairing {
+			m.clearLocked()
+		}
+	}()
+	return nil
+}
+func (m *Manager) Confirm() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.view.Pending || m.confirm == nil {
+		return fmt.Errorf("there is no Bluetooth pairing request to confirm")
+	}
+	m.confirm <- true
+	close(m.confirm)
+	m.confirm = nil
+	m.view.Pending = false
+	m.emitLocked()
+	return nil
+}
+
+func (m *Manager) Cancel() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.clearLocked()
+}
+
+func (m *Manager) clearLocked() {
+	m.pairSeq++
+	_ = m.setLocked("Discoverable", false)
+	if m.confirm != nil {
+		m.confirm <- false
+		close(m.confirm)
+		m.confirm = nil
+	}
+	_ = m.setLocked("Pairable", false)
+	m.pending = ""
+	m.view.Pairing, m.view.Pending, m.view.Code, m.view.Device, m.view.Expires = false, false, "", "", 0
+	m.emitLocked()
+}
+
+func (m *Manager) Disconnect(id string) error {
+	return m.deviceCall(id, "org.bluez.Device1.Disconnect")
+}
+func (m *Manager) Forget(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	path, ok := m.devicePathLocked(id)
+	if !ok {
+		return fmt.Errorf("Bluetooth device not found")
+	}
+	if err := m.conn.Object(bluezName, m.adapter).Call("org.bluez.Adapter1.RemoveDevice", 0, path).Err; err != nil {
+		return err
+	}
+	m.refreshLocked()
+	m.emitLocked()
+	return nil
+}
+func (m *Manager) deviceCall(id, method string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	path, ok := m.devicePathLocked(id)
+	if !ok {
+		return fmt.Errorf("Bluetooth device not found")
+	}
+	if err := m.conn.Object(bluezName, path).Call(method, 0).Err; err != nil {
+		return err
+	}
+	m.refreshLocked()
+	m.emitLocked()
+	return nil
+}
+func (m *Manager) devicePathLocked(id string) (dbus.ObjectPath, bool) {
+	raw, err := base64.RawURLEncoding.DecodeString(id)
+	if err != nil {
+		return "", false
+	}
+	path := dbus.ObjectPath(raw)
+	if !strings.HasPrefix(string(path), string(m.adapter)+"/dev_") {
+		return "", false
+	}
+	return path, true
+}
+func (m *Manager) setLocked(name string, value any) error {
+	return m.conn.Object(bluezName, m.adapter).Call(propsName+".Set", 0, "org.bluez.Adapter1", name, dbus.MakeVariant(value)).Err
+}
+func (m *Manager) refreshLocked() { m.view.Devices = m.devicesLocked() }
+func (m *Manager) devicesLocked() []Device {
+	var objects map[dbus.ObjectPath]map[string]map[string]dbus.Variant
+	if err := m.conn.Object(bluezName, "/").Call("org.freedesktop.DBus.ObjectManager.GetManagedObjects", 0).Store(&objects); err != nil {
+		return []Device{}
+	}
+	out := []Device{}
+	for path, ifaces := range objects {
+		p, ok := ifaces["org.bluez.Device1"]
+		if !ok || !boolProp(p, "Paired") || !strings.HasPrefix(string(path), string(m.adapter)+"/dev_") {
+			continue
+		}
+		out = append(out, Device{ID: base64.RawURLEncoding.EncodeToString([]byte(path)), Name: stringProp(p, "Alias"), Connected: boolProp(p, "Connected")})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+func boolProp(p map[string]dbus.Variant, n string) bool {
+	v, ok := p[n]
+	if !ok {
+		return false
+	}
+	b, _ := v.Value().(bool)
+	return b
+}
+func stringProp(p map[string]dbus.Variant, n string) string {
+	v, ok := p[n]
+	if !ok {
+		return ""
+	}
+	s, _ := v.Value().(string)
+	return s
+}
+func (m *Manager) emitLocked() {
+	if m.onChange != nil {
+		v := m.view
+		v.Devices = append([]Device(nil), v.Devices...)
+		go m.onChange(v)
+	}
+}
+
+func (m *Manager) watch(ctx context.Context) {
+	ch := make(chan *dbus.Signal, 8)
+	m.conn.Signal(ch)
+	defer m.conn.RemoveSignal(ch)
+	_ = m.conn.AddMatchSignal(dbus.WithMatchInterface(propsName), dbus.WithMatchMember("PropertiesChanged"))
+	_ = m.conn.AddMatchSignal(dbus.WithMatchInterface("org.freedesktop.DBus.ObjectManager"), dbus.WithMatchMember("InterfacesRemoved"))
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case s := <-ch:
+			if s == nil || len(s.Body) < 2 {
+				continue
+			}
+			if s.Name == "org.freedesktop.DBus.ObjectManager.InterfacesRemoved" {
+				interfaces, _ := s.Body[1].([]string)
+				removed := false
+				for _, iface := range interfaces {
+					removed = removed || iface == "org.bluez.Device1"
+				}
+				if removed {
+					m.mu.Lock()
+					m.refreshLocked()
+					m.emitLocked()
+					m.mu.Unlock()
+				}
+				continue
+			}
+			iface, _ := s.Body[0].(string)
+			changed, _ := s.Body[1].(map[string]dbus.Variant)
+			if iface != "org.bluez.Device1" {
+				continue
+			}
+			m.mu.Lock()
+			if boolProp(changed, "Paired") && s.Path == m.pending {
+				m.allowed[s.Path] = true
+				_ = m.conn.Object(bluezName, s.Path).Call(propsName+".Set", 0, "org.bluez.Device1", "Trusted", dbus.MakeVariant(true)).Err
+				m.clearLocked()
+			}
+			if _, connected := changed["Connected"]; connected || boolProp(changed, "Paired") {
+				m.refreshLocked()
+				m.emitLocked()
+			}
+			m.mu.Unlock()
+		}
+	}
+}
+func (m *Manager) incoming(path dbus.ObjectPath, code uint32) *dbus.Error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.view.Pairing || m.pending != "" {
+		return dbus.NewError("org.bluez.Error.Rejected", nil)
+	}
+	m.pending, m.confirm = path, make(chan bool, 1)
+	m.view.Pending, m.view.Code, m.view.Device = true, fmt.Sprintf("%06d", code), m.nameLocked(path)
+	m.emitLocked()
+	confirm := m.confirm
+	m.mu.Unlock()
+	select {
+	case ok := <-confirm:
+		m.mu.Lock()
+		if !ok {
+			return dbus.NewError("org.bluez.Error.Canceled", nil)
+		}
+		return nil
+	case <-time.After(pairFor):
+		m.mu.Lock()
+		return dbus.NewError("org.bluez.Error.Canceled", nil)
+	}
+}
+func (m *Manager) nameLocked(path dbus.ObjectPath) string {
+	if m.conn == nil {
+		return "Phone"
+	}
+	var v dbus.Variant
+	if m.conn.Object(bluezName, path).Call(propsName+".Get", 0, "org.bluez.Device1", "Alias").Store(&v) == nil {
+		if s, ok := v.Value().(string); ok {
+			return s
+		}
+	}
+	return "Phone"
+}
+func (m *Manager) Close() {
+	m.mu.Lock()
+	if m.conn == nil {
+		m.mu.Unlock()
+		return
+	}
+	m.clearLocked()
+	if m.stop != nil {
+		m.stop()
+	}
+	_ = m.conn.Export(nil, agentPath, agentIface)
+	_ = m.conn.Object(bluezName, "/org/bluez").Call("org.bluez.AgentManager1.UnregisterAgent", 0, agentPath).Err
+	m.conn.Close()
+	m.conn = nil
+	m.mu.Unlock()
+}
+
+type agent struct{ m *Manager }
+
+func (a *agent) Release() *dbus.Error { return nil }
+func (a *agent) Cancel() *dbus.Error  { a.m.Cancel(); return nil }
+func (a *agent) RequestConfirmation(p dbus.ObjectPath, code uint32) *dbus.Error {
+	return a.m.incoming(p, code)
+}
+func (a *agent) DisplayPasskey(dbus.ObjectPath, uint32, uint16) *dbus.Error {
+	return dbus.NewError("org.bluez.Error.Rejected", nil)
+}
+func (a *agent) RequestAuthorization(dbus.ObjectPath) *dbus.Error {
+	return dbus.NewError("org.bluez.Error.Rejected", nil)
+}
+func (a *agent) RequestPinCode(dbus.ObjectPath) (string, *dbus.Error) {
+	return "", dbus.NewError("org.bluez.Error.Rejected", nil)
+}
+func (a *agent) RequestPasskey(dbus.ObjectPath) (uint32, *dbus.Error) {
+	return 0, dbus.NewError("org.bluez.Error.Rejected", nil)
+}
+func (a *agent) AuthorizeService(path dbus.ObjectPath, uuid string) *dbus.Error {
+	a.m.mu.Lock()
+	defer a.m.mu.Unlock()
+	if a.m.allowed[path] && uuid == a2dpSink {
+		return nil
+	}
+	return dbus.NewError("org.bluez.Error.Rejected", nil)
+}

@@ -150,15 +150,17 @@ type AbsoluteRange struct {
 
 // AudioSpec: playback and mixer controls (ALSA card Card).
 type AudioSpec struct {
-	Playback      string        // aplay device, e.g. "default"
-	Card          string        // amixer card
-	Volume        string        // full control name of the master volume
-	VolumeMax     int           // its maximum raw value
-	VolumeDefault int           // raw volume set on first start, before the user ever set one (0 = leave the boot value)
-	VolumeMap     []VolumePoint // stock volume curve; nil = a straight line over 20 levels
-	Unmute        []string      // amixer cset lines run before playback
-	MicGain       string        // hardware mic gain control ("" = none)
-	MicGainValue  int           // applied at startup (-1 = leave alone)
+	Playback               string        // aplay device, e.g. "default"
+	Card                   string        // amixer card
+	Volume                 string        // full control name of the master volume
+	VolumeMax              int           // its maximum raw value
+	VolumeDefault          int           // raw volume set on first start, before the user ever set one (0 = leave the boot value)
+	VolumeMap              []VolumePoint // stock volume curve; nil = a straight line over 20 levels
+	Unmute                 []string      // amixer cset lines run before playback
+	BluetoothVolume        string        // full control name of the Bluetooth softvol ("" = none)
+	BluetoothVolumeDefault int           // raw Bluetooth softvol applied at daemon start (0 = leave the boot value)
+	MicGain                string        // hardware mic gain control ("" = none)
+	MicGainValue           int           // applied at startup (-1 = leave alone)
 }
 
 // VolumePoint is one point of the stock volume curve: platform level -> raw mixer value, linear in
@@ -421,6 +423,10 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Audio.VolumeMap, err = parseVolumeMap(v)
 	case k == "audio.unmute":
 		list(&p.Audio.Unmute)
+	case k == "audio.bluetooth_volume":
+		p.Audio.BluetoothVolume = v
+	case k == "audio.bluetooth_volume_default":
+		p.Audio.BluetoothVolumeDefault, err = strconv.Atoi(v)
 	case k == "audio.mic_gain":
 		p.Audio.MicGain = v
 	case k == "audio.mic_gain_value":
@@ -629,6 +635,9 @@ func (p Profile) Validate() error {
 	}
 	if p.Audio.VolumeDefault < 0 || p.Audio.VolumeDefault > p.Audio.VolumeMax {
 		return fmt.Errorf("audio: volume_default must be 0..volume_max")
+	}
+	if p.Audio.BluetoothVolume == "" && p.Audio.BluetoothVolumeDefault != 0 {
+		return fmt.Errorf("audio: bluetooth_volume_default needs bluetooth_volume")
 	}
 	if m := p.Audio.VolumeMap; m != nil {
 		if len(m) < 2 || m[0] != (VolumePoint{0, 0}) || m[len(m)-1].Raw > p.Audio.VolumeMax {

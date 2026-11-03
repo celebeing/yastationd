@@ -282,11 +282,13 @@ Generic detector limits and the bergamot instance: [docs/research/wakeword-mic-a
   information UUIDs. No BLE advertisement is active.
 - The reusable Linux base processes are `hciattach -s 115200 /dev/ttyS1 aml`,
   `bluetoothd -n`, and `bluealsa -p a2dp-sink -p a2dp-source -p hfp-ag --sbc-quality=high`.
-  `bluealsa-aplay -D bluetooth -M disable -S` owns the stock audio route. `bluetooth` is an ALSA
+- `bluealsa-aplay -D bluetooth -M disable -S` owns the stock audio route. `bluetooth` is an ALSA
   `softvol` PCM over `speakers`, controlled by card-0 `Bluetooth Master Playback Volume`; thus
-  A2DP reaches the stock speaker routing without `maind`. `bluealsa-aplay` has no device-address
-  restriction, so it accepts audio from any Bluetooth device that BlueZ has connected. `aplay -L`
-  has no statically named `bluealsa` PCM before a source connects.
+  A2DP reaches the stock speaker routing without `maind`. Firmware resets that control to 225
+  (−6 dB) each boot. The Orion board profile restores it to 255 (0 dB) when `yastationd` starts,
+  leaving `Master Playback Volume` as the sole user-visible loudness control. `bluealsa-aplay`
+  has no device-address restriction, so it accepts audio from any Bluetooth device that BlueZ has
+  connected. `aplay -L` has no statically named `bluealsa` PCM before a source connects.
 - `ble_initd`'s vendor GATT setup service is not reusable: it accepts Wi-Fi and token writes.
   Keep Bluetooth disabled/discoverable-off by default under CFW; pairing must be a deliberate,
   local action.
