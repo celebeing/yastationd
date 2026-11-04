@@ -89,14 +89,16 @@ func run(log *slog.Logger, name, screen, patterns, media, addr, web, root string
 	return a.Run(ctx)
 }
 
-// sysroot lays out what the daemon opens: an LED class directory per ring/ambilight LED, the
+// sysroot lays out what the daemon opens: an LED class directory per ring/outer ring/ambilight LED, the
 // board.conf override that makes the front screen virtual, the CFW directories, and the
 // firmware's pattern directory linked to the local copy.
 func sysroot(root string, p board.Profile, screen, patterns, media string) error {
 	var leds []string
-	for i := 0; i < p.Ring.Pixels; i++ {
-		for _, c := range p.Ring.Colors {
-			leds = append(leds, strings.NewReplacer("{color}", c, "{i}", strconv.Itoa(i)).Replace(p.Ring.LED))
+	for _, r := range []board.RingSpec{p.Ring, p.Outer} {
+		for i := 0; i < r.Pixels; i++ {
+			for _, c := range r.Colors {
+				leds = append(leds, strings.NewReplacer("{color}", c, "{i}", strconv.Itoa(i)).Replace(r.LED))
+			}
 		}
 	}
 	for i := 0; i < p.Ambilight.Pixels; i++ {

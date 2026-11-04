@@ -140,6 +140,9 @@ func (a *App) momentDefault(name string) []show {
 	if c, ok := momentDefaults[a.frontKind()][name]; ok {
 		return refs(c)
 	}
+	if c, ok := kindTheme[a.frontKind()][name]; ok {
+		return c
+	}
 	if c, ok := defaultTheme[name]; ok {
 		return c
 	}

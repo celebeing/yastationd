@@ -47,6 +47,7 @@ func newRegressApp(t *testing.T) *regressApp {
 	cfg := config.Default()
 	cfg.SysRoot = root
 	cfg.VolumeBeep, cfg.AnnounceChime = true, true
+	cfg.LEDHeldBrightness, cfg.LEDMomentBrightness, cfg.LEDAutoBrightness = 100, 100, false // the patterns at full scale
 	sounds := filepath.Join(root, "cfw/sounds")
 	os.MkdirAll(sounds, 0o755)
 	os.MkdirAll(filepath.Join(root, "tmp"), 0o755) // the once-per-boot markers
@@ -217,7 +218,8 @@ func TestRegressMute(t *testing.T) {
 	r := newRegressApp(t)
 	r.mark()
 	r.setMute(true)
-	r.ringIs(t, "mute", display.PrioLocal, effect("mute"), time.Second)
+	// On a seg7 board (the minis) the mute is one yellow (kindTheme); orion keeps the amber "mute".
+	r.ringIs(t, "mute", display.PrioLocal, stepEffect("solid", []int{255, 210, 0}, 0), time.Second)
 	r.setMute(false)
 	r.gone(t, "mute")
 }
@@ -474,5 +476,33 @@ func TestStageAgainNoSecondSound(t *testing.T) {
 	time.Sleep(300 * time.Millisecond)
 	if n := count("volume_sound"); n != 4 {
 		t.Errorf("two volume keys: %d sounds in all, want 4", n)
+	}
+}
+
+// Mini 3 Pro: the ring is the inner logo and gets the Mini 3's moments; the outer ring repeats a
+// moment's ring, but not an indicator's (the mute), and both follow the LED caps.
+func TestOuterRingMirrorsButNotIndicators(t *testing.T) {
+	r := newRegressApp(t)
+	r.outer = &hw.Ring{}
+	r.outerStack = display.NewStack(func(time.Time) display.RingFrame { return display.Blank(16) })
+	r.setMute(true)
+	if r.outerStack.Has("mute") {
+		t.Error("the mute reached the outer ring")
+	}
+	r.setMute(false)
+	r.hook("call_ended") // a white flash, a one-shot moment
+	if !r.outerStack.Has("intercom-end") {
+		t.Fatal("a moment's ring was not mirrored on the outer ring")
+	}
+	c := config.Default()
+	c.LEDMomentBrightness, c.LEDAutoBrightness = 50, false
+	r.conf.Store(&c)
+	if k := r.ledLevel(false); k != 0.5 {
+		t.Errorf("led_moment_brightness 50: level %v", k)
+	}
+	c.LEDHeldBrightness = 75
+	r.conf.Store(&c)
+	if k := r.ledLevel(true); k != 0.75 {
+		t.Errorf("led_held_brightness 75: level %v", k)
 	}
 }

@@ -36,6 +36,7 @@ func themeTestApp(t *testing.T, sounds ...string) *App {
 	root := t.TempDir()
 	cfg := config.Default()
 	cfg.SysRoot = root
+	cfg.LEDHeldBrightness, cfg.LEDMomentBrightness, cfg.LEDAutoBrightness = 100, 100, false
 	a := &App{log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ring:        &hw.Ring{},
 		ringStack:   display.NewStack(func(time.Time) display.RingFrame { return display.Blank(12) }),

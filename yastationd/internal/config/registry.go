@@ -200,6 +200,15 @@ func listV(f func(*Config) *[]string) value {
 
 func init() {
 	// --- display ---
+	reg(Key{Name: "led_held_brightness", Group: "display", Label: "Ring brightness: lasting", Unit: "%", Runtime: true, Sync: true,
+		Doc: "The brightest the rings get for what stays lit: the mic mute, a lost HA, a call, the setup mode. These LEDs warm up at full brightness. On a Mini 3 Pro the mute shows on the small inner ring."},
+		intV(5, 100, func(c *Config) *int { return &c.LEDHeldBrightness }))
+	reg(Key{Name: "led_moment_brightness", Group: "display", Label: "Ring brightness: short", Unit: "%", Runtime: true, Sync: true,
+		Doc: "The brightest the rings get for what lights up and goes: flashes, the voice stages, reactions."},
+		intV(5, 100, func(c *Config) *int { return &c.LEDMomentBrightness }))
+	reg(Key{Name: "led_auto_brightness", Group: "display", Label: "Rings follow the light sensor", Runtime: true, Sync: true,
+		Doc: "On: both limits above are taken of the display's brightness, so the rings dim in a dark room with it. Off: they are of full brightness."},
+		boolV(func(c *Config) *bool { return &c.LEDAutoBrightness }))
 	reg(Key{Name: "auto_brightness_min", Group: "display", Label: "Auto brightness: dimmest", Runtime: true, Sync: true,
 		Doc: "The dimmest the clock goes under auto brightness, in the dark. Empty or 0 uses the board's dimmest readable level (so shared as 0, each speaker keeps its own). The brightest is the clock brightness above."},
 		intV(0, 255, func(c *Config) *int { return &c.AutoBrightnessMin }))

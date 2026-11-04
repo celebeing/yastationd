@@ -110,6 +110,7 @@ func (a *App) expressIn(slot, name string, ttl time.Duration, prio int, keepRing
 	}
 	if e.ring == "" && !keepRing { // the slot moves on as a whole: no ring part left from before
 		a.ringStack.Remove(slot)
+		a.removeOuter(slot)
 	}
 	if e.ring != "" {
 		if r := effect(e.ring); r != nil {
@@ -123,6 +124,11 @@ func (a *App) expressIn(slot, name string, ttl time.Duration, prio int, keepRing
 				}
 			}
 			a.pushRing(slot, e.ringPrio, rttl, r)
+			if eff := a.outerEffect(slot, "", e.ring); eff != "" {
+				if o := effect(eff); o != nil {
+					a.pushOuter(slot, e.ringPrio, rttl, o)
+				}
+			}
 			shown = true
 		}
 	}
@@ -133,6 +139,7 @@ func (a *App) expressIn(slot, name string, ttl time.Duration, prio int, keepRing
 func (a *App) unexpress(slot string) {
 	a.cancelSteps(slot)
 	a.ringStack.Remove(slot)
+	a.removeOuter(slot)
 	a.matrixStack.Remove(slot)
 }
 

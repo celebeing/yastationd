@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"time"
 
 	"github.com/celebeing/yastationd/yastationd/internal/display"
@@ -25,14 +26,17 @@ type momentInfo struct {
 	ringPrio int
 	ttl      time.Duration
 	yield    func(a *App) bool
+	// indicator: a status that stays (the mute, a lost HA, booting): its ring shows on the ring
+	// only, never mirrored on an outer ring (Mini 3 Pro's), which repeats every other moment's.
+	indicator bool
 }
 
 // momentCatalog: the moments the app announces, in the order the web app lists them. The voice
 // stages (listening … dialog_end) are fired in the voice slot by the pipeline's own code.
 var momentCatalog = []momentInfo{
 	{Name: "startup", When: "once per device boot"},
-	{Name: "booting", When: "from start until HA is reached (held)", slot: lifeSlot, prio: display.PrioDegraded},
-	{Name: "boot_failed", When: "HA not reached within boot_connect_timeout (held until it is)", slot: lifeSlot, prio: display.PrioDegraded},
+	{Name: "booting", When: "from start until HA is reached (held)", slot: lifeSlot, prio: display.PrioDegraded, indicator: true},
+	{Name: "boot_failed", When: "HA not reached within boot_connect_timeout (held until it is)", slot: lifeSlot, prio: display.PrioDegraded, indicator: true},
 	{Name: "listening", When: "the wake word or the voice key: the speaker listens"},
 	{Name: "thinking", When: "the request went to the assistant: waiting for the answer"},
 	{Name: "speaking", When: "the answer plays"},
@@ -51,9 +55,9 @@ var momentCatalog = []momentInfo{
 	{Name: "volume_change", When: "a volume key moved the level (not over music; volume_beep)"},
 	{Name: "volume_edge", When: "a volume key pushed past the bottom or the top"},
 	{Name: "announce", When: "before an HA announcement (announce_chime); the announcement waits for its sounds"},
-	{Name: "mic_muted", When: "the mic-mute switch is on (held until it is off)", slot: "mute", prio: display.PrioLocal},
+	{Name: "mic_muted", When: "the mic-mute switch is on (held until it is off)", slot: "mute", prio: display.PrioLocal, indicator: true},
 	{Name: "mic_unmuted", When: "the mic-mute switch turned off"},
-	{Name: "ha_lost", When: "the link to HA or a probe is lost after start (held until back)", slot: "degraded", prio: display.PrioDegraded},
+	{Name: "ha_lost", When: "the link to HA or a probe is lost after start (held until back)", slot: "degraded", prio: display.PrioDegraded, indicator: true},
 	{Name: "ha_back", When: "the link to HA is back"},
 	{Name: "power_problem", When: "no healthy USB-C power contract (once per boot)"},
 	{Name: "bluetooth_connected", When: "a phone connected over Bluetooth"},
@@ -72,6 +76,17 @@ var momentCatalog = []momentInfo{
 	{Name: "wifi_setup_failed", When: "Wi-Fi setup mode could not start", slot: "voice", ttl: errorTTL},
 }
 
+// outerSkip: the slots whose ring is not mirrored on the outer ring (the indicators' slots).
+var outerSkip = func() map[string]bool {
+	m := map[string]bool{}
+	for _, i := range momentCatalog {
+		if i.indicator {
+			m[cmp.Or(i.slot, "moment:"+i.Name)] = true
+		}
+	}
+	return m
+}()
+
 // momentByName indexes momentCatalog.
 var momentByName = func() map[string]momentInfo {
 	m := map[string]momentInfo{}
@@ -88,6 +103,15 @@ func held(st scenarioStep) show {
 }
 
 func step(st scenarioStep) show { return show{Steps: []scenarioStep{st}} }
+
+// kindTheme: the default theme's moments that differ by front display kind, before defaultTheme.
+// The minis (seg7) show the mute as one yellow on their small ring (the cap led_held_brightness
+// keeps it below full, where these LEDs warm up).
+var kindTheme = map[string]map[string][]show{
+	"seg7": {
+		"mic_muted": {held(scenarioStep{Ring: "solid", Color: []int{255, 210, 0}})},
+	},
+}
 
 // defaultTheme: the default theme's moments on every display kind. A moment listed with no shows
 // does nothing by default; a theme gives it something. A sound name may list fallbacks, "a|b".

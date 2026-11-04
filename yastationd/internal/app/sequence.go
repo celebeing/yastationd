@@ -1,6 +1,7 @@
 package app
 
 import (
+	"math"
 	"math/rand"
 	"strings"
 	"sync"
@@ -20,6 +21,7 @@ type scenarioStep struct {
 	Anim    string `json:"anim,omitempty"`    // an animation of the front display
 	Matrix  string `json:"matrix,omitempty"`  // the same, the older name
 	Ring    string `json:"ring,omitempty"`    // a ring effect (effects.go)
+	Outer   string `json:"outer,omitempty"`   // the outer ring, where a board has one (Mini 3 Pro): an effect, "off"; "" = the ring's (not for indicators)
 	Text    string `json:"text,omitempty"`    // front-display text (scrolls when long)
 	Color   []int  `json:"color,omitempty"`   // [r,g,b] of a coloured ring shape (pulse, comet, blink, flash, solid)
 	Period  int    `json:"period,omitempty"`  // its period in ms (0 = the shape's own)
@@ -208,6 +210,11 @@ func (a *App) runSteps(slot string, steps []scenarioStep, ttl time.Duration, pri
 		if r := effect(ring); r != nil {
 			a.pushRing(slot, ringPrio, ttl, r)
 		}
+		if eff := a.outerEffect(slot, "", ring); eff != "" {
+			if r := effect(eff); r != nil {
+				a.pushOuter(slot, ringPrio, ttl, r)
+			}
+		}
 	}
 	mine := func() bool { // the slot still runs this show
 		a.seqs.mu.Lock()
@@ -219,6 +226,7 @@ func (a *App) runSteps(slot string, steps []scenarioStep, ttl time.Duration, pri
 		if a.seqs.stop[slot] == stop {
 			delete(a.seqs.stop, slot)
 			a.ringStack.Remove(slot)
+			a.removeOuter(slot)
 			a.matrixStack.Remove(slot)
 		}
 		a.seqs.mu.Unlock()
@@ -294,6 +302,16 @@ func (a *App) showStep(slot string, prio, ringPrio int, st scenarioStep, d time.
 			ring = true
 		}
 	}
+	outer := false
+	if eff := a.outerEffect(slot, st.Outer, st.Ring); eff != "" {
+		if r := stepEffect(eff, st.Color, st.Period); r != nil {
+			a.pushOuter(slot, ringPrio, d, r)
+			outer = true
+		}
+	}
+	if !outer && !(keepRing && st.Outer == "") { // runSteps' ring keeps its outer mirror too
+		a.removeOuter(slot)
+	}
 	if n := st.anim(); n != "" && a.frontClips() {
 		if c, ok := a.frontAnim(n); ok {
 			loop := c.Looping() || hold
@@ -351,9 +369,72 @@ func (a *App) elseFront(name string) display.RenderFunc[display.FrontFrame] {
 }
 
 // pushRing and pushFront put a moment's layer on a surface; in a slot that yields (setYield) its
-// ring turns see-through while the slot yields (the front never does).
+// ring turns see-through while the slot yields (the front never does). The ring layer is capped by
+// led_held_brightness when it stays until the slot moves on (ttl 0), else led_moment_brightness.
 func (a *App) pushRing(slot string, prio int, ttl time.Duration, r display.RenderFunc[display.RingFrame]) {
-	a.ringStack.Push(slot, prio, ttl, yielding(a.yieldOf(slot), r))
+	a.ringStack.Push(slot, prio, ttl, yielding(a.yieldOf(slot), a.dimRing(r, ttl == 0)))
+}
+
+// outerEffect is the effect a step puts on the outer ring: its own outer, "off" for none, else the
+// ring's mirrored, except in the indicators' slots (outerSkip). "" = none (or no outer ring).
+func (a *App) outerEffect(slot, outer, ring string) string {
+	switch {
+	case a.outer == nil || outer == "off":
+		return ""
+	case outer != "":
+		return outer
+	case outerSkip[slot]:
+		return ""
+	}
+	return ring
+}
+
+// pushOuter puts a moment's layer on the outer ring, capped as pushRing's.
+func (a *App) pushOuter(slot string, prio int, ttl time.Duration, r display.RenderFunc[display.RingFrame]) {
+	a.outerStack.Push(slot, prio, ttl, yielding(a.yieldOf(slot), a.dimRing(r, ttl == 0)))
+}
+
+func (a *App) removeOuter(slot string) {
+	if a.outerStack != nil {
+		a.outerStack.Remove(slot)
+	}
+}
+
+// ledLevel is the cap of a moment's ring layer, 0..1: led_held_brightness or led_moment_brightness,
+// times, with led_auto_brightness, how far the display is dimmed (the light sensor).
+func (a *App) ledLevel(held bool) float64 {
+	c := a.cfg()
+	pct := c.LEDMomentBrightness
+	if held {
+		pct = c.LEDHeldBrightness
+	}
+	k := float64(pct) / 100
+	if c.LEDAutoBrightness && a.front != nil {
+		// The display's level against its brightest (the clock brightness, which auto-brightness
+		// reaches in a bright room): 1 there, the display's own dimming below it.
+		k *= a.shownLevel() / math.Max(float64(a.store.get().ClockBright), 1)
+	}
+	return min(max(k, 0), 1)
+}
+
+// dimRing scales a ring layer's frames by ledLevel, read on every frame (the sensor moves).
+func (a *App) dimRing(r display.RenderFunc[display.RingFrame], held bool) display.RenderFunc[display.RingFrame] {
+	return func(now time.Time, below display.RingFrame) (display.RingFrame, bool) {
+		f, done := r(now, below)
+		k := a.ledLevel(held)
+		if k >= 1 {
+			return f, done
+		}
+		out := make(display.RingFrame, len(f))
+		for i, c := range f {
+			if i < len(below) && c == below[i] {
+				out[i] = c // what shows through from below keeps its own level
+				continue
+			}
+			out[i] = c.Scale(int(math.Round(k * 255)))
+		}
+		return out, done
+	}
 }
 
 func (a *App) pushFront(slot string, prio int, ttl time.Duration, r display.RenderFunc[display.FrontFrame]) {

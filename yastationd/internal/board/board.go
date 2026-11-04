@@ -35,6 +35,7 @@ type Profile struct {
 	Platform PlatformSpec
 
 	Ring      RingSpec
+	Outer     RingSpec // a second, outer ring beside the ring (pickle's big one): extra, for moments' outer steps; Kind "" = none
 	Ambilight AmbilightSpec
 	Matrix    MatrixSpec
 	Input     InputSpec
@@ -346,6 +347,14 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Ring.LED = v
 	case k == "ring.colors":
 		p.Ring.Colors = splitList(v)
+	case k == "outer.kind":
+		p.Outer.Kind = v
+	case k == "outer.pixels":
+		p.Outer.Pixels, err = strconv.Atoi(v)
+	case k == "outer.led":
+		p.Outer.LED = v
+	case k == "outer.colors":
+		p.Outer.Colors = splitList(v)
 	case k == "ambilight.kind":
 		p.Ambilight.Kind = v
 	case k == "ambilight.pixels":

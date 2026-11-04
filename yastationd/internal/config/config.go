@@ -206,6 +206,12 @@ type Config struct {
 	// What plays when two music sources would at once (docs/music-sources.md): newest = the one
 	// that started last; the other is paused (Bluetooth) or muted (Music Assistant). mix = both.
 	MusicOverlap string
+	// The rings' moments (docs/status-indication.md): a cap in % for the held ones (the mute, a lost
+	// HA, a call, setup) and for the one-shot ones; with LEDAutoBrightness both follow the display's
+	// brightness (the light sensor) as well.
+	LEDHeldBrightness   int
+	LEDMomentBrightness int
+	LEDAutoBrightness   bool
 	// The music on the front display (docs/music-sendspin.md): the track's title as a running line
 	// when a new one starts (not on resume), the pause/resume animations, and the spectrum under
 	// the clock (pixel screens only: on seg7 it would look poor, the clock stays).
@@ -342,6 +348,9 @@ func Default() Config {
 		BluetoothVolume:     "separate",
 		BluetoothPairing:    "confirmed",
 		MusicOverlap:        "newest",
+		LEDHeldBrightness:   75,
+		LEDMomentBrightness: 100,
+		LEDAutoBrightness:   true,
 		Bluetooth:           true,
 		MusicDuckDB:         -26,
 		AmbilightFxWhite:    true,

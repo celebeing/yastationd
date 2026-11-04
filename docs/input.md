@@ -40,7 +40,7 @@ switch event is corrected by the next press.
 
 | On a change to | What happens |
 |---|---|
-| muted | log `mic mute on=true`; moment `mic_muted` (held: the amber `mute` ring at `PrioLocal`, slot `mute`, until unmuted); an intercom call is declined or ended |
+| muted | log `mic mute on=true`; moment `mic_muted` (held: yellow on the Minis' small ring, the amber `mute` ring on Station 3, at `PrioLocal`, slot `mute`, until unmuted); an intercom call is declined or ended |
 | unmuted | log `mic mute on=false`; `endHook("mic_muted")` ends the held moment (its layers, steps and sound), then moment `mic_unmuted` (default: nothing) |
 
 and on every call, changed or not, publishes `binary_sensor …_mic_mute`.

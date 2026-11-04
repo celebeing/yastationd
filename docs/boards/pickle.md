@@ -107,8 +107,8 @@ S90clean-ota S93i2ctop S94alsa S95yandex-debugctl S99quasar`.
 |---|---|---|
 | Speaker amp | **ACM8625** `3-002c` (TDM-A, I²S) | same amp family as bergamot; `S42acm8625-settings` applies `pickle-acm8625-psy02272002.cfg` |
 | Mics | **PDM into the SoC** (`snd_pdm`, codec `soc:dummy`) + loopback | no external ADC |
-| Logo LEDs | AW21018 `1-0020` | 6 RGB, `pickle:{red,green,blue}:logo{0..5}`, trigger `ledfb-logo` |
-| Ring LEDs | AW21012 `1-0021` + AW21036 `1-0034` | **16 RGB**, `pickle:{green,red,blue}:ring{0..15}` (**GRB order** in the DT), trigger via `ring` ledfb |
+| Logo LEDs | AW21018 `1-0020` | 6 RGB, `pickle:{red,green,blue}:logo{0..5}`, trigger `ledfb-logo`: the profile's `ring` (the Mini 3's logic) since 2026-11-04 |
+| Ring LEDs | AW21012 `1-0021` + AW21036 `1-0034` | **16 RGB**, `pickle:{green,red,blue}:ring{0..15}` (**GRB order** in the DT), trigger via `ring` ledfb: the profile's `outer` ring, extra ([status-indication.md](../status-indication.md)); bright, and warm at full brightness |
 | Clock | AW21036 `2-0034` | 4-digit 7-seg `pickle:white:clock{A..H}{0..3}` + `clockDL/DH/DM/DEGREE` (note the extra `H` segment vs bergamot) |
 | ledfb | `yandex,ledfb` | `logo` (6) and `ring` (16) framebuffers → `/dev/fb0`, `/dev/fb1` + backlight |
 | Touch keys | AW93303 `3-0012` (`aw933xx`) | input `aw933xx`: 115 vol+, 114 vol−, 582 Alice (same as bergamot) |

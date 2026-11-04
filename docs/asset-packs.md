@@ -15,7 +15,8 @@ holders).
 - **Moment**: an event in the speaker's life that it reacts to (`internal/app/moments.go`). Every
   reaction the owner may want to change goes through one: code that reacts to an event calls
   `moment()`, never a picture or a sound directly. A moment shows a **show**: a reference (an
-  expression, an animation, a scenario) or a sequence of **steps**. A step can light the ring, put
+  expression, an animation, a scenario) or a sequence of **steps**. A step can light the ring (and
+  `outer`, the Mini 3 Pro's outer ring: an effect, `off`, or by default the ring's again), put
   an animation or text on the front display and play a sound, all at once; steps run one after
   another, and a step that shows nothing is a delay. So any combination of sounds and animations,
   together or in sequence with delays, is one show.
@@ -81,7 +82,7 @@ places other assistants beep.
 | `voice_guest` | voice ID ignored a request from a voice the household doesn't know: the expression `angry` (else `sad`) ([voice-id.md](voice-id.md)) |
 | `volume_change` / `volume_edge` | sound `volume_sound` / nothing |
 | `announce` | sound `notification_sound`; the announcement waits for its sounds |
-| `mic_muted` (held) / `mic_unmuted` | the amber ring / nothing |
+| `mic_muted` (held) / `mic_unmuted` | yellow on the Minis' small ring, the amber ring on Station 3 / nothing ([status-indication.md](status-indication.md)) |
 | `ha_lost` (held) / `ha_back` | a dim red pulse / nothing |
 | `power_problem` | phrase `no_power` |
 | `bluetooth_connected` / `bluetooth_disconnected` | a blue flash and, on Station 3, the firmware's `bluetooth_connected` screen pattern / that screen's `bluetooth_disconnected`, nothing on the other boards ([bluetooth.md](bluetooth.md)) |

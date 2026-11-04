@@ -38,6 +38,7 @@ type Info struct {
 	Screen      [2]int   `json:"screen"`         // w, h; 0, 0 = no pixel screen
 	Seg7        *Seg7    `json:"seg7,omitempty"` // a 7-segment front display instead
 	Ring        int      `json:"ring"`
+	Outer       int      `json:"outer,omitempty"` // an outer ring's pixels (Mini 3 Pro), around the ring
 	Ambilight   int      `json:"ambilight"`
 	Expressions []string `json:"expressions"`
 	RingEffects []string `json:"ring_effects"`
@@ -62,6 +63,7 @@ type Frame struct {
 	Screen    string `json:"screen,omitempty"`
 	Seg7      string `json:"seg7,omitempty"` // drive level per element, hw.MatrixFrame.Drive order
 	Ring      string `json:"ring,omitempty"`
+	Outer     string `json:"outer,omitempty"`
 	Ambilight string `json:"ambilight,omitempty"`
 }
 
@@ -128,6 +130,9 @@ func (t *Tap) Seg7(f hw.MatrixFrame) {
 
 // Ring records the ring frame just written.
 func (t *Tap) Ring(px []hw.RGB) { t.set(func(f *Frame) { f.Ring = hexRGB(px) }) }
+
+// Outer records the outer ring's frame just written.
+func (t *Tap) Outer(px []hw.RGB) { t.set(func(f *Frame) { f.Outer = hexRGB(px) }) }
 
 // Ambilight records the ambilight frame just written.
 func (t *Tap) Ambilight(px []hw.RGBW) {

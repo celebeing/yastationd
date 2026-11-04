@@ -188,6 +188,7 @@ export type Step = {
   anim?: string
   matrix?: string
   ring?: string
+  outer?: string
   color?: number[]
   period?: number
   else?: string

@@ -106,13 +106,14 @@ type TapInfo = FrontInfo & {
   name: string
   board: string
   ring: number
+  outer?: number
   ambilight: number
   expressions?: string[]
   ring_effects?: string[] | null
   patterns?: string[]
   commands?: string[]
 }
-type Frame = FrontFrame & { seq: number; ring?: string; ambilight?: string }
+type Frame = FrontFrame & { seq: number; ring?: string; outer?: string; ambilight?: string }
 
 export function LedTab({ peer, base }: { peer: Peer; base: string }) {
   const cv = useRef<HTMLCanvasElement>(null)
@@ -417,9 +418,10 @@ function weaveTile(kind: 'grid' | 'stripes') {
 }
 
 /** drawRing draws a ring as the board's LEDs look: a belt round the body, blended from pixel to
- * pixel — a circle on the round pickle (Mini 3 Pro), a square on the box-shaped orion (Station 3,
- * drawn bigger) — or bergamot's small disc of sectors (Mini 3: a pie, half the size); others as
- * dots. Index 0 at the top, clockwise, as on the units. col(k) is pixel k's shown RGB. */
+ * pixel — a circle for the Mini 3 Pro's outer ring (kind 'outer'), a square on the box-shaped orion
+ * (Station 3, drawn bigger) — or a small disc of sectors (the Minis' ring, bergamot's and the Mini 3
+ * Pro's inner one: a pie, half the size); others as dots. Index 0 at the top, clockwise, as on the
+ * units. col(k) is pixel k's shown RGB. */
 function drawRing(ctx: CanvasRenderingContext2D, board: string, n: number, col: (k: number) => number[], cx: number, cy: number, rr: number, dotR: number) {
   const ang = (k: number) => -Math.PI / 2 + (2 * Math.PI * k) / n
   const css = (c: number[]) => rgbCss(c[0], c[1], c[2])
@@ -450,9 +452,9 @@ function drawRing(ctx: CanvasRenderingContext2D, board: string, n: number, col: 
       ctx.stroke()
     }
   }
-  if (board === 'pickle') belt(rr, false, dotR * 0.9)
+  if (board === 'outer') belt(rr, false, dotR * 0.9)
   else if (board === 'orion') belt(rr * 0.9, true, dotR * 1.4)
-  else if (board === 'bergamot') {
+  else if (board === 'bergamot' || board === 'pickle') {
     const r = rr / 2
     for (let k = 0; k < n; k++) {
       ctx.fillStyle = css(col(k))
@@ -529,6 +531,11 @@ function draw(c: HTMLCanvasElement | null, i: TapInfo, f: Frame, perceived: bool
     ctx.fillStyle = ctx.createPattern(weaveTile(weave), 'repeat')!
     ctx.fillRect(gx, gy, fc.width, fc.height)
     ctx.restore()
+  }
+  if (f.outer && i.outer) {
+    const px = unhex(f.outer)
+    const col = (k: number) => [show(px[k * 3]), show(px[k * 3 + 1]), show(px[k * 3 + 2])]
+    drawRing(ctx, 'outer', i.outer, col, rx, ry, rr, Math.min(8, ((rr * Math.PI) / i.outer) * 0.7))
   }
   if (f.ring && i.ring) {
     const px = unhex(f.ring)

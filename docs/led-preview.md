@@ -37,9 +37,10 @@ stock clips from `-patterns <…>/ledpatterns/clock`. `tools/fetch-vendor.sh <ss
 copies a speaker's `ledpatterns/` into `vendor-local/` and prints the command line.
 
 The ring is drawn as each model's LEDs look (here and in the web app's LED page, `drawRing`): a
-belt round the body, each pixel blended into the next — a circle on the round Mini 3 Pro (16 px),
-a square on the box-shaped Station 3 (36 px, drawn big) — and the Mini 3's six pixels as a small
-pie of sectors, half the size, like its 12 mm logo ring.
+belt round the body, each pixel blended into the next — a circle for the Mini 3 Pro's outer ring
+(16 px), a square on the box-shaped Station 3 (36 px, drawn big) — and the six-pixel ring of the
+Minis (the Mini 3's logo ring, the Mini 3 Pro's inner one) as a small pie of sectors, half the size,
+inside the Mini 3 Pro's outer ring.
 
 Flags: `-board` (default `orion`), `-screen WxH` (the virtual screen, default `21x12`), `-addr`
 (default `localhost:8930`), `-dir` (keep the sysroot, including `yastationd.state`, between runs),

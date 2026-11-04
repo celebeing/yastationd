@@ -60,6 +60,7 @@ type App struct {
 	start          time.Time
 
 	ring                 *hw.Ring
+	outer                *hw.Ring // the outer ring (pickle's big one); nil on boards without
 	ambilight            *hw.Ambilight
 	fx                   ambilightFx   // streamed effects on it (ambilightfx.go)
 	matrix               *hw.Matrix    // seg7 sysfs display
@@ -97,6 +98,7 @@ type App struct {
 	media                mediaState // the music sources (media.go)
 
 	ringStack   *display.Stack[display.RingFrame]
+	outerStack  *display.Stack[display.RingFrame] // the outer ring's layers; nil without one
 	matrixStack *display.Stack[display.FrontFrame]
 
 	topics  mqtt.Topics
@@ -182,6 +184,12 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 			return nil, err
 		}
 	}
+	var outer *hw.Ring
+	if prof.Outer.Kind == "sysfs-rgb" {
+		if outer, err = hw.NewRing(cfg.SysRoot, prof.Outer.Pixels, prof.Outer.LED, prof.Outer.Colors); err != nil {
+			return nil, err
+		}
+	}
 	var ambilight *hw.Ambilight
 	if p := prof.Ambilight; p.Kind == "sysfs-rgbw" {
 		if ambilight, err = hw.NewAmbilight(cfg.SysRoot, p.Pixels, p.LED, p.Colors, p.Dies); err != nil {
@@ -226,6 +234,7 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 		loc:       cfg.Location(),
 		start:     time.Now(),
 		ring:      ring,
+		outer:     outer,
 		ambilight: ambilight,
 		matrix:    matrix,
 		screen:    screen,
@@ -265,6 +274,9 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 	}
 
 	a.ringStack = display.NewStack(a.ringBase)
+	if a.outer != nil {
+		a.outerStack = display.NewStack(func(time.Time) display.RingFrame { return display.Blank(a.outer.Pixels()) })
+	}
 	a.matrixStack = display.NewStack(a.matrixBase)
 	a.loadPacks()
 	a.foldOldMoments()
@@ -280,6 +292,9 @@ func (a *App) startFrameTap(ctx context.Context) {
 	}
 	if a.ring != nil {
 		info.Ring = a.ring.Pixels()
+	}
+	if a.outer != nil {
+		info.Outer = a.outer.Pixels()
 	}
 	if a.ambilight != nil {
 		info.Ambilight = a.ambilight.Pixels()
@@ -713,6 +728,13 @@ func (a *App) renderLoop(stop <-chan struct{}) {
 				a.log.Debug("ring show", "err", err)
 			}
 			a.tap.Ring(rf)
+			if a.outer != nil {
+				of := a.outerStack.Frame(now)
+				if err := a.outer.Show(of); err != nil {
+					a.log.Debug("outer ring show", "err", err)
+				}
+				a.tap.Outer(of)
+			}
 
 			if a.front == nil || a.screen != nil {
 				continue

@@ -33,7 +33,8 @@ const hasAnim = (name: string, cat: MomentCatalog) => name.split(',').some((n) =
 /** stepParts: what a step does, in words. */
 function stepParts(st: Step): string[] {
   const ring = st.ring && `ring ${st.ring}${st.color ? ' ' + hex(st.color) : ''}`
-  return [st.express, st.anim || st.matrix, ring, st.text && `“${st.text}”`, st.sound && `sound ${st.sound}`, st.phrase && `say ${st.phrase}`].filter(Boolean) as string[]
+  const outer = st.outer && `outer ring ${st.outer}`
+  return [st.express, st.anim || st.matrix, ring, outer, st.text && `“${st.text}”`, st.sound && `sound ${st.sound}`, st.phrase && `say ${st.phrase}`].filter(Boolean) as string[]
 }
 
 /** describe: one line for a candidate. */
