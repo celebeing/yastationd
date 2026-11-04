@@ -1,6 +1,6 @@
 # The ESPHome API: the speaker as Home Assistant's Bluetooth proxy
 
-Status (2026-11-04): built; Station 3 (orion). Off by default: `bluetooth_proxy = true` in
+Status (2026-11-04): built; Station 3 (orion) and Mini 3 (bergamot). Off by default: `bluetooth_proxy = true` in
 `yastationd.conf` (Configuration → Home integration → Bluetooth proxy). Checked on a unit with Home
 Assistant's own client library (aioesphomeapi 46.2.0, the one HA 2026.9 pins): device info, the
 advertisements of the room, a GATT connection to a Godox lamp with its services, a disconnection;
@@ -81,12 +81,13 @@ With `bluetooth = false` (the radio off, [bluetooth.md](bluetooth.md)) the proxy
 | Board | |
 |---|---|
 | orion (Station 3) | On (`platform.ble_proxy = true`): BlueZ 5.70, a Bluetooth 5.0 controller; the LE scan (legacy reports), the monitor channel and a GATT connection tried 2026-11-04 |
-| pickle (Mini 3 Pro), bergamot (Mini 3) | Not yet: the same BlueZ stack, untried |
+| bergamot (Mini 3) | On: the same BlueZ 5.70 and controller (`bluetoothd -E -d`, its debug log goes to `/tmp`); 32 devices in 20 s and a GATT connection to a Godox lamp through it (2026-11-04), the daemon ~2 % CPU. The firmware's pairing agent stays in charge there (no phone pairing feature on this board, [bluetooth.md](bluetooth.md)): a device that asks to pair over a proxy connection is paired without a code |
+| pickle (Mini 3 Pro) | Not yet: the same BlueZ stack, untried |
 
 ## Not done
 
 - Encryption (above).
 - Pairing and bonding through the proxy, cache clearing, the scanner mode setting.
-- Pickle and bergamot.
+- Pickle.
 - A long run beside phone audio: whether the scan, when not paused, disturbs Wi-Fi or audio on the
   shared radio.

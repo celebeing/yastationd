@@ -109,3 +109,11 @@ OK (layout 0,3,4), `serve` READY.
   while it plays).
 - Better lux resolution via `hardwaregain`/`integration_time`; auto-brightness curve.
 - Wi-Fi latency after reboot (power save?).
+
+## Bluetooth LE (the Bluetooth proxy)
+
+Tried 2026-11-04: BlueZ 5.70 (`bluetoothd -E -d`, its debug log to `/tmp/messages`), a Bluetooth 5.0
+controller (HCI/LMP 0x9, the same Amlogic part as orion's), BD address the Wi-Fi MAC + 1. A
+discovery's legacy LE reports reach the HCI monitor channel (45 reports from 26 devices in 9 s), and
+the 32-bit daemon reads it on the 64-bit kernel; a GATT connection through the proxy to a Godox lamp
+gave MTU 250 and its services ([esphome-api.md](../esphome-api.md)).

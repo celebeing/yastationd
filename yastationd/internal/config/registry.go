@@ -535,7 +535,7 @@ func init() {
 		Doc: "Let a Music Assistant server play before it is paired."},
 		boolV(func(c *Config) *bool { return &c.SendspinUnpaired }))
 	reg(Key{Name: "bluetooth_proxy", Group: "esphome", Label: "Bluetooth proxy for Home Assistant", Sync: true, Needs: "ble_proxy",
-		Doc: "The speaker serves Home Assistant as an ESPHome Bluetooth proxy: it forwards what Bluetooth LE devices in its room advertise, and lets Home Assistant connect to them through it (GATT), as an ESP32 proxy would. Home Assistant finds it as an ESPHome device (or add it by its address, port below) and shows it with the speaker's other entities. Only the proxy: no ESPHome entities. The API is not encrypted: anyone on the LAN can use the proxy, as anyone on the LAN can use the MQTT broker."},
+		Doc: "The speaker (Station 3, Mini 3) serves Home Assistant as an ESPHome Bluetooth proxy: it forwards what Bluetooth LE devices in its room advertise, and lets Home Assistant connect to them through it (GATT), as an ESP32 proxy would. Home Assistant finds it as an ESPHome device (or add it by its address, port below) and shows it with the speaker's other entities. Only the proxy: no ESPHome entities. The API is not encrypted: anyone on the LAN can use the proxy, as anyone on the LAN can use the MQTT broker."},
 		boolV(func(c *Config) *bool { return &c.BluetoothProxy }))
 	reg(Key{Name: "bluetooth_proxy_connections", Group: "esphome", Label: "Connections at once", Sync: true, Advanced: true, Needs: "ble_proxy",
 		Doc: "How many Bluetooth LE devices Home Assistant may hold connected through this speaker at once (an ESP32 proxy has 3)."},
