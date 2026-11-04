@@ -67,18 +67,23 @@ type Controller interface {
 }
 
 type Manager struct {
-	mu       sync.Mutex
-	conn     *dbus.Conn
-	name     string // the adapter's alias; "" = leave it
-	log      *slog.Logger
-	adapter  dbus.ObjectPath
-	view     View
-	pending  dbus.ObjectPath
-	confirm  chan bool
-	allowed  map[dbus.ObjectPath]bool
-	pairSeq  uint64
-	stop     context.CancelFunc
-	onChange func(View)
+	mu   sync.Mutex
+	conn *dbus.Conn
+	name string // the adapter's alias; "" = leave it
+	log  *slog.Logger
+
+	// the phone volume link (volume.go); volOnPhone nil = not linked
+	volCurrent func() int
+	volOnPhone func(int)
+	pcms       map[dbus.ObjectPath]bool // the phones' A2DP PCMs
+	adapter    dbus.ObjectPath
+	view       View
+	pending    dbus.ObjectPath
+	confirm    chan bool
+	allowed    map[dbus.ObjectPath]bool
+	pairSeq    uint64
+	stop       context.CancelFunc
+	onChange   func(View)
 }
 
 // Open connects to the existing system BlueZ instance. Failure leaves Bluetooth unavailable; it
@@ -357,6 +362,12 @@ func (m *Manager) watch(ctx context.Context) {
 			}
 			if s.Name == "org.freedesktop.DBus.ObjectManager.InterfacesRemoved" {
 				interfaces, _ := s.Body[1].([]string)
+				for _, iface := range interfaces {
+					if iface == pcmIface {
+						path, _ := s.Body[0].(dbus.ObjectPath)
+						m.pcmRemoved(path)
+					}
+				}
 				removed := false
 				for _, iface := range interfaces {
 					removed = removed || iface == "org.bluez.Device1"
@@ -371,8 +382,20 @@ func (m *Manager) watch(ctx context.Context) {
 				}
 				continue
 			}
+			if s.Name == "org.freedesktop.DBus.ObjectManager.InterfacesAdded" {
+				path, _ := s.Body[0].(dbus.ObjectPath)
+				ifaces, _ := s.Body[1].(map[string]map[string]dbus.Variant)
+				if p, ok := ifaces[pcmIface]; ok {
+					m.pcmAdded(path, p)
+				}
+				continue
+			}
 			iface, _ := s.Body[0].(string)
 			changed, _ := s.Body[1].(map[string]dbus.Variant)
+			if iface == pcmIface {
+				m.pcmChanged(s.Path, changed)
+				continue
+			}
 			if iface != "org.bluez.Device1" {
 				continue
 			}

@@ -36,3 +36,14 @@ func TestIsDBusErrorByName(t *testing.T) {
 		t.Fatal("another error name matched")
 	}
 }
+
+func TestPhoneVolumeScale(t *testing.T) {
+	for pct := 0; pct <= 100; pct++ {
+		if got := pctFromVolume(volumeFromPct(pct)); abs(got-pct) > 1 {
+			t.Fatalf("%d %% -> %d %%", pct, got)
+		}
+	}
+	if pctFromVolume(0x7f7f) != 100 || pctFromVolume(0xffff) != 0 || pctFromVolume(0x0040) != 50 {
+		t.Fatal("level bytes: full, muted, one channel at half")
+	}
+}

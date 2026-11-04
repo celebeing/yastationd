@@ -61,8 +61,23 @@ paired reconnects whenever it likes (that is what pairing is for).
 ## Sound
 
 `bluealsa-aplay` plays the phone's audio through the `bluetooth` softvol, which the firmware boots
-at 225 (−6 dB). The daemon sets it to 255 (0 dB) after it has set the master volume, so the master
-(the speaker's one volume, capped by `volume_max`) stays the only control.
+at 225 (−6 dB). The daemon sets it to 255 (0 dB) after it has set the master volume.
+
+**The phone's volume**, `bluetooth_volume` (Settings → Music → Bluetooth audio):
+
+- `separate` (the default, the firmware's way): BlueALSA scales the phone's audio by the phone's
+  own slider, under the speaker's volume. The phone at 100 % plays as loud as the speaker is set,
+  never louder; the speaker's keys and HA stay the volume.
+- `linked`: the phone's slider is the speaker's volume, as Music Assistant's is with
+  `sendspin_volume = linked`. A phone moving its slider sets the speaker's volume (capped by
+  `volume_max`); the keys, HA and Music Assistant move the phone's slider. A phone that connects
+  gets the speaker's volume on its slider. The phone at 100 % is the speaker at its maximum: on a
+  Station 3 that is very loud, so set `volume_max` first.
+
+How: BlueALSA 4 keeps the phone's volume (AVRCP absolute volume) as the `Volume` property of the
+phone's PCM (`org.bluealsa.PCM1`, 0..127 per channel). Linked, the daemon turns that PCM's
+`SoftVolume` off, so the audio plays unscaled, and follows `Volume` both ways. The setting applies to
+phones that connect after it changes.
 
 When the wake word is heard, Bluetooth audio is muted at once (before arbitration, voice ID or HA get
 the speaker's own echo), stays muted while the assistant listens and answers, and comes back over

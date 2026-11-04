@@ -12,6 +12,30 @@ import (
 
 const bluetoothSlot = "bluetooth-pair"
 
+// currentVolumePercent: the speaker's volume now (100 when the mixer can't be read).
+func (a *App) currentVolumePercent() int {
+	if v, err := a.mixer.Get(a.prof.Audio.Volume); err == nil {
+		return a.percentFromRaw(v)
+	}
+	return 100
+}
+
+// onPhoneVolume: a linked phone moved its slider; the speaker follows, capped by volume_max.
+func (a *App) onPhoneVolume(pct int) {
+	if abs(a.currentVolumePercent()-pct) <= 1 {
+		return // our own report coming back
+	}
+	a.log.Info("bluetooth: the phone set the volume", "pct", pct)
+	a.setMaster(a.rawFromPercent(pct), 0, true)
+}
+
+// reportBluetoothVolume moves a linked phone's slider to the speaker's volume.
+func (a *App) reportBluetoothVolume(pct int) {
+	if b, ok := a.bluetoothControl().(*bluetooth.Manager); ok && b != nil && a.cfg().BluetoothVolume == "linked" {
+		go b.SetPhoneVolume(pct)
+	}
+}
+
 type bluetoothControl interface {
 	View() bluetooth.View
 	Pair() error
@@ -32,6 +56,9 @@ func (a *App) startBluetooth(ctx context.Context) {
 		return
 	}
 	a.log.Info("bluetooth: attached; hidden, not pairable")
+	if a.cfg().BluetoothVolume == "linked" {
+		b.LinkVolume(a.currentVolumePercent, a.onPhoneVolume)
+	}
 	a.btMu.Lock()
 	a.bt = b
 	a.btMu.Unlock()

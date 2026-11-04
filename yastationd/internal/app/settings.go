@@ -199,6 +199,8 @@ func (a *App) boardHas(needs string) bool {
 		return a.prof.Ambilight.Kind != "" && a.prof.Ambilight.Kind != "none"
 	case "pixels":
 		return a.prof.Matrix.Kind == "dotmatrix-fb"
+	case "bluetooth":
+		return a.prof.Audio.Bluetooth
 	}
 	return true
 }

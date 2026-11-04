@@ -195,7 +195,10 @@ type Config struct {
 	// linked: the player volume in Music Assistant is the speaker's volume (keys, HA, assistant);
 	// separate: it is a music-only gain under the speaker's volume.
 	SendspinVolume string
-	MusicDuckDB    int // music level while the assistant listens/talks/rings, dB below normal
+	// separate: a phone's Bluetooth volume sits under the speaker's (the firmware's way); linked: the
+	// phone's slider is the speaker's volume (docs/bluetooth.md).
+	BluetoothVolume string
+	MusicDuckDB     int // music level while the assistant listens/talks/rings, dB below normal
 	// The music on the front display (docs/music-sendspin.md): the track's title as a running line
 	// when a new one starts (not on resume), the pause/resume animations, and the spectrum under
 	// the clock (pixel screens only: on seg7 it would look poor, the clock stays).
@@ -329,6 +332,7 @@ func Default() Config {
 		SendspinUnpaired:    true,
 		SendspinState:       cfw + "/sendspin/state.json",
 		SendspinVolume:      "linked",
+		BluetoothVolume:     "separate",
 		MusicDuckDB:         -26,
 		AmbilightFxWhite:    true,
 		AmbilightWhite:      "srgb",

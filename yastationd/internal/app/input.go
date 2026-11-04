@@ -422,6 +422,7 @@ func (a *App) setMaster(v, edge int, report bool) {
 	if report {
 		a.reportMusicVolume(pct)
 	}
+	a.reportBluetoothVolume(pct) // a phone's own change comes back as no change there
 	a.publish(a.topics.State("volume"), strconv.Itoa(pct))
 	// Local reflex: the level on the front display for a moment (the display's own volume scene:
 	// a number on seg7, the stock rolling digits on orion). The ring stays for colour/animation.
