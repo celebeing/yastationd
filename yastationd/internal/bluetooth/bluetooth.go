@@ -20,6 +20,8 @@ const (
 	agentIface = "org.bluez.Agent1"
 	pairFor    = 2 * time.Minute
 	a2dpSink   = "0000110b-0000-1000-8000-00805f9b34fb"
+	avrcp      = "0000110e-0000-1000-8000-00805f9b34fb" // A/V remote control (the phone's volume, play/pause)
+	avrcpTgt   = "0000110c-0000-1000-8000-00805f9b34fb" // A/V remote control target
 )
 
 type Device struct {
@@ -52,6 +54,7 @@ type Controller interface {
 type Manager struct {
 	mu       sync.Mutex
 	conn     *dbus.Conn
+	name     string // the adapter's alias; "" = leave it
 	adapter  dbus.ObjectPath
 	view     View
 	pending  dbus.ObjectPath
@@ -69,39 +72,57 @@ func Open(parent context.Context, name string, onChange func(View)) (*Manager, e
 	if err != nil {
 		return nil, err
 	}
-	m := &Manager{conn: conn, onChange: onChange, allowed: map[dbus.ObjectPath]bool{}, view: View{Devices: []Device{}}}
-	if err := m.findAdapter(); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	if name != "" {
-		if err := m.setLocked("Alias", name); err != nil {
-			conn.Close()
-			return nil, fmt.Errorf("set BlueZ adapter alias: %w", err)
-		}
-	}
+	m := &Manager{conn: conn, name: name, onChange: onChange, allowed: map[dbus.ObjectPath]bool{}, view: View{Devices: []Device{}}}
 	if err := conn.Export(&agent{m: m}, agentPath, agentIface); err != nil {
 		conn.Close()
 		return nil, err
 	}
-	mgr := conn.Object(bluezName, "/org/bluez")
-	if err := mgr.Call("org.bluez.AgentManager1.RegisterAgent", 0, agentPath, "DisplayYesNo").Err; err != nil {
+	m.mu.Lock()
+	err = m.attachLocked()
+	m.mu.Unlock()
+	if err != nil {
 		conn.Close()
-		return nil, err
-	}
-	if err := mgr.Call("org.bluez.AgentManager1.RequestDefaultAgent", 0, agentPath).Err; err != nil {
-		m.Close()
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(parent)
 	m.stop = cancel
 	m.mu.Lock()
-	m.view.Available = true
-	m.refreshLocked()
 	m.emitLocked()
 	m.mu.Unlock()
 	go m.watch(ctx)
 	return m, nil
+}
+
+// attachLocked binds to bluetoothd: the adapter, its alias, our agent as the default one, and the
+// adapter hidden and not pairable. The firmware's main.conf has AlwaysPairable = true and its own
+// agent accepts every pairing unasked, so a speaker is pairable by anyone who knows its address
+// until this runs; it runs again whenever bluetoothd restarts.
+func (m *Manager) attachLocked() error {
+	if err := m.findAdapter(); err != nil {
+		return err
+	}
+	if m.name != "" {
+		if err := m.setLocked("Alias", m.name); err != nil {
+			return fmt.Errorf("set BlueZ adapter alias: %w", err)
+		}
+	}
+	mgr := m.conn.Object(bluezName, "/org/bluez")
+	if err := mgr.Call("org.bluez.AgentManager1.RegisterAgent", 0, agentPath, "DisplayYesNo").Err; err != nil {
+		return err
+	}
+	if err := mgr.Call("org.bluez.AgentManager1.RequestDefaultAgent", 0, agentPath).Err; err != nil {
+		_ = mgr.Call("org.bluez.AgentManager1.UnregisterAgent", 0, agentPath).Err
+		return err
+	}
+	if err := m.setLocked("Discoverable", false); err != nil {
+		return fmt.Errorf("hide the adapter: %w", err)
+	}
+	if err := m.setLocked("Pairable", false); err != nil {
+		return fmt.Errorf("make the adapter not pairable: %w", err)
+	}
+	m.view.Available = true
+	m.refreshLocked()
+	return nil
 }
 
 func (m *Manager) findAdapter() error {
@@ -290,12 +311,22 @@ func (m *Manager) watch(ctx context.Context) {
 	defer m.conn.RemoveSignal(ch)
 	_ = m.conn.AddMatchSignal(dbus.WithMatchInterface(propsName), dbus.WithMatchMember("PropertiesChanged"))
 	_ = m.conn.AddMatchSignal(dbus.WithMatchInterface("org.freedesktop.DBus.ObjectManager"), dbus.WithMatchMember("InterfacesRemoved"))
+	_ = m.conn.AddMatchSignal(dbus.WithMatchInterface("org.freedesktop.DBus"), dbus.WithMatchMember("NameOwnerChanged"), dbus.WithMatchArg(0, bluezName))
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case s := <-ch:
 			if s == nil || len(s.Body) < 2 {
+				continue
+			}
+			if s.Name == "org.freedesktop.DBus.NameOwnerChanged" {
+				if len(s.Body) == 3 {
+					if name, _ := s.Body[0].(string); name == bluezName {
+						owner, _ := s.Body[2].(string)
+						m.bluezRestarted(owner != "")
+					}
+				}
 				continue
 			}
 			if s.Name == "org.freedesktop.DBus.ObjectManager.InterfacesRemoved" {
@@ -331,6 +362,33 @@ func (m *Manager) watch(ctx context.Context) {
 		}
 	}
 }
+
+// bluezRestarted: bluetoothd went away (up = false) or came back. Its agent registration and adapter
+// settings went with it, and its main.conf makes it pairable again, so attach once more.
+func (m *Manager) bluezRestarted(up bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.confirm != nil {
+		m.confirm <- false
+		close(m.confirm)
+		m.confirm = nil
+	}
+	m.pairSeq++
+	m.pending = ""
+	m.view = View{Devices: []Device{}}
+	if up {
+		for i := 0; i < 10; i++ { // the adapter shows up a moment after the name
+			if err := m.attachLocked(); err == nil {
+				break
+			}
+			m.mu.Unlock()
+			time.Sleep(500 * time.Millisecond)
+			m.mu.Lock()
+		}
+	}
+	m.emitLocked()
+}
+
 func (m *Manager) incoming(path dbus.ObjectPath, code uint32) *dbus.Error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -405,7 +463,7 @@ func (a *agent) RequestPasskey(dbus.ObjectPath) (uint32, *dbus.Error) {
 func (a *agent) AuthorizeService(path dbus.ObjectPath, uuid string) *dbus.Error {
 	a.m.mu.Lock()
 	defer a.m.mu.Unlock()
-	if a.m.allowed[path] && uuid == a2dpSink {
+	if a.m.allowed[path] && (uuid == a2dpSink || uuid == avrcp || uuid == avrcpTgt) {
 		return nil
 	}
 	return dbus.NewError("org.bluez.Error.Rejected", nil)

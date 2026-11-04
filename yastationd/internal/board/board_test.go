@@ -40,7 +40,7 @@ func TestOrionBuiltin(t *testing.T) {
 	if len(p.Audio.Unmute) != 3 {
 		t.Errorf("unmute = %q", p.Audio.Unmute)
 	}
-	if p.Audio.BluetoothVolume != "Bluetooth Master Playback Volume" || p.Audio.BluetoothVolumeDefault != 255 {
+	if !p.Audio.Bluetooth || p.Audio.BluetoothVolume != "Bluetooth Master Playback Volume" || p.Audio.BluetoothVolumeDefault != 255 {
 		t.Errorf("Bluetooth volume = %q/%d", p.Audio.BluetoothVolume, p.Audio.BluetoothVolumeDefault)
 	}
 	if p.Matrix.Kind != "dotmatrix-fb" || p.Ring.Pixels != 36 ||
@@ -202,5 +202,21 @@ func TestRetiredBoardKeysStillLoad(t *testing.T) {
 	os.WriteFile(filepath.Join(root, "board.conf"), []byte(strings.Join(lines, "\n")+"\n"), 0o644)
 	if _, err := Load(root, "bergamot", "board.conf"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Phone pairing (docs/bluetooth.md) is on where it was checked on a unit: orion and pickle.
+func TestBluetoothBoards(t *testing.T) {
+	for name, want := range map[string]bool{"orion": true, "pickle": true, "bergamot": false} {
+		p, err := Builtin(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p.Audio.Bluetooth != want {
+			t.Errorf("%s: audio.bluetooth = %v, want %v", name, p.Audio.Bluetooth, want)
+		}
+		if want && p.Audio.BluetoothVolume == "" {
+			t.Errorf("%s: no audio.bluetooth_volume", name)
+		}
 	}
 }

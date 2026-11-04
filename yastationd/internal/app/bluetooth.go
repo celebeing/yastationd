@@ -23,6 +23,9 @@ type bluetoothControl interface {
 }
 
 func (a *App) startBluetooth(ctx context.Context) {
+	if !a.prof.Audio.Bluetooth {
+		return
+	}
 	b, err := bluetooth.Open(ctx, a.cfg().DeviceName, a.bluetoothChanged)
 	if err != nil {
 		a.log.Info("bluetooth unavailable", "err", err)

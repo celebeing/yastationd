@@ -157,6 +157,7 @@ type AudioSpec struct {
 	VolumeDefault          int           // raw volume set on first start, before the user ever set one (0 = leave the boot value)
 	VolumeMap              []VolumePoint // stock volume curve; nil = a straight line over 20 levels
 	Unmute                 []string      // amixer cset lines run before playback
+	Bluetooth              bool          // phones pair from the web app for A2DP audio (docs/bluetooth.md)
 	BluetoothVolume        string        // full control name of the Bluetooth softvol ("" = none)
 	BluetoothVolumeDefault int           // raw Bluetooth softvol applied at daemon start (0 = leave the boot value)
 	MicGain                string        // hardware mic gain control ("" = none)
@@ -423,6 +424,8 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Audio.VolumeMap, err = parseVolumeMap(v)
 	case k == "audio.unmute":
 		list(&p.Audio.Unmute)
+	case k == "audio.bluetooth":
+		p.Audio.Bluetooth, err = strconv.ParseBool(v)
 	case k == "audio.bluetooth_volume":
 		p.Audio.BluetoothVolume = v
 	case k == "audio.bluetooth_volume_default":

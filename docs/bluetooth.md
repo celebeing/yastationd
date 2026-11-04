@@ -1,56 +1,98 @@
-# Bluetooth audio pairing
+# Bluetooth audio: the speaker as a phone's Bluetooth speaker
 
-`yastationd` owns Bluetooth audio pairing through the existing BlueZ and BlueALSA services. It never
-starts the vendor assistant or its `ble_initd` Wi-Fi/token GATT service. The feature is available in
-the authenticated web app only when the running speaker exposes a usable BlueZ adapter.
+Status (2026-11-04): built; on Station 3 (orion) and Mini 3 Pro (pickle). A phone pairs from the web
+app and plays through the speaker over A2DP; the wake word and the assistant duck it.
 
-## Pairing a phone
+| Board | State |
+|---|---|
+| **orion** (Station 3) | On (`audio.bluetooth = true`). The pairing code shows on the pixel screen as `123 456`. |
+| **pickle** (Mini 3 Pro) | On. Its four-digit display shows the code in two halves, a second each. |
+| **bergamot** (Mini 3) | Off. The firmware runs the same stack, but nothing here was tried on it. |
 
-Open **Bluetooth audio**, select **Pair phone**, then choose the speaker on the phone within two
-minutes. BlueZ supplies a zero-padded six-digit numeric-comparison code. It appears on the speaker
-and in the logged-in page; compare it with the phone, then select **Confirm pairing**. The pairing
-window ends after success, cancellation or two minutes. Bluetooth is otherwise neither discoverable
-nor pairable.
+On-device checks still to do on each board: a pairing with the code, playback, ducking, a reboot
+with the phone remembered.
 
-The phone sees the configured `device_name` in its Bluetooth picker. Changing that name restarts
-`yastationd`, which updates BlueZ's adapter alias before the speaker next becomes discoverable.
+## What the firmware does
 
-Station 3's pixel display draws the code as two groups of three. The Mini 3 and Mini 3 Pro have only
-four seven-segment digits, so they alternate the first and second three-digit groups once a second.
-They never fall back to an unverified code-less pairing method.
+A speaker runs the firmware's Bluetooth daemons under the CFW too: `bluetoothd` (BlueZ), `bluealsa`
+and `bluealsa-aplay`, which plays whatever a connected phone sends through the `bluetooth` ALSA PCM
+(a softvol over the speakers). Two things decide who may pair:
 
-Only numeric comparison is accepted. Legacy PIN and Just Works requests are rejected. A paired phone
-is trusted only after the owner confirms the matching code. The initial scope authorizes A2DP sink
-audio only; it does not expose HFP or a vendor GATT service. **Forget** removes BlueZ's pairing record.
-On Orion, firmware starts that softvol at 225 (−6 dB). `yastationd` restores it to 255 (0 dB) at
-startup; normal speaker volume remains the only owner-visible volume control.
+- **The adapter's state.** *Discoverable* means a phone's Bluetooth list shows the speaker.
+  *Pairable* means the speaker accepts a pairing request from a phone that knows its address
+  (from an earlier scan, or one that paired before). The firmware's `main.conf` has
+  `AlwaysPairable = true`, so the speaker boots pairable; it boots not discoverable.
+- **The agent.** When a phone asks to pair, BlueZ asks an *agent* program whether to allow it and
+  how to check. The firmware runs `just-works-bluez-agent`, which allows every request without any
+  check ("Just Works" is Bluetooth's name for pairing with no code). With the vendor stack running,
+  the vendor's code kept the speaker non-pairable and paired only in its own setup flow.
 
-When a wake word arrives, Orion Bluetooth music mutes immediately—before arbitration, voice ID or
-HA can receive its echo. The mute bridge lasts two seconds while the normal assistant session
-starts. It remains muted through listening, the assistant's reply and the 1.5-second follow-up hold,
-fades back in about one second. This adjusts only the board-declared Bluetooth softvol; it never
-raises `Master Playback Volume` or bypasses the owner's `volume_max`.
+So with the vendor stack gated and nothing else, a speaker accepts a pairing from any phone in range
+that knows its address, with no code and no one asked, and then plays its audio. Under the CFW
+without this feature (bergamot today) that is still so.
+
+## What the CFW does
+
+When the daemon starts (and again whenever `bluetoothd` restarts) it:
+
+1. registers its own agent and makes it the default one, so pairing requests come to it, not to the
+   firmware's agent;
+2. sets the adapter **not discoverable and not pairable**;
+3. sets the adapter's name to `device_name` (what a phone shows in its list).
+
+Its agent accepts only a pairing with a code compared on both sides ("numeric comparison"), and only
+inside a pairing window the owner opened. Requests with no code (Just Works) or with a PIN are
+refused.
+
+**Pairing a phone.** Web app → **Bluetooth audio** → **Pair phone**. For two minutes the speaker is
+discoverable and pairable. Choose it on the phone: a six-digit code appears on the phone, on the
+speaker's display and on the page. If they match, press **Confirm pairing** on the page and accept
+on the phone. The phone is then trusted (it reconnects by itself later), and the speaker is hidden
+and non-pairable again. The window also closes on **Cancel** or after two minutes. During it only
+audio (A2DP) and its remote control (AVRCP: the phone's volume, play/pause) are let through; no
+calls (HFP) and no vendor service.
+
+**Forget** removes the phone's pairing, **Disconnect** drops its connection.
+
+**What is left open:** from boot until the daemon starts (seconds), and if `bluetoothd` restarts
+while the daemon is down, the firmware's settings apply: pairable, with its agent. A phone already
+paired reconnects whenever it likes (that is what pairing is for).
+
+## Sound
+
+`bluealsa-aplay` plays the phone's audio through the `bluetooth` softvol, which the firmware boots
+at 225 (−6 dB). The daemon sets it to 255 (0 dB) after it has set the master volume, so the master
+(the speaker's one volume, capped by `volume_max`) stays the only control.
+
+When the wake word is heard, Bluetooth audio is muted at once (before arbitration, voice ID or HA get
+the speaker's own echo), stays muted while the assistant listens and answers, and comes back over
+about a second after its 1.5 s hold, like the music ducking ([music-sendspin.md](music-sendspin.md)).
+Only the Bluetooth softvol moves; the master never does.
+
+Not done: alarms, intercom calls and Music Assistant music mix with Bluetooth audio rather than
+taking its place.
 
 ## Implementation
 
-`internal/bluetooth` is a native Go system-D-Bus client. It registers the BlueZ `Agent1` as the default
-agent and rejects requests outside its bounded pairing session. It watches the pairing result, marks
-the confirmed device trusted and returns the adapter to hidden/non-pairable state. BlueALSA continues
-to own the audio route; `yastationd` does not route audio itself.
+`internal/bluetooth` talks to BlueZ over the system D-Bus (`godbus`): the agent (`Agent1`), the
+adapter's properties, the paired devices, and `NameOwnerChanged` to notice a `bluetoothd` restart.
+BlueALSA keeps the audio route; the daemon does not move audio itself. The board profile turns it on:
 
-The web API is authenticated:
+| Key | What |
+|---|---|
+| `audio.bluetooth` | `true`: the pairing and the web page on this board |
+| `audio.bluetooth_volume` | the Bluetooth softvol control, for the ducking and the 0 dB at start |
+| `audio.bluetooth_volume_default` | its value at start (255) |
+
+The web API, behind the login:
 
 | Path | Action |
 | --- | --- |
-| `GET /api/bluetooth` | State and paired devices |
-| `POST` / `DELETE /api/bluetooth/pair` | Start / cancel the pairing window |
-| `POST /api/bluetooth/pair/confirm` | Accept the numeric comparison |
-| `POST /api/bluetooth/devices/<id>/disconnect` | Disconnect one paired phone |
-| `DELETE /api/bluetooth/devices/<id>` | Forget one paired phone |
+| `GET /api/bluetooth` | state and paired devices |
+| `POST` / `DELETE /api/bluetooth/pair` | open / cancel the pairing window |
+| `POST /api/bluetooth/pair/confirm` | accept the code |
+| `POST /api/bluetooth/devices/<id>/disconnect` | disconnect one paired phone |
+| `DELETE /api/bluetooth/devices/<id>` | forget one paired phone |
 
-## Validation boundary
-
-The Station 3 controller and BlueALSA route were surveyed before this feature. The runtime capability
-probe keeps the page hidden where BlueZ cannot be reached. Pairing, numeric confirmation, A2DP playback,
-reboot persistence, and the Mini display fallback still require an on-device check on each supported
-model before claiming model-level verification.
+BlueZ keeps pairings in `/data/bluez_data/lib/bluetooth/` ([storage.md](storage.md)); a backup of the
+speaker carries them, a factory reset clears them.

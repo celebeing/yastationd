@@ -273,7 +273,7 @@ func init() {
 		Doc: "Steps of 5 % per volume key press; «громче» and «тише» are two presses."},
 		intV(1, 4, func(c *Config) *int { return &c.VolumeStep }))
 	reg(Key{Name: "volume_max", Group: "sound", Label: "Maximum volume", Unit: "%", Runtime: true, Sync: true,
-		Doc: "The loudest the speaker may go, for the keys, the ring, Home Assistant and music alike. 100 is no cap."},
+		Doc: "The loudest the speaker may go, for the keys, the ring, Home Assistant and music alike. 100 is no cap. Lowering it below the current volume turns the speaker down at once; raising it changes nothing until the volume is changed."},
 		intV(5, 100, func(c *Config) *int { return &c.VolumeMax }))
 	reg(Key{Name: "volume_beep", Group: "sound", Label: "Volume key tick", Runtime: true, Sync: true,
 		Doc: "A tick on each volume key press, the firmware's own sound."},

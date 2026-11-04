@@ -277,7 +277,8 @@ Generic detector limits and the bergamot instance: [docs/research/wakeword-mic-a
 ## Bluetooth / BLE
 
 - **Stock unit baseline, 2026-10-25:** the standard BlueZ controller is powered, neither
-  discoverable nor pairable, and supports both central and peripheral roles plus five advertising
+  discoverable nor pairable (with the vendor stack; under the CFW without the Bluetooth feature it is
+  pairable, [bluetooth.md](../bluetooth.md) "What the firmware does"), and supports both central and peripheral roles plus five advertising
   instances. It advertises A2DP source/sink, AVRCP controller/target, and standard GAP/GATT/device
   information UUIDs. No BLE advertisement is active.
 - The reusable Linux base processes are `hciattach -s 115200 /dev/ttyS1 aml`,
@@ -285,7 +286,7 @@ Generic detector limits and the bergamot instance: [docs/research/wakeword-mic-a
 - `bluealsa-aplay -D bluetooth -M disable -S` owns the stock audio route. `bluetooth` is an ALSA
   `softvol` PCM over `speakers`, controlled by card-0 `Bluetooth Master Playback Volume`; thus
   A2DP reaches the stock speaker routing without `maind`. Firmware resets that control to 225
-  (−6 dB) each boot. The Orion board profile restores it to 255 (0 dB) when `yastationd` starts,
+  (−6 dB) each boot. The board profile restores it to 255 (0 dB) when `yastationd` starts,
   leaving `Master Playback Volume` as the sole user-visible loudness control. `bluealsa-aplay`
   has no device-address restriction, so it accepts audio from any Bluetooth device that BlueZ has
   connected. `aplay -L` has no statically named `bluealsa` PCM before a source connects.

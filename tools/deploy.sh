@@ -469,10 +469,12 @@ sleep 8
 n=\$(ps w | awk -v b="\$D/bin/yastationd" '\$3 == b' | wc -l)
 [ "\$n" -ge 1 ] || { echo "  yastationd not running:"; tail -20 /tmp/yastationd.log; exit 1; }
 tail -n +\$((l0 + 1)) /tmp/yastationd.log | grep -E 'level=(ERROR|WARN)' | tail -3 | sed 's/^/  log: /'
-echo "  updated:$changed; yastationd restarted"
+echo "  ok (updated:$changed; yastationd restarted)"
 EOF
 	elif [ "$diag_changed" = 1 ]; then
-		echo "  diag updated; yastationd left running"
+		echo "  ok (diag updated; yastationd left running)"
+	else
+		echo "  ok (nothing changed; yastationd left running)"
 	fi
 	if [ "$first" = 1 ] || [ "${DROPBEAR:-0}" = 1 ]; then
 		update_dropbear

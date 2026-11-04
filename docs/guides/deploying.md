@@ -284,10 +284,12 @@ of the speakers, a hosts file with just their lines. Each line is `<ssh-target> 
 
 It builds once in docker (yastationd, and per userland arch `spotter-host` and `sendspin-host`;
 `hostapd` is a local build, else the newest recorded one in `$VENDOR/builds/hostapd/`, and a
-speaker left without one gets a warning). Then, one speaker at a time, it uploads aside (the
-daemon, `supervise.sh`, `diag.sh`, the helpers), stops → keeps the old binary as `.prev` → swaps →
-starts, checks that the daemon runs and prints its new WARN/ERROR lines, and `ok`. It stops at the
-first failing speaker, so a broken build never reaches the rest.
+speaker left without one gets a warning). Then, one speaker at a time, it compares each file (the
+daemon, `supervise.sh`, `diag.sh`, the helpers) with the speaker's by checksum and uploads aside only
+those that differ. If the daemon, the supervisor or a helper changed, it stops → keeps the old binary
+as `.prev` → swaps → starts, checks that the daemon runs and prints its new WARN/ERROR lines; otherwise
+the daemon keeps running. Either way it ends the speaker with `ok`. It stops at the first failing
+speaker, so a broken build never reaches the rest.
 
 **dropbear.** On a first deploy (no `yastationd` on the speaker yet; after `make stage` there is
 one, hence `DROPBEAR=1` in §2), or with `DROPBEAR=1`,

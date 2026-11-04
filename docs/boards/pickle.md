@@ -294,6 +294,17 @@ its hooks, `unbound`) checks for internet [O]. Addresses are `maind` ELF vaddrs 
      `noCheckUpdate` can't be satisfied locally (HTTPS `check_updates`) — it must be removed, not faked.
    - remove the extra SSIDs from the Yandex account / `wifi_capability.lmdb`.
 
+## Bluetooth
+
+Measured 2026-11-04 on a unit under the CFW (vendor stack gated): the same stack as orion's —
+`hciattach -s 115200 /dev/ttyS1 aml`, `bluetoothd -n`, `bluealsa` (A2DP sink/source, HFP-AG),
+`bluealsa-aplay -D bluetooth -M disable -S` and the firmware's `just-works-bluez-agent`; the
+`bluetooth` ALSA PCM is a softvol over `speakers` (`/etc/asound-bluetooth.conf`), control
+`Bluetooth Master Playback Volume`, booted at 225. `main.conf`: `AlwaysPairable = true`,
+`JustWorksRepairing = always`, `DiscoverableTimeout = 0`; the adapter powered, not discoverable,
+pairable. Pairings are kept in `/data/bluez_data/lib/bluetooth/`. What the CFW does with it:
+[bluetooth.md](../bluetooth.md).
+
 ## Running without maind
 Verdict: **safe to disable outright** — no hardware/boot initialisation depends on quasar [O]:
 amp (kernel probe + `S42`), PDM mics (kernel opens the PDM clock on capture open), LEDs/clock (kernel +
