@@ -126,7 +126,15 @@ S90clean-ota S93i2ctop S94alsa S95yandex-debugctl S99quasar`.
 - **The mute switch lights the logo ring's red in hardware** (2026-11-04): with all of the ring's
   channels written 0 the red stays lit while muted, and a colour written mixes with it. No
   sysfs LED, GPIO or device-tree node for it; nothing in Linux holds the LEDs. It does not go through
-  the ring's AW21018 either: its global current (`gcc`) at 60, 10 and 0 left the red unchanged. The CFW draws
+  the ring's AW21018 either: its global current (`gcc`) at 60, 10 and 0 left the red unchanged.
+- **What the vendor does with it** (the 3.21 firmware's `ledpatterns/`): on mute it plays
+  `oknix/mute.led` on the logo — one frame, all six pixels black, 1.2 s — so the hardware red shows
+  alone, and `ring/mute.led` on the big ring: a red wave once round (26 frames, ~0.5 s), then dark.
+  `oknix/unmute.led` is black too. So the vendor clears the logo and lets the hardware show the
+  mute, as the CFW now does; nothing of it fights the red.
+- **Colour correction per body colour** (`ledconfigs/{beige,green,pink,purple,red,yellow}.json`): a
+  3×3 matrix on the LED colours, picked by the unit's colour (`device_color` in maind), likely to
+  make the light through each fabric look the same. The CFW does not apply it (not tried). The CFW draws
   nothing for the mute on this board ([status-indication.md](../status-indication.md)).
 
 Boot-time detail: the ring/logo bus (`i2c@68000`) starts **owned by the always-on CPU** (pre-boot
