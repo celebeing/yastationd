@@ -47,8 +47,11 @@ dark at rest, and the ring light in HA is the small ring.
 **Brightness** (Configuration → General → Display): what stays lit (the mute, a lost HA, a call, the
 setup mode) is capped at `led_held_brightness` (75 % by default: these LEDs warm up at full), what
 lights up and goes at `led_moment_brightness` (100 %). With `led_auto_brightness` (on) both follow
-the display's brightness, so in a dark room the rings dim with the clock: the cap times the display's
-level against its brightest (the clock brightness, which auto-brightness reaches in a bright room).
+the display's brightness, so in a dark room the rings dim with the clock, but less far: the cap
+times the square root of the display's level against its brightest (the clock brightness, which
+auto-brightness reaches in a bright room). A dim room already puts the display near its bottom, and
+an LED near zero loses its colour; with the root a mute in a 2.6 lx room is ~59/255 (it was 19 with
+the plain ratio), ~24 in the dark (3), and the cap in a bright room.
 These caps are for the moments' rings; the ring light set from HA has its own brightness.
 
 Every indication on this page is a moment of the default theme (`startup`, `booting`,

@@ -207,7 +207,7 @@ func init() {
 		Doc: "The brightest the rings get for what lights up and goes: flashes, the voice stages, reactions."},
 		intV(5, 100, func(c *Config) *int { return &c.LEDMomentBrightness }))
 	reg(Key{Name: "led_auto_brightness", Group: "display", Label: "Rings follow the light sensor", Runtime: true, Sync: true,
-		Doc: "On: both limits above are taken of the display's brightness, so the rings dim in a dark room with it. Off: they are of full brightness."},
+		Doc: "On: the rings dim with the display in a dark room, less far than it (the square root of its dimming), since an LED near zero loses its colour. Off: the limits above apply as they are."},
 		boolV(func(c *Config) *bool { return &c.LEDAutoBrightness }))
 	reg(Key{Name: "auto_brightness_min", Group: "display", Label: "Auto brightness: dimmest", Runtime: true, Sync: true,
 		Doc: "The dimmest the clock goes under auto brightness, in the dark. Empty or 0 uses the board's dimmest readable level (so shared as 0, each speaker keeps its own). The brightest is the clock brightness above."},

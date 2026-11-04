@@ -401,7 +401,7 @@ func (a *App) removeOuter(slot string) {
 }
 
 // ledLevel is the cap of a moment's ring layer, 0..1: led_held_brightness or led_moment_brightness,
-// times, with led_auto_brightness, how far the display is dimmed (the light sensor).
+// times, with led_auto_brightness, the square root of how far the display is dimmed (the light sensor).
 func (a *App) ledLevel(held bool) float64 {
 	c := a.cfg()
 	pct := c.LEDMomentBrightness
@@ -411,8 +411,10 @@ func (a *App) ledLevel(held bool) float64 {
 	k := float64(pct) / 100
 	if c.LEDAutoBrightness && a.front != nil {
 		// The display's level against its brightest (the clock brightness, which auto-brightness
-		// reaches in a bright room): 1 there, the display's own dimming below it.
-		k *= a.shownLevel() / math.Max(float64(a.store.get().ClockBright), 1)
+		// reaches in a bright room), softened by a square root: the rings follow the display down,
+		// but less far (a dim room leaves the display near its bottom, and an LED colour near zero
+		// loses its hue). 1 in a bright room.
+		k *= math.Sqrt(min(a.shownLevel()/math.Max(float64(a.store.get().ClockBright), 1), 1))
 	}
 	return min(max(k, 0), 1)
 }
