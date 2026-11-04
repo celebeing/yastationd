@@ -105,11 +105,11 @@ func held(st scenarioStep) show {
 func step(st scenarioStep) show { return show{Steps: []scenarioStep{st}} }
 
 // kindTheme: the default theme's moments that differ by front display kind, before defaultTheme.
-// The minis (seg7) show the mute as one yellow on their small ring (the cap led_held_brightness
-// keeps it below full, where these LEDs warm up).
+// The minis (seg7): the mute switch lights the red of their small ring in hardware, whatever the
+// daemon writes, so the mute shows nothing of ours there (it would only mix with that red).
 var kindTheme = map[string]map[string][]show{
 	"seg7": {
-		"mic_muted": {held(scenarioStep{Ring: "solid", Color: []int{255, 210, 0}})},
+		"mic_muted": {},
 	},
 }
 

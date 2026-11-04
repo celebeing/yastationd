@@ -27,6 +27,11 @@ Profile: `yastationd/internal/board/profiles/bergamot.conf` · Survey: `dumps/su
 | gpio-keys | SW 14 SW_MUTE_DEVICE | mic-mute switch | mic_mute |
 | gpio-keys | 113 KEY_MUTE | (with the switch) | mute_key → re-read the switch |
 
+- **The mute switch lights the logo ring's red in hardware** (2026-11-04): with all of the ring's
+  channels written 0 the red stays lit while muted, and a colour written mixes with it. No
+  sysfs LED, GPIO or device-tree node for it; nothing in Linux holds the LEDs. The CFW draws
+  nothing for the mute on this board ([status-indication.md](../status-indication.md)).
+
 `input_event` size auto-detected (both layouts handled).
 
 ## Audio out

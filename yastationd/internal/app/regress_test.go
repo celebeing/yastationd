@@ -218,8 +218,11 @@ func TestRegressMute(t *testing.T) {
 	r := newRegressApp(t)
 	r.mark()
 	r.setMute(true)
-	// On a seg7 board (the minis) the mute is one yellow (kindTheme); orion keeps the amber "mute".
-	r.ringIs(t, "mute", display.PrioLocal, stepEffect("solid", []int{255, 210, 0}, 0), time.Second)
+	// On a seg7 board (the minis) the switch lights the ring's red in hardware: nothing of ours
+	// (kindTheme); orion keeps the amber "mute".
+	if r.ringStack.Has("mute") {
+		t.Error("a mini's mute drew on the ring")
+	}
 	r.setMute(false)
 	r.gone(t, "mute")
 }

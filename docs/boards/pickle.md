@@ -123,6 +123,12 @@ S90clean-ota S93i2ctop S94alsa S95yandex-debugctl S99quasar`.
 | Watchdog | `meson-a4-wdt` | **fed by the kernel** (`feeding watchdog mode: [kernel]`); nothing opens `/dev/watchdog` |
 | Disabled in DT | Ethernet, IR receiver, IR blaster | |
 
+- **The mute switch lights the logo ring's red in hardware** (2026-11-04): with all of the ring's
+  channels written 0 the red stays lit while muted, and a colour written mixes with it. No
+  sysfs LED, GPIO or device-tree node for it; nothing in Linux holds the LEDs. It does not go through
+  the ring's AW21018 either: its global current (`gcc`) at 60, 10 and 0 left the red unchanged. The CFW draws
+  nothing for the mute on this board ([status-indication.md](../status-indication.md)).
+
 Boot-time detail: the ring/logo bus (`i2c@68000`) starts **owned by the always-on CPU** (pre-boot
 animation). `S93i2ctop` applies `/boot/yandex-pickle-i2ctop-overlay.dtb` (`yandex-apply-dtb-overlay`) to
 hand it to Linux, then waits for `/dev/fb0` [O].

@@ -82,7 +82,7 @@ places other assistants beep.
 | `voice_guest` | voice ID ignored a request from a voice the household doesn't know: the expression `angry` (else `sad`) ([voice-id.md](voice-id.md)) |
 | `volume_change` / `volume_edge` | sound `volume_sound` / nothing |
 | `announce` | sound `notification_sound`; the announcement waits for its sounds |
-| `mic_muted` (held) / `mic_unmuted` | yellow on the Minis' small ring, the amber ring on Station 3 / nothing ([status-indication.md](status-indication.md)) |
+| `mic_muted` (held) / `mic_unmuted` | the amber ring on Station 3, nothing on the Minis (their switch lights the ring's red in hardware) / nothing ([status-indication.md](status-indication.md)) |
 | `ha_lost` (held) / `ha_back` | a dim red pulse / nothing |
 | `power_problem` | phrase `no_power` |
 | `bluetooth_connected` / `bluetooth_disconnected` | a blue flash and, on Station 3, the firmware's `bluetooth_connected` screen pattern / that screen's `bluetooth_disconnected`, nothing on the other boards ([bluetooth.md](bluetooth.md)) |

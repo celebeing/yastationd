@@ -3,6 +3,22 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.26.1 — 2026-11-04
+
+**The rings of the Minis**
+- On a Mini 3 Pro, everything a Mini 3 shows on its ring now shows on the small inner ring, the same
+  six LEDs. The big outer ring repeats the moments' rings (the voice stages, calls, flashes), but not
+  what stays lit: the mute, a lost HA, booting. At rest it is dark, and the ring light in HA is the
+  small ring ([docs/status-indication.md](docs/status-indication.md)).
+- The Minis' mute switch lights their small ring red by itself, in hardware. The CFW no longer adds
+  its own light to it (on a Mini 3 Pro that was the whole outer ring at full brightness). While
+  muted, other colours on the small ring mix with that red.
+- New settings for the rings' moments (Configuration → General → Display): `led_held_brightness`
+  for what stays lit (75 % by default, these LEDs warm up at full), `led_moment_brightness` for what
+  comes and goes (100 %), and `led_auto_brightness`: the rings dim with the display in a dark room,
+  less far than it. On Station 3 its ring's moments follow these too.
+- The LED preview draws the Mini 3 Pro's two rings.
+
 ## v0.26.0 — 2026-11-04
 
 **Bluetooth audio on Station 3 and Mini 3 Pro**
