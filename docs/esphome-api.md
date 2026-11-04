@@ -4,7 +4,8 @@ Status (2026-11-04): built; Station 3 (orion). Off by default: `bluetooth_proxy 
 `yastationd.conf` (Configuration → Home integration → Bluetooth proxy). Checked on a unit with Home
 Assistant's own client library (aioesphomeapi 46.2.0, the one HA 2026.9 pins): device info, the
 advertisements of the room, a GATT connection to a Godox lamp with its services, a disconnection;
-and HA's zeroconf found the speaker as an ESPHome device by itself.
+HA's zeroconf found the speaker as an ESPHome device by itself, and once added HA took the
+advertisements of 36 devices from it as a connectable scanner with 3 slots.
 
 ## What it is
 
@@ -24,10 +25,11 @@ use it later.
 - HA discovers it through mDNS (`_esphomelib._tcp`, the instance named `device_id`) and offers to add
   it; or Settings → Devices → Add integration → ESPHome → the speaker's address, port `esphome_port`
   (6053). No encryption key, no password.
-- It shows as one device with the speaker's MQTT one: the ESPHome entry names the device by the
-  Wi-Fi MAC, and with the proxy on, the MQTT discovery's device block carries the same MAC in
-  `connections`, so HA merges the two. Its name, manufacturer and model are the MQTT device's (sent
-  as the ESPHome project name); its firmware line reads `<our version> (ESPHome 2026.10.0)`.
+- It shows as **a second device** beside the speaker's MQTT one, with the same name, manufacturer,
+  model and area (sent as the ESPHome project name); its firmware line reads `<our version>
+  (ESPHome 2026.10.0)`. HA 2026.9 does not merge them: with the Wi-Fi MAC in the MQTT device's
+  `connections` too (tried 2026-11-04) it still kept the MQTT, the ESPHome and a router's device of
+  that MAC apart, so the MQTT side does not send it.
 - Settings → Bluetooth lists it as a connectable adapter by the speaker's Bluetooth address.
 
 ## What the speaker does

@@ -472,11 +472,6 @@ func (a *App) Run(ctx context.Context) error {
 		Manufacturer: "Yandex (de-Yandexed)",
 		SWVersion:    version.Version,
 	}
-	if mac := wifiMAC(); mac != "" && a.bluetoothProxyOn() {
-		// The ESPHome entry of the proxy names the device by this MAC: with it here too, Home
-		// Assistant shows one device for both (docs/esphome-api.md).
-		dev.Connections = [][2]string{{"mac", strings.ToLower(mac)}}
-	}
 	b := mqtt.NewBuilder(a.topics, dev)
 	b.RingEffects = ringEffects
 	b.FollowModes = followModes
