@@ -73,6 +73,8 @@ type Manager struct {
 	name string // the adapter's alias; "" = leave it
 	log  *slog.Logger
 
+	onConnection func(name string, connected bool) // a paired phone connected or disconnected
+
 	// the phone volume link (volume.go); volOnPhone nil = not linked
 	volCurrent func() int
 	volOnPhone func(int)
@@ -158,6 +160,13 @@ func isDBusError(err error, name string) bool {
 	}
 	var p *dbus.Error
 	return errors.As(err, &p) && p.Name == name
+}
+
+// OnConnection sets what runs when a phone connects or disconnects (the moments).
+func (m *Manager) OnConnection(fn func(name string, connected bool)) {
+	m.mu.Lock()
+	m.onConnection = fn
+	m.mu.Unlock()
 }
 
 // PowerOff switches the Bluetooth radio off (bluetooth = false): nothing pairs or connects. BlueZ
@@ -424,6 +433,13 @@ func (m *Manager) watch(ctx context.Context) {
 				err := m.conn.Object(bluezName, s.Path).Call(propsName+".Set", 0, "org.bluez.Device1", "Trusted", dbus.MakeVariant(true)).Err
 				m.log.Info("bluetooth: paired", "device", string(s.Path), "trusted_err", err)
 				m.clearLocked()
+			}
+			if c, ok := changed["Connected"]; ok && m.onConnection != nil {
+				if on, ok := c.Value().(bool); ok {
+					name := m.nameLocked(s.Path)
+					m.log.Info("bluetooth: connection", "device", string(s.Path), "connected", on)
+					go m.onConnection(name, on)
+				}
 			}
 			if _, connected := changed["Connected"]; connected || boolProp(changed, "Paired") {
 				m.refreshLocked()

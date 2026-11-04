@@ -58,6 +58,17 @@ calls (HFP) and no vendor service.
 
 **Forget** removes the phone's pairing, **Disconnect** drops its connection.
 
+**The pairing policy**, `bluetooth_pairing`: `confirmed` (the default and, for now, the only one) is
+the above: the window opened in the web app and the code checked on both sides. The key is there so
+other policies can be added without a new setting.
+
+**Moments** ([asset-packs.md](asset-packs.md)): `bluetooth_connected` when a phone connects (a blue
+flash on the ring, and on Station 3 the firmware's own `bluetooth_connected` screen pattern) and
+`bluetooth_disconnected` when it goes (Station 3: the firmware's `bluetooth_disconnected` screen;
+nothing elsewhere). The firmware also has ring patterns for these and jingles for switching
+Bluetooth on and off; the ring patterns are not played (the CFW's ring has its own effects), the
+jingles belong to turning the radio on and off, not to a phone.
+
 **What is left open:** from boot until the daemon starts (seconds), and if `bluetoothd` restarts
 while the daemon is down, the firmware's settings apply: pairable, with its agent. A phone already
 paired reconnects whenever it likes (that is what pairing is for).

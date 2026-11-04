@@ -199,7 +199,10 @@ type Config struct {
 	// phone's slider is the speaker's volume (docs/bluetooth.md).
 	Bluetooth       bool // Bluetooth audio on boards that have it (audio.bluetooth); false switches the radio off
 	BluetoothVolume string
-	MusicDuckDB     int // music level while the assistant listens/talks/rings, dB below normal
+	// Who may pair and how (docs/bluetooth.md): confirmed = from the web app's pairing window, with
+	// the code checked on both sides. The only policy so far.
+	BluetoothPairing string
+	MusicDuckDB      int // music level while the assistant listens/talks/rings, dB below normal
 	// The music on the front display (docs/music-sendspin.md): the track's title as a running line
 	// when a new one starts (not on resume), the pause/resume animations, and the spectrum under
 	// the clock (pixel screens only: on seg7 it would look poor, the clock stays).
@@ -334,6 +337,7 @@ func Default() Config {
 		SendspinState:       cfw + "/sendspin/state.json",
 		SendspinVolume:      "linked",
 		BluetoothVolume:     "separate",
+		BluetoothPairing:    "confirmed",
 		Bluetooth:           true,
 		MusicDuckDB:         -26,
 		AmbilightFxWhite:    true,

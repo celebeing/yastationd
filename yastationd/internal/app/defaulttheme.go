@@ -56,6 +56,8 @@ var momentCatalog = []momentInfo{
 	{Name: "ha_lost", When: "the link to HA or a probe is lost after start (held until back)", slot: "degraded", prio: display.PrioDegraded},
 	{Name: "ha_back", When: "the link to HA is back"},
 	{Name: "power_problem", When: "no healthy USB-C power contract (once per boot)"},
+	{Name: "bluetooth_connected", When: "a phone connected over Bluetooth"},
+	{Name: "bluetooth_disconnected", When: "a phone's Bluetooth connection ended"},
 	{Name: "call_outgoing", When: "this speaker calls another (held until answered or ended)", slot: "intercom", prio: prioCallFront, ringPrio: display.PrioCall},
 	{Name: "call_incoming", When: "another speaker calls this one (held until answered or ended)", slot: "intercom", prio: prioCallFront, ringPrio: display.PrioCall, yield: (*App).icWindow},
 	{Name: "call_connected", When: "an intercom call is up (held until it ends); no sound here = the announce chime", slot: "intercom", prio: prioCallFront, ringPrio: display.PrioCall, yield: (*App).icInCallYield},
@@ -107,8 +109,11 @@ var defaultTheme = map[string][]show{
 	"ha_lost":           {held(scenarioStep{Ring: "degraded"})},
 	"ha_back":           {},
 	"power_problem":     {{Ref: "phrase:no_power"}},
-	"call_outgoing":     {held(scenarioStep{Ring: "calling", Anim: "call_outgoing", Sound: "calls_ringing_outgoing"})},
-	"call_incoming":     {held(scenarioStep{Ring: "call_ringing", Anim: "call_incoming", Sound: "calls_ringing_incoming|notification_sound"})},
+	// The firmware's own patterns on Station 3's screen; its ring patterns are blue, so a blue flash.
+	"bluetooth_connected":    {step(scenarioStep{Anim: "bluetooth_connected", Ring: "flash", Color: []int{0, 96, 255}})},
+	"bluetooth_disconnected": {step(scenarioStep{Anim: "bluetooth_disconnected"})},
+	"call_outgoing":          {held(scenarioStep{Ring: "calling", Anim: "call_outgoing", Sound: "calls_ringing_outgoing"})},
+	"call_incoming":          {held(scenarioStep{Ring: "call_ringing", Anim: "call_incoming", Sound: "calls_ringing_incoming|notification_sound"})},
 	"call_connected": {{Steps: []scenarioStep{ // the sound once, then the ring held
 		{Ring: "in_call", Sound: "calls_connected"}, {Ring: "in_call", Hold: true}}}},
 	"call_ended":        {step(scenarioStep{Ring: "call_end", Sound: "calls_ended", Ms: 600})},

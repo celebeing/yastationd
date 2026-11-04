@@ -84,6 +84,7 @@ places other assistants beep.
 | `mic_muted` (held) / `mic_unmuted` | the amber ring / nothing |
 | `ha_lost` (held) / `ha_back` | a dim red pulse / nothing |
 | `power_problem` | phrase `no_power` |
+| `bluetooth_connected` / `bluetooth_disconnected` | a blue flash and, on Station 3, the firmware's `bluetooth_connected` screen pattern / that screen's `bluetooth_disconnected`, nothing on the other boards ([bluetooth.md](bluetooth.md)) |
 | `call_outgoing`, `call_incoming`, `call_connected` (held) | green comet, green blink, blue breath; the call animations; ring tones `calls_ringing_*` (incoming else `notification_sound`), `calls_connected` (else the announce chime, as before) |
 | `call_ended`, `call_cancelled`, `call_missed`, `call_busy`, `call_failed` | a white flash and `calls_ended`; the flash; nothing; `error` and `calls_busy`; `error` |
 | `timer_started` / `timer_finished` (held) | nothing / the amber blink, `ringing` (else a blinking 00:00) and the built-in beep, unless the show has a sound of its own |

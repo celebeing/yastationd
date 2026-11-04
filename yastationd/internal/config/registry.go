@@ -514,6 +514,9 @@ func init() {
 	reg(Key{Name: "bluetooth", Group: "bluetooth", Label: "Bluetooth audio", Sync: true, Needs: "bluetooth",
 		Doc: "A phone pairs from this tab and plays through the speaker. Off: the speaker's Bluetooth radio is switched off, so nothing can pair or connect (paired phones stay remembered)."},
 		boolV(func(c *Config) *bool { return &c.Bluetooth }))
+	reg(Key{Name: "bluetooth_pairing", Group: "bluetooth", Label: "Pairing", Sync: true, Needs: "bluetooth",
+		Doc: "Who may pair a phone and how. confirmed: only from this tab, in a two-minute window opened here, with the six-digit code checked on the phone and on the speaker; any other pairing request is refused. Other policies may come later."},
+		enumV([]string{"confirmed"}, func(c *Config) *string { return &c.BluetoothPairing }))
 	reg(Key{Name: "bluetooth_volume", Group: "bluetooth", Label: "Phone volume", Sync: true, Needs: "bluetooth",
 		Doc: "separate: the phone's own volume sits under the speaker's, so the phone at 100 % plays only as loud as the speaker is set. linked: the phone's slider is the speaker's volume (still capped by the maximum volume), and the speaker's keys and Home Assistant move the phone's slider. Takes effect for a phone that connects after the change."},
 		enumV([]string{"separate", "linked"}, func(c *Config) *string { return &c.BluetoothVolume }))

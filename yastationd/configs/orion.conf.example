@@ -147,6 +147,7 @@ log_level = debug
 # sendspin_server   = ws://<ma-host>:8927/sendspin   (optional: dial MA instead of waiting for it)
 # sendspin_volume   = linked                         (linked or separate)
 # bluetooth         = true                           (false switches the Bluetooth radio off)
+# bluetooth_pairing = confirmed                      (the only policy so far)
 # bluetooth_volume  = separate                       (separate or linked: the phone's slider is the speaker volume)
 # music_duck_db     = -26                            (music level under the assistant, -60..0)
 # sendspin_unpaired = true                           (let MA play before it is paired)

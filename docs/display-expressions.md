@@ -141,6 +141,7 @@ subdirectories (`oknix`), not the files, so the stage order comes from the numbe
 | ringing (alarm, timer) | `alarm/alarm_loop` |
 | call_incoming / call_outgoing | `call_incoming` / `call_outgoing` (a handset, intro + loop) |
 | setup (Wi-Fi setup mode) | `configure` |
+| bluetooth_connected / bluetooth_disconnected | `bluetooth_connected` / `bluetooth_disconnected` (the firmware's Bluetooth screens) |
 | pause / next / previous | `media/Pause` / `media/Next` / `media/Previous` |
 | eyes, blink / wink / happy | `scenario_emotion/Smile_Neutral_Output` / `Smile_Wink_Output` / `emotion/joy` |
 | busy, sad, sleep | none |

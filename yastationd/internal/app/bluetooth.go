@@ -64,6 +64,13 @@ func (a *App) startBluetooth(ctx context.Context) {
 		return
 	}
 	a.log.Info("bluetooth: attached; hidden, not pairable")
+	b.OnConnection(func(name string, on bool) {
+		if on {
+			a.hook("bluetooth_connected")
+		} else {
+			a.hook("bluetooth_disconnected")
+		}
+	})
 	if a.cfg().BluetoothVolume == "linked" {
 		b.LinkVolume(a.currentVolumePercent, a.onPhoneVolume)
 	}
