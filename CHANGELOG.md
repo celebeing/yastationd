@@ -3,6 +3,42 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.26.0 — 2026-11-04
+
+**Bluetooth audio on Station 3 and Mini 3 Pro**
+- The speaker is a Bluetooth speaker for a phone: pair it from the web app (Configuration →
+  Bluetooth audio), with a six-digit code checked on the phone, on the speaker's display and on the
+  page; forget or disconnect a phone there. Tried with an iPhone on both models
+  ([docs/bluetooth.md](docs/bluetooth.md)).
+- **The speaker no longer accepts anyone's pairing.** The firmware's Bluetooth accepted a pairing
+  from any phone that knew the speaker's address, with no code. Now the speaker is hidden and takes
+  pairings only in the two-minute window you open, from the moment the daemon starts (a few seconds
+  after boot) and after every restart of the Bluetooth service.
+- Settings on the same tab: `bluetooth` (off switches the radio off), `bluetooth_pairing`
+  (`confirmed`, the only policy so far) and `bluetooth_volume`. With `separate`, the default, the
+  phone's volume sits under the speaker's; with `linked`, the phone's slider is the speaker's volume,
+  and the keys and HA move it. `volume_max` caps both.
+- The phone's music ducks for the wake word and the answer; its track title runs on the display and
+  its pause and resume play their animations. New moments: `bluetooth_connected`,
+  `bluetooth_disconnected` (on Station 3, the firmware's own screens).
+
+**Music sources**
+- Music Assistant and a phone are handled the same way: one duck for both (`music_duck_db`, now in
+  Configuration → Music → Music sources), and a video, the volume keys' tick and the acoustic
+  measurement all know about phone music too.
+- `music_overlap`: when both would play, the one started last plays (`newest`, the default; the phone
+  is paused, Music Assistant muted until the phone stops), or both (`mix`)
+  ([docs/music-sources.md](docs/music-sources.md)).
+
+**Station 3: the acoustic measurement, a first pass**
+- Configuration → Calibration plays three soft sweeps and reports whether the speaker can measure
+  its room. Nothing is corrected yet ([docs/acoustic-calibration.md](docs/acoustic-calibration.md)).
+
+**Other changes**
+- Lowering `volume_max` below the current volume turns the speaker down at once.
+- `tools/deploy.sh` uploads only the files that changed, and leaves the daemon running when nothing
+  did.
+
 ## v0.25.0 — 2026-10-31
 
 **Golden images on the Station 3, and vendor removal**
