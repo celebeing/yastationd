@@ -3,6 +3,14 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.27.1 — 2026-11-04
+
+**The Bluetooth proxy on the Mini 3**
+- `bluetooth_proxy = true` now works on the Mini 3 too, the same as on Station 3: tried on a unit,
+  with a connection through it to a BLE lamp ([docs/esphome-api.md](docs/esphome-api.md)).
+- On the Mini 3 the firmware's pairing agent stays in charge, so a device that asks to pair through
+  the proxy is paired without a code.
+
 ## v0.27.0 — 2026-11-04
 
 **Station 3 as Home Assistant's Bluetooth proxy**
