@@ -26,11 +26,12 @@ func (a *App) startBluetooth(ctx context.Context) {
 	if !a.prof.Audio.Bluetooth {
 		return
 	}
-	b, err := bluetooth.Open(ctx, a.cfg().DeviceName, a.bluetoothChanged)
+	b, err := bluetooth.Open(ctx, a.cfg().DeviceName, a.log, a.bluetoothChanged)
 	if err != nil {
-		a.log.Info("bluetooth unavailable", "err", err)
+		a.log.Warn("bluetooth unavailable", "err", err)
 		return
 	}
+	a.log.Info("bluetooth: attached; hidden, not pairable")
 	a.btMu.Lock()
 	a.bt = b
 	a.btMu.Unlock()

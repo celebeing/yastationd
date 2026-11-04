@@ -4,7 +4,9 @@ package bluetooth
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -55,6 +57,7 @@ type Manager struct {
 	mu       sync.Mutex
 	conn     *dbus.Conn
 	name     string // the adapter's alias; "" = leave it
+	log      *slog.Logger
 	adapter  dbus.ObjectPath
 	view     View
 	pending  dbus.ObjectPath
@@ -67,12 +70,12 @@ type Manager struct {
 
 // Open connects to the existing system BlueZ instance. Failure leaves Bluetooth unavailable; it
 // never starts vendor daemons or powers an adapter on.
-func Open(parent context.Context, name string, onChange func(View)) (*Manager, error) {
+func Open(parent context.Context, name string, log *slog.Logger, onChange func(View)) (*Manager, error) {
 	conn, err := dbus.SystemBus()
 	if err != nil {
 		return nil, err
 	}
-	m := &Manager{conn: conn, name: name, onChange: onChange, allowed: map[dbus.ObjectPath]bool{}, view: View{Devices: []Device{}}}
+	m := &Manager{conn: conn, name: name, log: log, onChange: onChange, allowed: map[dbus.ObjectPath]bool{}, view: View{Devices: []Device{}}}
 	if err := conn.Export(&agent{m: m}, agentPath, agentIface); err != nil {
 		conn.Close()
 		return nil, err
@@ -107,7 +110,8 @@ func (m *Manager) attachLocked() error {
 		}
 	}
 	mgr := m.conn.Object(bluezName, "/org/bluez")
-	if err := mgr.Call("org.bluez.AgentManager1.RegisterAgent", 0, agentPath, "DisplayYesNo").Err; err != nil {
+	// A retry after a step below failed finds the agent registered already.
+	if err := mgr.Call("org.bluez.AgentManager1.RegisterAgent", 0, agentPath, "DisplayYesNo").Err; err != nil && !isDBusError(err, "org.bluez.Error.AlreadyExists") {
 		return err
 	}
 	if err := mgr.Call("org.bluez.AgentManager1.RequestDefaultAgent", 0, agentPath).Err; err != nil {
@@ -123,6 +127,15 @@ func (m *Manager) attachLocked() error {
 	m.view.Available = true
 	m.refreshLocked()
 	return nil
+}
+
+func isDBusError(err error, name string) bool {
+	var e dbus.Error
+	if errors.As(err, &e) {
+		return e.Name == name
+	}
+	var p *dbus.Error
+	return errors.As(err, &p) && p.Name == name
 }
 
 func (m *Manager) findAdapter() error {
@@ -376,14 +389,22 @@ func (m *Manager) bluezRestarted(up bool) {
 	m.pairSeq++
 	m.pending = ""
 	m.view = View{Devices: []Device{}}
+	m.log.Info("bluetooth: bluetoothd changed", "up", up)
 	if up {
-		for i := 0; i < 10; i++ { // the adapter shows up a moment after the name
-			if err := m.attachLocked(); err == nil {
+		var err error
+		for i := 0; i < 20; i++ { // the adapter shows up a moment after the name
+			if err = m.attachLocked(); err == nil {
 				break
 			}
+			m.log.Debug("bluetooth: attach", "try", i+1, "err", err)
 			m.mu.Unlock()
 			time.Sleep(500 * time.Millisecond)
 			m.mu.Lock()
+		}
+		if err != nil {
+			m.log.Warn("bluetooth: attach after a bluetoothd restart", "err", err, "tries", 20)
+		} else {
+			m.log.Info("bluetooth: attached again; hidden, not pairable")
 		}
 	}
 	m.emitLocked()

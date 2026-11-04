@@ -26,3 +26,13 @@ func TestDeviceIDRoundTripsWithoutPathSeparators(t *testing.T) {
 		t.Fatalf("device ID round trip = %q, %v", got, ok)
 	}
 }
+
+func TestIsDBusErrorByName(t *testing.T) {
+	err := dbus.Error{Name: "org.bluez.Error.AlreadyExists"}
+	if !isDBusError(err, "org.bluez.Error.AlreadyExists") || !isDBusError(&err, "org.bluez.Error.AlreadyExists") {
+		t.Fatal("the BlueZ error name was not recognised")
+	}
+	if isDBusError(err, "org.bluez.Error.Failed") {
+		t.Fatal("another error name matched")
+	}
+}
