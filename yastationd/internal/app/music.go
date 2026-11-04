@@ -109,10 +109,7 @@ func (a *App) onMusicEvent(ev sendspin.Event) {
 		a.log.Info("music: server", "connected", ev.Int(0, 0) == 1)
 	case "STREAM":
 		on := firstField(ev) == "start"
-		a.music.streaming.Store(on)
-		if on && a.stopVideo("music") { // music started on this player: the user wants that instead
-			a.publishDisplayMode()
-		}
+		a.music.streaming.Store(on) // a video stops when it starts (media.go)
 		a.log.Info("music: stream", "on", on, "rate", ev.Int(1, 0), "channels", ev.Int(2, 0))
 	case "PLAYBACK":
 		a.onMusicPlayback(firstField(ev) == "playing")
@@ -162,29 +159,28 @@ func (a *App) assistantBusy() bool {
 	return a.speaking() || a.sat.inDialog() || a.icActive()
 }
 
-// duckLoop ducks the music while the assistant is busy and brings it back duckHold after.
-func (a *App) duckLoop(stop <-chan struct{}) {
-	t := time.NewTicker(duckTick)
-	defer t.Stop()
-	var last time.Time
-	for {
-		select {
-		case <-stop:
-			return
-		case now := <-t.C:
-			level := float32(1)
-			if a.assistantBusy() {
-				last = now
-			}
-			if !last.IsZero() && now.Sub(last) < duckHold {
-				level = float32(math.Pow(10, float64(a.cfg().MusicDuckDB)/20)) // may change live
-			}
-			if prev := math.Float32frombits(a.music.duck.Swap(math.Float32bits(level))); prev != level {
-				a.music.host.Send("duck %.3f", level)
-				if a.music.streaming.Load() {
-					a.log.Debug("music: duck", "level", level)
-				}
-			}
-		}
+// maSource: Music Assistant's player as a music source (media.go). It plays while its stream is
+// up and the track is not paused; it can't be paused from here (Sendspin's player has no pause),
+// so music_overlap mutes it instead.
+type maSource struct{ a *App }
+
+func (maSource) name() string { return "music_assistant" }
+
+func (s maSource) playing() bool {
+	if !s.a.music.streaming.Load() {
+		return false
+	}
+	m := &s.a.music.screen
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return !m.paused
+}
+
+func (s maSource) setDuck(level float32) {
+	if prev := math.Float32frombits(s.a.music.duck.Swap(math.Float32bits(level))); prev != level {
+		s.a.music.host.Send("duck %.3f", level)
+		s.a.log.Debug("music: duck", "source", "music_assistant", "level", level)
 	}
 }
+
+func (maSource) pause() bool { return false }

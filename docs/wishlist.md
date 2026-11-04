@@ -10,6 +10,22 @@ Station Midi / Lite 2 / Mini 2 that speaks the ESPHome Native API to HA. It's a 
 but it lets the vendor stack start at every boot and expects internet access (GitHub updates), so
 its solutions need checking against our doctrine before reuse. Both projects are MIT.
 
+## The spectrum for Bluetooth music
+
+**Status:** idea, nothing built (2026-11-04). The spectrum under the clock and the ambilight's music
+effects come from `sendspin-host`'s `LEVELS`, which it computes from the music it plays. A phone's
+audio goes from BlueALSA to `bluealsa-aplay` to ALSA and never passes through the daemon, so there is
+nothing to compute them from ([music-sources.md](music-sources.md)). Two ways:
+
+- **Our own Bluetooth player** instead of the firmware's `bluealsa-aplay`: it takes the phone's PCM
+  from BlueALSA (its D-Bus API hands out the stream's fd), plays it to the `bluetooth` PCM, and
+  computes the bands on the way, as `sendspin-host` does. The proper one; it also gives the daemon
+  the stream itself (its start and end, its level). Needs `bluealsa-aplay` kept from starting (a
+  rootfs hook) or stopped by the daemon, and a fallback when ours is not running.
+- **The loopback's copy of the speaker output** (`Loopback tdmin lb source` = TDMOUTB,
+  [boards/orion.md](boards/orion.md)): every source at once, Station 3 only, and only with the mux
+  held on TDMOUTB all the time, which we decided against (2026-11-01).
+
 ## Adopting and retiring a speaker
 
 **Status:** idea, nothing built (2026-10-30). The trigger: giving a speaker to a friend should take

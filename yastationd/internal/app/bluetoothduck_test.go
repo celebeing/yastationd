@@ -5,22 +5,24 @@ import (
 	"time"
 )
 
-func TestBluetoothFadeBoundsAndReverses(t *testing.T) {
-	if got := nextBluetoothFade(255, 0, 255); got != 230 {
-		t.Fatalf("first fade down = %d, want 230", got)
-	}
-	if got := nextBluetoothFade(5, 0, 255); got != 0 {
-		t.Fatalf("fade must not go below mute: %d", got)
-	}
-	if got := nextBluetoothFade(230, 255, 255); got != 255 {
-		t.Fatalf("fade must not exceed configured maximum: %d", got)
+func TestSoftvolRaw(t *testing.T) {
+	for _, c := range []struct {
+		level float32
+		want  int
+	}{{1, 255}, {0, 0}, {0.5, 225}, {0.05, 125}} { // -6.02 dB -> 225 (0.2 dB a step), -26 dB -> 125
+		if got := softvolRaw(c.level, 255); got != c.want {
+			t.Errorf("level %v: raw %d, want %d", c.level, got, c.want)
+		}
 	}
 }
 
-func TestWakeDuckingBridgesVoiceGate(t *testing.T) {
+func TestWakeDucksAtOnce(t *testing.T) {
 	a := &App{}
-	a.duckBluetoothNow()
-	if until := time.Unix(0, a.bluetoothWakeUntil.Load()); until.Before(time.Now().Add(time.Second)) {
-		t.Fatalf("wake mute bridge ends too soon: %v", until)
+	a.duckNow()
+	a.media.mu.Lock()
+	until := a.media.wakeUntil
+	a.media.mu.Unlock()
+	if until.Before(time.Now().Add(time.Second)) {
+		t.Fatalf("wake duck ends too soon: %v", until)
 	}
 }

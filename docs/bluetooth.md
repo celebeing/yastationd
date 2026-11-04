@@ -94,13 +94,13 @@ phone's PCM (`org.bluealsa.PCM1`, 0..127 per channel). Linked, the daemon turns 
 `SoftVolume` off, so the audio plays unscaled, and follows `Volume` both ways. The setting applies to
 phones that connect after it changes.
 
-When the wake word is heard, Bluetooth audio is muted at once (before arbitration, voice ID or HA get
-the speaker's own echo), stays muted while the assistant listens and answers, and comes back over
-about a second after its 1.5 s hold, like the music ducking ([music-sendspin.md](music-sendspin.md)).
-Only the Bluetooth softvol moves; the master never does.
-
-Not done: alarms, intercom calls and Music Assistant music mix with Bluetooth audio rather than
-taking its place.
+A phone is a music source like Music Assistant ([music-sources.md](music-sources.md)): it ducks to
+`music_duck_db` at once when the wake word is heard and while the assistant, a timer or a call has
+the speaker, coming back over about a second (only the Bluetooth softvol moves, never the master);
+with Music Assistant playing too, `music_overlap` decides which one plays. The phone's track title
+runs on the display when a new track starts, and its pause and resume play `media_pause` /
+`media_resume` (`music_title`, `music_clips`), from what the phone reports over AVRCP. No spectrum:
+the phone's audio does not pass through the daemon ([wishlist.md](wishlist.md)).
 
 ## Implementation
 

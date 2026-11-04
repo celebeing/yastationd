@@ -63,6 +63,7 @@ var Groups = []struct{ ID, Title, Page string }{
 	{"time", "Time", "home"},
 	{"logs", "Logs", "home"},
 	{"music", "Music Assistant", "music"},
+	{"sources", "Music sources", "music"},
 	{"bluetooth", "Bluetooth audio", "bluetooth"},
 	{"intercom", "Intercom", "intercom"},
 	{"wifi_setup", "Wi-Fi setup mode", "wifi"},
@@ -523,8 +524,11 @@ func init() {
 	reg(Key{Name: "sendspin_unpaired", Group: "music", Label: "Unpaired servers may play", Sync: true, Advanced: true,
 		Doc: "Let a Music Assistant server play before it is paired."},
 		boolV(func(c *Config) *bool { return &c.SendspinUnpaired }))
-	reg(Key{Name: "music_duck_db", Group: "music", Label: "Music under the assistant", Unit: "dB", Runtime: true, Sync: true,
-		Doc: "How much quieter the music gets while the assistant listens, talks or rings."},
+	reg(Key{Name: "music_overlap", Group: "sources", Label: "Two at once", Runtime: true, Sync: true,
+		Doc: "What happens when music starts from one source (Music Assistant, a phone over Bluetooth) while another plays. newest: the one that started last plays; the other is paused (a phone) or muted until the newest stops (Music Assistant, which the speaker can't pause). mix: both play together."},
+		enumV([]string{"newest", "mix"}, func(c *Config) *string { return &c.MusicOverlap }))
+	reg(Key{Name: "music_duck_db", Group: "sources", Label: "Music under the assistant", Unit: "dB", Runtime: true, Sync: true,
+		Doc: "How much quieter the music gets while the assistant listens, talks or rings: Music Assistant's and a phone's over Bluetooth alike."},
 		intV(-60, 0, func(c *Config) *int { return &c.MusicDuckDB }))
 	reg(Key{Name: "music_title", Group: "music", Label: "Track title", Runtime: true, Sync: true,
 		Doc: "A new track's title runs once on the front display."},

@@ -121,6 +121,7 @@ func TestVideoRefusalsAndFallbacks(t *testing.T) {
 	waitFor(t, "the end of a silent video", func() bool { return !a.videoActive() })
 
 	a = newVideoApp(t, 3)
+	a.addMedia(maSource{a})
 	a.music.streaming.Store(true)
 	if a.startVideo() {
 		t.Error("started over music")

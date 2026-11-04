@@ -288,7 +288,7 @@ func nudgeEdge(from, to, n int) int {
 // speaker. Not over music either: the music's own level is the feedback, and a tick on top of it
 // sounds off.
 func (a *App) volumeBeep() {
-	if !a.cfg().VolumeBeep || a.music.streaming.Load() {
+	if !a.cfg().VolumeBeep || a.musicPlaying() {
 		return
 	}
 	a.hook("volume_change")

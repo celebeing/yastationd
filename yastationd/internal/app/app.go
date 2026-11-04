@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/celebeing/yastationd/yastationd/internal/bluetooth"
 	"github.com/celebeing/yastationd/yastationd/internal/board"
 	"github.com/celebeing/yastationd/yastationd/internal/config"
 	"github.com/celebeing/yastationd/yastationd/internal/display"
@@ -93,7 +94,7 @@ type App struct {
 	bluetoothVolumeReady atomic.Bool
 	bluetoothDuckMu      sync.Mutex
 	bluetoothDuckRaw     int
-	bluetoothWakeUntil   atomic.Int64
+	media                mediaState // the music sources (media.go)
 
 	ringStack   *display.Stack[display.RingFrame]
 	matrixStack *display.Stack[display.FrontFrame]
@@ -558,11 +559,12 @@ func (a *App) Run(ctx context.Context) error {
 	}
 	if a.music.host != nil {
 		go a.music.host.Run(stop)
-		go a.duckLoop(stop)
+		a.addMedia(maSource{a})
 	}
-	if a.prof.Audio.BluetoothVolume != "" {
-		go a.bluetoothDuckLoop(stop)
+	if b, ok := a.bluetoothControl().(*bluetooth.Manager); ok && b != nil {
+		a.addMedia(&btSource{a: a, bt: b})
 	}
+	go a.mediaLoop(stop) // ducking and the overlap policy for the sources above (media.go)
 	if a.spot != nil {
 		go a.spot.Run(stop)
 		unsubRaw := a.mic.SubscribeRaw(a.spot.Feed) // the mic stays open while the wake word is on

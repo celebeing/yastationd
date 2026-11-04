@@ -74,6 +74,8 @@ type Manager struct {
 	log  *slog.Logger
 
 	onConnection func(name string, connected bool) // a paired phone connected or disconnected
+	onPlayer     func(Player)                      // a phone's player changed (player.go)
+	players      map[dbus.ObjectPath]Player
 
 	// the phone volume link (volume.go); volOnPhone nil = not linked
 	volCurrent func() int
@@ -150,6 +152,7 @@ func (m *Manager) attachLocked() error {
 	}
 	m.view.Available = true
 	m.refreshLocked()
+	m.loadPlayersLocked()
 	return nil
 }
 
@@ -371,6 +374,7 @@ func (m *Manager) watch(ctx context.Context) {
 	_ = m.conn.AddMatchSignal(dbus.WithMatchInterface(propsName), dbus.WithMatchMember("PropertiesChanged"))
 	_ = m.conn.AddMatchSignal(dbus.WithMatchInterface("org.freedesktop.DBus.ObjectManager"), dbus.WithMatchMember("InterfacesRemoved"))
 	_ = m.conn.AddMatchSignal(dbus.WithMatchInterface("org.freedesktop.DBus"), dbus.WithMatchMember("NameOwnerChanged"), dbus.WithMatchArg(0, bluezName))
+	_ = m.conn.AddMatchSignal(dbus.WithMatchInterface("org.freedesktop.DBus.ObjectManager"), dbus.WithMatchMember("InterfacesAdded"), dbus.WithMatchSender(bluezName))
 	for {
 		select {
 		case <-ctx.Done():
@@ -391,9 +395,12 @@ func (m *Manager) watch(ctx context.Context) {
 			if s.Name == "org.freedesktop.DBus.ObjectManager.InterfacesRemoved" {
 				interfaces, _ := s.Body[1].([]string)
 				for _, iface := range interfaces {
-					if iface == pcmIface {
-						path, _ := s.Body[0].(dbus.ObjectPath)
+					path, _ := s.Body[0].(dbus.ObjectPath)
+					switch iface {
+					case pcmIface:
 						m.pcmRemoved(path)
+					case playerIface:
+						m.playerRemoved(path)
 					}
 				}
 				removed := false
@@ -416,12 +423,19 @@ func (m *Manager) watch(ctx context.Context) {
 				if p, ok := ifaces[pcmIface]; ok {
 					m.pcmAdded(path, p)
 				}
+				if p, ok := ifaces[playerIface]; ok {
+					m.playerChanged(path, p)
+				}
 				continue
 			}
 			iface, _ := s.Body[0].(string)
 			changed, _ := s.Body[1].(map[string]dbus.Variant)
 			if iface == pcmIface {
 				m.pcmChanged(s.Path, changed)
+				continue
+			}
+			if iface == playerIface {
+				m.playerChanged(s.Path, changed)
 				continue
 			}
 			if iface != "org.bluez.Device1" {

@@ -203,6 +203,9 @@ type Config struct {
 	// the code checked on both sides. The only policy so far.
 	BluetoothPairing string
 	MusicDuckDB      int // music level while the assistant listens/talks/rings, dB below normal
+	// What plays when two music sources would at once (docs/music-sources.md): newest = the one
+	// that started last; the other is paused (Bluetooth) or muted (Music Assistant). mix = both.
+	MusicOverlap string
 	// The music on the front display (docs/music-sendspin.md): the track's title as a running line
 	// when a new one starts (not on resume), the pause/resume animations, and the spectrum under
 	// the clock (pixel screens only: on seg7 it would look poor, the clock stays).
@@ -338,6 +341,7 @@ func Default() Config {
 		SendspinVolume:      "linked",
 		BluetoothVolume:     "separate",
 		BluetoothPairing:    "confirmed",
+		MusicOverlap:        "newest",
 		Bluetooth:           true,
 		MusicDuckDB:         -26,
 		AmbilightFxWhite:    true,

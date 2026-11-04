@@ -79,7 +79,7 @@ func (a *App) apiAcousticCal(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusBadRequest, "level_dbfs must be -50, -45, or -40")
 			return
 		}
-		if a.speaking() || (a.sat != nil && a.sat.inDialog()) || (a.ic != nil && a.icActive()) || (a.music.host != nil && a.music.streaming.Load()) {
+		if a.speaking() || (a.sat != nil && a.sat.inDialog()) || (a.ic != nil && a.icActive()) || a.musicPlaying() {
 			writeErr(w, http.StatusConflict, "the speaker is playing sound; stop music, calls and speech first")
 			return
 		}

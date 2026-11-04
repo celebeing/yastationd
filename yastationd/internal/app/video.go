@@ -44,7 +44,7 @@ func (a *App) startVideo() bool {
 		a.log.Warn("video: no pixel front screen")
 		return false
 	}
-	if a.music.streaming.Load() {
+	if a.musicPlaying() {
 		a.log.Warn("video: music is playing; pause it first")
 		return false
 	}

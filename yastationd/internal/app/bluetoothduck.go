@@ -1,18 +1,93 @@
 package app
 
-import "time"
+import (
+	"math"
+	"strings"
+	"sync"
 
-// bluetoothFadeSteps makes the independent BlueALSA softvol restore in one second.
+	"github.com/celebeing/yastationd/yastationd/internal/bluetooth"
+)
+
+// btSource: a phone over Bluetooth as a music source (media.go). It plays while the phone's
+// player (AVRCP) says so; it ducks through the board's Bluetooth softvol, never the master, so
+// volume_max still caps it; it pauses through AVRCP. Its track and pauses reach the front display
+// as Music Assistant's do (musicdisplay.go).
+type btSource struct {
+	a  *App
+	bt *bluetooth.Manager
+
+	mu     sync.Mutex
+	status string // the phone's last status
+	track  string // id of the track last shown
+}
+
+// bluetoothFadeSteps: a full swing of the softvol takes this many duckTicks (one second).
 const bluetoothFadeSteps = 10
 
-const wakeMuteBridge = 2 * time.Second
+// alsa softvol's default range: raw 0..255 over -51..0 dB.
+const softvolMinDB = -51.0
 
-func nextBluetoothFade(current, target, maximum int) int {
-	step := max(1, maximum/bluetoothFadeSteps)
-	if current < target {
-		return min(current+step, target)
+func (s *btSource) name() string  { return "bluetooth" }
+func (s *btSource) playing() bool { return s.bt.Playing() }
+func (s *btSource) pause() bool   { return s.bt.Pause() }
+
+// setDuck moves the softvol one step towards level (going down in one go, coming back over about
+// a second, so the music does not jump back in).
+func (s *btSource) setDuck(level float32) {
+	a, g := s.a, s.a.prof.Audio
+	if g.BluetoothVolume == "" || g.BluetoothVolumeDefault == 0 || !a.bluetoothVolumeReady.Load() {
+		return
 	}
-	return max(current-step, target)
+	target := softvolRaw(level, g.BluetoothVolumeDefault)
+	cur := a.bluetoothDuckLevel()
+	if cur == target {
+		return
+	}
+	next := target
+	if target > cur {
+		next = min(cur+max(1, g.BluetoothVolumeDefault/bluetoothFadeSteps), target)
+	}
+	a.setBluetoothDuck(next)
+}
+
+// softvolRaw: the softvol value for an amplitude level under full (raw full = 0 dB).
+func softvolRaw(level float32, full int) int {
+	if level >= 1 {
+		return full
+	}
+	if level <= 0 {
+		return 0
+	}
+	db := 20 * math.Log10(float64(level))
+	raw := float64(full) + db*255/-softvolMinDB
+	return int(math.Round(math.Max(0, math.Min(float64(full), raw))))
+}
+
+// onPlayer: the phone's player changed: a pause or resume plays its moment, a new track runs its
+// title (music_title, music_clips as for Music Assistant).
+func (s *btSource) onPlayer(p bluetooth.Player) {
+	s.mu.Lock()
+	was, track := s.status, s.track
+	s.status = p.Status
+	newTrack := p.Track.ID() != "\x00\x00" && p.Track.ID() != track
+	if newTrack && p.Status == "playing" {
+		s.track = p.Track.ID()
+	}
+	s.mu.Unlock()
+	a := s.a
+	switch {
+	case was == "playing" && p.Status == "paused":
+		a.log.Info("bluetooth: paused")
+		a.musicMoment("media_pause")
+	case was == "paused" && p.Status == "playing" && !newTrack:
+		a.log.Info("bluetooth: resumed")
+		a.musicMoment("media_resume")
+	}
+	if newTrack && p.Status == "playing" {
+		line := strings.TrimSpace(musicTrack{Title: p.Track.Title, Artist: p.Track.Artist}.line())
+		a.log.Info("bluetooth: track", "title", p.Track.Title, "artist", p.Track.Artist)
+		a.showMusicTitle(line)
+	}
 }
 
 func (a *App) bluetoothDuckLevel() int {
@@ -34,51 +109,4 @@ func (a *App) setBluetoothDuck(level int) bool {
 	}
 	a.bluetoothDuckRaw = level
 	return true
-}
-
-// duckBluetoothNow stops the music before voice ID or HA can receive its echo. The bridge keeps it
-// muted until the normal assistantBusy lifecycle has taken over.
-func (a *App) duckBluetoothNow() {
-	a.bluetoothWakeUntil.Store(time.Now().Add(wakeMuteBridge).UnixNano())
-	if a.bluetoothVolumeReady.Load() {
-		a.setBluetoothDuck(0)
-	}
-}
-
-// bluetoothDuckLoop keeps Bluetooth muted while the assistant owns the speaker and fades it back
-// after duckHold. Master remains untouched, so volume_max still caps final output.
-func (a *App) bluetoothDuckLoop(stop <-chan struct{}) {
-	g := a.prof.Audio
-	if g.BluetoothVolume == "" || g.BluetoothVolumeDefault == 0 {
-		return
-	}
-	t := time.NewTicker(duckTick)
-	defer t.Stop()
-	defer func() {
-		if a.bluetoothVolumeReady.Load() {
-			a.setBluetoothDuck(g.BluetoothVolumeDefault)
-		}
-	}()
-	var last time.Time
-	for {
-		select {
-		case <-stop:
-			return
-		case now := <-t.C:
-			if !a.bluetoothVolumeReady.Load() {
-				continue
-			}
-			if a.assistantBusy() {
-				last = now
-			}
-			target := g.BluetoothVolumeDefault
-			if now.UnixNano() < a.bluetoothWakeUntil.Load() || (!last.IsZero() && now.Sub(last) < duckHold) {
-				target = 0
-			}
-			current := a.bluetoothDuckLevel()
-			if current != target {
-				a.setBluetoothDuck(nextBluetoothFade(current, target, g.BluetoothVolumeDefault))
-			}
-		}
-	}
 }

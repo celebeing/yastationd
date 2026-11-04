@@ -351,6 +351,7 @@ func TestRegressVolumeTick(t *testing.T) {
 	}
 	c.VolumeBeep = true
 	r.conf.Store(&c)
+	r.addMedia(maSource{r.App})
 	r.music.streaming.Store(true)
 	r.volumeBeep()
 	if r.played(t, "volume_sound") {

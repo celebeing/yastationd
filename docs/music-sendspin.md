@@ -55,7 +55,8 @@ While the assistant is busy — a voice session, a reply being computed, HA audi
 `music_duck_db` (default −26 dB). The level ramps over 0.3 s in the sink (no clicks) and comes back
 1.5 s after the assistant is idle, so it does not swell between a reply and its follow-up listening.
 yastationd polls the state every 100 ms and sends `duck` on change; a restarted host gets the
-current level again. Music is never stopped or paused by the assistant.
+current level again. Music is never stopped or paused by the assistant. The same loop ducks a phone
+over Bluetooth, and decides what plays when both would: [music-sources.md](music-sources.md).
 
 **Timer over music:** the alarm plays through dmix too, the music ducks under it. The local «стоп»
 silences the ring first (or cuts a TTS reply); with only music playing it does nothing locally —

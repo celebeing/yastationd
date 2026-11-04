@@ -64,6 +64,13 @@ func (a *App) startBluetooth(ctx context.Context) {
 		return
 	}
 	a.log.Info("bluetooth: attached; hidden, not pairable")
+	b.OnPlayer(func(p bluetooth.Player) { // the source registers in Run; until then nothing plays
+		for _, s := range a.mediaSources() {
+			if bs, ok := s.(*btSource); ok {
+				bs.onPlayer(p)
+			}
+		}
+	})
 	b.OnConnection(func(name string, on bool) {
 		if on {
 			a.hook("bluetooth_connected")

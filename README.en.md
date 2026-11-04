@@ -138,7 +138,9 @@ packs replace any animation and add sounds to any event.
   `music_clips`, `music_levels`). Details: [docs/music-sendspin.md](docs/music-sendspin.md).
 - On Station 3 and Mini 3 Pro: a Bluetooth speaker for a phone. Pairing from the web app, with the
   code checked on the phone and on the speaker; the rest of the time the speaker is hidden and
-  takes no one else's pairing. Phone music ducks for the wake word and the answer ([docs/bluetooth.md](docs/bluetooth.md)).
+  takes no one else's pairing. Phone music ducks for the wake word and the answer, its track title and
+  pauses show on the display; with the phone and Music Assistant both playing, the one started last
+  plays (a setting, [docs/music-sources.md](docs/music-sources.md)). Details: [docs/bluetooth.md](docs/bluetooth.md).
 
 **Operations**
 - Logs can go to a syslog server on the LAN, kept on flash while it is unreachable; a network

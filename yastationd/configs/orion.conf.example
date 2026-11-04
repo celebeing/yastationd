@@ -146,6 +146,7 @@ log_level = debug
 # sendspin_name     = <speaker name in HA>           (default: device_name)
 # sendspin_server   = ws://<ma-host>:8927/sendspin   (optional: dial MA instead of waiting for it)
 # sendspin_volume   = linked                         (linked or separate)
+# music_overlap     = newest                         (newest or mix)
 # bluetooth         = true                           (false switches the Bluetooth radio off)
 # bluetooth_pairing = confirmed                      (the only policy so far)
 # bluetooth_volume  = separate                       (separate or linked: the phone's slider is the speaker volume)
