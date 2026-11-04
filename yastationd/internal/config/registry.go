@@ -37,7 +37,7 @@ type Key struct {
 	// Advanced: paths, test hooks, hardware overrides — under "Advanced" in the settings.
 	Advanced bool
 	// Needs: the hardware the key is for ("ambilight", "pixels": a dot-matrix front screen,
-	// "bluetooth": phone pairing, docs/bluetooth.md);
+	// "bluetooth": phone pairing, docs/bluetooth.md; "ble_proxy": the Bluetooth proxy);
 	// boards without it don't list the key.
 	Needs string
 
@@ -62,6 +62,7 @@ var Groups = []struct{ ID, Title, Page string }{
 	{"web", "Web app", "home"},
 	{"time", "Time", "home"},
 	{"logs", "Logs", "home"},
+	{"esphome", "Bluetooth proxy (ESPHome)", "home"},
 	{"music", "Music Assistant", "music"},
 	{"sources", "Music sources", "music"},
 	{"bluetooth", "Bluetooth audio", "bluetooth"},
@@ -533,6 +534,18 @@ func init() {
 	reg(Key{Name: "sendspin_unpaired", Group: "music", Label: "Unpaired servers may play", Sync: true, Advanced: true,
 		Doc: "Let a Music Assistant server play before it is paired."},
 		boolV(func(c *Config) *bool { return &c.SendspinUnpaired }))
+	reg(Key{Name: "bluetooth_proxy", Group: "esphome", Label: "Bluetooth proxy for Home Assistant", Sync: true, Needs: "ble_proxy",
+		Doc: "The speaker serves Home Assistant as an ESPHome Bluetooth proxy: it forwards what Bluetooth LE devices in its room advertise, and lets Home Assistant connect to them through it (GATT), as an ESP32 proxy would. Home Assistant finds it as an ESPHome device (or add it by its address, port below) and shows it with the speaker's other entities. Only the proxy: no ESPHome entities. The API is not encrypted: anyone on the LAN can use the proxy, as anyone on the LAN can use the MQTT broker."},
+		boolV(func(c *Config) *bool { return &c.BluetoothProxy }))
+	reg(Key{Name: "bluetooth_proxy_connections", Group: "esphome", Label: "Connections at once", Sync: true, Advanced: true, Needs: "ble_proxy",
+		Doc: "How many Bluetooth LE devices Home Assistant may hold connected through this speaker at once (an ESP32 proxy has 3)."},
+		intV(1, 7, func(c *Config) *int { return &c.BluetoothProxyConnections }))
+	reg(Key{Name: "bluetooth_proxy_audio_pause", Group: "esphome", Label: "Pause the scan for phone audio", Sync: true, Advanced: true, Needs: "ble_proxy",
+		Doc: "While a phone plays through the speaker over Bluetooth, the scan for advertisements pauses (connections stay), so it can't break up the audio on the shared radio."},
+		boolV(func(c *Config) *bool { return &c.BluetoothProxyAudioPause }))
+	reg(Key{Name: "esphome_port", Group: "esphome", Label: "ESPHome API port", Advanced: true, Needs: "ble_proxy",
+		Doc: "The TCP port of the ESPHome native API (Home Assistant's default for ESPHome devices is 6053)."},
+		intV(1, 65535, func(c *Config) *int { return &c.ESPHomePort }))
 	reg(Key{Name: "music_overlap", Group: "sources", Label: "Two at once", Runtime: true, Sync: true,
 		Doc: "What happens when music starts from one source (Music Assistant, a phone over Bluetooth) while another plays. newest: the one that started last plays; the other is paused (a phone) or muted until the newest stops (Music Assistant, which the speaker can't pause). mix: both play together."},
 		enumV([]string{"newest", "mix"}, func(c *Config) *string { return &c.MusicOverlap }))

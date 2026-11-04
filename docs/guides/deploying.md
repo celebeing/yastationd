@@ -253,6 +253,9 @@ First-time voice setup (STT/TTS servers, agent, pipeline): [ha-assistant-setup.m
   `POST /api/config/config_entries/flow {"handler":"wyoming"}` then `{"host":…, "port":10700}`).
   Then pick the Assist pipeline on the satellite's `…_assistant` select and put the device in its
   area, so room-relative commands work.
+- **Bluetooth proxy (optional, Station 3):** with `bluetooth_proxy = true` the speaker listens on TCP
+  `esphome_port` (6053) and announces itself over mDNS (UDP 5353); HA offers it as a discovered
+  ESPHome device, to accept as is ([esphome-api.md](../esphome-api.md)).
 - **This step is what makes the speaker "ready".** The daemon counts itself connected only when the
   broker is up *and* HA holds the Wyoming satellite link; until then the log says
   `status: no connection to HA yet after=40s` and `voice: no HA satellite connection` (a wake word

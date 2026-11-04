@@ -73,6 +73,10 @@ jingles belong to turning the radio on and off, not to a phone.
 while the daemon is down, the firmware's settings apply: pairable, with its agent. A phone already
 paired reconnects whenever it likes (that is what pairing is for).
 
+**Home Assistant's Bluetooth proxy** ([esphome-api.md](esphome-api.md)) uses the same radio and
+bluetoothd for LE: its devices are not paired phones and fire no moment, and the pairing agent above
+refuses a pairing that comes through it.
+
 ## Sound
 
 `bluealsa-aplay` plays the phone's audio through the `bluetooth` softvol, which the firmware boots

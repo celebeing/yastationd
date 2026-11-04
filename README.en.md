@@ -182,6 +182,12 @@ packs replace any animation and add sounds to any event.
   boots into the CFW with no one's keys or settings and starts its access point; a backup then
   makes it what it was. Details: [docs/guides/golden-image.md](docs/guides/golden-image.md).
 
+**Bluetooth proxy for Home Assistant** (Station 3, off by default)
+- The speaker serves as an ESPHome Bluetooth proxy: it forwards what BLE devices in its room
+  advertise and lets HA connect to them through it, as an ESP32 proxy does. HA finds it by itself
+  and shows it as the same device as the MQTT one. Only the proxy, no ESPHome entities; the API is
+  not encrypted. Details: [docs/esphome-api.md](docs/esphome-api.md).
+
 **Intercom between rooms** (off by default)
 - «Алиса, позвони в спальню»: a live two-way call to the speaker in another room, over the LAN
   only. The speakers use the vendor's own call processing (echo cancellation, neural noise

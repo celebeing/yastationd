@@ -201,6 +201,8 @@ func (a *App) boardHas(needs string) bool {
 		return a.prof.Matrix.Kind == "dotmatrix-fb"
 	case "bluetooth":
 		return a.prof.Audio.Bluetooth
+	case "ble_proxy":
+		return a.prof.Platform.BLEProxy
 	}
 	return true
 }

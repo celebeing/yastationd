@@ -290,6 +290,13 @@ Generic detector limits and the bergamot instance: [docs/research/wakeword-mic-a
   leaving `Master Playback Volume` as the sole user-visible loudness control. `bluealsa-aplay`
   has no device-address restriction, so it accepts audio from any Bluetooth device that BlueZ has
   connected. `aplay -L` has no statically named `bluealsa` PCM before a source connects.
+- **LE central, tried 2026-11-04 (CFW running):** `hciconfig` — BT 5.0 (HCI/LMP 0x9), BD address
+  the Wi-Fi MAC + 1. A discovery (`bluetoothctl scan on`) gives **legacy** LE advertising reports
+  (`0x3E/0x02`), which the kernel's HCI monitor channel copies to a reader beside bluetoothd (72
+  reports from 25 devices in 9 s). A device object exists only while discovery runs (a scan off
+  drops it at once). `Device1.Connect` to a Godox lamp: connected, services resolved, MTU 250;
+  GATT objects named by handle (`service0008/char0009/desc000b`), `Handle` the declaration's. This
+  is what the Bluetooth proxy uses ([esphome-api.md](../esphome-api.md)).
 - `ble_initd`'s vendor GATT setup service is not reusable: it accepts Wi-Fi and token writes.
   Keep Bluetooth disabled/discoverable-off by default under CFW; pairing must be a deliberate,
   local action.

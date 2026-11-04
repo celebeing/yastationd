@@ -47,6 +47,7 @@ have their own indexes, read when the task needs them:
 | [music-sendspin.md](music-sendspin.md) | The speaker as a Music Assistant player: `sendspin-host`, ducking, volume, the wake word over music |
 | [intercom.md](intercom.md) | Calls between speakers: audio, signalling, the voice scenario |
 | [music-sources.md](music-sources.md) | The music sources side by side: one duck for all, what plays when two would at once (`music_overlap`), adding a source |
+| [esphome-api.md](esphome-api.md) | The ESPHome native API, for Home Assistant's Bluetooth proxy: what HA sees, the scan and the GATT connections over BlueZ, security |
 | [bluetooth.md](bluetooth.md) | Pairing a phone for A2DP audio through BlueZ and BlueALSA |
 | [ssh.md](ssh.md) | SSH on the speaker: dropbear (default) or OpenSSH (certificates, SFTP), how it is chosen, switching through port 2222, boot |
 | [wifi-setup.md](wifi-setup.md) | The Wi-Fi setup mode: the key combo, the access point, the setup page, the handoff back |

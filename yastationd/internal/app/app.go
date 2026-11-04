@@ -472,6 +472,11 @@ func (a *App) Run(ctx context.Context) error {
 		Manufacturer: "Yandex (de-Yandexed)",
 		SWVersion:    version.Version,
 	}
+	if mac := wifiMAC(); mac != "" && a.bluetoothProxyOn() {
+		// The ESPHome entry of the proxy names the device by this MAC: with it here too, Home
+		// Assistant shows one device for both (docs/esphome-api.md).
+		dev.Connections = [][2]string{{"mac", strings.ToLower(mac)}}
+	}
 	b := mqtt.NewBuilder(a.topics, dev)
 	b.RingEffects = ringEffects
 	b.FollowModes = followModes
@@ -509,6 +514,7 @@ func (a *App) Run(ctx context.Context) error {
 	}
 	a.publishAllState() // fills the state mirror for the web too, broker or not
 	a.startBluetooth(ctx)
+	a.startESPHome(ctx) // the Bluetooth proxy for Home Assistant, when on (esphome.go)
 
 	if a.cfg().HTTPAddr != "" {
 		if err := a.startWeb(ctx); err != nil {

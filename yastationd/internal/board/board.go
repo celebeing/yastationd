@@ -75,6 +75,9 @@ type PlatformSpec struct {
 	StopInitd    []string // e.g. S31animation
 	RTCBacked    bool
 	WifiReset    string // e.g. /usr/bin/yandex-wifireset
+	// BLEProxy: the board's BlueZ can act as Home Assistant's Bluetooth proxy (LE scan and
+	// central connections checked on a unit, docs/esphome-api.md)
+	BLEProxy bool
 }
 
 // RingSpec: an RGB ring of Pixels, each pixel = one sysfs LED per colour. LED names come from
@@ -337,6 +340,8 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		list(&p.Platform.StopInitd)
 	case k == "platform.wifi_reset":
 		p.Platform.WifiReset = v
+	case k == "platform.ble_proxy":
+		p.Platform.BLEProxy, err = strconv.ParseBool(v)
 	case k == "platform.rtc_backed":
 		p.Platform.RTCBacked, err = strconv.ParseBool(v)
 	case k == "ring.kind":

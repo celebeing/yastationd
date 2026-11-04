@@ -12,6 +12,8 @@ type Device struct {
 	Model        string   `json:"model"`
 	Manufacturer string   `json:"manufacturer"`
 	SWVersion    string   `json:"sw_version,omitempty"`
+	// Connections: [["mac", "aa:bb:…"]]; Home Assistant merges devices that share one.
+	Connections [][2]string `json:"connections,omitempty"`
 }
 
 // Entity is a discovery config: its component and object, and in Config the entity's own

@@ -312,6 +312,18 @@ func (m *Manager) deviceCall(id, method string) error {
 	m.emitLocked()
 	return nil
 }
+// pairedLocked: path is one of the paired phones (as last listed), not a device the Bluetooth
+// proxy connected for Home Assistant.
+func (m *Manager) pairedLocked(path dbus.ObjectPath) bool {
+	id := base64.RawURLEncoding.EncodeToString([]byte(path))
+	for _, d := range m.view.Devices {
+		if d.ID == id {
+			return true
+		}
+	}
+	return path == m.pending
+}
+
 func (m *Manager) devicePathLocked(id string) (dbus.ObjectPath, bool) {
 	raw, err := base64.RawURLEncoding.DecodeString(id)
 	if err != nil {
@@ -408,11 +420,15 @@ func (m *Manager) watch(ctx context.Context) {
 					removed = removed || iface == "org.bluez.Device1"
 				}
 				if removed {
+					// Only a paired phone matters here: the Bluetooth proxy's scan makes and drops
+					// device objects all the time (temporary ones, unpaired).
 					path, _ := s.Body[0].(dbus.ObjectPath)
-					m.log.Info("bluetooth: device removed", "device", string(path))
 					m.mu.Lock()
-					m.refreshLocked()
-					m.emitLocked()
+					if m.pairedLocked(path) {
+						m.log.Info("bluetooth: device removed", "device", string(path))
+						m.refreshLocked()
+						m.emitLocked()
+					}
 					m.mu.Unlock()
 				}
 				continue
@@ -448,7 +464,7 @@ func (m *Manager) watch(ctx context.Context) {
 				m.log.Info("bluetooth: paired", "device", string(s.Path), "trusted_err", err)
 				m.clearLocked()
 			}
-			if c, ok := changed["Connected"]; ok && m.onConnection != nil {
+			if c, ok := changed["Connected"]; ok && m.onConnection != nil && (m.pairedLocked(s.Path) || boolProp(changed, "Paired")) {
 				if on, ok := c.Value().(bool); ok {
 					name := m.nameLocked(s.Path)
 					m.log.Info("bluetooth: connection", "device", string(s.Path), "connected", on)
