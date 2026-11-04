@@ -3,6 +3,19 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.27.0 — 2026-11-04
+
+**Station 3 as Home Assistant's Bluetooth proxy**
+- With `bluetooth_proxy = true` (off by default; Configuration → Home integration) the speaker
+  serves the ESPHome native API as a Bluetooth proxy: it forwards what Bluetooth LE devices in its
+  room advertise, and Home Assistant connects to them through it, as through an ESP32 proxy. So
+  any BLE integration works within range of the speaker
+  ([docs/esphome-api.md](docs/esphome-api.md)).
+- HA finds it by itself as an ESPHome device, linked to the speaker's MQTT device. Only the proxy:
+  no ESPHome entities. The API is not encrypted, like the MQTT broker.
+- The scan pauses while a phone plays over Bluetooth (`bluetooth_proxy_audio_pause`). Devices HA
+  connects through the speaker are not paired phones.
+
 ## v0.26.1 — 2026-11-04
 
 **The rings of the Minis**
