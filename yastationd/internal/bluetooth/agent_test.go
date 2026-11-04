@@ -1,6 +1,8 @@
 package bluetooth
 
 import (
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -8,7 +10,7 @@ import (
 )
 
 func TestNumericComparisonWaitsForWebConfirmation(t *testing.T) {
-	m := &Manager{view: View{Pairing: true, Devices: []Device{}}}
+	m := &Manager{log: slog.New(slog.NewTextHandler(io.Discard, nil)), view: View{Pairing: true, Devices: []Device{}}}
 	path := dbus.ObjectPath("/org/bluez/hci0/dev_01_02_03_04_05_06")
 	done := make(chan *dbus.Error, 1)
 	go func() { done <- m.incoming(path, 42) }()
@@ -25,5 +27,21 @@ func TestNumericComparisonWaitsForWebConfirmation(t *testing.T) {
 	}
 	if err := <-done; err != nil {
 		t.Fatalf("numeric confirmation: %v", err)
+	}
+}
+
+// BlueZ asks about A2DP with the Advanced Audio UUID; the paired phone must get it, others not.
+func TestAuthorizeServiceAudioOnly(t *testing.T) {
+	m := &Manager{log: slog.New(slog.NewTextHandler(io.Discard, nil)), allowed: map[dbus.ObjectPath]bool{}}
+	phone := dbus.ObjectPath("/org/bluez/hci0/dev_01_02_03_04_05_06")
+	m.allowed[phone] = true
+	a := &agent{m: m}
+	for uuid, want := range map[string]bool{advancedAudio: true, avrcp: true, "0000111f-0000-1000-8000-00805f9b34fb": false} {
+		if got := a.AuthorizeService(phone, uuid) == nil; got != want {
+			t.Errorf("%s: allowed %v, want %v", uuid, got, want)
+		}
+	}
+	if a.AuthorizeService("/org/bluez/hci0/dev_0A_0B_0C_0D_0E_0F", advancedAudio) == nil {
+		t.Error("an unknown device got audio")
 	}
 }

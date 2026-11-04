@@ -21,10 +21,23 @@ const (
 	agentPath  = dbus.ObjectPath("/io/yastationd/BluetoothAgent")
 	agentIface = "org.bluez.Agent1"
 	pairFor    = 2 * time.Minute
-	a2dpSink   = "0000110b-0000-1000-8000-00805f9b34fb"
-	avrcp      = "0000110e-0000-1000-8000-00805f9b34fb" // A/V remote control (the phone's volume, play/pause)
-	avrcpTgt   = "0000110c-0000-1000-8000-00805f9b34fb" // A/V remote control target
+	// The service UUIDs BlueZ asks the agent about (AuthorizeService) before a phone's profile
+	// connects. For A2DP it passes the generic Advanced Audio UUID, not the sink's (BlueZ 5.70,
+	// profiles/audio/a2dp.c; an iPhone's audio was refused with only the sink's here).
+	advancedAudio = "0000110d-0000-1000-8000-00805f9b34fb"
+	a2dpSink      = "0000110b-0000-1000-8000-00805f9b34fb"
+	avrcp         = "0000110e-0000-1000-8000-00805f9b34fb" // A/V remote control (the phone's volume, play/pause)
+	avrcpTgt      = "0000110c-0000-1000-8000-00805f9b34fb" // A/V remote control target
 )
+
+// audioService: what a phone being paired may connect (A2DP audio and its remote control).
+func audioService(uuid string) bool {
+	switch strings.ToLower(uuid) {
+	case advancedAudio, a2dpSink, avrcp, avrcpTgt:
+		return true
+	}
+	return false
+}
 
 type Device struct {
 	ID        string `json:"id"`
@@ -349,6 +362,8 @@ func (m *Manager) watch(ctx context.Context) {
 					removed = removed || iface == "org.bluez.Device1"
 				}
 				if removed {
+					path, _ := s.Body[0].(dbus.ObjectPath)
+					m.log.Info("bluetooth: device removed", "device", string(path))
 					m.mu.Lock()
 					m.refreshLocked()
 					m.emitLocked()
@@ -364,7 +379,8 @@ func (m *Manager) watch(ctx context.Context) {
 			m.mu.Lock()
 			if boolProp(changed, "Paired") && s.Path == m.pending {
 				m.allowed[s.Path] = true
-				_ = m.conn.Object(bluezName, s.Path).Call(propsName+".Set", 0, "org.bluez.Device1", "Trusted", dbus.MakeVariant(true)).Err
+				err := m.conn.Object(bluezName, s.Path).Call(propsName+".Set", 0, "org.bluez.Device1", "Trusted", dbus.MakeVariant(true)).Err
+				m.log.Info("bluetooth: paired", "device", string(s.Path), "trusted_err", err)
 				m.clearLocked()
 			}
 			if _, connected := changed["Connected"]; connected || boolProp(changed, "Paired") {
@@ -414,8 +430,10 @@ func (m *Manager) incoming(path dbus.ObjectPath, code uint32) *dbus.Error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.view.Pairing || m.pending != "" {
+		m.log.Info("bluetooth: pairing request refused (no pairing window)", "device", string(path))
 		return dbus.NewError("org.bluez.Error.Rejected", nil)
 	}
+	m.log.Info("bluetooth: pairing request", "device", string(path))
 	m.pending, m.confirm = path, make(chan bool, 1)
 	m.view.Pending, m.view.Code, m.view.Device = true, fmt.Sprintf("%06d", code), m.nameLocked(path)
 	m.emitLocked()
@@ -484,7 +502,9 @@ func (a *agent) RequestPasskey(dbus.ObjectPath) (uint32, *dbus.Error) {
 func (a *agent) AuthorizeService(path dbus.ObjectPath, uuid string) *dbus.Error {
 	a.m.mu.Lock()
 	defer a.m.mu.Unlock()
-	if a.m.allowed[path] && (uuid == a2dpSink || uuid == avrcp || uuid == avrcpTgt) {
+	ok := (a.m.allowed[path] || (path == a.m.pending && !a.m.view.Pending)) && audioService(uuid) // pending: confirmed, Paired not seen yet
+	a.m.log.Info("bluetooth: service authorization", "device", string(path), "uuid", uuid, "allowed", ok)
+	if ok {
 		return nil
 	}
 	return dbus.NewError("org.bluez.Error.Rejected", nil)
