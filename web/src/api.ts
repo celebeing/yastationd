@@ -180,7 +180,7 @@ export async function setPassword(id: string, base: string, user: string, passwo
 
 export type Features = { wifi?: boolean; bluetooth?: boolean; led_preview?: boolean; moments?: boolean; videos?: boolean; packs?: boolean; voices?: boolean }
 export type Net = { id: number; ssid: string; security: string; priority: number; disabled: boolean; hidden: boolean }
-export type Bluetooth = { available: boolean; pairing: boolean; pending: boolean; code?: string; device?: string; expires?: number; error?: string; devices: { id: string; name: string; connected: boolean }[] }
+export type Bluetooth = { available: boolean; off?: boolean; pairing: boolean; pending: boolean; code?: string; device?: string; expires?: number; error?: string; devices: { id: string; name: string; connected: boolean }[] }
 /** A moment's candidate: a reference ("wink", "anim:media/Like", "scenario:startup") or a sequence. */
 /** A step of a sequence (docs/asset-packs.md): what it shows and plays at once; a step with none is a pause. */
 export type Step = {

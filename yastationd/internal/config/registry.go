@@ -63,7 +63,7 @@ var Groups = []struct{ ID, Title, Page string }{
 	{"time", "Time", "home"},
 	{"logs", "Logs", "home"},
 	{"music", "Music Assistant", "music"},
-	{"bluetooth", "Bluetooth audio", "music"},
+	{"bluetooth", "Bluetooth audio", "bluetooth"},
 	{"intercom", "Intercom", "intercom"},
 	{"wifi_setup", "Wi-Fi setup mode", "wifi"},
 	{"network", "When the connection is lost", "wifi"},
@@ -511,6 +511,9 @@ func init() {
 	reg(Key{Name: "sendspin_volume", Group: "music", Label: "Music volume", Sync: true,
 		Doc: "linked: the player's volume in Music Assistant is the speaker's volume; separate: a music-only level under it."},
 		enumV([]string{"linked", "separate"}, func(c *Config) *string { return &c.SendspinVolume }))
+	reg(Key{Name: "bluetooth", Group: "bluetooth", Label: "Bluetooth audio", Sync: true, Needs: "bluetooth",
+		Doc: "A phone pairs from this tab and plays through the speaker. Off: the speaker's Bluetooth radio is switched off, so nothing can pair or connect (paired phones stay remembered)."},
+		boolV(func(c *Config) *bool { return &c.Bluetooth }))
 	reg(Key{Name: "bluetooth_volume", Group: "bluetooth", Label: "Phone volume", Sync: true, Needs: "bluetooth",
 		Doc: "separate: the phone's own volume sits under the speaker's, so the phone at 100 % plays only as loud as the speaker is set. linked: the phone's slider is the speaker's volume (still capped by the maximum volume), and the speaker's keys and Home Assistant move the phone's slider. Takes effect for a phone that connects after the change."},
 		enumV([]string{"separate", "linked"}, func(c *Config) *string { return &c.BluetoothVolume }))

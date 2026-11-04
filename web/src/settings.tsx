@@ -197,7 +197,7 @@ function groupsOf(s: Settings, pick: (k: SettingKey) => boolean) {
 // The configuration pages: which groups of keys each shows. Every page mixes keys that apply at
 // once (saved as they change) with keys that need a restart (marked; their changes wait in a
 // floating bar for one "Apply and restart").
-export type ConfigPageID = 'general' | 'voice' | 'home' | 'music' | 'intercom' | 'wifi' | 'calibration'
+export type ConfigPageID = 'general' | 'voice' | 'home' | 'music' | 'intercom' | 'wifi' | 'bluetooth' | 'calibration'
 
 // Which sections a page holds comes from the daemon (config.Groups); here only the words on top.
 const INTRO: Record<ConfigPageID, string> = {
@@ -207,6 +207,7 @@ const INTRO: Record<ConfigPageID, string> = {
   music: 'The speaker as a Music Assistant player (Sendspin).',
   intercom: 'Calls between the speakers.',
   wifi: '',
+  bluetooth: '',
   calibration: '',
 }
 

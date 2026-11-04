@@ -355,7 +355,8 @@ function Speaker(props: { peer: Peer; base: string; status: Status; peers: Peer[
           <p class="muted">The Wi-Fi setup mode is off on this speaker: turn it on below to manage the saved networks here.</p>
         ))}
       {tab === 'wifi' && <ConfigPage page="wifi" peer={peer} base={base} />}
-      {tab === 'bluetooth' && features.bluetooth && <BluetoothTab peer={peer} base={base} />}
+      {tab === 'bluetooth' && <BluetoothTab peer={peer} base={base} />}
+      {tab === 'bluetooth' && <ConfigPage page="bluetooth" peer={peer} base={base} />}
       {tab === 'log' && <LogTab peer={peer} base={base} />}
       {tab === 'account' && <Account peer={peer} base={base} />}
         </div>

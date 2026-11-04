@@ -9,7 +9,7 @@ import (
 
 func TestRegistryRoundTrip(t *testing.T) {
 	groups := map[string]bool{}
-	pages := map[string]bool{"general": true, "voice": true, "home": true, "music": true, "intercom": true, "wifi": true, "calibration": true}
+	pages := map[string]bool{"general": true, "voice": true, "home": true, "music": true, "intercom": true, "wifi": true, "bluetooth": true, "calibration": true}
 	for _, g := range Groups {
 		groups[g.ID] = true
 		if !pages[g.Page] {

@@ -50,6 +50,14 @@ func (a *App) startBluetooth(ctx context.Context) {
 	if !a.prof.Audio.Bluetooth {
 		return
 	}
+	if !a.cfg().Bluetooth {
+		if err := bluetooth.PowerOff(); err != nil {
+			a.log.Warn("bluetooth: switch the radio off", "err", err)
+		} else {
+			a.log.Info("bluetooth: off in the settings; radio off")
+		}
+		return
+	}
 	b, err := bluetooth.Open(ctx, a.cfg().DeviceName, a.log, a.bluetoothChanged)
 	if err != nil {
 		a.log.Warn("bluetooth unavailable", "err", err)
@@ -90,6 +98,10 @@ func (a *App) bluetoothChanged(v bluetooth.View) {
 func (a *App) apiBluetooth(w http.ResponseWriter, r *http.Request) {
 	b := a.bluetoothControl()
 	if b == nil {
+		if a.prof.Audio.Bluetooth && r.Method == http.MethodGet && strings.Trim(r.URL.Path, "/") == "api/bluetooth" {
+			writeJSON(w, http.StatusOK, bluetooth.View{Off: !a.cfg().Bluetooth, Devices: []bluetooth.Device{}})
+			return
+		}
 		writeErr(w, http.StatusNotFound, "Bluetooth is unavailable on this speaker")
 		return
 	}

@@ -23,7 +23,7 @@ import (
 func (a *App) features() map[string]bool {
 	return map[string]bool{
 		"wifi":        a.setup != nil,
-		"bluetooth":   a.bluetoothControl() != nil,
+		"bluetooth":   a.prof.Audio.Bluetooth, // the tab; whether it is on is in /api/bluetooth
 		"led_preview": a.tap != nil && a.cfg().LEDPreview,
 		"moments":     true,
 		"videos":      a.screen != nil, // the Assets page's videos (assets.go)

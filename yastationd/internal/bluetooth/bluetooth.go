@@ -47,6 +47,7 @@ type Device struct {
 
 type View struct {
 	Available bool     `json:"available"`
+	Off       bool     `json:"off,omitempty"` // switched off in the settings (bluetooth = false)
 	Pairing   bool     `json:"pairing"`
 	Pending   bool     `json:"pending"`
 	Code      string   `json:"code,omitempty"`
@@ -136,6 +137,9 @@ func (m *Manager) attachLocked() error {
 		_ = mgr.Call("org.bluez.AgentManager1.UnregisterAgent", 0, agentPath).Err
 		return err
 	}
+	if err := m.setLocked("Powered", true); err != nil { // switched off by bluetooth = false before
+		return fmt.Errorf("power the adapter on: %w", err)
+	}
 	if err := m.setLocked("Discoverable", false); err != nil {
 		return fmt.Errorf("hide the adapter: %w", err)
 	}
@@ -154,6 +158,21 @@ func isDBusError(err error, name string) bool {
 	}
 	var p *dbus.Error
 	return errors.As(err, &p) && p.Name == name
+}
+
+// PowerOff switches the Bluetooth radio off (bluetooth = false): nothing pairs or connects. BlueZ
+// keeps the pairings; Open powers it on again.
+func PowerOff() error {
+	conn, err := dbus.SystemBus()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	m := &Manager{conn: conn}
+	if err := m.findAdapter(); err != nil {
+		return err
+	}
+	return m.setLocked("Powered", false)
 }
 
 func (m *Manager) findAdapter() error {

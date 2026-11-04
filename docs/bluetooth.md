@@ -44,7 +44,11 @@ Its agent accepts only a pairing with a code compared on both sides ("numeric co
 inside a pairing window the owner opened. Requests with no code (Just Works) or with a PIN are
 refused.
 
-**Pairing a phone.** Web app → **Bluetooth audio** → **Pair phone**. For two minutes the speaker is
+**Off.** `bluetooth = false` (Configuration → Bluetooth audio) switches the speaker's Bluetooth
+radio off when the daemon starts: nothing can pair or connect, and the firmware's open pairing is
+gone with it. BlueZ keeps the pairings; turning it on again powers the radio and phones reconnect.
+
+**Pairing a phone.** Web app → Configuration → **Bluetooth audio** → **Pair phone**. For two minutes the speaker is
 discoverable and pairable. Choose it on the phone: a six-digit code appears on the phone, on the
 speaker's display and on the page. If they match, press **Confirm pairing** on the page and accept
 on the phone. The phone is then trusted (it reconnects by itself later), and the speaker is hidden
@@ -63,7 +67,7 @@ paired reconnects whenever it likes (that is what pairing is for).
 `bluealsa-aplay` plays the phone's audio through the `bluetooth` softvol, which the firmware boots
 at 225 (−6 dB). The daemon sets it to 255 (0 dB) after it has set the master volume.
 
-**The phone's volume**, `bluetooth_volume` (Settings → Music → Bluetooth audio):
+**The phone's volume**, `bluetooth_volume` (Configuration → Bluetooth audio, under the pairing):
 
 - `separate` (the default, the firmware's way): BlueALSA scales the phone's audio by the phone's
   own slider, under the speaker's volume. The phone at 100 % plays as loud as the speaker is set,

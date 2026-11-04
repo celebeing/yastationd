@@ -39,6 +39,8 @@ export function BluetoothTab({ peer, base }: { peer: Peer; base: string }) {
     }
   }
   if (!state) return <section class="card"><h3>Bluetooth audio</h3><p class={err ? 'err' : 'muted'}>{err || (loading ? 'Loading Bluetooth state…' : 'Bluetooth state was unavailable. Reload the page to retry.')}</p></section>
+  if (state.off) return <section class="card"><h3>Bluetooth audio</h3><p class="muted">Bluetooth audio is off on this speaker, and its radio is switched off: turn it on below.</p></section>
+  if (!state.available) return <section class="card"><h3>Bluetooth audio</h3><p class="muted">The speaker's Bluetooth service does not answer; the log says why.</p></section>
   return <div class="cols">
     <section class="card">
       <h3>Bluetooth audio</h3>
