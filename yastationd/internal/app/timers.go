@@ -17,7 +17,7 @@ import (
 // as a matrix countdown and ring an alarm on finish.
 
 const (
-	alarmCycles    = 8 // ~20 s of beeping unless a touch key stops it
+	alarmCycles    = 8 // ~14 s of beeping (8 x 0.75 s of beeps + 1 s), unless stopped earlier
 	alarmRate      = 22050
 	alarmToneHz    = 880
 	alarmAmplitude = 12000

@@ -12,7 +12,7 @@ from and tells only it, over Wyoming: `timer-started`, `timer-updated` (paused, 
 - **The countdown** of the soonest running timer is on the front display; a paused one blinks its
   frozen remainder for 30 s, then the clock is back.
 - **Ringing**: `timer-finished` fires `timer_finished` (held: an amber blink, the ringing clip, the
-  built-in beep unless the theme gives a sound) for about 20 s.
+  built-in beep unless the theme gives a sound) for about 14 s (8 rounds of three beeps and a second of quiet), then stops by itself.
 - **Stopping**: any mapped key or the touch ring, «стоп» (the command spotter is armed while the
   speaker makes sound, ringing included; over the ringing a near miss counts, below), or HA's stop
   command.
