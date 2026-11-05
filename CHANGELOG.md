@@ -3,6 +3,16 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.27.2 — 2026-11-06
+
+**Fixes**
+- The Bluetooth proxy dropped Home Assistant every 90 s on a speaker where HA only listened (a
+  Mini 3), and with it the BLE devices HA held through it. The speaker now pings a quiet HA instead
+  ([docs/esphome-api.md](docs/esphome-api.md)).
+- A red error flash right after an answer that had played (a timer's, once): Home Assistant
+  sometimes refuses a second run of its own as a duplicate wake-up. That no longer shows
+  ([docs/wake-word.md](docs/wake-word.md)).
+
 ## v0.27.1 — 2026-11-04
 
 **The Bluetooth proxy on the Mini 3**
