@@ -8,8 +8,8 @@
 #   web               the web app             yastationd/internal/webui/dist/app/   (node)
 #   yastationd        tests + the daemon      yastationd/build/yastationd           (go; builds web first when stale)
 #   hostapd           the Wi-Fi setup AP      hostapd/build/hostapd                 (zig)
-#   dropbear          the SSH server          dropbear/build/dropbearmulti          (zig)
-#   openssh           the optional OpenSSH    openssh/build/{sshd,sshd-session,…}   (zig; SSH=openssh in deploy.sh)
+#   dropbear          the failsafe SSH server dropbear/build/dropbearmulti          (zig)
+#   openssh           the SSH server          openssh/build/{sshd,sshd-session,…}   (zig)
 #   sendspin:<arch>   the music player        sendspin-host/build/<arch>/sendspin-host (zig; armhf | aarch64)
 #   spotter:<arch>    the voice front-end     spotter-host/build/<arch>/spotter-host   (cross gcc + a vendor sysroot)
 #   packtool          the asset-pack checker  yastationd/build/packtool  (go; for this host, not the speakers;

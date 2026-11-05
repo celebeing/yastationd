@@ -1,17 +1,15 @@
 #!/bin/sh
-# ssh.sh — the speaker's SSH server: dropbear (the default) or OpenSSH (openssh/, docs/ssh.md).
+# ssh.sh — the speaker's SSH server: OpenSSH (openssh/, docs/ssh.md), dropbear only as the failsafe.
 #
-#   ssh.sh start                    the server <cfw>/ssh_server names, on port 22
+#   ssh.sh start                    OpenSSH on port 22; dropbear when OpenSSH can't start
 #   ssh.sh stop                     stop whichever runs on port 22
 #   ssh.sh test PORT [SUFFIX]       OpenSSH on PORT beside the live server, binaries <name>SUFFIX
-#                                   (deploy.sh tests new ones as .new), pid /var/run/sshd-PORT.pid;
-#                                   SERVER=dropbear: dropbear on PORT instead
+#                                   (deploy.sh tests new ones as .new), pid /var/run/sshd-PORT.pid
 #   ssh.sh config PORT [SUFFIX]     print the sshd_config it would use
 #
-# <cfw>/ssh_server holds "openssh" or "dropbear" (missing = dropbear). OpenSSH starts only when
-# its files are there and `sshd -t` accepts the config; otherwise dropbear starts, so a broken
-# OpenSSH never leaves the speaker without SSH. Both use the same ed25519 host key (OpenSSH's is
-# converted from dropbear's once), so clients see the same server either way.
+# OpenSSH starts only when its files are there and `sshd -t` accepts the config; otherwise dropbear
+# starts, so a broken OpenSSH never leaves the speaker without SSH. Both use the same ed25519 host
+# key (OpenSSH's is converted from dropbear's once), so clients see the same server either way.
 #
 # OpenSSH reads, when present (the owner's, never shipped by the CFW):
 #   <cfw>/openssh/trusted_user_ca_keys   CA public keys whose user certificates are accepted
@@ -26,8 +24,6 @@ D=${SSH_DIR:-$CFW/openssh} # SSH_DIR: a trial copy elsewhere (docs/ssh.md, "Tryi
 DB=$CFW/bin/dropbearmulti
 DBKEY=$CFW/dropbear_ed25519_host_key
 KEY=$D/ssh_host_ed25519_key
-
-mode() { cat "$CFW/ssh_server" 2>/dev/null || echo dropbear; }
 
 # hostkey: OpenSSH's host key, converted from dropbear's (made first if the speaker has none).
 hostkey() {
@@ -90,21 +86,17 @@ stop22() {
 
 case "$1" in
 start)
-	if [ "$(mode)" = openssh ] && openssh 22 ""; then
+	if openssh 22 ""; then
 		echo "ssh: openssh on 22"
 	else
-		[ "$(mode)" = openssh ] && echo "ssh: openssh did not start (/tmp/sshd-22.log), dropbear instead" >&2
+		echo "ssh: openssh did not start (/tmp/sshd-22.log), dropbear instead" >&2
 		dropbear && echo "ssh: dropbear on 22"
 	fi
 	;;
 stop) stop22 ;;
 test)
 	[ -n "${2:-}" ] || { echo "usage: $0 test PORT [SUFFIX]" >&2; exit 2; }
-	if [ "${SERVER:-openssh}" = dropbear ]; then
-		"$DB" dropbear -r "$DBKEY" -p "$2" -P "/var/run/sshd-$2.pid" >"/tmp/sshd-$2.log" 2>&1 || exit 1
-	else
-		openssh "$2" "${3:-}" || { cat "/tmp/sshd-$2.log" >&2; exit 1; }
-	fi
+	openssh "$2" "${3:-}" || { cat "/tmp/sshd-$2.log" >&2; exit 1; }
 	;;
 config) config "${2:-22}" "${3:-}" ;;
 *)

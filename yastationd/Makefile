@@ -67,7 +67,8 @@ vet:
 clean:
 	rm -rf build
 
-# The stock dropbear has no scp (ours, dropbear/, does), so files are streamed over ssh via `cat >`.
+# First-install steps may meet only the install kit's dropbear (no scp, no SFTP), so these targets
+# stream files over ssh via `cat >`; tools/deploy.sh copies with scp after its OpenSSH step.
 # SSHKEY: optional; empty, ssh picks the key from the agent and ~/.ssh/config.
 SSHKEY   ?=
 SSH      := ssh $(if $(SSHKEY),-i $(SSHKEY) -o IdentitiesOnly=yes) $(DEVICE)

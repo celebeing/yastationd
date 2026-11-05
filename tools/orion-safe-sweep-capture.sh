@@ -68,7 +68,7 @@ BEGIN {
 
 printf 'local raw:  %s\nlocal meta: %s\nlocal log:  %s\n' "$output" "$meta" "$log_output"
 ssh "$target" "mkdir -p '$remote_dir'" </dev/null
-ssh "$target" "cat > '$remote_dir/sweep.raw'" <"$local_sweep"
+scp -q "$local_sweep" "$target:$remote_dir/sweep.raw" </dev/null
 
 ssh "$target" "sh -s" <<EOF
 set -eu
@@ -161,12 +161,12 @@ cat "\$LOG" >&2
 EOF
 
 echo "transferring raw capture..."
-if ! ssh "$target" "cat '$remote_dir/capture.raw'" >"$output"; then
+if ! scp -q "$target:$remote_dir/capture.raw" "$output" </dev/null; then
 	echo "failed to transfer remote capture; leaving $remote_dir on $target" >&2
 	exit 1
 fi
 echo "raw transfer complete"
-if ! ssh "$target" "cat '$remote_dir/remote.log'" >"$log_output"; then
+if ! scp -q "$target:$remote_dir/remote.log" "$log_output" </dev/null; then
 	echo "failed to transfer remote diagnostics; raw capture was saved" >&2
 	exit 1
 fi

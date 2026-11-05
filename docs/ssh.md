@@ -1,9 +1,11 @@
-# SSH on the speaker: dropbear or OpenSSH
+# SSH on the speaker: OpenSSH, dropbear the failsafe
 
-Status (2026-10-31): built. **OpenSSH is the default** that `tools/deploy.sh` puts on a speaker;
-dropbear stays on it as the fallback, and `SSH=dropbear` keeps dropbear instead. Tried on bergamot
-and orion, a reboot included. How a speaker got SSH in the first place is out of
-scope ([CLAUDE.md](../CLAUDE.md)).
+Status (2026-11-06): built. **OpenSSH is the speaker's SSH server**, the only one to choose:
+`tools/deploy.sh` makes it so first thing on every speaker, and every later step of an update
+copies its files with scp (SFTP). dropbear stays on the speaker only as the failsafe that starts
+when OpenSSH can't, and serves the first install until the switch. OpenSSH as the default since
+2026-10-31, tried on bergamot and orion, a reboot included. How a speaker got SSH in the first
+place is out of scope ([CLAUDE.md](../CLAUDE.md)).
 
 ## The two servers
 
@@ -22,16 +24,25 @@ Both run on every board: the minis' armhf userland runs static aarch64 binaries 
 kernel. They share the host key (OpenSSH's is dropbear's ed25519 key, converted once by
 `dropbearconvert`), so a client sees the same server after a switch and `known_hosts` stays.
 
-## How it is chosen
+## What starts
 
 `yastationd/init.d/ssh.sh`, installed as `<cfw>/init.d/ssh.sh`:
 
-- `<cfw>/ssh_server` holds `openssh` or `dropbear`; missing means dropbear.
-- `ssh.sh start` starts that one on port 22. OpenSSH starts only when its files are there and
-  `sshd -t` accepts the config it writes (`/tmp/sshd_config.22`, log `/tmp/sshd-22.log`);
-  anything else starts dropbear, so a broken OpenSSH never leaves the speaker without SSH.
-- `ssh.sh test PORT [SUFFIX]` starts OpenSSH (or `SERVER=dropbear` dropbear) on a test port
-  beside the live server; `ssh.sh config` prints the sshd_config.
+- `ssh.sh start` starts OpenSSH on port 22, when its files are there and `sshd -t` accepts the
+  config it writes (`/tmp/sshd_config.22`, log `/tmp/sshd-22.log`). Otherwise it starts dropbear,
+  so a broken OpenSSH never leaves the speaker without SSH.
+- `ssh.sh test PORT [SUFFIX]` starts OpenSSH on a test port beside the live server;
+  `ssh.sh config` prints the sshd_config.
+- `<cfw>/ssh_server` (`openssh` or `dropbear`) chose the server before v0.29; the switch below
+  removes it.
+
+**What relies on OpenSSH.** Regular work on an installed speaker: `tools/deploy.sh` after its SSH
+step, `tools/golden.sh flash`, the Orion capture scripts copy files with `scp`, which OpenSSH 9+
+runs over SFTP (dropbear serves no SFTP). **What doesn't:** the first-install steps (`make stage`,
+`make sounds`, `make install-initd` and the rest of `yastationd/Makefile`) and
+`tools/restore-unit.sh` stream files over plain ssh (`cat >`, `tar`), as they may meet a speaker
+that runs only the install kit's dropbear; so do the SSH step itself and the backups' `tar`/`dd`
+streams.
 
 The OpenSSH config it writes: root by key only (no passwords), `/root/.ssh/authorized_keys` as
 dropbear uses, no DNS lookups, SFTP, `StrictModes no` (the only login is root and every file is
@@ -51,28 +62,30 @@ Plain keys in `authorized_keys` keep working beside certificates unless the owne
 
 ## Switching: `tools/deploy.sh`
 
-Every deploy makes `SSH` (default `openssh`; `SSH=dropbear` for dropbear; with
-`DROPBEAR=only` nothing else is built or updated) the server on port 22. A speaker already running
-the same OpenSSH binaries and `ssh.sh` is left alone; otherwise, in steps that can't lock you out:
+The **first** thing a deploy does on each speaker, before it compares or uploads anything else, is
+to make OpenSSH the server on port 22 (`DROPBEAR=only`: this and nothing else). The step streams
+its files over plain ssh, which dropbear takes too. A speaker already running the same OpenSSH
+binaries and `ssh.sh` is left alone; otherwise, in steps that can't lock you out:
 
 1. The files go up beside the live ones as `.new` (OpenSSH's binaries, `ssh.sh`), and
    `dropbearconvert`.
-2. The new server starts on port **2222** from the `.new` files. The login to it is checked
-   against the speaker's port-22 `known_hosts` entry (`HostKeyAlias`), so it must have the same
-   host key.
-3. A login through 2222 copies the files into place (the old ones as `.prev`), writes
-   `<cfw>/ssh_server` (the previous value as `ssh_server.prev`) and restarts port 22 through
-   `ssh.sh` (sessions in progress stay up).
-4. A login on port 22 must find the chosen server running there. Then the test server stops and
-   the `.new` files go. If not, the test server, still running from the `.new` files, puts the
-   previous server back and the run stops.
+2. OpenSSH starts on port **2222** from the `.new` files. The login to it is checked against the
+   speaker's port-22 `known_hosts` entry (`HostKeyAlias`), so it must have the same host key.
+3. A login through 2222 copies the files into place (the old ones as `.prev`) and restarts port
+   22 through `ssh.sh` (sessions in progress stay up).
+4. A login on port 22 must find OpenSSH running there. Then the test server stops and the `.new`
+   files and `<cfw>/ssh_server` go. If not, the test server, still running from the `.new` files,
+   puts the previous files back (no previous OpenSSH: its binaries go, and `ssh.sh` starts
+   dropbear) and the run stops.
 
-Tried on bergamot and orion: dropbear → OpenSSH → dropbear → OpenSSH, each step confirmed on
-port 22, nothing left on 2222.
+The steps were tried on bergamot and orion (dropbear → OpenSSH → dropbear → OpenSSH, each confirmed
+on port 22, nothing left on 2222). `SSH=dropbear` is refused since v0.29: dropbear is no longer a
+server to choose.
 
-**dropbear as the fallback** stays in `<cfw>/bin` and is still updated by `DROPBEAR=1` / `only`:
-when it is not running, the new binary must serve a login on port 2222 before it replaces the
-old one (kept as `.prev`).
+**dropbear as the failsafe** stays in `<cfw>/bin`, updated on a first deploy and with
+`DROPBEAR=1` / `only`: when it is not running, the new binary must serve a login on port 2222
+before it replaces the old one (kept as `.prev`). On a first install, where it still serves port
+22, the swap goes through 2222 the same way (guides/deploying.md, "Updating").
 
 `<cfw>/authorized_keys` holds the keys added from the Wi-Fi setup page ([wifi-setup.md](wifi-setup.md));
 OpenSSH reads it next to `/root/.ssh/authorized_keys`.
@@ -93,8 +106,8 @@ an older backup brings its keys and ADB markers back.
 
 ## Boot
 
-The install kit's `/etc/init.d/S42zdropbear` starts dropbear and knows nothing of
-`<cfw>/ssh_server`. Once OpenSSH answers on port 22, `tools/deploy.sh` replaces that hook (once:
+The install kit's `/etc/init.d/S42zdropbear` starts dropbear and knows nothing of OpenSSH.
+Once OpenSSH answers on port 22, `tools/deploy.sh` replaces that hook (once:
 a rootfs write, remount rw/ro) with one that runs `<cfw>/init.d/ssh.sh start`, and the kit's
 original, kept as `<cfw>/init.d/S42zdropbear.orig`, when `ssh.sh` is missing or starts nothing.
 `ssh.sh` itself starts dropbear when OpenSSH can't start. A speaker without that hook file (not

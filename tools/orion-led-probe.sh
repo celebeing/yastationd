@@ -2,8 +2,8 @@
 # orion-led-probe.sh - on-device LED bring-up probe for orion (Yandex Station 3).
 # Part of the LED ring bring-up (CFW, docs/boards/orion.md).
 #
-# Host-side usage (network ssh; there is no scp on the device - stream it):
-#   ssh root@<speaker> 'cat > /tmp/orion-led-probe.sh' < tools/orion-led-probe.sh
+# Host-side usage:
+#   scp tools/orion-led-probe.sh root@<speaker>:/tmp/orion-led-probe.sh
 #   ssh root@<speaker> 'sh /tmp/orion-led-probe.sh'
 #
 # What it does (~2 min, the ring and ambilight will visibly flash - run this only on

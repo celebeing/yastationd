@@ -3,6 +3,15 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**SSH**
+- OpenSSH is the speaker's only SSH server; dropbear stays as the failsafe that starts when
+  OpenSSH can't. `SSH=dropbear` is refused.
+- `tools/deploy.sh` switches a speaker to OpenSSH first, before anything else, and copies the rest
+  with scp (SFTP); so do `tools/golden.sh flash` and the Orion capture scripts. The first-install
+  steps still stream over plain ssh ([docs/ssh.md](docs/ssh.md)).
+
 ## v0.28.0 — 2026-11-06
 
 **Timers follow the person**

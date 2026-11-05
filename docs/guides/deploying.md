@@ -16,8 +16,8 @@ scripts branch on its existence.
 | `<cfw>/bin/yastationd` | the agent (static armv7, same binary for every board) |
 | `<cfw>/bin/spotter-host` | the voice front-end host, built for the device's userland arch; with `voice_id` a second process of it (`spotter-host voice`) makes the voiceprints |
 | `<cfw>/bin/sendspin-host` | the Music Assistant player (optional, `sendspin = true`), built for the userland arch |
-| `<cfw>/bin/dropbearmulti`, `<cfw>/bin/scp` (a link to it), `dropbearmulti.prev` | the SSH server, our build of dropbear (static aarch64, with scp; [dropbear/README.md](../../dropbear/README.md)), when the speaker already runs dropbear from there; replaced on a first deploy or with `DROPBEAR=1`, the one before kept as `.prev` |
-| `<cfw>/openssh/{sshd,sshd-session,sshd-auth,sftp-server,scp,dropbearconvert}` (+ `.prev`), `ssh_host_ed25519_key`; `<cfw>/init.d/ssh.sh`; `<cfw>/ssh_server` (+ `.prev`) | the SSH server (the default; not with `SSH=dropbear`): OpenSSH, dropbear staying as the fallback, its host key converted from dropbear's, the script that starts the server `<cfw>/ssh_server` names; the owner's `trusted_user_ca_keys`, `principals/`, `sshd_config.local` next to it ([ssh.md](../ssh.md)) |
+| `<cfw>/bin/dropbearmulti`, `<cfw>/bin/scp` (a link to it), `dropbearmulti.prev` | the failsafe SSH server, our build of dropbear (static aarch64, with scp; [dropbear/README.md](../../dropbear/README.md)), when the speaker already runs dropbear from there; replaced on a first deploy or with `DROPBEAR=1`, the one before kept as `.prev` |
+| `<cfw>/openssh/{sshd,sshd-session,sshd-auth,sftp-server,scp,dropbearconvert}` (+ `.prev`), `ssh_host_ed25519_key`; `<cfw>/init.d/ssh.sh` (+ `.prev`) | the SSH server: OpenSSH, its host key converted from dropbear's, the script that starts it (dropbear when it can't); the owner's `trusted_user_ca_keys`, `principals/`, `sshd_config.local` next to it ([ssh.md](../ssh.md)) |
 | `<cfw>/bin/hostapd` | the access point for the Wi-Fi setup mode (static armv7, same binary for every board; [wifi-setup.md](../wifi-setup.md)) |
 | `<cfw>/sendspin/state.json` | its identity (stable client_id) and pairing records, 0600 |
 | `<cfw>/yastationd.conf` | config (generic `yastationd/configs/yastationd.conf.example`; Orion bring-up `orion.conf.example`) |
@@ -167,6 +167,7 @@ cd yastationd
 # local.mk (gitignored): DEVICE = root@<speaker>, SSHKEY = <key> (optional), PLATFORM = <codename>
 make platform-info                                 # confirms derived <cfw> and helper arch
 make stage                                         # creates <cfw>: binary + init hook copy (nothing starts)
+DROPBEAR=only ../tools/deploy.sh <hosts-file>      # SSH first: our dropbear as the failsafe, OpenSSH on port 22 (§4)
 make sounds                                        # vendor sounds -> <cfw>/sounds/*.wav (decoded in a container)
 make vqe-models [VQE_MODEL=<model_call.nnet>]      # intercom: the call-mode NR model (from the unit's firmware, else the file; orion has none yet)
 make clips                                         # firmware 0.369 only: its binary clock clips -> <cfw>/clips/*.scled
@@ -227,14 +228,16 @@ Then:
 
 ```sh
 make install-initd                                 # copies the hook into /etc/init.d (remount rw/ro)
-DROPBEAR=1 ../tools/deploy.sh <hosts-file>         # this speaker's line (§4)
+../tools/deploy.sh <hosts-file>                    # this speaker's line (§4)
 ```
+
+The `make` steps stream their files over plain ssh (`cat >`), so they work before OpenSSH is
+there; `tools/deploy.sh` copies with scp once its SSH step has run ([ssh.md](../ssh.md)).
 
 The deploy builds everything in docker, compares the daemon, supervisor, diagnostics collector and
 helpers with the speaker, and uploads only changed files. A daemon, supervisor or helper change
 restarts and checks the daemon; a diagnostics-only or no-change deploy leaves it running.
-`DROPBEAR=1` also puts our SSH server in (§4, optional). Now `wake: spotter ready` shows in the log
-if the wake word is on.
+Now `wake: spotter ready` shows in the log if the wake word is on.
 
 Reboot once (with the user's OK) and check that it all comes back on its own. On pickle, the first
 start after boot fails once (the ring LEDs appear late) and the supervisor restarts it 2 s later
@@ -294,9 +297,12 @@ as `.prev` → swaps → starts, checks that the daemon runs and prints its new 
 the daemon keeps running. Either way it ends the speaker with `ok`. It stops at the first failing
 speaker, so a broken build never reaches the rest.
 
+**SSH comes first.** Before it compares or uploads anything else on a speaker, `tools/deploy.sh`
+makes sure of OpenSSH there (below), because every later upload is an `scp`.
+
 **dropbear.** On a first deploy (no `yastationd` on the speaker yet; after `make stage` there is
-one, hence `DROPBEAR=1` in §2), or with `DROPBEAR=1`,
-`tools/deploy.sh` also replaces the speaker's SSH server with ours (`dropbear/`), where it runs from
+one, hence `DROPBEAR=only` in §2), or with `DROPBEAR=1`,
+`tools/deploy.sh` also replaces the speaker's dropbear with ours (`dropbear/`, the failsafe), where it runs from
 `<cfw>/bin/dropbearmulti`. The swap cannot lock you out on its own: the new binary first runs as a
 test server on port 2222 with the live listener's arguments (same host key); only a login through
 it does the swap, keeping the old binary as `dropbearmulti.prev`, and restarts the port-22
@@ -306,9 +312,9 @@ stops. `DROPBEAR=only` does only this, without building or updating anything els
 speakers that should keep their running build). The boot hook starts the same path, so a reboot keeps the new one. To go back by hand:
 `mv <cfw>/bin/dropbearmulti.prev <cfw>/bin/dropbearmulti` and restart the listener (or reboot).
 
-**OpenSSH on port 22.** Every deploy then makes OpenSSH the server on port 22 (`SSH=dropbear`
-keeps dropbear; with `DROPBEAR=only`, nothing else is updated), the same careful way: tried on
-port 2222, a login through it switches, a login on 22 confirms, else the previous one comes back.
+**OpenSSH on port 22.** Then every deploy makes OpenSSH the server on port 22 (with
+`DROPBEAR=only`, nothing else is updated), the same careful way: tried on port 2222, a login
+through it switches, a login on 22 confirms, else the previous one comes back.
 After the first switch the boot hook is made to start it too (a rootfs write, once; the kit's
 hook kept as the fallback). A speaker already on the same build is left alone. [ssh.md](../ssh.md).
 

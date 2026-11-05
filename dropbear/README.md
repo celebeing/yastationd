@@ -1,4 +1,4 @@
-# dropbear — the speakers' fallback SSH server
+# dropbear — the speakers' failsafe SSH server
 
 Our build of [dropbear](https://matt.ucc.asn.au/dropbear/dropbear.html), the SSH server the
 speakers run from `<cfw>/bin/dropbearmulti`. How a speaker got SSH in the first place is out of
@@ -11,8 +11,9 @@ this project's scope; this only keeps the server we already use current.
   `scp`. Sessions get `<cfw>/bin` on `PATH` (`localoptions.h`), so with the `scp` link there,
   `scp` to a speaker works (plain and `scp -O`). No SFTP server.
 - **Build:** `tools/build.sh dropbear` → `build/dropbearmulti` (docs/building.md).
-- **Since 2026-10-31 the fallback:** OpenSSH serves port 22 by default ([openssh/](../openssh/README.md),
-  [docs/ssh.md](../docs/ssh.md)); dropbear starts when OpenSSH can't, or with `SSH=dropbear`.
+- **The failsafe:** OpenSSH is the speakers' SSH server ([openssh/](../openssh/README.md),
+  [docs/ssh.md](../docs/ssh.md)); dropbear starts only when OpenSSH can't, and serves a first
+  install until `tools/deploy.sh` switches it.
 - **On a speaker:** `tools/deploy.sh` replaces the server on a first deploy or with `DROPBEAR=1`,
   through a test server on port 2222 (docs/guides/deploying.md, "Updating").
 

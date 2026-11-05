@@ -16,20 +16,20 @@
 # from hostapd/build/hostapd, else from a recorded build in your vendor tree ($VENDOR/builds/hostapd/<version>/armv7/hostapd, the newest); with neither, a
 # speaker that has no hostapd yet gets a warning (its Wi-Fi setup mode cannot start).
 #
-# dropbear (dropbear/: the fallback SSH server, and port 22's until OpenSSH takes over) is replaced
-# only on a first deploy (no yastationd on the speaker yet) or with DROPBEAR=1, and only where it
-# runs from <cfw>/bin/dropbearmulti. The new one is tried on port 2222 first and swaps itself in
-# from there; the old one stays as dropbearmulti.prev. DROPBEAR=only updates the SSH servers and
-# nothing else.
+# SSH first (docs/ssh.md): before anything else on a speaker, OpenSSH is made its server on port 22.
+# New binaries (or a speaker still on dropbear) are tried on port 2222 first and switched to on
+# port 22 from there; a speaker already running these binaries is left alone; the boot hook is made
+# to start it too (once: a rootfs write, the kit's hook kept as the fallback). That step streams
+# its files over plain ssh (`cat >`), which any server takes; everything after it is copied with
+# scp (SFTP), which only OpenSSH serves here.
 #
-# SSH=openssh (the default) | dropbear picks the speaker's SSH server (docs/ssh.md): a different
-# one, or new binaries, are tried on port 2222 first and switched to on port 22 from there; a
-# speaker already running these binaries is left alone. With openssh the boot hook is made to
-# start it too (once: a rootfs write, the kit's hook kept as the fallback). dropbear stays on the
-# speaker as that fallback. With DROPBEAR=only, the SSH server is all that is updated.
+# dropbear (dropbear/) stays on the speaker as the failsafe that starts when OpenSSH can't. It is
+# replaced only on a first deploy (no yastationd on the speaker yet) or with DROPBEAR=1, and only
+# where it runs from <cfw>/bin/dropbearmulti, through a test server on port 2222; the old one stays
+# as dropbearmulti.prev. DROPBEAR=only updates the SSH servers and nothing else.
 #
 # Env: SSHKEY (optional: the key to use; unset, ssh picks one from the agent and ~/.ssh/config),
-# VENDOR (optional, the vendor-tree checkout), DROPBEAR=1 | only (replace dropbear, above), NATIVE=1 (build yastationd with the host's
+# VENDOR (optional, the vendor-tree checkout), DROPBEAR=1 | only (above), NATIVE=1 (build yastationd with the host's
 # toolchain, ship the helpers as they are). Speakers are updated one at a time; the script stops
 # at the first failure so a broken build never reaches the rest.
 #
@@ -53,6 +53,8 @@ keyopt=
 [ -n "${SSHKEY:-}" ] && keyopt="-i $SSHKEY -o IdentitiesOnly=yes"
 # shellcheck disable=SC2086 # keyopt is two options or none
 ssh_() { ssh $keyopt -o BatchMode=yes -o ConnectTimeout=5 "$@"; }
+# shellcheck disable=SC2086 # keyopt is two options or none
+scp_() { scp -q $keyopt -o BatchMode=yes -o ConnectTimeout=5 "$@"; }
 # ssh_2222: the test server on port 2222, checked against the speaker's port-22 known_hosts
 # entry (its host key must be the same; known_hosts has no line for 2222).
 ssh_2222() { ssh_ -p 2222 -o HostKeyAlias="${target#*@}" "$target" "$@"; }
@@ -64,8 +66,18 @@ fail() {
 	echo "  FAILED: $*" >&2
 	exit 1
 }
-# put FILE REMOTE_CMD: stream a file to the speaker.
+# put FILE REMOTE_CMD: stream a file to the speaker over plain ssh. Only for the SSH step (any
+# server, dropbear included, takes it); after it, up/place.
 put() { ssh_ "$target" "$2" <"$1" || fail "upload of $(basename "$1") to $target"; }
+# up FILE REMOTE_PATH: copy a file to the speaker (scp over SFTP: OpenSSH, which the SSH step
+# made sure of).
+up() { scp_ "$1" "$target:$2" </dev/null || fail "upload of $(basename "$1") to $target"; }
+# place FILE REMOTE_PATH MODE: put a file in place atomically (copied aside as .new, then moved).
+place() {
+	ssh_ "$target" "mkdir -p ${2%/*}" </dev/null || fail "mkdir ${2%/*} on $target"
+	up "$1" "$2.new"
+	ssh_ "$target" "chmod $3 $2.new && mv $2.new $2" </dev/null || fail "putting $2 in place on $target"
+}
 
 # same_file LOCAL REMOTE: checksum equality is enough for deployment identity; this is not a
 # security boundary. The speaker has busybox md5sum and the script already needs md5sum for OpenSSH.
@@ -118,22 +130,18 @@ if [ "${NATIVE:-0}" != 1 ] && [ "${DROPBEAR:-0}" != only ]; then
 	done
 fi
 
-SSH=${SSH:-openssh}
-case $SSH in openssh | dropbear) ;; *)
-	echo "SSH=$SSH: openssh or dropbear" >&2
+[ -z "${SSH:-}" ] || [ "$SSH" = openssh ] || {
+	echo "SSH=$SSH: OpenSSH is the only server now (dropbear stays as its failsafe; docs/ssh.md)" >&2
 	exit 1
-	;;
-esac
+}
 
 echo "== build"
 if [ "${DROPBEAR:-0}" = only ]; then
-	"$here/tools/build.sh" dropbear
-	[ "$SSH" = dropbear ] || "$here/tools/build.sh" openssh
+	"$here/tools/build.sh" dropbear openssh
 elif [ "${NATIVE:-0}" = 1 ]; then
 	(cd "$here/yastationd" && make -s test build)
 else
-	targets="yastationd hostapd dropbear"
-	[ "$SSH" = dropbear ] || targets="$targets openssh"
+	targets="yastationd hostapd dropbear openssh"
 	for a in $arches; do targets="$targets sendspin:$a spotter-if:$a"; done
 	# shellcheck disable=SC2086 # targets is a list
 	"$here/tools/build.sh" $targets
@@ -230,77 +238,76 @@ EOF
 ossh=$here/openssh/build
 OSSH_BINS="sshd sshd-session sshd-auth sftp-server scp"
 
-# switch_ssh SERVER: make SERVER (openssh | dropbear) the speaker's SSH server on port 22, through
-# <cfw>/init.d/ssh.sh (docs/ssh.md). New files go up beside the live ones as .new; SERVER runs on
-# port 2222 from them first; a login through 2222 copies them into place, sets <cfw>/ssh_server
-# and restarts port 22 (sessions in progress stay up); a login on 22 confirms SERVER answers
-# there, else 2222 (still running from the .new files) puts the previous server back. Nothing
-# switched to OpenSSH, the boot hook is made to run ssh.sh (ssh_hook).
+# switch_ssh: make OpenSSH the speaker's server on port 22, through <cfw>/init.d/ssh.sh
+# (docs/ssh.md). New files go up beside the live ones as .new; OpenSSH runs on port 2222 from them
+# first; a login through 2222 copies them into place (the old ones as .prev) and restarts port 22
+# (sessions in progress stay up); a login on 22 confirms OpenSSH answers there, else 2222 (still
+# running from the .new files) puts the previous files back. Then the boot hook is made to run
+# ssh.sh (ssh_hook). The files are streamed (put): the speaker may still be on dropbear.
 switch_ssh() {
-	srv=$1
-	if [ "$srv" = openssh ]; then
-		for b in $OSSH_BINS dropbearconvert; do
-			[ -x "$ossh/$b" ] || fail "no $ossh/$b (tools/build.sh openssh)"
-		done
-		want=$(cd "$ossh" && md5sum $OSSH_BINS | cut -c1-32 | tr '\n' ' ')
-		have=$(ssh_ "$target" "cd $cfw/openssh 2>/dev/null && md5sum $OSSH_BINS 2>/dev/null | cut -c1-32 | tr '\n' ' '; cat $cfw/ssh_server 2>/dev/null; test -f /var/run/sshd-22.pid && kill -0 \$(cat /var/run/sshd-22.pid) && echo up;" </dev/null | tr '\n' ' ')
-		if [ "$have" = "${want}openssh up " ] && ssh_ "$target" "cat $cfw/init.d/ssh.sh" </dev/null | cmp -s - "$here/yastationd/init.d/ssh.sh"; then
-			echo "  ssh: openssh on port 22, up to date"
-			ssh_hook
-			return 0
-		fi
-		ssh_ "$target" "mkdir -p $cfw/openssh && chmod 755 $cfw/openssh" </dev/null || fail "mkdir $cfw/openssh on $target"
-		for b in $OSSH_BINS; do
-			put "$ossh/$b" "cat > $cfw/openssh/$b.new && chmod 755 $cfw/openssh/$b.new"
-		done
-		put "$ossh/dropbearconvert" "cat > $cfw/openssh/dropbearconvert && chmod 755 $cfw/openssh/dropbearconvert"
+	for b in $OSSH_BINS dropbearconvert; do
+		[ -x "$ossh/$b" ] || fail "no $ossh/$b (tools/build.sh openssh)"
+	done
+	want=$(cd "$ossh" && md5sum $OSSH_BINS | cut -c1-32 | tr '\n' ' ')
+	have=$(ssh_ "$target" "cd $cfw/openssh 2>/dev/null && md5sum $OSSH_BINS 2>/dev/null | cut -c1-32 | tr '\n' ' '; test -f /var/run/sshd-22.pid && kill -0 \$(cat /var/run/sshd-22.pid) && echo up;" </dev/null | tr '\n' ' ')
+	if [ "$have" = "${want}up " ] && ssh_ "$target" "cat $cfw/init.d/ssh.sh" </dev/null | cmp -s - "$here/yastationd/init.d/ssh.sh"; then
+		echo "  ssh: openssh on port 22, up to date"
+		ssh_hook
+		return 0
 	fi
-	put "$here/yastationd/init.d/ssh.sh" "mkdir -p $cfw/init.d && cat > $cfw/init.d/ssh.sh.new"
-	ssh_ "$target" "SERVER=$srv sh $cfw/init.d/ssh.sh.new test 2222 .new" </dev/null ||
-		fail "ssh: $srv did not start on port 2222 of $target; nothing changed"
+	ssh_ "$target" "mkdir -p $cfw/openssh $cfw/init.d && chmod 755 $cfw/openssh" </dev/null || fail "mkdir $cfw/openssh on $target"
+	for b in $OSSH_BINS; do
+		put "$ossh/$b" "cat > $cfw/openssh/$b.new && chmod 755 $cfw/openssh/$b.new"
+	done
+	put "$ossh/dropbearconvert" "cat > $cfw/openssh/dropbearconvert && chmod 755 $cfw/openssh/dropbearconvert"
+	put "$here/yastationd/init.d/ssh.sh" "cat > $cfw/init.d/ssh.sh.new"
+	ssh_ "$target" "sh $cfw/init.d/ssh.sh.new test 2222 .new" </dev/null ||
+		fail "ssh: openssh did not start on port 2222 of $target; nothing changed"
 	sleep 1
 	if ! ssh_2222 'sh -s' <<EOF
 set -e
 C=$cfw
 for b in $OSSH_BINS; do
-	[ -f \$C/openssh/\$b.new ] || continue
-	[ -f \$C/openssh/\$b ] && cp -p \$C/openssh/\$b \$C/openssh/\$b.prev
+	rm -f \$C/openssh/\$b.prev
+	if [ -f \$C/openssh/\$b ]; then cp -p \$C/openssh/\$b \$C/openssh/\$b.prev; fi
 	cp -p \$C/openssh/\$b.new \$C/openssh/\$b
 done
+rm -f \$C/init.d/ssh.sh.prev
+if [ -f \$C/init.d/ssh.sh ]; then cp -p \$C/init.d/ssh.sh \$C/init.d/ssh.sh.prev; fi
 cp \$C/init.d/ssh.sh.new \$C/init.d/ssh.sh
-if [ -f \$C/ssh_server ]; then cp -p \$C/ssh_server \$C/ssh_server.prev; else echo dropbear > \$C/ssh_server.prev; fi
-echo $srv > \$C/ssh_server
+# ssh.sh before v0.29 chose the server by this file; a rollback to it still needs openssh there.
+if [ -f \$C/ssh_server ]; then echo openssh > \$C/ssh_server; fi
 sh \$C/init.d/ssh.sh stop
 sleep 1
 sh \$C/init.d/ssh.sh start
 EOF
 	then
 		ssh_ "$target" "kill \$(cat /var/run/sshd-2222.pid)" </dev/null || true
-		fail "ssh: no login through $srv on port 2222 of $target; port 22 unchanged"
+		fail "ssh: no login through openssh on port 2222 of $target; port 22 unchanged"
 	fi
 	sleep 1
-	case $srv in
-	openssh) pid=/var/run/sshd-22.pid ;;
-	*) pid=/var/run/dropbear.pid ;;
-	esac
-	if ssh_ "$target" "test -f $pid && kill -0 \$(cat $pid) && kill \$(cat /var/run/sshd-2222.pid); rm -f $cfw/openssh/*.new $cfw/init.d/ssh.sh.new; true" </dev/null; then
-		echo "  ssh: $srv on port 22"
-		[ "$srv" = openssh ] && ssh_hook
+	if ssh_ "$target" "test -f /var/run/sshd-22.pid && kill -0 \$(cat /var/run/sshd-22.pid) && kill \$(cat /var/run/sshd-2222.pid); rm -f $cfw/openssh/*.new $cfw/init.d/ssh.sh.new $cfw/ssh_server $cfw/ssh_server.prev; true" </dev/null; then
+		echo "  ssh: openssh on port 22"
+		ssh_hook
 		return 0
 	fi
-	# Port 22 does not answer with SERVER: the previous one back, through 2222.
+	# Port 22 does not answer with OpenSSH: the previous files back, through 2222. Without a
+	# previous OpenSSH its binaries go, and ssh.sh starts dropbear.
 	ssh_2222 'sh -s' <<EOF || true
 C=$cfw
-mv \$C/ssh_server.prev \$C/ssh_server
+for b in $OSSH_BINS; do
+	if [ -f \$C/openssh/\$b.prev ]; then mv \$C/openssh/\$b.prev \$C/openssh/\$b; else rm -f \$C/openssh/\$b; fi
+done
+if [ -f \$C/init.d/ssh.sh.prev ]; then mv \$C/init.d/ssh.sh.prev \$C/init.d/ssh.sh; fi
 sh \$C/init.d/ssh.sh stop
 sleep 1
 sh \$C/init.d/ssh.sh start
 kill \$(cat /var/run/sshd-2222.pid)
 EOF
-	fail "ssh: $srv did not answer on port 22 of $target; the previous server is back"
+	fail "ssh: openssh did not answer on port 22 of $target; the previous server is back"
 }
 
-# ssh_hook: make the boot start <cfw>/init.d/ssh.sh (the server <cfw>/ssh_server names, falling
+# ssh_hook: make the boot start <cfw>/init.d/ssh.sh (OpenSSH, falling
 # back to dropbear) instead of the install kit's dropbear-only hook. A rootfs write (remount rw,
 # the original kept as <cfw>/init.d/S42zdropbear.orig and used when ssh.sh is missing or fails);
 # done once, after OpenSSH answered on port 22 (docs/ssh.md, "Boot").
@@ -311,14 +318,14 @@ C=$cfw
 H=/etc/init.d/S42zdropbear
 [ -f \$H ] || { echo "  ssh hook: no \$H here, not changed" >&2; exit 0; }
 grep -q 'init.d/ssh.sh' \$H && { echo "  ssh hook: already in place"; exit 0; }
-[ -f \$C/init.d/ssh.sh ] || { echo "  ssh hook: no \$C/init.d/ssh.sh yet (switch with SSH= first)" >&2; exit 1; }
+[ -f \$C/init.d/ssh.sh ] || { echo "  ssh hook: no \$C/init.d/ssh.sh yet" >&2; exit 1; }
 mkdir -p \$C/init.d
 [ -f \$C/init.d/S42zdropbear.orig ] || cp -p \$H \$C/init.d/S42zdropbear.orig
 mount -o remount,rw /
 trap 'sync; mount -o remount,ro /' EXIT
 cat > \$H.new <<'HOOK'
 #!/bin/sh
-# yastation: the speaker's SSH server, dropbear or OpenSSH (<cfw>/init.d/ssh.sh; docs/ssh.md).
+# yastation: the speaker's SSH server: OpenSSH, dropbear its failsafe (<cfw>/init.d/ssh.sh; docs/ssh.md).
 # The install kit's dropbear-only original is <cfw>/init.d/S42zdropbear.orig: it runs when
 # ssh.sh is missing or starts nothing.
 [ "\$1" = "start" ] || exit 0
@@ -380,13 +387,14 @@ grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target platform cfw arc
 	*) fail "$cfw/bin missing on $target — not installed here?" ;;
 	esac
 
-	if [ "${DROPBEAR:-0}" = only ]; then
-		update_dropbear
-		switch_ssh "$SSH"
-		continue
-	fi
 	first=0
 	ssh_ "$target" "test -e $cfw/bin/yastationd" </dev/null || first=1
+	# SSH first: everything below copies with scp, which needs OpenSSH.
+	if [ "$first" = 1 ] || [ "${DROPBEAR:-0}" != 0 ]; then
+		update_dropbear
+	fi
+	switch_ssh
+	[ "${DROPBEAR:-0}" = only ] && continue
 	# A failed earlier deploy can leave staged files. Never activate those during an unrelated
 	# later helper update: only uploads staged by this run may reach the swap below.
 	ssh_ "$target" "rm -f $cfw/bin/yastationd.upload $cfw/bin/spotter-host.upload $cfw/bin/sendspin-host.upload $cfw/bin/hostapd.upload" </dev/null ||
@@ -398,14 +406,14 @@ grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target platform cfw arc
 	if same_file "$bin" "$cfw/bin/yastationd"; then
 		echo "  yastationd: up to date"
 	else
-		put "$bin" "cat > $cfw/bin/yastationd.upload"
+		up "$bin" "$cfw/bin/yastationd.upload"
 		changed="$changed yastationd"
 		restart=1
 	fi
 	if same_file "$here/yastationd/init.d/supervise.sh" "$cfw/init.d/supervise.sh"; then
 		echo "  supervise: up to date"
 	else
-		put "$here/yastationd/init.d/supervise.sh" "mkdir -p $cfw/init.d && cat > $cfw/init.d/supervise.sh.new && mv $cfw/init.d/supervise.sh.new $cfw/init.d/supervise.sh"
+		place "$here/yastationd/init.d/supervise.sh" "$cfw/init.d/supervise.sh" 644
 		changed="$changed supervise"
 		restart=1
 	fi
@@ -413,7 +421,7 @@ grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target platform cfw arc
 	if same_file "$here/yastationd/scripts/diag.sh" "$cfw/bin/diag.sh"; then
 		echo "  diag: up to date"
 	else
-		put "$here/yastationd/scripts/diag.sh" "cat > $cfw/bin/diag.sh.new && chmod 755 $cfw/bin/diag.sh.new && mv $cfw/bin/diag.sh.new $cfw/bin/diag.sh"
+		place "$here/yastationd/scripts/diag.sh" "$cfw/bin/diag.sh" 755
 		diag_changed=1
 	fi
 	if [ -n "${arch:-}" ]; then
@@ -422,7 +430,7 @@ grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target platform cfw arc
 		if same_file "$sp" "$cfw/bin/spotter-host"; then
 			echo "  spotter-host: up to date"
 		else
-			put "$sp" "cat > $cfw/bin/spotter-host.upload"
+			up "$sp" "$cfw/bin/spotter-host.upload"
 			changed="$changed spotter-host"
 			restart=1
 		fi
@@ -431,7 +439,7 @@ grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target platform cfw arc
 			if same_file "$ss" "$cfw/bin/sendspin-host"; then
 				echo "  sendspin-host: up to date"
 			else
-				put "$ss" "cat > $cfw/bin/sendspin-host.upload"
+				up "$ss" "$cfw/bin/sendspin-host.upload"
 				changed="$changed sendspin-host"
 				restart=1
 			fi
@@ -441,7 +449,7 @@ grep -v '^[[:space:]]*\(#\|$\)' "$hosts" | while read -r target platform cfw arc
 		if same_file "$hap" "$cfw/bin/hostapd"; then
 			echo "  hostapd: up to date"
 		else
-			put "$hap" "cat > $cfw/bin/hostapd.upload"
+			up "$hap" "$cfw/bin/hostapd.upload"
 			changed="$changed hostapd"
 			restart=1
 		fi
@@ -476,8 +484,4 @@ EOF
 	else
 		echo "  ok (nothing changed; yastationd left running)"
 	fi
-	if [ "$first" = 1 ] || [ "${DROPBEAR:-0}" = 1 ]; then
-		update_dropbear
-	fi
-	switch_ssh "$SSH"
 done

@@ -252,8 +252,8 @@ of this project's scope: we assume you already have it.
   checks everything by itself.
 
 The speaker's SSH server is our OpenSSH build: user certificates signed by your own CA, SFTP and
-scp, modern algorithms including post-quantum key exchange. dropbear stays as the fallback:
-[docs/ssh.md](docs/ssh.md).
+scp, modern algorithms including post-quantum key exchange. dropbear stays only as the failsafe,
+for when OpenSSH does not come up: [docs/ssh.md](docs/ssh.md).
 - **If something does not work:** collect a diagnostics archive (`<cfw>/bin/diag.sh` on the
   speaker, `tools/diag-build.sh` for the build and deploy; secrets are stripped by default) and
   attach it to an issue — [docs/guides/diagnostics.md](docs/guides/diagnostics.md). To look for the

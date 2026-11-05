@@ -15,13 +15,15 @@
 #       pickle and orion have been through a reset. On any other board it refuses without
 #       UNTRIED=<board>: a package the recovery refuses there has no way back.
 #
-# Env: SSHKEY as for deploy.sh. The host needs docker, sh, ssh.
+# Env: SSHKEY as for deploy.sh. The host needs docker, sh, ssh (scp; the unit on OpenSSH, docs/ssh.md).
 set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
 keyopt=
 [ -n "${SSHKEY:-}" ] && keyopt="-i $SSHKEY -o IdentitiesOnly=yes"
 # shellcheck disable=SC2086 # keyopt is two options or none
 ssh_() { ssh $keyopt -o BatchMode=yes -o ConnectTimeout=5 "$target" "$@"; }
+# shellcheck disable=SC2086
+scp_() { scp -q $keyopt -o BatchMode=yes -o ConnectTimeout=5 "$@"; }
 die() { echo "golden: $*" >&2; exit 1; }
 
 # On the speaker: DEV = the aml_sysrecovery partition, for reading (a mtd or block device).
@@ -108,7 +110,8 @@ done
 echo "$d" >/tmp/golden.stage
 echo "$DEV, staging in $d"' </dev/null || die "the unit is not ready"
 	echo "== upload"
-	ssh_ 'cat >"$(cat /tmp/golden.stage)/golden.img"' <"$img" || die "upload"
+	stage=$(ssh_ 'cat /tmp/golden.stage' </dev/null) || die "the unit is not ready"
+	scp_ "$img" "$target:$stage/golden.img" </dev/null || die "upload (scp: the unit runs OpenSSH? tools/deploy.sh makes it)"
 	echo "== write"
 	ssh_ "$FINDDEV"'
 set -e

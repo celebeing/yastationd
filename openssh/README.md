@@ -16,7 +16,7 @@ fallback. How it is chosen, configured and switched to: [docs/ssh.md](../docs/ss
   `nobody` (the read-only rootfs has no `sshd` user) and directory `/tmp/sshd-empty` (made at
   start), the seccomp sandbox. Everything else comes from the config `ssh.sh` writes.
 - **Build:** `tools/build.sh openssh` → `build/` ([docs/building.md](../docs/building.md)).
-- **On a speaker:** `tools/deploy.sh` (the default; `SSH=dropbear` keeps dropbear) ([docs/ssh.md](../docs/ssh.md)).
+- **On a speaker:** `tools/deploy.sh`, as its first step on every speaker ([docs/ssh.md](../docs/ssh.md)).
 
 ## A new version
 
@@ -28,4 +28,4 @@ fallback. How it is chosen, configured and switched to: [docs/ssh.md](../docs/ss
    `B146 647E 45A7 B339 47AB  226B 2A2C 87D1 6169 2D40`.
 3. Put the versions and sha256s into `fetch.sh` and the directory names into the `Makefile`,
    delete `src/`, build, and try it on one speaker through port 2222 (docs/ssh.md, "Trying it by
-   hand"), then with `SSH=openssh`.
+   hand"), then with `tools/deploy.sh` on that one speaker.
