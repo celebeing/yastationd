@@ -110,6 +110,13 @@ func (a *App) onWakeEvent(ev wake.Event) {
 	default:
 		if a.alarmRinging() {
 			a.log.Info("alarm: near miss", "kind", ev.Kind, "phrase", ev.Phrase, "at", ev.At)
+			// The beep sits on the mics: a «стоп» over it often scores just under the threshold
+			// (seen 2026-11-05: a near miss, then a hit 2.4 s later). While it rings, a near miss of
+			// a stop word stops it; a wrong one costs only the ringing.
+			if ev.Kind == "SUBHIT:CMD" && isStop(ev.Phrase) {
+				a.log.Info("alarm: stopped by a near «стоп»")
+				a.stopAlarm()
+			}
 		} else {
 			a.log.Debug("wake: near miss", "kind", ev.Kind, "phrase", ev.Phrase)
 		}

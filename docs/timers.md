@@ -14,7 +14,8 @@ from and tells only it, over Wyoming: `timer-started`, `timer-updated` (paused, 
 - **Ringing**: `timer-finished` fires `timer_finished` (held: an amber blink, the ringing clip, the
   built-in beep unless the theme gives a sound) for about 20 s.
 - **Stopping**: any mapped key or the touch ring, «стоп» (the command spotter is armed while the
-  speaker makes sound, ringing included), or HA's stop command.
+  speaker makes sound, ringing included; over the ringing a near miss counts, below), or HA's stop
+  command.
 
 ## Timers that follow a person
 
@@ -51,6 +52,11 @@ While a timer rings, the command spotter's hits and near misses (`SUBHIT`) are l
 (`alarm: command heard`, `alarm: near miss`), and every stop with where it came from (`alarm:
 stopped by=…`). A «стоп» that did not stop the ringing shows there as a near miss or as nothing at
 all (the beep drowned it).
+
+The first log (2026-11-05) showed the miss: a «стоп» over the beep scored just under the command
+threshold (a near miss), the second one 2.4 s later a hit. So **while a timer rings, a near miss of
+a stop word stops it too** (`стоп`, `хватит`, `отмена`, `выключись`); a wrong one only silences
+the ringing.
 
 ## Config
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/celebeing/yastationd/yastationd/internal/voiceid"
+	"github.com/celebeing/yastationd/yastationd/internal/wake"
 )
 
 func timerMsg(t *testing.T, m sharedTimer) []byte {
@@ -89,5 +90,22 @@ func TestSharedTimerRequester(t *testing.T) {
 	r.noteVerdict(voiceid.Verdict{State: voiceid.Guest})
 	if _, ok := r.requester(0); ok {
 		t.Fatal("a guest was taken for the requester")
+	}
+}
+
+// A near-miss «стоп» over the beep stops the ringing; a near miss of another word does not.
+func TestNearStopStopsAlarm(t *testing.T) {
+	r := newRegressApp(t)
+	r.startAlarm()
+	if !alarmOn(r.App) {
+		t.Fatal("no alarm")
+	}
+	r.onWakeEvent(wake.Event{Kind: "SUBHIT:CMD", Phrase: "громче"})
+	if !alarmOn(r.App) {
+		t.Fatal("a near «громче» stopped the alarm")
+	}
+	r.onWakeEvent(wake.Event{Kind: "SUBHIT:CMD", Phrase: "стоп"})
+	if alarmOn(r.App) {
+		t.Fatal("a near «стоп» left the alarm ringing")
 	}
 }

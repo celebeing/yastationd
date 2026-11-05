@@ -3,6 +3,21 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## v0.28.0 — 2026-11-06
+
+**Timers follow the person**
+- A timer someone the speakers know by voice sets in one room also counts down and rings on that
+  person's own speakers, and «стоп» on any of them silences it everywhere; pause and cancel reach
+  them too (`timer_follow`, on; [docs/timers.md](docs/timers.md)).
+- A person's own speakers are a new field in the People tab ("Their speakers"), a link other
+  features can use later.
+- «Стоп» over a ringing timer works the first time more often: a stop word the spotter only nearly
+  heard over the beep counts while it rings.
+
+**The People tab**
+- A tidier card: click the name to rename, a Household switch, speakers as chips, Merge and Forget
+  under ⋯.
+
 ## v0.27.2 — 2026-11-06
 
 **Fixes**
