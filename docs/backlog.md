@@ -8,6 +8,11 @@ Review of 2026-10-28 (whole repo).
 
 ## Correctness
 
+- **The intercom target select right after a restart** (found 2026-11-06) — a restarted speaker
+  publishes `…_intercom_target`'s options before it has heard of the other speakers, so HA
+  logs "Invalid option … 'Гостиная' (valid options: ['Кабинет'])" for its saved value until the
+  peers arrive. Publish the options once the retained peer list is in, or keep the saved target
+  in them meanwhile. S.
 - **Config edits can be lost (race)** — `internal/app/settings.go` `apiSettings` /
   `applyConfigKeys` (sync, assets), `lightcal.go` `saveLuxCalibration`. Each reads the config
   file outside `confMu`; `applyConfigText` takes the lock only to write. A web save and a sync
@@ -111,6 +116,14 @@ Review of 2026-10-28 (whole repo).
 
 ## Hardcoded values
 
+- **The timer's ringing sound is hardwired** (found 2026-11-06) — `app/timers.go` `startAlarm` /
+  `beepPattern`: the beep (three 880 Hz tones, 8 rounds) is synthesized in code and played by
+  `startAlarm` itself whenever the `timer_finished` show has no sound; only the picture is the
+  moment's. Against the moments rule ([adding-a-feature.md](adding-a-feature.md): code fires the
+  moment and never plays a sound itself). Fix: ship the beep as a sound of the default theme
+  (`timer_finished` gets `Sound: "timer_beep"`, the pattern as a file or a built-in generated
+  sound), let the moment's show loop it for the ringing's length, and keep in code only how long it
+  rings and the stop. S–M.
 - `app/netwatch.go:143` `wlan0` → a board key (`platform.wifi_iface`) if a model differs. S.
 - `app/voice.go:138` `{"name": "alisa"}` in the detection event → from the wake model or the
   profile. S.

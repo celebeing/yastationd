@@ -46,6 +46,19 @@ way when HA starts the timer (the early verdict usually comes before).
 HA answers that there is none. Cancelling a followed timer by voice works on the speaker that was
 asked.
 
+**HA's Russian reply for a started timer fails on a number said as a word** (seen 2026-11-05, HA
+2026.9): «на одну минуту» gives the minutes slot as `одну`, the built-in response template does
+`| int` on it and raises, so HA returns `intent-failed` after the timer has started: the timer runs
+(and is shared), the speaker shows `voice_error`, and no confirmation is spoken. HA's side (its
+`HassStartTimer` response in `custom_sentences`, or upstream in home-assistant/intents); nothing to
+fix on the speaker.
+
+**On a Mini 3 the stop words over the ringing went unheard** (2026-11-05, a quiet voice next to
+the speaker): the command spotter gave neither a hit nor a near miss in the 14 s; the same model
+spots TTS «стоп» offline on that unit, and the same voice's «Алиса» was heard just before. Whether
+the voice was too quiet over the beep or the Mini's AGC/AEC under its own beep is the cause is
+open: a capture of what the spotter got while ringing would tell.
+
 ## «Стоп» while ringing: what the log keeps
 
 While a timer rings, the command spotter's hits and near misses (`SUBHIT`) are logged at info
