@@ -103,9 +103,16 @@ func (a *App) onWakeEvent(ev wake.Event) {
 			a.startWake(ev)
 		}
 	case "CMD":
+		if a.alarmRinging() { // a «стоп» that did not stop a timer is diagnosed from these
+			a.log.Info("alarm: command heard", "phrase", ev.Phrase, "at", ev.At)
+		}
 		a.onCommand(ev.Phrase)
 	default:
-		a.log.Debug("wake: near miss", "kind", ev.Kind, "phrase", ev.Phrase)
+		if a.alarmRinging() {
+			a.log.Info("alarm: near miss", "kind", ev.Kind, "phrase", ev.Phrase, "at", ev.At)
+		} else {
+			a.log.Debug("wake: near miss", "kind", ev.Kind, "phrase", ev.Phrase)
+		}
 		if ev.Kind == "SUBHIT:WAKE" {
 			a.lastSubhit.Store(&ev)
 		}

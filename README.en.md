@@ -64,6 +64,9 @@ packs replace any animation and add sounds to any event.
 - Announcements and TTS from HA (`assist_satellite.announce`, any media URL).
 - HA voice timers: countdown on the clock, an alarm on finish, any touch key stops it. A paused timer
   blinks its remainder briefly, then the clock comes back.
+- Timers follow the person: when the voice is known and the person has their own speakers set in the
+  People album, a timer set in the kitchen also counts down and rings in their room; «стоп» on any
+  speaker silences it everywhere ([docs/timers.md](docs/timers.md)).
 - Local reflexes while audio plays: «стоп», «громче», «тише» are handled on the device.
 - The replies speak with the voice your HA pipeline picks. The docs also cover a character voice:
   Silero through RVC on a server's GPU, as a second pipeline

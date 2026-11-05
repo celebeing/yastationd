@@ -92,6 +92,10 @@ marked as the household. The settings (Configuration → Voice → Voice ID):
 | `voice_unsure` | allow | with guests ignored: an unsure check (too little speech, a failed voiceprint) lets the request through, or `drop` |
 | `voice_bio_dir` | (found) | the models: `<cfw>/vendor/bio_lingware`, else the firmware's |
 
+**Their speakers** (the People tab, per person): the speakers that are this person's own (their
+room's), `places` in the album's edits and in the people every speaker gets. A link for any feature
+that follows a person; so far a timer they set elsewhere also rings there ([timers.md](timers.md)).
+
 **In the web app, the People tab** (below): the people, the log, the edits, and a Guests card with
 Ignore guests and the guest threshold themselves (the same settings, each with its share switch):
 dragging the threshold previews what it does to the last requests, letting go saves it.

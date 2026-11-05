@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"encoding/binary"
 	"math"
 	"sort"
@@ -32,12 +33,15 @@ type voiceTimer struct {
 	deadline time.Time     // when active
 	left     time.Duration // frozen remaining time when paused
 	active   bool
+	shared   *sharedTimer // a mirrored timer of another speaker (sharedtimers.go); nil = HA's own
 }
 
 type timers struct {
-	mu    sync.Mutex
-	m     map[string]*voiceTimer
-	alarm chan struct{} // closed to stop the running alarm; nil when idle
+	mu      sync.Mutex
+	m       map[string]*voiceTimer  // HA's own by id, mirrored ones by mirrorKey
+	alarm   chan struct{}           // closed to stop the running alarm; nil when idle
+	owned   map[string]*sharedTimer // own timers shared with a person's places, by HA id
+	ringing map[string]*sharedTimer // the shared timers the running alarm rings for
 }
 
 func (a *App) onTimerEvent(ev wyoming.Event) {
@@ -53,18 +57,32 @@ func (a *App) onTimerEvent(ev wyoming.Event) {
 		left := time.Duration(ev.Int("total_seconds", 0)) * time.Second
 		t.m[id] = &voiceTimer{deadline: now.Add(left), left: left, active: true}
 		defer a.hook("timer_started") // after the unlock below
+		defer a.shareTimer(id, timerRunning, now.Add(left), 0)
 	case wyoming.TypeTimerUpdated:
 		// total_seconds is the time left at the moment of the update.
 		left := time.Duration(ev.Int("total_seconds", 0)) * time.Second
 		active, _ := ev.Data["is_active"].(bool)
 		t.m[id] = &voiceTimer{deadline: now.Add(left), left: left, active: active}
+		if active {
+			defer a.shareTimer(id, timerRunning, now.Add(left), 0)
+		} else {
+			defer a.shareTimer(id, timerPaused, time.Time{}, left)
+		}
 	case wyoming.TypeTimerCancelled:
 		delete(t.m, id)
+		defer a.shareTimer(id, timerDone, time.Time{}, 0)
 	case wyoming.TypeTimerFinished:
 		delete(t.m, id)
+		if st := t.owned[id]; st != nil {
+			if t.ringing == nil {
+				t.ringing = map[string]*sharedTimer{}
+			}
+			t.ringing[id] = st
+		}
 		t.mu.Unlock()
 		a.log.Info("timer finished", "id", id)
 		a.refreshTimerDisplay()
+		a.shareTimer(id, timerRinging, time.Time{}, 0)
 		a.startAlarm()
 		return
 	}
@@ -165,11 +183,23 @@ func (a *App) endAlarm(stop chan struct{}) {
 	}
 	t.mu.Unlock()
 	a.endHook("timer_finished")
+	a.alarmStopped("") // rang out by itself: the shared timers end on every speaker too
+}
+
+// alarmRinging: a timer rings here now.
+func (a *App) alarmRinging() bool {
+	a.timers.mu.Lock()
+	defer a.timers.mu.Unlock()
+	return a.timers.alarm != nil
 }
 
 // stopAlarm silences a ringing alarm; reports whether one was ringing (so the key press that
-// stopped it is not also treated as a volume change).
-func (a *App) stopAlarm() bool {
+// stopped it is not also treated as a volume change). The shared timers it rang for stop on
+// every speaker.
+func (a *App) stopAlarm() bool { return a.stopAlarmBy("") }
+
+// stopAlarmBy is stopAlarm for a stop that came from speaker by ("" = this one).
+func (a *App) stopAlarmBy(by string) bool {
 	t := &a.timers
 	t.mu.Lock()
 	stop := t.alarm
@@ -178,6 +208,8 @@ func (a *App) stopAlarm() bool {
 	if stop == nil {
 		return false
 	}
+	a.log.Info("alarm: stopped", "by", cmp.Or(by, "this speaker"))
+	a.alarmStopped(by)
 	close(stop)
 	a.ringStack.Remove("alarm")
 	a.matrixStack.Remove("alarm")

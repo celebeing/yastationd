@@ -62,6 +62,7 @@ volume_beep  = true
 # led_held_brightness = 75                            (rings: the cap for what stays lit, the mute; %)
 # led_moment_brightness = 100                         (rings: the cap for flashes and reactions; %)
 # led_auto_brightness = true                          (both caps follow the display brightness / light sensor)
+# timer_follow = true                                (a known voice's timer also rings on their own speakers, People tab)
 # bluetooth_proxy = false                             (Station 3: Home Assistant's Bluetooth proxy over the ESPHome API, docs/esphome-api.md)
 # bluetooth_proxy_connections = 3
 # bluetooth_proxy_audio_pause = true

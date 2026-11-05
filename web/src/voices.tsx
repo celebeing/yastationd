@@ -208,6 +208,8 @@ function Album(p: Props & { v: Voices; reload: () => Promise<void> }) {
                 onSelect={() => setSel(sel === g.id ? '' : g.id)}
                 rename={(name) => act(() => api.renameVoice(peer.id, base, g.id, name))}
                 household={(on) => act(() => api.setHousehold(peer.id, base, g.id, on))}
+                peers={p.peers}
+                places={(ids) => act(() => api.setVoicePlaces(peer.id, base, g.id, ids))}
                 merge={(into) => act(() => api.mergeVoices(peer.id, base, g.id, into))}
                 forget={() =>
                   act(async () => {
@@ -296,11 +298,14 @@ function GroupCard(p: {
   onSelect: () => void
   rename: (name: string) => void
   household: (on: boolean) => void
+  peers: Peer[]
+  places: (ids: string[]) => void
   merge: (into: string) => void
   forget: () => void
 }) {
   const { g } = p
-  const [mode, setMode] = useState<'' | 'rename' | 'merge'>('')
+  const [mode, setMode] = useState<'' | 'rename' | 'merge' | 'places'>('')
+  const [picked, setPicked] = useState<string[]>(g.places || [])
   const [name, setName] = useState(g.name || '')
   const [into, setInto] = useState('')
   const speakers = (g.speakers || []).map(p.speakerName)
@@ -315,6 +320,7 @@ function GroupCard(p: {
         <span class="muted small">{facts.join(' · ')}</span>
         {g.noise && <span class="muted small">False wakes, noise and silence: requests with no words in them.</span>}
         {speakers.length > 0 && <span class="muted small">Heard by {speakers.join(', ')}</span>}
+        {(g.places || []).length > 0 && <span class="muted small">Their speakers: {(g.places || []).map(p.speakerName).join(', ')}</span>}
       </button>
       {mode === 'rename' && (
         <form
@@ -333,6 +339,36 @@ function GroupCard(p: {
             Cancel
           </button>
         </form>
+      )}
+      {mode === 'places' && (
+        <div class="vg-edit">
+          <p class="muted small">The speakers that are this person's own (their room): a timer they set elsewhere follows them there.</p>
+          {p.peers.map((x) => (
+            <label class="inline small">
+              <input
+                type="checkbox"
+                checked={picked.includes(x.id)}
+                onChange={(e) => setPicked(e.currentTarget.checked ? [...picked, x.id] : picked.filter((y) => y !== x.id))}
+              />{' '}
+              {x.name || x.id}
+            </label>
+          ))}
+          <div class="row tight">
+            <button
+              class="primary"
+              disabled={p.busy}
+              onClick={() => {
+                setMode('')
+                p.places(picked)
+              }}
+            >
+              Save
+            </button>
+            <button class="ghost" onClick={() => setMode('')}>
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
       {mode === 'merge' && (
         <div class="row tight vg-edit">
@@ -374,6 +410,11 @@ function GroupCard(p: {
               title={g.household ? 'Its requests count as a guest’s again' : 'Its requests are taken: not a guest'}
             >
               {g.household ? 'Not household' : 'Household'}
+            </button>
+          )}
+          {!g.noise && (
+            <button class="ghost" disabled={p.busy} onClick={() => (setPicked(g.places || []), setMode('places'))}>
+              Their speakers
             </button>
           )}
           {!g.noise && p.others.length > 0 && (

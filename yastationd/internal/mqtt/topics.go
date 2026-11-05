@@ -95,6 +95,13 @@ func (t Topics) AvailabilityID(topic string) string {
 
 func (t Topics) VoicePeople() string { return fmt.Sprintf("%s/voice/people", t.prefix) }
 
+// Timer is a shared (follow-me) timer of this speaker (retained; docs/timers.md); TimerAll every
+// speaker's.
+func (t Topics) Timer(owner, id string) string {
+	return fmt.Sprintf("%s/timers/%s/%s", t.prefix, owner, id)
+}
+func (t Topics) TimerAll() string { return fmt.Sprintf("%s/timers/+/+", t.prefix) }
+
 // DisplayCmd is the one-shot overlay command topic (JSON {surface,op,args,ttl_ms,priority}).
 func (t Topics) DisplayCmd() string { return fmt.Sprintf("%s/%s/display/cmd", t.prefix, t.id) }
 

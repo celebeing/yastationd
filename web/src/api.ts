@@ -472,6 +472,8 @@ export type VoiceGroup = {
   /** the newest member's time, unix ms */
   last: number
   speakers: string[] | null
+  /** the person's own speakers (device_ids): where features that follow a person reach them */
+  places?: string[]
 }
 /** GET /api/voices: every speaker with voice ID says where the store is; the store adds the album. */
 export type Voices = {
@@ -529,6 +531,9 @@ export const renameVoice = (id: string, base: string, group: string, name: strin
 /** setHousehold: the group is one of the household (its requests are taken), or not (a guest's). */
 export const setHousehold = (id: string, base: string, group: string, household: boolean) =>
   authed<Ok>(id, base, '/api/voices/groups/' + encodeURIComponent(group), { method: 'POST', body: JSON.stringify({ household }) })
+/** setVoicePlaces: the speakers that are this person's own (device_ids; none = no link). */
+export const setVoicePlaces = (id: string, base: string, group: string, places: string[]) =>
+  authed<Ok>(id, base, '/api/voices/groups/' + encodeURIComponent(group), { method: 'POST', body: JSON.stringify({ places }) })
 export const forgetVoice = (id: string, base: string, group: string) =>
   authed<Ok & { forgotten: number }>(id, base, '/api/voices/groups/' + encodeURIComponent(group), { method: 'DELETE' })
 export const mergeVoices = (id: string, base: string, from: string, into: string) =>

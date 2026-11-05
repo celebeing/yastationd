@@ -207,6 +207,8 @@ type Config struct {
 	// that started last; the other is paused (Bluetooth) or muted (Music Assistant). mix = both.
 	MusicOverlap string
 	// The ESPHome native API, for the Bluetooth proxy only (docs/esphome-api.md).
+	// A timer a known voice sets also counts down and rings on that person's own speakers.
+	TimerFollow               bool
 	BluetoothProxy            bool
 	BluetoothProxyConnections int  // GATT connections at once
 	BluetoothProxyAudioPause  bool // the scan pauses while a phone streams over the same radio
@@ -353,6 +355,7 @@ func Default() Config {
 		BluetoothVolume:           "separate",
 		BluetoothPairing:          "confirmed",
 		MusicOverlap:              "newest",
+		TimerFollow:               true,
 		BluetoothProxyConnections: 3,
 		BluetoothProxyAudioPause:  true,
 		ESPHomePort:               6053,

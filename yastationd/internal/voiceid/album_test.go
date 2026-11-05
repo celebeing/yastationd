@@ -274,3 +274,40 @@ func TestAlbumJoinsASplitVoice(t *testing.T) {
 		t.Error("an entry the owner moved out was merged back")
 	}
 }
+
+// A person's own speakers: set, carried to People, kept by a merge, dropped by forgetting.
+func TestAlbumPlaces(t *testing.T) {
+	r := rand.New(rand.NewSource(3))
+	var at int64
+	al := NewAlbum()
+	for _, e := range voice(r, 10, "a", 0.1, &at) {
+		al.Add(e)
+	}
+	for _, e := range voice(r, 10, "b", 0.9, &at) {
+		al.Add(e)
+	}
+	gs := al.Groups()
+	ga, gb := gs[0].ID, gs[1].ID
+	if err := al.SetPlaces(ga, []string{"kitchen", " study ", "kitchen", ""}); err != nil {
+		t.Fatal(err)
+	}
+	al.SetHousehold(ga, true)
+	if p := al.People(); len(p) != 1 || fmt.Sprint(p[0].Places) != "[kitchen study]" {
+		t.Fatalf("people: %+v", p)
+	}
+	al.SetPlaces(gb, []string{"bedroom"})
+	if err := al.Merge(gb, ga); err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprint(al.Edits.Places[ga]); got != "[kitchen study bedroom]" {
+		t.Fatalf("after the merge: %s", got)
+	}
+	if err := al.SetPlaces(ga, nil); err != nil || al.Edits.Places[ga] != nil {
+		t.Fatal("places not cleared")
+	}
+	al.SetPlaces(ga, []string{"study"})
+	al.Forget(ga)
+	if len(al.Edits.Places) != 0 {
+		t.Fatal("a forgotten person kept their places")
+	}
+}

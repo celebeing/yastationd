@@ -8,6 +8,7 @@ type Person struct {
 	ID       string    `json:"id"`
 	Name     string    `json:"name"`
 	Gender   string    `json:"gender,omitempty"`
+	Places   []string  `json:"places,omitempty"` // the person's own speakers (device_ids)
 	Centroid []float32 `json:"centroid"`
 }
 

@@ -382,6 +382,9 @@ func init() {
 	reg(Key{Name: "voice_id", Group: "voice_id", Label: "Recognise voices", Sync: true,
 		Doc: "Tells who is talking from the voice, with the speaker's own voiceprint model, on the speaker: no server, no cloud. HA gets the person's name (or guest), the gender and whether the voice is the household's, before it acts on the request. People appear by themselves in the People tab as they talk, to be named and marked as the household there; until someone is marked every voice is unknown. Needs the firmware's voice models (Mini 3 0.369, Mini 3 Pro, Station 3; other firmware: make voice-models)."},
 		boolV(func(c *Config) *bool { return &c.VoiceID }))
+	reg(Key{Name: "timer_follow", Group: "voice_id", Label: "Timers follow the person", Runtime: true, Sync: true,
+		Doc: "A timer someone the household's voices know sets on this speaker also counts down and rings on that person's own speakers (Their speakers, in the People tab); stopping it on any of them stops it everywhere. Off: the timer stays on the speaker that was asked."},
+		boolV(func(c *Config) *bool { return &c.TimerFollow }))
 	reg(Key{Name: "voice_store", Group: "voice_id", Label: "Keep the voices here",
 		Doc: "This speaker keeps the log of requests and the voice groups for the whole household, and hosts the People tab; the others send it what they hear. Turn it on for one speaker, a Station 3 if there is one (more flash, a faster CPU). Voiceprints are biometric data: they stay on this speaker's flash and the home's broker."},
 		boolV(func(c *Config) *bool { return &c.VoiceStore }))

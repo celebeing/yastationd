@@ -321,6 +321,7 @@ func (t *voiceTake) noteTranscript(text string) {
 
 // publishVerdict updates HA's voice sensors.
 func (a *App) publishVerdict(v voiceid.Verdict) {
+	a.noteVerdict(v)
 	state := v.State
 	if v.State == voiceid.Known {
 		state = v.Name

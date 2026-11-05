@@ -73,6 +73,7 @@ func (a *App) subscribe() {
 	a.intercomSubscribe()
 	a.mqtt.Subscribe(t.Arbitration(), a.onArbitrationClaim)
 	a.mqtt.SubscribeTopic(t.WebInfoAll(), a.onWebInfo)
+	a.mqtt.SubscribeTopic(t.TimerAll(), a.onSharedTimer) // timers that follow a person (sharedtimers.go)
 	a.syncSubscribe()
 	if a.vid != nil {
 		a.mqtt.Subscribe(t.VoicePeople(), a.onVoicePeople)

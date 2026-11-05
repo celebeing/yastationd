@@ -62,6 +62,9 @@ func (a *App) newVoiceStore() *voiceStore {
 			if e.Pins != nil {
 				st.al.Edits.Pins = e.Pins
 			}
+			if e.Places != nil {
+				st.al.Edits.Places = e.Places
+			}
 			if e.Home != nil {
 				st.al.Edits.Home = e.Home
 			} else { // edits from before the household mark: a name made one
@@ -282,10 +285,11 @@ func (a *App) apiVoices(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(rest, "groups/"):
 		id := strings.TrimPrefix(rest, "groups/")
 		switch r.Method {
-		case http.MethodPost: // {name} and/or {household}
+		case http.MethodPost: // {name}, {household} and/or {places}
 			var req struct {
 				Name      *string
 				Household *bool
+				Places    *[]string
 			}
 			if !readJSON(w, r, &req) {
 				return
@@ -297,7 +301,12 @@ func (a *App) apiVoices(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 				if req.Household != nil {
-					return al.SetHousehold(id, *req.Household)
+					if err := al.SetHousehold(id, *req.Household); err != nil {
+						return err
+					}
+				}
+				if req.Places != nil {
+					return al.SetPlaces(id, *req.Places)
 				}
 				return nil
 			})

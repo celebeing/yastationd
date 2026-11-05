@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 )
 
 // The album (docs/voice-id.md, "voices like faces in a photo album"): every request's voiceprint
@@ -61,8 +62,9 @@ type Group struct {
 	Count    int       `json:"count"`
 	Female   float64   `json:"female"` // the members' mean (-1: no classifier)
 	Gender   string    `json:"gender"`
-	Last     int64     `json:"last"` // the newest member's time
-	Speakers []string  `json:"speakers"`
+	Last     int64     `json:"last"`             // the newest member's time
+	Speakers []string  `json:"speakers"`         // the speakers that heard it
+	Places   []string  `json:"places,omitempty"` // the person's own speakers (Edits.Places)
 	Centroid []float32 `json:"-"`
 	sum      []float64
 	nFemale  int
@@ -73,6 +75,9 @@ type Edits struct {
 	Names map[string]string `json:"names"`     // group → name
 	Home  map[string]bool   `json:"household"` // groups marked as the household (not guests)
 	Pins  map[string]string `json:"pins"`      // entry → group
+	// Places: group → the device_ids of the speakers that are this person's own (their room's):
+	// a link any feature may use (where to follow them), set by the owner in the People tab.
+	Places map[string][]string `json:"places,omitempty"`
 }
 
 // Album groups entries.
@@ -85,7 +90,7 @@ type Album struct {
 
 // NewAlbum makes an empty album.
 func NewAlbum() *Album {
-	al := &Album{Edits: Edits{Names: map[string]string{}, Home: map[string]bool{}, Pins: map[string]string{}}}
+	al := &Album{Edits: Edits{Names: map[string]string{}, Home: map[string]bool{}, Pins: map[string]string{}, Places: map[string][]string{}}}
 	al.Regroup()
 	return al
 }
@@ -191,7 +196,7 @@ func (al *Album) group(id string) *Group {
 	g := al.groups[id]
 	if g == nil {
 		g = &Group{ID: id, Noise: id == Noise, Name: al.Edits.Names[id], Home: al.Edits.Home[id],
-			Female: -1, Gender: Unknown, Speakers: []string{}}
+			Places: al.Edits.Places[id], Female: -1, Gender: Unknown, Speakers: []string{}}
 		al.groups[id] = g
 	}
 	return g
@@ -330,7 +335,7 @@ func (al *Album) People() []Person {
 			if name == "" {
 				name = g.ID
 			}
-			out = append(out, Person{ID: g.ID, Name: name, Gender: g.Gender, Centroid: g.Centroid})
+			out = append(out, Person{ID: g.ID, Name: name, Gender: g.Gender, Places: g.Places, Centroid: g.Centroid})
 		}
 	}
 	return out
@@ -379,6 +384,36 @@ func (al *Album) Rename(id, name string) error {
 	return nil
 }
 
+// SetPlaces sets the speakers that are group id's person's own (device_ids; none = no link).
+// The group's entries are pinned, as for a name.
+func (al *Album) SetPlaces(id string, places []string) error {
+	g := al.groups[id]
+	if g == nil || g.Noise {
+		return fmt.Errorf("no group %s", id)
+	}
+	al.pinGroup(id, nil)
+	al.setPlaces(id, places)
+	al.Regroup()
+	return nil
+}
+
+func (al *Album) setPlaces(id string, places []string) {
+	if al.Edits.Places == nil {
+		al.Edits.Places = map[string][]string{}
+	}
+	var out []string
+	for _, p := range places {
+		if p = strings.TrimSpace(p); p != "" && !contains(out, p) {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		delete(al.Edits.Places, id)
+		return
+	}
+	al.Edits.Places[id] = out
+}
+
 // Merge moves every entry of group from into group into.
 func (al *Album) Merge(from, into string) error {
 	if al.groups[from] == nil || al.groups[into] == nil || from == into {
@@ -396,8 +431,12 @@ func (al *Album) Merge(from, into string) error {
 	if al.Edits.Home[from] {
 		al.Edits.Home[into] = true
 	}
+	if p := al.Edits.Places[from]; len(p) > 0 {
+		al.setPlaces(into, append(append([]string(nil), al.Edits.Places[into]...), p...))
+	}
 	delete(al.Edits.Names, from)
 	delete(al.Edits.Home, from)
+	delete(al.Edits.Places, from)
 	al.Regroup()
 	return nil
 }
@@ -433,6 +472,7 @@ func (al *Album) Forget(id string) int {
 	al.Entries = keep
 	delete(al.Edits.Names, id)
 	delete(al.Edits.Home, id)
+	delete(al.Edits.Places, id)
 	for eid, gid := range al.Edits.Pins {
 		if gid == id {
 			delete(al.Edits.Pins, eid)
