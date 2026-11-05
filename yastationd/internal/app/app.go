@@ -95,7 +95,7 @@ type App struct {
 	bluetoothVolumeReady atomic.Bool
 	bluetoothDuckMu      sync.Mutex
 	bluetoothDuckRaw     int
-	media                mediaState // the music sources (media.go)
+	media                mediaState                 // the music sources (media.go)
 	lastVoice            atomic.Pointer[heardVoice] // the latest voice verdict here (sharedtimers.go)
 
 	ringStack   *display.Stack[display.RingFrame]
