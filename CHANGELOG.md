@@ -3,7 +3,7 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.29.0 — 2026-11-06
 
 **SSH**
 - OpenSSH is the speaker's only SSH server; dropbear stays as the failsafe that starts when
