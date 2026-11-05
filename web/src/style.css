@@ -305,12 +305,21 @@ details.help li { margin: 0.25rem 0; }
 .vgroup.named { border-left: 3px solid var(--accent); }
 .vgroup.noise { background: color-mix(in srgb, var(--fg) 3%, var(--card)); }
 .vgroup.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
-.vg-head { display: flex; flex-direction: column; gap: 0.15rem; text-align: left; border: 0; border-radius: 0; background: transparent; padding: 0.75rem 0.9rem 0.4rem; }
-.vg-head:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.vg-top { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.75rem 0.9rem 0.1rem; }
+.vg-name.link { border: 0; background: transparent; padding: 0; text-align: left; color: inherit; cursor: pointer; }
+.vg-home { display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap; color: var(--muted); }
+.vg-home .switch { transform: scale(0.8); }
+.vg-rename { flex: 1; }
+.vg-rename input { flex: 1 1 6rem; min-width: 0; }
+.vg-facts { border: 0; background: transparent; text-align: left; padding: 0 0.9rem 0.3rem; cursor: pointer; }
+.vg-facts:hover { color: var(--fg); }
+.vg-row { padding: 0.2rem 0.9rem; margin: 0; }
+.vg-row .chips { margin-top: 0.2rem; }
+.vg-k { display: block; font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.chip.pick { cursor: pointer; background: transparent; }
+.chip.pick.on { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.vg-more { margin-top: auto; padding: 0.2rem 0.9rem 0.6rem; display: flex; justify-content: flex-end; }
 .vg-name { font-weight: 600; font-size: 1.05rem; overflow-wrap: anywhere; }
-.vg-actions, .vg-edit { padding: 0 0.9rem 0.75rem; margin-top: 0.3rem; }
-.vg-actions button { font-size: 0.85rem; padding: 0.25rem 0.6rem; }
-.vg-edit input, .vg-edit select { flex: 1 1 8rem; min-width: 0; }
 .vlog-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
 ul.vlog { list-style: none; margin: 0.5rem 0 0; padding: 0; }
 ul.vlog li { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) auto; gap: 0.3rem 0.9rem; align-items: start; padding: 0.55rem 0; border-top: 1px solid var(--line); }

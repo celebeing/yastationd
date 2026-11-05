@@ -96,6 +96,10 @@ marked as the household. The settings (Configuration → Voice → Voice ID):
 room's), `places` in the album's edits and in the people every speaker gets. A link for any feature
 that follows a person; so far a timer they set elsewhere also rings there ([timers.md](timers.md)).
 
+**A person's card** in the People tab: the name (click it to name or rename), a Household switch,
+the facts (click them to show the person's requests in the log), Heard by, Their speakers as chips
+to switch on and off (household only), and ⋯ for Merge into and Forget.
+
 **In the web app, the People tab** (below): the people, the log, the edits, and a Guests card with
 Ignore guests and the guest threshold themselves (the same settings, each with its share switch):
 dragging the threshold previews what it does to the last requests, letting go saves it.

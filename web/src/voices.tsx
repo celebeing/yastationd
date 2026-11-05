@@ -304,127 +304,113 @@ function GroupCard(p: {
   forget: () => void
 }) {
   const { g } = p
-  const [mode, setMode] = useState<'' | 'rename' | 'merge' | 'places'>('')
-  const [picked, setPicked] = useState<string[]>(g.places || [])
+  const [editing, setEditing] = useState(false)
   const [name, setName] = useState(g.name || '')
+  const [more, setMore] = useState(false)
   const [into, setInto] = useState('')
-  const speakers = (g.speakers || []).map(p.speakerName)
+  const places = g.places || []
   const facts = [genderOf(g), plural(g.count, 'phrase'), g.last ? 'last heard ' + since(g.last) : ''].filter(Boolean)
+  const toggle = (id: string) => p.places(places.includes(id) ? places.filter((x) => x !== id) : [...places, id])
   return (
     <article class={'vgroup' + (p.selected ? ' sel' : '') + (g.household ? ' named' : '') + (g.noise ? ' noise' : '')}>
-      <button class="vg-head" onClick={p.onSelect} aria-pressed={p.selected} title={p.selected ? 'Show all requests' : 'Show its requests'}>
-        <span class="vg-name">
-          {p.label}
-          {g.household && <span class="tag">household</span>}
-        </span>
-        <span class="muted small">{facts.join(' · ')}</span>
-        {g.noise && <span class="muted small">False wakes, noise and silence: requests with no words in them.</span>}
-        {speakers.length > 0 && <span class="muted small">Heard by {speakers.join(', ')}</span>}
-        {(g.places || []).length > 0 && <span class="muted small">Their speakers: {(g.places || []).map(p.speakerName).join(', ')}</span>}
-      </button>
-      {mode === 'rename' && (
-        <form
-          class="row tight vg-edit"
-          onSubmit={(e) => {
-            e.preventDefault()
-            setMode('')
-            p.rename(name.trim())
-          }}
-        >
-          <input value={name} aria-label="Name" placeholder="A name" maxLength={40} onInput={(e) => setName(e.currentTarget.value)} autofocus />
-          <button type="submit" disabled={p.busy || (!name.trim() && !g.name)}>
-            {name.trim() || !g.name ? 'Save' : 'Remove the name'}
-          </button>
-          <button type="button" class="ghost" onClick={() => setMode('')}>
-            Cancel
-          </button>
-        </form>
-      )}
-      {mode === 'places' && (
-        <div class="vg-edit">
-          <p class="muted small">The speakers that are this person's own (their room): a timer they set elsewhere follows them there.</p>
-          {p.peers.map((x) => (
-            <label class="inline small">
-              <input
-                type="checkbox"
-                checked={picked.includes(x.id)}
-                onChange={(e) => setPicked(e.currentTarget.checked ? [...picked, x.id] : picked.filter((y) => y !== x.id))}
-              />{' '}
-              {x.name || x.id}
-            </label>
-          ))}
-          <div class="row tight">
-            <button
-              class="primary"
-              disabled={p.busy}
-              onClick={() => {
-                setMode('')
-                p.places(picked)
-              }}
-            >
-              Save
-            </button>
-            <button class="ghost" onClick={() => setMode('')}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-      {mode === 'merge' && (
-        <div class="row tight vg-edit">
-          <select aria-label="Merge into" value={into} onChange={(e) => setInto(e.currentTarget.value)}>
-            <option value="">Merge into…</option>
-            {p.others.map((o) => (
-              <option value={o.id}>
-                {p.L.label(o.id)} ({o.count})
-              </option>
-            ))}
-          </select>
-          <button
-            class="primary"
-            disabled={p.busy || !into}
-            onClick={() => {
-              setMode('')
-              p.merge(into)
+      <div class="vg-top">
+        {editing ? (
+          <form
+            class="row tight vg-rename"
+            onSubmit={(e) => {
+              e.preventDefault()
+              setEditing(false)
+              if (name.trim() !== (g.name || '')) p.rename(name.trim())
             }}
           >
-            Merge
+            <input value={name} aria-label="Name" placeholder="A name" maxLength={40} onInput={(e) => setName(e.currentTarget.value)} autofocus />
+            <button type="submit" disabled={p.busy}>
+              Save
+            </button>
+            <button type="button" class="ghost" onClick={() => setEditing(false)}>
+              Cancel
+            </button>
+          </form>
+        ) : g.noise ? (
+          <span class="vg-name">{p.label}</span>
+        ) : (
+          <button class="vg-name link" disabled={p.busy} title={g.name ? 'Rename' : 'Name this voice'} onClick={() => (setName(g.name || ''), setEditing(true))}>
+            {p.label} <span class="muted small">✎</span>
           </button>
-          <button class="ghost" onClick={() => setMode('')}>
-            Cancel
-          </button>
+        )}
+        {!g.noise && !editing && (
+          <label class="vg-home small" title={g.household ? 'Its requests are taken: not a guest' : 'Its requests count as a guest’s'}>
+            <span class="switch">
+              <input type="checkbox" checked={!!g.household} disabled={p.busy} onChange={(e) => p.household(e.currentTarget.checked)} />
+              <span />
+            </span>
+            household
+          </label>
+        )}
+      </div>
+      <button class="vg-facts muted small" onClick={p.onSelect} aria-pressed={p.selected} title={p.selected ? 'Show all requests' : 'Show its requests in the log'}>
+        {facts.join(' · ')} {p.selected ? '· shown below' : '›'}
+      </button>
+      {g.noise && <p class="vg-row muted small">False wakes, noise and silence: requests with no words in them.</p>}
+      {(g.speakers || []).length > 0 && (
+        <div class="vg-row">
+          <span class="vg-k">Heard by</span>
+          <span class="chips">
+            {(g.speakers || []).map((id) => (
+              <span class="chip">{p.speakerName(id)}</span>
+            ))}
+          </span>
         </div>
       )}
-      {!mode && (
-        <div class="row tight vg-actions">
-          {!g.noise && (
-            <button class="ghost" disabled={p.busy} onClick={() => (setName(g.name || ''), setMode('rename'))}>
-              {g.name ? 'Rename' : 'Name'}
-            </button>
-          )}
-          {!g.noise && (
-            <button
-              class="ghost"
-              disabled={p.busy}
-              onClick={() => p.household(!g.household)}
-              title={g.household ? 'Its requests count as a guest’s again' : 'Its requests are taken: not a guest'}
-            >
-              {g.household ? 'Not household' : 'Household'}
-            </button>
-          )}
-          {!g.noise && (
-            <button class="ghost" disabled={p.busy} onClick={() => (setPicked(g.places || []), setMode('places'))}>
-              Their speakers
-            </button>
-          )}
-          {!g.noise && p.others.length > 0 && (
-            <button class="ghost" disabled={p.busy} onClick={() => (setInto(''), setMode('merge'))}>
-              Merge into…
-            </button>
-          )}
-          <Confirm ghost label={g.noise ? 'Clear' : 'Forget'} ask={g.noise ? 'Delete these requests?' : `Really forget ${p.label}?`} busy={p.busy} onYes={p.forget} />
+      {g.household && !g.noise && p.peers.length > 0 && (
+        <div class="vg-row">
+          <span class="vg-k" title="The speakers that are this person's own (their room): what follows them, such as a timer they set elsewhere, reaches them there">
+            Their speakers
+          </span>
+          <span class="chips">
+            {p.peers.map((x) => (
+              <button class={'chip pick' + (places.includes(x.id) ? ' on' : '')} aria-pressed={places.includes(x.id)} disabled={p.busy} onClick={() => toggle(x.id)}>
+                {x.name || x.id}
+              </button>
+            ))}
+          </span>
         </div>
       )}
+      <div class="vg-more">
+        {!more ? (
+          <button class="ghost small" onClick={() => (setInto(''), setMore(true))} aria-label="More">
+            ⋯
+          </button>
+        ) : (
+          <div class="row tight">
+            {!g.noise && p.others.length > 0 && (
+              <>
+                <select aria-label="Merge into" value={into} onChange={(e) => setInto(e.currentTarget.value)}>
+                  <option value="">Merge into…</option>
+                  {p.others.map((o) => (
+                    <option value={o.id}>
+                      {p.L.label(o.id)} ({o.count})
+                    </option>
+                  ))}
+                </select>
+                <button
+                  disabled={p.busy || !into}
+                  onClick={() => {
+                    setMore(false)
+                    p.merge(into)
+                  }}
+                >
+                  Merge
+                </button>
+              </>
+            )}
+            <Confirm ghost label={g.noise ? 'Clear' : 'Forget'} ask={g.noise ? 'Delete these requests?' : `Really forget ${p.label}?`} busy={p.busy} onYes={p.forget} />
+            <button class="ghost" onClick={() => setMore(false)}>
+              Close
+            </button>
+          </div>
+        )}
+      </div>
     </article>
   )
 }
