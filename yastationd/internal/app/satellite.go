@@ -164,6 +164,14 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 			a.unexpress("voice")
 			break
 		}
+		if ev.String("code") == "duplicate_wake_up_detected" {
+			// HA starts a second pipeline by itself when audio it had not read yet arrives after
+			// the first one ended but before it forgot the wake word of our detection event; that
+			// one fails at once as a duplicate of ours (seen 2026-11-05, after a reply that had
+			// played). Not an error of the request: nothing to show, the reply may still be playing.
+			a.log.Info("wyoming: duplicate wake-up refused by HA", "text", ev.String("text"))
+			break
+		}
 		a.log.Warn("wyoming: pipeline error", "code", ev.String("code"), "text", ev.String("text"))
 		a.hook("voice_error")
 	case wyoming.TypeTimerStarted, wyoming.TypeTimerUpdated, wyoming.TypeTimerCancelled, wyoming.TypeTimerFinished:

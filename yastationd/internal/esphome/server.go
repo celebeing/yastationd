@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -90,8 +91,13 @@ type Conn struct {
 	once    sync.Once
 }
 
-// readIdle: a client that sends nothing this long is gone (Home Assistant pings every 20 s).
-const readIdle = 90 * time.Second
+// A client that is busy receiving (advertisements, all the time) sends nothing: Home Assistant
+// pings only when it hears nothing itself. So after readIdle of silence the server pings, and a
+// client that does not answer within pingWait is gone.
+var (
+	readIdle = 60 * time.Second
+	pingWait = 30 * time.Second
+)
 
 // Run serves until ctx ends.
 func (s *Server) Run(ctx context.Context) error {
@@ -172,15 +178,34 @@ func (s *Server) serve(nc net.Conn) {
 			handlers[t] = comp
 		}
 	}
+	// The pinger: after readIdle without a frame from the client, ping it (again every readIdle/4
+	// until it answers); the read gives up at readIdle + pingWait.
+	var last atomic.Int64
+	last.Store(time.Now().UnixNano())
+	go func() {
+		t := time.NewTicker(readIdle / 4)
+		defer t.Stop()
+		for {
+			select {
+			case <-c.closing:
+				return
+			case <-t.C:
+				if time.Since(time.Unix(0, last.Load())) >= readIdle {
+					c.Send(msgPingRequest, &enc{})
+				}
+			}
+		}
+	}()
 	for {
-		nc.SetReadDeadline(time.Now().Add(readIdle))
+		nc.SetReadDeadline(time.Now().Add(readIdle + pingWait))
 		typ, body, err := readFrame(r)
 		if err != nil {
 			if !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
-				s.Log.Debug("esphome api: read", "err", err)
+				s.Log.Info("esphome api: client silent or gone", "remote", nc.RemoteAddr().String(), "err", err)
 			}
 			return
 		}
+		last.Store(time.Now().UnixNano())
 		m, err := parse(body)
 		if err != nil {
 			s.Log.Warn("esphome api: bad message", "type", typ, "err", err)

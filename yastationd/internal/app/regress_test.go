@@ -14,6 +14,7 @@ import (
 	"github.com/celebeing/yastationd/yastationd/internal/display"
 	"github.com/celebeing/yastationd/yastationd/internal/health"
 	"github.com/celebeing/yastationd/yastationd/internal/hw"
+	"github.com/celebeing/yastationd/yastationd/internal/wyoming"
 )
 
 // Regression: every reaction moved into moments (d22993e) does what the code before it did, with
@@ -507,5 +508,19 @@ func TestOuterRingMirrorsButNotIndicators(t *testing.T) {
 	r.conf.Store(&c)
 	if k := r.ledLevel(true); k != 0.75 {
 		t.Errorf("led_held_brightness 75: level %v", k)
+	}
+}
+
+// HA's own second pipeline after a reply fails as a duplicate of ours: no red, nothing at all.
+func TestRegressDuplicateWakeUpIsQuiet(t *testing.T) {
+	r := newRegressApp(t)
+	r.sat.OnEvent(nil, wyoming.Event{Type: wyoming.TypeError, Data: map[string]any{
+		"code": "duplicate_wake_up_detected", "text": "Duplicate wake-up detected for alisa"}})
+	if r.ringStack.Has("voice") || r.matrixStack.Has("voice") {
+		t.Fatal("a duplicate wake-up showed the voice error")
+	}
+	r.sat.OnEvent(nil, wyoming.Event{Type: wyoming.TypeError, Data: map[string]any{"code": "stt-stream-failed"}})
+	if !r.ringStack.Has("voice") && !r.matrixStack.Has("voice") {
+		t.Fatal("a real pipeline error showed nothing")
 	}
 }

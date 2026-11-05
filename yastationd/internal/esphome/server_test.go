@@ -229,3 +229,38 @@ func TestMDNSAnswer(t *testing.T) {
 		t.Fatalf("first answer's owner %q", n)
 	}
 }
+
+// A client that only listens is pinged, and stays while it answers the pings.
+func TestSilentClientIsPingedNotDropped(t *testing.T) {
+	old, oldWait := readIdle, pingWait
+	readIdle, pingWait = 200*time.Millisecond, 200*time.Millisecond
+	defer func() { readIdle, pingWait = old, oldWait }()
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
+	addr := ln.Addr().String()
+	ln.Close()
+	s := &Server{Addr: addr, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Info: func() DeviceInfo { return DeviceInfo{Name: "x"} }}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.Run(ctx)
+	var nc net.Conn
+	var err error
+	for i := 0; i < 50; i++ {
+		if nc, err = net.Dial("tcp", addr); err == nil {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nc.Close()
+	c := &client{t: t, nc: nc, r: bufio.NewReader(nc)}
+	c.send(msgHelloRequest, &enc{})
+	c.want(msgHelloResponse)
+	for i := 0; i < 3; i++ { // three rounds, each longer than readIdle + pingWait without the answer
+		c.want(msgPingRequest)
+		c.send(msgPingResponse, &enc{})
+	}
+	c.send(msgDeviceInfoRequest, &enc{})
+	c.want(msgDeviceInfoResponse) // still connected
+}

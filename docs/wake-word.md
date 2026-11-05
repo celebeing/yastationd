@@ -71,6 +71,14 @@ three. The bergamot profile pins a model directory by its uuid, and the profile'
 the ids differ per unit **(not checked across units here)**: a bergamot whose directory differs
 needs `wake_model`.
 
+**HA's duplicate wake-up.** The session sends HA a `detection` (the wake word's name) before its
+`run-pipeline`. HA 2026.9's Wyoming satellite then starts a pipeline by itself for audio that arrives
+while no pipeline runs and it still holds that wake word — which happens when audio it had not read
+yet arrives after our run ended but before it forgot the detection. That run fails at once, within
+the 2 s wake-word cooldown, as `duplicate_wake_up_detected` (seen 2026-11-05, right after a timer's
+reply had played). The daemon logs it and shows nothing: it is not about the request, and the reply
+may still be playing. Other pipeline errors still show `voice_error`.
+
 ## Settings and profile keys
 
 | Key | Where | What it does |

@@ -48,6 +48,12 @@ between connections; the handles are the device's own, so they stay valid), raw 
 Not: pairing, cache clearing, scanner state and mode (the scan is always active; BlueZ's discovery
 has no passive mode).
 
+**Keepalive.** Home Assistant pings only when it hears nothing itself, so a proxy that streams
+advertisements all the time gets nothing back. The server pings a client after 60 s without a frame
+from it and drops it only 30 s after that without an answer. (The first build dropped a silent
+client at 90 s: HA's connection to a Mini 3 flapped every 90 s for a day, and each drop also cut
+the BLE devices it held.)
+
 **The API.** Plaintext frames (`0x00`, length, type, protobuf), API version 1.13, the messages of
 `api.proto` that the proxy needs and the handshake (`Hello`, `DeviceInfo`, `ListEntities` → none,
 the `Subscribe*` requests HA sends, `Ping`, `Disconnect`). Protobuf is encoded by hand
