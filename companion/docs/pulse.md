@@ -77,5 +77,6 @@ found per 5 s chunk within ±200 ms of the overall one:
   second is enough.
 
 ## Open
+
 - Where the matching runs (the speaker, from `vqe_0` in the daemon), what goes over the network
   and how often, how a pulse reaches effects (the ambilight's music effects, the rings).
