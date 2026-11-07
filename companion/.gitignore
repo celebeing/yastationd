@@ -1,0 +1,3 @@
+build/
+# recordings of what the computer played
+*.raw

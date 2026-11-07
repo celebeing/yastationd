@@ -12,6 +12,8 @@
 #   openssh           the SSH server          openssh/build/{sshd,sshd-session,…}   (zig)
 #   sendspin:<arch>   the music player        sendspin-host/build/<arch>/sendspin-host (zig; armhf | aarch64)
 #   spotter:<arch>    the voice front-end     spotter-host/build/<arch>/spotter-host   (cross gcc + a vendor sysroot)
+#   companion[:<os>]  the computer-side app   companion/build/yastation-companion[.exe] (go; os = windows,
+#                     the default, or linux; companion/docs/building.md)
 #   packtool          the asset-pack checker  yastationd/build/packtool  (go; for this host, not the speakers;
 #                     builds and checks packs: docs/asset-packs.md)
 #   hosttool:<cmd>    a host tool of cmd/     yastationd/build/<cmd>     (go; for this host: ledsim, demoreel,
@@ -126,6 +128,18 @@ build_dropbear() {
 	run zig dropbear 'make -s'
 }
 
+# build_companion OS: the computer-side app (companion/), tests and a binary for OS/amd64. Pure Go
+# (Windows' audio through COM, no cgo), so one container builds every OS.
+build_companion() {
+	case $1 in
+	windows) ext=.exe ;;
+	linux) ext= ;;
+	*) echo "companion:$1: os must be windows or linux" >&2; exit 2 ;;
+	esac
+	echo "== companion ($1)"
+	run go companion "go vet ./... && GOOS=$1 go vet ./... && go test ./... && CGO_ENABLED=0 GOOS=$1 GOARCH=amd64 go build -trimpath -o build/yastation-companion$ext ./cmd/yastation-companion"
+}
+
 build_hostapd() {
 	echo "== hostapd"
 	run zig hostapd 'make -s'
@@ -194,6 +208,8 @@ for t in "$@"; do
 	dropbear) build_dropbear ;;
 	openssh) build_openssh ;;
 	packtool) build_hosttool packtool ;;
+	companion) build_companion windows ;;
+	companion:*) build_companion "${t#companion:}" ;;
 	golden:*) build_golden "${t#golden:}" ;; # tools/golden.sh: golden:<work-dir>:<platform>
 	docs-check) "$here/tools/check-docs.sh" || exit 1 ;;
 	hosttool:*) build_hosttool "${t#hosttool:}" ;;

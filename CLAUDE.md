@@ -9,6 +9,7 @@ Custom firmware layer (CFW) that turns owned smart speakers (`bergamot` = Statio
 - an owner's how-to (connect HA, music, calls, send diagnostics): [docs/guides/README.md](docs/guides/README.md);
 - something wrong on a unit: [docs/guides/troubleshooting.md](docs/guides/troubleshooting.md); installing/updating:
   [docs/guides/deploying.md](docs/guides/deploying.md);
+- the computer-side app (`companion/`, its own Go module and docs): [companion/docs/index.md](companion/docs/index.md);
 - a change to the docs only: [docs/README.md](docs/README.md) (what goes where, links, the check) and the
   public-repo rules at the end of this file; the rest of it is about code and devices.
 

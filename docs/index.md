@@ -22,6 +22,7 @@ have their own indexes, read when the task needs them:
 | [porting-a-speaker.md](porting-a-speaker.md) | **Agent guide:** a new speaker model — the ground rules (no trial-and-error on unknown components), the survey, the profile keys, verification, the voice front-end |
 | [building.md](building.md) | **Agent guide:** `tools/build.sh`, the pinned builder containers, the vendor sysroot, one board's dist |
 | [releasing.md](releasing.md) | Versions, the checklist before tagging, cutting a release |
+| [companion/docs/](../companion/docs/index.md) | **The companion:** the computer-side app (its own docs; an experiment so far: the light pulse from the computer's music) |
 
 ## Features: how they are built
 
