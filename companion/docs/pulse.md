@@ -1,6 +1,6 @@
 # A light pulse from the computer's music (research)
 
-**Status (2026-11-08): measuring.** Nothing is built beyond the reference capture
+**Status (2026-11-08): measured; the scheme holds.** Nothing is built beyond the reference capture
 ([architecture.md](architecture.md)).
 
 ## The idea
@@ -52,9 +52,30 @@ candidate). The lag on each 4 s chunk then stayed within ±10 ms (one envelope f
 chunks on `vqe_0` (the outlier, +70 ms, at the quiet start) and in 10 of 13 on the raw mics (two
 off by a sixteenth). Light against sound looks out of sync from about 20–40 ms.
 
-## Open
+## Live: the computer's capture against the speaker's mics
 
-- The live lag between the computer's capture and the speaker's mics, and its drift (two audio
-  clocks): needs both captured at once (`record` + the speaker), next.
+4 minutes at once (2026-11-08): `record` on the computer (Windows, 44.1 kHz) and Station 3's mics
+2–3 m away, quiet music at 87 bpm, two tracks with a quiet stretch. High-band onsets, the lag
+found per 5 s chunk within ±200 ms of the overall one:
+
+| | raw mics | `vqe_0` |
+| --- | --- | --- |
+| overall match (correlation) | 0.29 | 0.49 |
+| chunks with a confident match | 33 of 47 | 35 of 47 |
+| of those, a sixteenth off (±172 ms at 87 bpm) | 2 | 1 |
+| the rest: lag spread (sd), worst | 3.2 ms, 13.5 ms | **0.8 ms, 2.4 ms** |
+| drift over the 4 minutes | +4 ms per 1000 s | −5 ms per 1000 s |
+
+- **The lag is stable to a millisecond on `vqe_0`.** It is the whole path at once: the computer's
+  output buffer, its speakers, the room, the speaker's capture and the VQE (whose own delay shows
+  as ~90 ms between the raw and the `vqe_0` lag).
+- **The two audio clocks drift by about 5 ppm**: 0.3 ms a minute, nothing a tracker would notice.
+- **The misses are whole sixteenths**: once locked, a tracker searching ±50 ms around its lag
+  never sees them. Quiet stretches (12 of 47 chunks) give no match; the model coasts through them.
+- The computer's timestamps against the speaker's (the start of each capture) were off by ~0.2–0.3 s
+  (ssh and `arecord` starting up), so the mics' match does the real work; a prior within a
+  second is enough.
+
+## Open
 - Where the matching runs (the speaker, from `vqe_0` in the daemon), what goes over the network
   and how often, how a pulse reaches effects (the ambilight's music effects, the rings).
