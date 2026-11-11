@@ -139,9 +139,11 @@ func (a *App) markMoment(slot, name string) {
 // cancelSteps stops the sequence running in slot, if any (its layers stay for the caller).
 func (a *App) cancelSteps(slot string) {
 	a.seqs.mu.Lock()
-	if c := a.seqs.stop[slot]; c != nil {
-		close(c)
-		delete(a.seqs.stop, slot)
+	for _, s := range []string{slot, soundSlot(slot)} { // and the sound layered beside it (layers.go)
+		if c := a.seqs.stop[s]; c != nil {
+			close(c)
+			delete(a.seqs.stop, s)
+		}
 	}
 	a.seqs.mu.Unlock()
 }
@@ -158,6 +160,9 @@ func stepsHaveRing(steps []scenarioStep) bool {
 
 // stepAvailable: the step shows or plays something on this speaker.
 func (a *App) stepAvailable(st scenarioStep) bool {
+	if st.Sound == surfaceNone || st.Phrase == surfaceNone || st.Ring == surfaceNone || st.anim() == surfaceNone {
+		return true // a surface emptied on purpose (layers.go)
+	}
 	if st.Sound != "" && anyOf(st.Sound, a.soundOK) || st.Phrase != "" && anyOf(st.Phrase, a.soundOK) {
 		return true
 	}
@@ -509,6 +514,7 @@ func (a *App) endShow(slot string) {
 	a.unexpress(slot)
 	if a.player != nil {
 		a.player.StopBlipOn(slot)
+		a.player.StopBlipOn(soundSlot(slot))
 	}
 }
 

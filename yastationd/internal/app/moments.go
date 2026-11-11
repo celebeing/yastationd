@@ -160,6 +160,10 @@ func (a *App) momentCandidates(name string) []show {
 // refAvailable: the reference exists here — a scenario that loads, an expression with a part on
 // one of this speaker's surfaces, or an animation of its front display.
 func (a *App) refAvailable(c string) bool {
+	switch c {
+	case "sound:" + surfaceNone, "phrase:" + surfaceNone, "ring:" + surfaceNone, "anim:" + surfaceNone:
+		return true // a surface emptied on purpose (layers.go)
+	}
 	if s, ok := strings.CutPrefix(c, "scenario:"); ok {
 		_, err := a.loadScenario(s)
 		return err == nil
@@ -211,7 +215,12 @@ func (a *App) momentAt(slot, name string, ttl time.Duration, prio int) bool {
 	if a.renewMoment(slot, name, ttl) {
 		return true // the voice stage again (HA's next event of it): its show goes on
 	}
-	return a.play(slot, name, a.momentCandidates(name), ttl, prio)
+	e := expressions[name] // a voice stage: the ring under it, as the built-in layer's
+	shown, _ := a.showMoment(slot, name, ttl, prio, display.PrioScenario, cmp.Or(e.ringPrio, display.PrioScenario))
+	if shown {
+		a.markMoment(slot, name)
+	}
+	return shown
 }
 
 // showSteps is what a show runs as steps; false for a bare expression, which express() shows.
@@ -277,16 +286,8 @@ func (a *App) fire(name string) (shown bool, soundEnd time.Duration) {
 	} else {
 		a.setYield(slot, nil)
 	}
-	for _, s := range a.momentCandidates(name) {
-		if !a.available(s) {
-			continue
-		}
-		steps, ok := a.showSteps(s)
-		if !ok {
-			return a.expressAt(slot, s.Ref, m.ttl, prio), 0
-		}
-		a.runSteps(slot, steps, m.ttl, prio, ringPrio, "", 0)
-		return true, a.soundEnd(steps)
+	if shown, end := a.showMoment(slot, name, m.ttl, prio, ringPrio, ringPrio); shown {
+		return true, end
 	}
 	if m.slot != "" {
 		a.unexpress(slot) // nothing here: what the shared slot showed ends anyway (a voice stage)

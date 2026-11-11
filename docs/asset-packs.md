@@ -175,6 +175,24 @@ front for an animation the display lacks. The catalogue lists the sounds this sp
   worn or not: the LED page plays a pack's animations with it before it is applied, and a
   moment or a `display/cmd` `clip` may use it too.
 
+### Layers per surface (2026-11-11)
+
+A moment's show has three surfaces: the **front** display, the **ring**, the **sound**. The top
+layer (the first pack in the stack that defines the moment, else the built-in theme) decides the
+moment, but only for the surfaces it names; a surface it leaves out comes from the next layer
+down that names it, down to the built-in theme (`internal/app/layers.go`). So a picture-only pack
+keeps a call's ring tone and its green blink, and a sound pack keeps the pictures.
+
+- **"Nothing" on purpose:** `"sound": "none"`, `"ring": "none"`, `"anim": "none"` in a step, or the
+  references `sound:none`, `ring:none`, `anim:none`, name a surface as empty; it stays empty.
+- The ring from below is kept under the whole show (its first ring effect); the sound from below
+  runs beside it in a slot of its own (`<slot>#sound`) with the steps' timing, a held last step's
+  sound repeating as a ring tone; both end with the moment.
+- The top layer still decides alone whether the moment shows: if none of its shows plays on this
+  speaker, or it is an empty list (the moment turned off), nothing shows.
+- Found on a Station 3 whose drawn-faces pack set `call_incoming` to its `ringing` animation alone:
+  until then a moment's entry replaced the whole show, and the call rang silently.
+
 ## Phase 3: packs in the web app
 
 Behaviour → Packs (`web/src/packs.tsx`): the theme stack this speaker wears (up/down, turn off),

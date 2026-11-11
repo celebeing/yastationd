@@ -11,6 +11,10 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
   (1.5 s later); «Алиса, стоп» still declines.
 - Two rooms calling each other at the same moment: the second «Алиса» was taken for an echo of
   the first and dropped; now both requests go through and the call connects.
+- An incoming call rang silently on a speaker wearing a picture pack: a pack's moment replaced the
+  whole show, sound and ring included. Now a pack changes only what it names — the picture, the
+  ring or the sound — and the rest comes from the layer below; `"sound": "none"` (or ring, anim)
+  empties one on purpose ([docs/asset-packs.md](docs/asset-packs.md)).
 - The hang-up sound and the incoming ring were much quieter than the other call sounds (the
   firmware's files); `make sounds` lifts them — run it again on each speaker.
 
