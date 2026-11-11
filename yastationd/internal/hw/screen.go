@@ -5,7 +5,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 	"unsafe"
 )
@@ -165,7 +164,7 @@ func (m *DotMatrix) encode(px []RGB) []byte {
 }
 
 func fbIoctl(fd, req uintptr, arg unsafe.Pointer) error {
-	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, fd, req, uintptr(arg)); errno != 0 {
+	if errno := sys3(sysIoctl, fd, req, uintptr(arg)); errno != 0 {
 		return errno
 	}
 	return nil

@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"strconv"
-	"syscall"
 	"time"
 )
 
@@ -28,7 +27,7 @@ func StartLiveOut(device string, rate int) (*LiveOut, error) {
 		return nil, err
 	}
 	// Best effort: the kernel rounds up to a page; a failure only costs latency.
-	syscall.Syscall(syscall.SYS_FCNTL, w.Fd(), fSetPipeSz, 4096)
+	sys3(sysFcntl, w.Fd(), fSetPipeSz, 4096)
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := aplayCmd(ctx, "-q", "-D", device, "-t", "raw", "-f", "S16_LE", "-r", strconv.Itoa(rate),
 		"-c", "1", "--buffer-time=60000", "--period-time=20000")

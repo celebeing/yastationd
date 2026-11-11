@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"strings"
-	"syscall"
 	"time"
 	"unsafe"
 )
@@ -123,7 +122,7 @@ func SwitchState(f *os.File, code int) (bool, error) {
 	// overflow a 32-bit int on armv7.
 	const iocRead uint32 = 2
 	req := uintptr(iocRead<<30 | uint32(len(bits))<<16 | 'E'<<8 | 0x1b)
-	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, f.Fd(), req, uintptr(unsafe.Pointer(&bits[0])))
+	errno := sys3(sysIoctl, f.Fd(), req, uintptr(unsafe.Pointer(&bits[0])))
 	if errno != 0 {
 		return false, errno
 	}
@@ -149,7 +148,7 @@ func AbsoluteInfo(f *os.File, code uint16) (AbsInfo, error) {
 		absInfoBytes        = uint32(unsafe.Sizeof(info))
 	)
 	req := uintptr(iocRead<<30 | absInfoBytes<<16 | 'E'<<8 | uint32(0x40+code))
-	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, f.Fd(), req, uintptr(unsafe.Pointer(&info)))
+	errno := sys3(sysIoctl, f.Fd(), req, uintptr(unsafe.Pointer(&info)))
 	if errno != 0 {
 		return AbsInfo{}, errno
 	}
