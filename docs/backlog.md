@@ -8,6 +8,13 @@ Review of 2026-10-28 (whole repo).
 
 ## Correctness
 
+- **The intercom's drift correction hunts** (found 2026-11-11) — in each of the evening's
+  30-minute calls both directions made ~20 000 sample drops *and* ~20 000 inserts (e.g. 21 762 /
+  22 491), about one correction per frame, against the few hundred a real 50–200 ppm drift needs.
+  The averaged depth crosses target ± 10 ms both ways all the time (jitter at 60–100 ms targets).
+  Nobody heard it, but each is a one-sample glitch; a slower average or a wider dead band, checked
+  in the drift simulation first (docs/intercom.md, "Implementation notes").
+
 - **The intercom target select right after a restart** (found 2026-11-06) — a restarted speaker
   publishes `…_intercom_target`'s options before it has heard of the other speakers, so HA
   logs "Invalid option … 'Гостиная' (valid options: ['Кабинет'])" for its saved value until the
