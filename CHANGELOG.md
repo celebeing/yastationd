@@ -3,7 +3,7 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.29.1 — 2026-11-11
 
 **Intercom, after the first evening of real calls**
 - No 30-minute limit on a call any more (`intercom_max_secs` now defaults to 0, no limit).
