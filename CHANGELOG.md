@@ -3,6 +3,17 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Intercom, after the first evening of real calls**
+- No 30-minute limit on a call any more (`intercom_max_secs` now defaults to 0, no limit).
+- «Алиса» answers a ringing call: «Алиса, ответь», «Алиса, возьми трубку» or just «Алиса»
+  (1.5 s later); «Алиса, стоп» still declines.
+- Two rooms calling each other at the same moment: the second «Алиса» was taken for an echo of
+  the first and dropped; now both requests go through and the call connects.
+- The hang-up sound and the incoming ring were much quieter than the other call sounds (the
+  firmware's files); `make sounds` lifts them — run it again on each speaker.
+
 ## v0.29.0 — 2026-11-06
 
 **SSH**

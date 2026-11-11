@@ -376,7 +376,7 @@ func Default() Config {
 		HostapdBin:                cfw + "/bin/hostapd",
 		IntercomPort:              10710,
 		IntercomRing:              30 * time.Second,
-		IntercomMax:               30 * time.Minute,
+		IntercomMax:               0, // no limit
 		IntercomJitterMs:          40,
 		WakeEnabled:               true,
 		RoomSound:                 true,

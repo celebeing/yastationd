@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"math"
 	"testing"
+	"time"
 )
 
 func TestBeats(t *testing.T) {
@@ -37,5 +38,21 @@ func TestPeakIsTheWakeWordsLevel(t *testing.T) {
 	level, over, ok := r.peak(arbWakeSpan, arbLoudest)
 	if !ok || level < -25 || level > -15 || math.Abs(over-(level+60)) > 1e-9 {
 		t.Fatalf("peak %v over %v ok %v", level, over, ok)
+	}
+}
+
+// Two people saying «Алиса» in two rooms 1.3 s apart are two rounds: the earlier claim does not
+// silence the later speaker (2026-11-10: two rooms calling each other at once). One phrase
+// reaches the speakers' spotters within ~150 ms, either way round.
+func TestArbitrationRound(t *testing.T) {
+	at := time.Now()
+	for _, tc := range []struct {
+		off  time.Duration // the claim's arrival against our wake word
+		want bool
+	}{{-1300 * time.Millisecond, false}, {-500 * time.Millisecond, true}, {-100 * time.Millisecond, true},
+		{100 * time.Millisecond, true}, {1400 * time.Millisecond, true}, {1600 * time.Millisecond, false}} {
+		if got := inRound(at.Add(tc.off), at); got != tc.want {
+			t.Errorf("a claim %v from ours: in the round %v, want %v", tc.off, got, tc.want)
+		}
 	}
 }

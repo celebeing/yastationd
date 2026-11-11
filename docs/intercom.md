@@ -123,10 +123,19 @@ front of the same media path later if a phone or doorbell must join).
 | idle | — | call command → calling; valid invite → ringing (or in_call with auto-answer); invite when busy/off → reject |
 | calling | our invite sent | accept → in_call; reject → idle; `intercom_ring_secs` (30) → bye, idle |
 | ringing | invite received | answer → in_call; caller's bye or ring timeout → idle (missed); hang-up → reject declined |
-| in_call | accept sent/received | hang-up (sends bye), bye received, 5 s without media, `intercom_max_secs` (1800), setup mode, daemon stop |
+| in_call | accept sent/received | hang-up (sends bye), bye received, 5 s without media, `intercom_max_secs` (0 = no limit, the default since 2026-11-11; 1800 before, which cut three calls in one evening), setup mode, daemon stop |
 
 One call at a time; a second invite gets `reject busy`. If both sides invite each other at once,
 the invite from the lower device id wins (the other side treats it as its call).
+
+**Two rooms asking at the same moment** («Алиса, позвони в спальню» and «Алиса, позвони в
+кабинет», 2026-11-10) failed before the intercom saw it: the second room's «Алиса», 1.3 s after
+the first, was taken for the same phrase heard from next door and lost the wake-word arbitration
+([wake-arbitration.md](wake-arbitration.md); now a claim that early is another round). With both
+requests through, HA's script publishes two `{"to"}`; each speaker that asked HA just now would
+take the first one, and the one it names would call itself. A request naming this speaker is
+now never its own: the caller places it, the callee keeps its request for the next one, which
+then answers the call already ringing (`icCallOrAnswer`).
 
 ## In the daemon (v1)
 
@@ -169,6 +178,9 @@ the invite from the lower device id wins (the other side treats it as its call).
   | anything else (`hung up by the peer`, `maximum duration`, a local hang-up, `crossed calls`…) | a normal end | `calls_ended` if the call was up, a white flash on the ring |
 
   The call sounds are vendor files decoded onto the unit by `make sounds` (never in the repo).
+  The firmware's own are uneven: its hang-up tone peaks at −20 dBFS (~15 dB below the other call
+  sounds) and its incoming ring ~11 dB below the outgoing one; `make sounds` lifts them by 12
+  and 9 dB (2026-11-11, "the hang-up sound is quiet").
 - **Keys:** the voice key answers a ringing call and ends any other; the **mic-mute switch
   declines a ringing call and ends a running one** (and incoming calls are refused while muted).
 - The daemon no longer opens a listening session by itself while ringing (the ringtone would go
@@ -199,7 +211,7 @@ intercom_port        = 10710   # UDP media
 intercom_name        =         # the room name others call this speaker by (default device_name)
 intercom_auto_answer = false   # true: an incoming call opens at once (after the chime)
 intercom_ring_secs   = 30
-intercom_max_secs    = 1800
+intercom_max_secs    = 0       # a call ends by itself after this long; 0 = no limit
 intercom_jitter_ms   = 40
 intercom_gain_db     = 30      # the fallback uplink's gain (a unit without the call-mode model)
 vqe_models           =         # the VQE's model dir; default <cfw>/vendor/vqe_models if there (make vqe-models)
@@ -222,6 +234,7 @@ commands are дальше, назад, выше, ниже, вправо, вле�
 
 | When | Say | Does |
 |---|---|---|
+| ringing | «Алиса» and anything the command spotter doesn't know («Алиса, ответь», «Алиса, возьми трубку»), or «Алиса» alone: answers 1.5 s after «Алиса» | answer |
 | ringing | «продолжи» / «играй», with «Алиса» or without | answer |
 | ringing | «стоп» / «хватит» / «пауза», with «Алиса» or without | decline |
 | in a call | «Алиса, стоп» / «Алиса, хватит» / «Алиса, пауза» | hang up |
@@ -254,6 +267,11 @@ commands are дальше, назад, выше, ниже, вправо, вле�
   the user (2026-10-25). The daemon's own transcript matcher is gone.
 - The voice key and the mute switch work as before (answer / end; decline / end).
 - Cost: no Assist requests during a call («Алиса» there is for the call only).
+- **«Алиса» answers (2026-11-11).** The first evening of real use: the callee said «Алиса» four
+  times in 14 s (asking it to answer, in her own words) and nothing happened — «продолжи» and
+  «играй» are no one's idea of answering a phone. While ringing, «Алиса» now answers by itself
+  1.5 s later unless a known command took it («Алиса, стоп» still declines). Nothing else can
+  use «Алиса» while ringing anyway (no Assist session then).
 
 Other options, for later: a key gesture to call a "favourite" room (offline), auto-answer
 (`intercom_auto_answer`; the chime and the ring indicator stay mandatory), «стоп»/«хватит» as a

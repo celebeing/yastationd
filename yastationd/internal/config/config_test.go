@@ -142,7 +142,7 @@ func TestIntercomKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !c.Intercom || c.IntercomName != "Кабинет" || c.IntercomRing != 20*time.Second ||
-		c.IntercomJitterMs != 60 || c.IntercomPort != 10710 || c.IntercomMax != 30*time.Minute {
+		c.IntercomJitterMs != 60 || c.IntercomPort != 10710 || c.IntercomMax != 0 {
 		t.Fatalf("%+v", c)
 	}
 	if _, err := Parse(strings.NewReader("intercom_secret = short\n")); err == nil {

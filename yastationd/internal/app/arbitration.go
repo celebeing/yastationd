@@ -19,13 +19,17 @@ import (
 // every speaker answers as before.
 
 const (
-	arbWakeSpan   = 1200 * time.Millisecond // the wake word's level: the last 1.2 s before the event
-	arbLoudest    = 8                       // … the energy average of its loudest 20 ms blocks
-	arbQuickWait  = 200 * time.Millisecond  // a loud claim's wait
-	arbLoudOver   = 25.0                    // dB over the room's floor that makes a claim loud
-	arbRoundSpan  = 1500 * time.Millisecond // claims this close in arrival are one round
-	arbTieDB      = 0.5                     // levels this close tie; the lower id wins
-	arbKeepClaims = 5 * time.Second
+	arbWakeSpan  = 1200 * time.Millisecond // the wake word's level: the last 1.2 s before the event
+	arbLoudest   = 8                       // … the energy average of its loudest 20 ms blocks
+	arbQuickWait = 200 * time.Millisecond  // a loud claim's wait
+	arbLoudOver  = 25.0                    // dB over the room's floor that makes a claim loud
+	arbRoundSpan = 1500 * time.Millisecond // claims this close in arrival are one round
+	// ... but a claim that arrived this long before our own wake word is someone else's
+	// «Алиса» in another room: one phrase reaches every spotter within ~150 ms (measured worst
+	// 141 ms), and two people calling each other at once said it 1.3 s apart (2026-11-10).
+	arbEarlierSpan = 600 * time.Millisecond
+	arbTieDB       = 0.5 // levels this close tie; the lower id wins
+	arbKeepClaims  = 5 * time.Second
 )
 
 type arbClaim struct {
@@ -106,7 +110,7 @@ func (a *App) arbitrateWake(ev wake.Event) {
 	a.arb.open = r
 	louder := false
 	for _, s := range a.arb.claims {
-		if r.at.Sub(s.recv) < arbRoundSpan && beats(s.arbClaim, mine) {
+		if inRound(s.recv, r.at) && beats(s.arbClaim, mine) {
 			louder = true
 		}
 	}
@@ -133,7 +137,7 @@ func (a *App) decide(r *arbRound) {
 	winner := r.mine
 	n := 0
 	for _, s := range a.arb.claims {
-		if s.recv.Sub(r.at) > -arbRoundSpan && s.recv.Sub(r.at) < arbRoundSpan {
+		if inRound(s.recv, r.at) {
 			n++
 			if beats(s.arbClaim, winner) {
 				winner = s.arbClaim
@@ -149,6 +153,12 @@ func (a *App) decide(r *arbRound) {
 	}
 	a.log.Info("arbitration: won", "level", r.mine.Level, "others", n)
 	a.startWakeWith(r.held)
+}
+
+// inRound: a claim received at recv belongs to the round of our wake word at at.
+func inRound(recv, at time.Time) bool {
+	d := recv.Sub(at)
+	return d > -arbEarlierSpan && d < arbRoundSpan
 }
 
 // beats: c is louder than d, or as loud with the lower id.

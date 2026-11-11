@@ -21,8 +21,10 @@ Background and other projects' lessons: "Background" below.
    - else it waits: 200 ms when its own claim is loud (≥ 25 dB over the room's floor), up to
      `arbitration_wait_ms` (default 300; 700 until 2026-10-28) when it is quiet — a far speaker
      that claims first must not take a request meant for the near one;
-   - claims arriving within 1.5 s of each other are one round; within 0.5 dB the lower device id
-     wins.
+   - a claim is in our round when it arrived up to 0.6 s before our own wake word or up to 1.5 s
+     after it (one phrase reaches every spotter within ~150 ms; a claim 1.3 s earlier was another
+     person in another room — two rooms calling each other at once, 2026-11-10); within 0.5 dB the
+     lower device id wins.
 4. **The winner** starts the session with the buffered speech (the `wake_word` button event goes
    to HA from it only); **the losers** show the `arbitration_lost` moment (seg7: our `glance` clip, ` > >` then `< < `;
    Station 3: the stock `Deactivation_Output`) and stay silent: no session, nothing sent to HA.

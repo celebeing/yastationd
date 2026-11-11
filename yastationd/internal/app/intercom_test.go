@@ -131,19 +131,50 @@ func TestIntercomVoiceScenario(t *testing.T) {
 		t.Fatal("call audio or ring left after the hang-up")
 	}
 
-	// a lone «Алиса» doesn't answer; «Алиса, стоп» declines
+	// «Алиса, стоп» declines: the command within icRingAnswerAfter takes the «Алиса»
 	bedroom.ic.m.Call("office", "Кабинет")
 	wait(office, intercom.Ringing)
 	alisa(office)
 	time.Sleep(100 * time.Millisecond)
 	if office.ic.m.Status().State != intercom.Ringing {
-		t.Fatal("a lone «Алиса» did something to the ringing call")
+		t.Fatal("«Алиса» did something to the ringing call at once")
 	}
 	cmd(office, "стоп")
 	wait(bedroom, intercom.Idle)
 	if s := bedroom.ic.m.Status(); s.Ended != "rejected: declined" {
 		t.Fatalf("ended %q", s.Ended)
 	}
+	time.Sleep(icRingAnswerAfter) // the declined «Алиса» must not answer anything later
+	if office.ic.m.Status().State != intercom.Idle {
+		t.Fatal("a taken «Алиса» acted again")
+	}
+
+	// «Алиса» followed by a word the spotter doesn't know («ответь») answers
+	bedroom.ic.m.Call("office", "Кабинет")
+	wait(office, intercom.Ringing)
+	alisa(office)
+	time.Sleep(icRingAnswerAfter / 2)
+	if office.ic.m.Status().State != intercom.Ringing {
+		t.Fatal("«Алиса» answered before its command could come")
+	}
+	wait(office, intercom.InCall)
+	wait(bedroom, intercom.InCall)
+	office.ic.m.Hangup("test")
+	wait(bedroom, intercom.Idle)
+
+	// both rooms ask HA at once to call each other: a request naming this speaker is the other
+	// room's, left alone even though we asked HA too; ours is still taken after it
+	office.sat.lastHeard.Store(time.Now().UnixNano())
+	bedroom.sat.lastHeard.Store(time.Now().UnixNano())
+	office.cmdIntercomCall([]byte(`{"to":"office"}`))  // the bedroom's request, seen by the office
+	bedroom.cmdIntercomCall([]byte(`{"to":"office"}`)) // ... and by the bedroom: it calls
+	wait(office, intercom.Ringing)
+	office.cmdIntercomCall([]byte(`{"to":"Спальня"}`))  // the office's own request: answers
+	bedroom.cmdIntercomCall([]byte(`{"to":"Спальня"}`)) // ... seen by the bedroom: not its
+	wait(office, intercom.InCall)
+	wait(bedroom, intercom.InCall)
+	office.ic.m.Hangup("test")
+	wait(bedroom, intercom.Idle)
 
 	// the voice key: answer when ringing, hang up otherwise; not ours when idle
 	if office.icVoiceKey() {

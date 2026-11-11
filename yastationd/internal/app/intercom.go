@@ -611,6 +611,11 @@ func (a *App) cmdIntercomCall(payload []byte) {
 		a.log.Warn("intercom: bad call request", "payload", string(payload))
 		return
 	}
+	if c.To == a.cfg().DeviceID || (a.ic.name != "" && strings.EqualFold(c.To, a.ic.name)) {
+		// A call to this speaker is another speaker's request, even when we too sent HA one just
+		// now (two rooms calling each other at once): left for the next one, ours.
+		return
+	}
 	heard := a.sat.lastHeard.Load()
 	if heard == 0 || time.Since(time.Unix(0, heard)) > icHeardWindow {
 		return // someone else's request
@@ -623,13 +628,37 @@ func (a *App) cmdIntercomCall(payload []byte) {
 // icRinging: an incoming call is waiting for an answer.
 func (a *App) icRinging() bool { return a.ic != nil && a.ic.m.Status().State == intercom.Ringing }
 
-// icWoke opens the command window after «Алиса» during a call (see icCommand).
+// icWoke opens the command window after «Алиса» during a call (see icCommand). While ringing,
+// «Алиса» on its own answers: unless a command follows within icRingAnswerAfter («Алиса, стоп»
+// declines), the call is taken. The vendor command model has no «ответь» or «да», and people
+// say «Алиса, ответь» / «Алиса, возьми трубку» — the command part is not heard, the «Алиса» is.
 func (a *App) icWoke() {
+	at := time.Now()
 	a.ic.mu.Lock()
-	a.ic.wokeAt = time.Now()
+	a.ic.wokeAt = at
 	a.ic.mu.Unlock()
 	a.moment("voice", "listening", icWakeCommandWindow)
+	if !a.icRinging() {
+		return
+	}
+	time.AfterFunc(icRingAnswerAfter, func() {
+		a.ic.mu.Lock()
+		still := a.ic.wokeAt.Equal(at) // no command took this «Алиса» meanwhile
+		if still {
+			a.ic.wokeAt = time.Time{}
+		}
+		a.ic.mu.Unlock()
+		if still && a.icRinging() {
+			a.log.Info("intercom: answered by «Алиса»")
+			a.unexpress("voice")
+			a.ic.m.Answer()
+		}
+	})
 }
+
+// icRingAnswerAfter: how long after «Алиса» a ringing call waits for a command before «Алиса»
+// alone answers it (the command spotter reports 0.4–0.6 s after the wake word).
+const icRingAnswerAfter = 1500 * time.Millisecond
 
 // icWindow: «Алиса» was heard during this call just now.
 func (a *App) icWindow() bool {
@@ -646,7 +675,7 @@ const icWakeCommandWindow = 4 * time.Second
 // icCommand: voice control of a call, all on the speaker's own spotters (the vendor command
 // model has no «да»/«нет»; docs/intercom.md, "Voice control"). false = not the intercom's.
 //   - ringing: «продолжи / играй» answer, «стоп / хватит / пауза» decline — with «Алиса» before
-//     them or without;
+//     them or without; «Алиса» followed by anything else (or nothing) answers (icWoke);
 //   - in a call, only right after «Алиса»: «стоп / хватит / пауза» hang up, «громче / тише»
 //     set the volume. Without the wake word they are ignored (they come up in conversation).
 //     No guard against the far end's voice: the AEC takes it below the room's floor on the
@@ -672,7 +701,12 @@ func (a *App) icCommand(phrase string) bool {
 			a.log.Info("intercom: declined by voice", "phrase", phrase)
 			a.unexpress("voice")
 			a.ic.m.Hangup("declined by voice")
+		default:
+			return true
 		}
+		a.ic.mu.Lock()
+		a.ic.wokeAt = time.Time{} // the «Алиса» before it is taken
+		a.ic.mu.Unlock()
 		return true
 	case intercom.InCall:
 		if !a.icWindow() {

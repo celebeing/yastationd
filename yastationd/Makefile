@@ -157,6 +157,10 @@ SOUNDS ?= no_power volume_sound notification_sound something_went_wrong backend_
 # error phrase is cut after «К сожалению, что-то пошло не так.» (its second sentence asks to redo
 # the setup; the file is the same on every firmware we have, the pause is at 2.41-3.15 s).
 AF_notification_sound := -af volume=-8dB
+# The firmware's call sounds are uneven: its hang-up tone is ~15 dB below the others and its
+# incoming ring ~11 dB below the outgoing one (peaks -20 and -13.5 dBFS); lifted to match.
+AF_calls_ended := -af volume=12dB
+AF_calls_ringing_incoming := -af volume=9dB
 AF_something_went_wrong := -af atrim=0:2.6,afade=t=out:st=2.45:d=0.15
 # Fetched over ssh on the host into build/sounds/, decoded in the tools image (sounds-convert),
 # uploaded from the host.
@@ -180,7 +184,8 @@ sounds:
 sounds-convert:
 	set -e; for f in build/sounds/*.src; do \
 	  [ -f "$$f" ] || continue; s=$$(basename $$f .src); \
-	  case $$s in notification_sound) af="$(AF_notification_sound)";; something_went_wrong) af="$(AF_something_went_wrong)";; *) af=;; esac; \
+	  case $$s in notification_sound) af="$(AF_notification_sound)";; something_went_wrong) af="$(AF_something_went_wrong)";; \
+	    calls_ended) af="$(AF_calls_ended)";; calls_ringing_incoming) af="$(AF_calls_ringing_incoming)";; *) af=;; esac; \
 	  ffmpeg -v error -y -i $$f $$af -ar 48000 -ac 2 build/sounds/$$s.wav; \
 	done
 

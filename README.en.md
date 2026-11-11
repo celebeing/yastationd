@@ -195,7 +195,8 @@ packs replace any animation and add sounds to any event.
 - «Алиса, позвони в спальню»: a live two-way call to the speaker in another room, over the LAN
   only. The speakers use the vendor's own call processing (echo cancellation, neural noise
   reduction, gain control), so double talk works and nothing but the room's voice gets through.
-- Answer with «продолжи» or the voice key, decline with «стоп» or mute; in a call «Алиса,
+- Answer with «Алиса» (say «Алиса, ответь»), «продолжи» or the voice key, decline with «стоп» or
+  mute; in a call «Алиса,
   громче / тише / хватит». All of that is on the speaker's own spotters; HA only starts the call
   (an LLM tool script, or the target select and call button). Calls are signed and encrypted.
   Details: [docs/intercom.md](docs/intercom.md), HA setup: [docs/guides/ha-intercom-setup.md](docs/guides/ha-intercom-setup.md).
