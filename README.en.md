@@ -170,6 +170,8 @@ packs replace any animation and add sounds to any event.
 - One switch makes a setting or option shared by every speaker: they take this speaker's
   value and change together from then on; a speaker that was off catches up when it is back.
   Details: [docs/web-ui.md](docs/web-ui.md), [docs/settings.md](docs/settings.md).
+- A speaker that is gone (reset, given away, dead) can be forgotten from any other one's app: it
+  leaves the list, the intercom's rooms and HA. If it comes back, it shows up again by itself.
 
 **Recovery when the Wi-Fi changes**
 - Mute the mic, then hold the voice key for 5 s (the ring fills with yellow): the speaker becomes

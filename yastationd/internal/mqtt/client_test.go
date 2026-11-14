@@ -4,6 +4,8 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -63,6 +65,16 @@ func (c *fakeClient) Subscribe(topic string, qos byte, callback paho.MessageHand
 	return completedToken{}
 }
 
+func (c *fakeClient) Unsubscribe(topics ...string) paho.Token {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, t := range topics {
+		delete(c.subscriptions, t)
+	}
+	c.operations = append(c.operations, "unsubscribe")
+	return completedToken{}
+}
+
 func (c *fakeClient) IsConnected() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -93,13 +105,14 @@ func (completedToken) Done() <-chan struct{}          { ch := make(chan struct{}
 func (completedToken) Error() error                   { return nil }
 
 type testMessage struct {
-	topic   string
-	payload []byte
+	topic    string
+	payload  []byte
+	retained bool
 }
 
 func (m testMessage) Duplicate() bool   { return false }
 func (m testMessage) Qos() byte         { return 1 }
-func (m testMessage) Retained() bool    { return false }
+func (m testMessage) Retained() bool    { return m.retained }
 func (m testMessage) Topic() string     { return m.topic }
 func (m testMessage) MessageID() uint16 { return 0 }
 func (m testMessage) Payload() []byte   { return m.payload }
@@ -235,4 +248,66 @@ func TestNilClientPublishIsLocalOnly(t *testing.T) {
 	var c *Client
 	c.Publish("state", "value")
 	c.PublishEvent("event", "value")
+}
+
+// brokerFake replays the retained messages a filter matches on Subscribe, like a broker.
+type brokerFake struct {
+	fakeClient
+	kept map[string]string
+}
+
+func (b *brokerFake) Subscribe(topic string, qos byte, cb paho.MessageHandler) paho.Token {
+	tok := b.fakeClient.Subscribe(topic, qos, cb)
+	for t, p := range b.kept {
+		if matchFilter(topic, t) {
+			go cb(nil, testMessage{topic: t, payload: []byte(p), retained: true})
+		}
+	}
+	go cb(nil, testMessage{topic: "yastation/gone/live", payload: []byte("x")}) // not retained: left out
+	return tok
+}
+
+// matchFilter: an MQTT filter with + and a trailing #.
+func matchFilter(filter, topic string) bool {
+	f, t := strings.Split(filter, "/"), strings.Split(topic, "/")
+	for i, p := range f {
+		if p == "#" {
+			return true
+		}
+		if i >= len(t) || (p != "+" && p != t[i]) {
+			return false
+		}
+	}
+	return len(f) == len(t)
+}
+
+func TestRetainedCollectsAndUnsubscribes(t *testing.T) {
+	b := &brokerFake{kept: map[string]string{
+		"yastation/gone/availability":                       "offline",
+		"yastation/gone/web/info":                           `{"id":"gone"}`,
+		"yastation/gone/cleared/state":                      "",
+		"homeassistant/sensor/yastation_gone/lux/config":    "{}",
+		"yastation/timers/gone/t1":                          "{}",
+		"yastation/stays/web/info":                          "{}",
+		"homeassistant/sensor/yastation_gonetoo/lux/config": "{}",
+	}}
+	c := testClient(&b.fakeClient)
+	c.c = b
+	filters := NewTopics("yastation", "homeassistant", "kitchen").DeviceRetained("gone")
+	got, err := c.Retained(filters, 50*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"homeassistant/sensor/yastation_gone/lux/config", "yastation/gone/availability", "yastation/gone/web/info", "yastation/timers/gone/t1"}
+	var keys []string
+	for k := range got {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	if !slices.Equal(keys, want) {
+		t.Fatalf("collected %v, want %v", keys, want)
+	}
+	if _, _, _, subs, _ := b.snapshot(); len(subs) != 0 {
+		t.Fatalf("still subscribed: %v", subs)
+	}
 }

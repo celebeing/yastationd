@@ -28,7 +28,8 @@ nothing to compute them from ([music-sources.md](music-sources.md)). Two ways:
 
 ## Adopting and retiring a speaker
 
-**Status:** idea, nothing built (2026-10-30). The trigger: giving a speaker to a friend should take
+**Status:** idea (2026-10-30); "Forget a speaker" is built (2026-11-14, [web-ui.md](web-ui.md)),
+the rest is not. The trigger: giving a speaker to a friend should take
 the household's data off it and keep it from coming back. A factory reset is no answer: it loses
 the CFW and means a reinstall.
 
@@ -47,9 +48,8 @@ Sketch:
 - **Retire**, from the web app of the speaker itself and from the setup page in AP mode: wipe the
   above and leave it unconfigured, in setup mode. Strictly the CFW's own data: the vendor gate, the
   egress lock and the update blocks stay, and so does what the speaker needs to boot.
-- **Forget a speaker**, from any other speaker's web app: for a unit that is gone or dead. Any
-  speaker can publish the empty retained messages that clear it from the broker and HA. A wipe does
-  the same for itself first.
+- **Forget a speaker** — built ([web-ui.md](web-ui.md), "Forget a speaker"): from any other
+  speaker's web app, for a unit that is gone or dead. A wipe would do the same for itself first.
 - **So it doesn't return:** clearing is not enough, a speaker that still has the broker's address
   republishes everything on connect and gets the household's centroids again. The wipe has to take
   the broker's address with it; for a unit that never got wiped, a retained tombstone

@@ -137,6 +137,9 @@ export async function tryLogin(id: string, base: string): Promise<boolean> {
 }
 
 export const peers = (id: string, base: string) => authed<Peer[]>(id, base, '/api/peers')
+/** forget a gone speaker: clear what it left on the broker (docs/web-ui.md, "Forget a speaker"). */
+export const forgetPeer = (id: string, base: string, peer: string) =>
+  authed<{ ok: boolean; cleared: number }>(id, base, '/api/peers/' + encodeURIComponent(peer), { method: 'DELETE' }, 15000)
 export const state = (id: string, base: string) => authed<State>(id, base, '/api/state')
 export type VideoAsset = { name: string; frames_bytes: number; audio_bytes: number; current: boolean; modified: number }
 export type Assets = {

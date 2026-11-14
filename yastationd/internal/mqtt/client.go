@@ -5,6 +5,8 @@ package mqtt
 import (
 	"fmt"
 	"log/slog"
+	"maps"
+	"sync"
 	"time"
 
 	paho "github.com/eclipse/paho.mqtt.golang"
@@ -15,6 +17,7 @@ type mqttClient interface {
 	Disconnect(quiesce uint)
 	Publish(topic string, qos byte, retained bool, payload any) paho.Token
 	Subscribe(topic string, qos byte, callback paho.MessageHandler) paho.Token
+	Unsubscribe(topics ...string) paho.Token
 	IsConnected() bool
 	IsConnectionOpen() bool
 }
@@ -125,6 +128,36 @@ func (c *Client) Subscribe(topic string, fn func(payload []byte)) {
 // SubscribeTopic is Subscribe with the message's topic (for wildcard subscriptions).
 func (c *Client) SubscribeTopic(topic string, fn func(topic string, payload []byte)) {
 	c.c.Subscribe(topic, 1, func(_ paho.Client, m paho.Message) { fn(m.Topic(), m.Payload()) })
+}
+
+// Retained collects the retained messages under filters (topic → payload, the empty ones left
+// out): it subscribes, waits for the broker's replay of what it keeps, and unsubscribes. A broker
+// sends the retained messages right after the subscription, so a short wait gets them all.
+func (c *Client) Retained(filters []string, wait time.Duration) (map[string][]byte, error) {
+	var mu sync.Mutex
+	got := map[string][]byte{}
+	keep := func(_ paho.Client, m paho.Message) {
+		if !m.Retained() || len(m.Payload()) == 0 {
+			return
+		}
+		mu.Lock()
+		got[m.Topic()] = m.Payload()
+		mu.Unlock()
+	}
+	defer c.c.Unsubscribe(filters...)
+	for _, f := range filters {
+		t := c.c.Subscribe(f, 1, keep)
+		if !t.WaitTimeout(5 * time.Second) {
+			return nil, fmt.Errorf("subscribe %s: no answer from the broker", f)
+		}
+		if err := t.Error(); err != nil {
+			return nil, fmt.Errorf("subscribe %s: %w", f, err)
+		}
+	}
+	time.Sleep(wait)
+	mu.Lock()
+	defer mu.Unlock()
+	return maps.Clone(got), nil
 }
 
 // Connected: the connection to the broker is open now. (paho's IsConnected is also true while it

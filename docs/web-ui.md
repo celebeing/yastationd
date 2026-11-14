@@ -53,6 +53,7 @@ to the binary. Flash is written only when the config is saved.
 | `GET /api/info` | id, name, board, model, version, the app's URL — no login (discovery) |
 | `POST /api/login` | a token |
 | `GET /api/peers` | the speakers this one knows (below) |
+| `DELETE /api/peers/<id>` | forget a gone speaker (below); 409 while the broker has it online or for itself, 503 without the broker |
 | `GET /api/state` | every web-exposed control and sensor: its metadata and current value |
 | `POST /api/control/<object>` | set a control: the body is the same payload as its MQTT command |
 | `GET /api/config`, `PUT /api/config` | the config file's text; a save is validated, then applied live or by a trial restart (below, and [settings.md](settings.md)) |
@@ -119,6 +120,27 @@ Each speaker publishes a retained `yastation/<id>/web/info` (`{id, name, board, 
 and subscribes to `yastation/+/web/info`; `/api/peers` lists what it has heard (and itself). The
 app asks the speaker it was loaded from, then talks to each peer at its own URL. The broker
 already connects them all; mDNS (`<id>.local`) may come later.
+
+### Forget a speaker
+
+A speaker that is gone for good (reset, sold, dead) stays everywhere its retained messages are:
+the app's list, the intercom's rooms, HA's devices. The card of a listed speaker that does not
+answer offers **Forget this speaker**; the speaker the app came from does it (`forget.go`):
+
+1. it subscribes for a moment to `<prefix>/<id>/#`, `<discovery>/+/yastation_<id>/#` and
+   `<prefix>/timers/<id>/+` (`Topics.DeviceRetained`) and collects what the broker replays
+   (`mqtt.Client.Retained`, 1.5 s);
+2. when the availability among them is `online`, it refuses (409): the speaker is alive, or its
+   last will has not fired yet (up to ~45 s after it went);
+3. otherwise it publishes an empty retained message over each topic. HA deletes the device and
+   its entities, every speaker drops it from its list (an empty web card) and from the intercom's
+   rooms (an empty intercom card).
+
+Nothing stops it from coming back: a speaker that reconnects publishes everything again and is
+listed again, which is what a unit switched off for a while wants — but HA makes it a new
+device, without the area and the names given to it before. A permanent retire (a wipe, a
+tombstone) is in [wishlist.md](wishlist.md) ("Retire and adopt"). The people's voices recorded on
+it stay in the store, under its id.
 
 ## The app (`web/`)
 

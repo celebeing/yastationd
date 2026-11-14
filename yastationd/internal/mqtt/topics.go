@@ -19,7 +19,7 @@ func NewTopics(prefix, disc, id string) Topics {
 func (t Topics) node() string { return "yastation_" + t.id }
 
 // Availability is the retained online/offline topic (the LWT).
-func (t Topics) Availability() string { return fmt.Sprintf("%s/%s/availability", t.prefix, t.id) }
+func (t Topics) Availability() string { return t.AvailabilityOf(t.id) }
 
 // Discovery is the HA MQTT-Discovery config topic for one object.
 func (t Topics) Discovery(component, obj string) string {
@@ -41,22 +41,44 @@ func (t Topics) IntercomSig(id string) string { return fmt.Sprintf("%s/%s/interc
 func (t Topics) IntercomCall() string { return fmt.Sprintf("%s/intercom/call", t.prefix) }
 
 // IntercomInfoID is the device id in an IntercomInfoAll topic ("" if it isn't one).
-func (t Topics) IntercomInfoID(topic string) string {
+func (t Topics) IntercomInfoID(topic string) string { return t.deviceOf(topic, "/intercom/info") }
+
+// deviceOf is the device id in a topic <prefix>/<id><suffix> ("" if it isn't one).
+func (t Topics) deviceOf(topic, suffix string) string {
 	rest, ok := strings.CutPrefix(topic, t.prefix+"/")
 	if !ok {
 		return ""
 	}
-	id, ok := strings.CutSuffix(rest, "/intercom/info")
-	if !ok || strings.Contains(id, "/") {
+	id, ok := strings.CutSuffix(rest, suffix)
+	if !ok || id == "" || strings.Contains(id, "/") {
 		return ""
 	}
 	return id
+}
+
+// DeviceRetained are the filters of every retained topic speaker id may leave on the broker: its
+// own tree (availability, states, the web and intercom cards), its HA discovery configs and its
+// shared timers. Forgetting a speaker clears what they match (docs/web-ui.md, "Forget a speaker").
+func (t Topics) DeviceRetained(id string) []string {
+	return []string{
+		fmt.Sprintf("%s/%s/#", t.prefix, id),
+		fmt.Sprintf("%s/+/yastation_%s/#", t.disc, id),
+		fmt.Sprintf("%s/timers/%s/+", t.prefix, id),
+	}
+}
+
+// AvailabilityOf is speaker id's availability topic.
+func (t Topics) AvailabilityOf(id string) string {
+	return fmt.Sprintf("%s/%s/availability", t.prefix, id)
 }
 
 // WebInfo is this speaker's retained web UI card; WebInfoAll every speaker's (discovery for the
 // app, docs/web-ui.md).
 func (t Topics) WebInfo() string    { return fmt.Sprintf("%s/%s/web/info", t.prefix, t.id) }
 func (t Topics) WebInfoAll() string { return fmt.Sprintf("%s/+/web/info", t.prefix) }
+
+// WebInfoID is the device id in a WebInfoAll topic ("" if it isn't one).
+func (t Topics) WebInfoID(topic string) string { return t.deviceOf(topic, "/web/info") }
 
 // ObjectOf is the object of a state or command topic of this device ("" when it is neither).
 func (t Topics) ObjectOf(topic string) string {

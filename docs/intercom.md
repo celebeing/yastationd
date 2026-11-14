@@ -303,8 +303,9 @@ decision first.
   (`off`).
 - While ringing, the chime plays, and 1.5 s later the daemon opens a listening session unless
   HA has started an announcement meanwhile (then it listens when the announcement ends).
-- A speaker that turns the intercom off clears its retained info, but the others keep it listed
-  until they restart (the empty retained message doesn't say whose it was); calling it times out.
+- A speaker that turns the intercom off clears its retained info, and the others drop it from
+  their rooms (the topic says whose it was). So does forgetting a gone speaker
+  ([web-ui.md](web-ui.md), "Forget a speaker").
 - `cmd: <prefix>/<id>/intercom/set` takes `{"action":"call","to":…}` with a device id or a room
   name.
 

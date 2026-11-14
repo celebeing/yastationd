@@ -101,6 +101,7 @@ func (a *App) webHandler() http.Handler {
 	api.HandleFunc("/api/info", a.apiInfo)
 	api.HandleFunc("/api/login", a.apiLogin)
 	api.HandleFunc("/api/peers", a.authed(a.apiPeers))
+	api.HandleFunc("/api/peers/", a.authed(a.apiPeer))
 	api.HandleFunc("/api/state", a.authed(a.apiState))
 	api.HandleFunc("/api/control/", a.authed(a.apiControl))
 	api.HandleFunc("/api/password", a.authed(a.apiPassword))
@@ -416,6 +417,12 @@ func (a *App) publishWebInfo() {
 }
 
 func (a *App) onWebInfo(topic string, payload []byte) {
+	if len(payload) == 0 { // its card cleared: the speaker was forgotten (forget.go)
+		if id := a.topics.WebInfoID(topic); id != "" {
+			a.dropPeer(id)
+		}
+		return
+	}
 	var p peerInfo
 	if json.Unmarshal(payload, &p) != nil || p.ID == "" {
 		return

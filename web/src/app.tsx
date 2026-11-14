@@ -8,7 +8,7 @@ import { Control, name } from './controls'
 import { ConfigPage } from './settings'
 import { VideosTab } from './assets'
 import { PacksTab, SoundsTab } from './packs'
-import { VoicesTab } from './voices'
+import { Confirm, VoicesTab } from './voices'
 
 // The app (docs/web-ui.md): the speakers on the LAN, and per speaker its sensors, runtime
 // controls, config and login. It is served by every speaker; the one it came from is "home" and
@@ -132,6 +132,14 @@ function Speakers({ home }: { home: Peer }) {
     return () => clearInterval(t)
   }, [])
 
+  // Forgetting goes through this speaker (any speaker can clear a gone one off the broker).
+  async function forget(p: Peer) {
+    await api.forgetPeer(home.id, '', p.id)
+    setList((l) => l.filter((x) => x.id !== p.id))
+    setSel(home.id)
+    refresh()
+  }
+
   const peer = list.find((p) => p.id === sel) || home
   return (
     <div class="layout">
@@ -167,9 +175,44 @@ function Speakers({ home }: { home: Peer }) {
           peers={list}
           onSwitch={setSel}
           onLogin={() => setStatus((s) => ({ ...s, [peer.id]: 'ok' }))}
+          onForget={peer.id === home.id ? undefined : () => forget(peer)}
         />
         )}
       </main>
+    </div>
+  )
+}
+
+// Gone: a listed speaker that does not answer. If it is gone for good, forget it here.
+function Gone(props: { peer: Peer; onForget?: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  async function forget() {
+    setBusy(true)
+    setErr('')
+    try {
+      await props.onForget!()
+    } catch (e: any) {
+      setErr(e.message || String(e))
+      setBusy(false)
+    }
+  }
+  return (
+    <div class="card">
+      <p>
+        {props.peer.name} does not answer at {props.peer.url}.
+      </p>
+      {props.onForget && (
+        <>
+          <p class="muted small">
+            Gone for good (reset, sold, dead)? Forgetting clears what it left on the broker: it leaves this list, the intercom's rooms
+            and Home Assistant (its device and entities). If it comes back, it shows up again by itself, but HA
+            no longer has its area and the names you gave it.
+          </p>
+          <Confirm label="Forget this speaker" ask={`Really forget ${props.peer.name}?`} busy={busy} onYes={forget} />
+          {err && <p class="err">{err}</p>}
+        </>
+      )}
     </div>
   )
 }
@@ -254,7 +297,7 @@ const TAB_NAMES: Record<Tab, string> = {
   account: 'Login',
 }
 
-function Speaker(props: { peer: Peer; base: string; status: Status; peers: Peer[]; onSwitch: (id: string) => void; onLogin: () => void }) {
+function Speaker(props: { peer: Peer; base: string; status: Status; peers: Peer[]; onSwitch: (id: string) => void; onLogin: () => void; onForget?: () => Promise<void> }) {
   const { peer, base } = props
   // The open section is in the address (#options), so it can be linked and survives a reload.
   // (#led/<folder> also opens a folder of the animation browser.)
@@ -301,7 +344,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; peers: Peer[
   const available = (t: Tab) =>
     t === 'led' ? !!features.led_preview : t === 'moments' ? !!features.moments : t === 'videos' ? !!features.videos : t === 'packs' || t === 'sounds' ? !!features.packs : t === 'voices' ? !!features.voices : t === 'bluetooth' ? !!features.bluetooth : true
 
-  if (props.status === 'offline') return <div class="card">{peer.name} does not answer at {peer.url}.</div>
+  if (props.status === 'offline') return <Gone peer={peer} onForget={props.onForget} />
   if (needLogin || props.status === 'login')
     return (
       <Login

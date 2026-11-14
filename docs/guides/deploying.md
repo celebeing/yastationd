@@ -334,8 +334,8 @@ tweaks without a rebuild: `<cfw>/board.conf` (+ restart).
 
 - Pause: `touch <cfw>/yastationd_off; /etc/init.d/S52zyastationd stop` (rm the flag + `start` to resume).
 - Remove: stop it, delete `/etc/init.d/S52zyastationd` (rootfs remount), then `<cfw>/bin/*` and
-  `<cfw>/yastationd.*`. HA keeps the MQTT device until you delete it there (or clear the retained
-  `homeassistant/+/yastation_<id>/#` configs).
+  `<cfw>/yastationd.*`. HA and the other speakers keep it until you forget it from
+  another speaker's web app (its card, once it no longer answers: [web-ui.md](../web-ui.md), "Forget a speaker").
 - Re-enabling the vendor stack (removing `maind_off`, restoring `run.sh.orig` / the update script)
   also brings back its internet use and updates. Don't, unless the user asks for exactly that.
 

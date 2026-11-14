@@ -3,6 +3,14 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Web app**
+- Forget a speaker that is gone for good: the card of a speaker that does not answer has
+  **Forget this speaker**. It clears what the speaker left on the broker, so it leaves the
+  speaker list, the intercom's rooms and Home Assistant (device and entities). A speaker that comes
+  back shows up again by itself ([docs/web-ui.md](docs/web-ui.md)).
+
 ## v0.29.1 — 2026-11-11
 
 **Intercom, after the first evening of real calls**

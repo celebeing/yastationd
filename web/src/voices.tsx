@@ -255,7 +255,7 @@ function Album(p: Props & { v: Voices; reload: () => Promise<void> }) {
 }
 
 /** Confirm: a button that asks again in place ("Really …? Yes / No"). */
-function Confirm(p: { label: string; ask: string; busy: boolean; onYes: () => void; ghost?: boolean }) {
+export function Confirm(p: { label: string; ask: string; busy: boolean; onYes: () => void; ghost?: boolean }) {
   const [asking, setAsking] = useState(false)
   if (!asking)
     return (

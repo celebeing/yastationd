@@ -49,9 +49,10 @@ const (
 type App struct {
 	// conf: the config in force. Keys marked runtime in the registry (config.Keys) change while
 	// the daemon runs (applyConfig), so read it through cfg() at the point of use.
-	conf   atomic.Pointer[config.Config]
-	confMu sync.Mutex // serialises writers of the config file
-	shared shared     // the items shared with the other speakers (sync.go)
+	conf      atomic.Pointer[config.Config]
+	confMu    sync.Mutex  // serialises writers of the config file
+	shared    shared      // the items shared with the other speakers (sync.go)
+	forgetBus retainedBus // tests: the broker for forgetting a speaker (forget.go); nil = a.mqtt
 	// restartPending: a config was saved on trial and the daemon is about to restart
 	restartPending atomic.Bool
 	prof           board.Profile // this station's hardware
