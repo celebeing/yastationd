@@ -3,7 +3,7 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.30.0 — 2026-11-14
 
 **Web app**
 - Forget a speaker that is gone for good: the card of a speaker that does not answer has
