@@ -359,6 +359,38 @@ music at full volume with the SoC busy and the strip RGBW at 255, and watch the 
 (`ya_pd`: voltage, the supply sensor in HA), thermal throttling, and whether the sound sags or the
 speaker resets. Until that is measured the effects stay dim (brightness 64).
 
+## Station 3: where a voice or a noise came from
+
+**Status:** idea (2026-11-14), not explored further for now.
+
+The six mics (the raw 96 kHz stream, [boards/orion.md](boards/orion.md) "Mic capture") hear a sound
+at slightly different times. From those delays a direction can be computed (GCC-PHAT / SRP-PHAT).
+Two uses:
+
+- **The eyes follow the speaker:** the faces on the screen look toward whoever said «Алиса». This
+  needs a deep rework of moments and animations: today a face is a fixed picture, while here the
+  gaze would be a parameter of the drawing.
+- **A quiet glance at a sudden noise:** the eyes turn toward a bang and come back, with no sound
+  and no other reaction.
+
+What is known and what is assumed:
+
+- The daemon already gets every raw channel (`Mic.SubscribeRaw`, the spotter's input), and the
+  wake word gives the moment to look at. The October sweep reached the mics at different times
+  (3.25–5.10 ms, mic 0 first).
+- The mic layout is in neither the firmware nor our docs. Measure it from the delays: clicks
+  played from a few known points around the speaker.
+- Assumed: the mics lie in one plane on the top. If so, the direction around the speaker (360°)
+  works, roughly ±10–20° for a voice in a room; how high the source is comes out only roughly and
+  cannot tell above the plane from below it; distance not at all (the array is a few cm across).
+  Reflections from a nearby wall can give a false direction.
+- The vendor VQE has `doaConfig` and zone tracking ([research/wakeword-mic-array.md](research/wakeword-mic-array.md)
+  §3.3). Whether the orion preset turns them on, and whether the C API returns a direction, is
+  untested; it may save writing our own.
+
+A cheap first step: record the six channels on one Station 3 while someone says «Алиса» from 4–6
+places around it, and check offline how well the directions separate.
+
 ## Wake arbitration vs the context-dependent spotters
 
 Arbitration ([wake-arbitration.md](wake-arbitration.md)) is about the wake word: a wake during an
