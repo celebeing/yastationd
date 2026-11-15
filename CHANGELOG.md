@@ -3,7 +3,7 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.31.0 — 2026-11-15
 
 **Station 3**
 - Analog clock: a new Display mode, `clock_analog`. Bare hands and twelve hour marks on the
