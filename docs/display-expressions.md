@@ -78,9 +78,45 @@ brightness at the end, so half-tones look half as bright on the glass.
   A seg7 display has no room for both and shows the clock. Orion's default face
   (`matrix.default_mode = clock_date` in its profile: the mode of a fresh state, before HA sets
   one).
+- `clock_analog` (a display mode of its own, pixel screens): bare hands and hour marks, below.
 - A minute change cross-fades the old picture into the new one over 600 ms. It needs no state:
   in the first 600 ms of a minute the frame mixes the previous minute's picture in.
 - Before the first time sync: only the colon, blinking (orion shows the time at once: its RTC keeps it, `platform.rtc_backed`).
+
+## The analog clock (orion)
+
+`internal/display/analogclock.go`, the `clock_analog` display mode, offered where the screen is at
+least 11×9 (HA's Display select lists it only there, a stored `clock_analog` reads as `clock`
+elsewhere). Bare hands, no numbers, twelve hour marks; drawn in perceived intensity like the other
+faces and cross-faded on a minute change the same way.
+
+- **The dial is 21×11 with its centre on the pixel (10, 5);** the screen's last row stays dark. With
+  12 rows the centre would fall between two rows, and the 3 and 9 marks and every horizontal hand
+  would straddle two rows (a doubled stroke or a smear).
+- **Hour marks:** where each hour's true direction from the centre meets the dial's edge, rounded
+  to a pixel; 12, 3, 6, 9 at 0.4, the others at 0.2, all dimmer than the hands.
+- **Minute hand:** in its true direction, from the centre toward the edge, ending in the pixel next to
+  the hour marks (1 px short of the edge), so its length changes with the direction: 4 px toward 12
+  and 6, 9 px toward 3 and 9. Only its outer 40 % is drawn: a tip apart from the hour hand.
+- **Hour hand:** 0.65 of the minute hand's length in its own direction (the two keep their proportion
+  all round the non-square dial), 1.6 px thick, from the centre; it moves with the minutes.
+- **No antialiasing:** a pixel is lit when the hand covers at least half of it. Half-tones on this
+  screen read as blur.
+
+How it was chosen (2026-11-15): more than 800 faces were rendered for all 720 hand positions and scored by
+how far away the time can still be read — a model of the eye (each LED a soft dot, blur growing with
+distance, in linear light) and an ideal observer picking the nearest of the 720 pictures, its noise
+set so the digital clock fails exactly at "1×". The face that scored best (a minute bar on the
+screen's border, ~2.5×) was turned down as too alien; this one, chosen by the owner, reads about 1.5×
+as far as the digital clock in that model. What the model showed:
+
+- hands from the centre with only their length to tell them apart merge into one bent line; the
+  minute hand as a separate tip near the edge fixes that;
+- a dim hour hand drowns next to a bright minute hand (1:08 and 2:08 nearly the same);
+- a minute hand stopping with an empty pixel before the mark is no longer than the hour hand toward
+  12 and 6, and reading falls below the digital clock;
+- antialiasing scores a little worse than none;
+- hour marks cost the ideal observer 5–10 % (it knows the geometry anyway); people asked for them.
 
 ## Text on the pixel screen (orion)
 

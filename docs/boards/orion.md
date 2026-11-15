@@ -447,7 +447,7 @@ Three surfaces, every LED a Linux LED class device each mirrored by a framebuffe
 
 ## Screen work list (from the first days on glass, 2026-10-26)
 
-- **Clock:** done — our own pixel font, plus the two-line `clock_date` mode
+- **Clock:** done — our own pixel font, plus the two-line `clock_date` mode and the analog `clock_analog`
   ([display-expressions.md](../display-expressions.md), "The pixel clock").
 - **Volume:** done — our number over a bar (`display/volume.go`). The stock `volume.led` was tried
   first: it is a continuous sweep through the tens (~20 frames of a clean "10", ~30 of scrolling to

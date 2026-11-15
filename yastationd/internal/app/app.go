@@ -418,6 +418,9 @@ func (a *App) matrixBase(now time.Time) display.FrontFrame {
 		if s.Mode == "clock_date" {
 			return a.front.ClockDate(now, a.loc, a.brightness())
 		}
+		if s.Mode == "clock_analog" {
+			return a.front.ClockAnalog(now, a.loc, a.brightness())
+		}
 		return a.front.Clock(now, a.loc, a.brightness())
 	}
 }

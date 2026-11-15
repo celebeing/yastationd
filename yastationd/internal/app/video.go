@@ -191,7 +191,8 @@ func (a *App) displayMode() string {
 		return videoMode
 	}
 	m := a.store.get().Mode
-	if m == "clock_date" && (a.front == nil || !a.front.HasClockDate()) {
+	if m == "clock_date" && (a.front == nil || !a.front.HasClockDate()) ||
+		m == "clock_analog" && (a.front == nil || !a.front.HasClockAnalog()) {
 		return "clock" // a state from a display that had it; this one shows the clock
 	}
 	return m
@@ -206,6 +207,9 @@ func (a *App) displayModes() []string {
 	m := []string{"clock"}
 	if a.front != nil && a.front.HasClockDate() {
 		m = append(m, "clock_date")
+	}
+	if a.front != nil && a.front.HasClockAnalog() {
+		m = append(m, "clock_analog")
 	}
 	m = append(m, "off", "message")
 	if a.videoPossible() {

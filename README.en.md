@@ -124,6 +124,7 @@ packs replace any animation and add sounds to any event.
   scroll, pulse) follow the music playing on the speaker, chosen and dimmed from HA
   ([docs/ambilight-stream.md](docs/ambilight-stream.md)).
 - Front display: clock, a text message (long text scrolls), timed text overlays, countdowns.
+  On a Station 3 the clock also comes with the date or as an analog one (bare hands and hour marks).
 - Clock auto-brightness from the ambient-light sensor (dims to barely visible in a dark room).
   Switch and manual level in HA.
 - Volume (number + hardware keys with an on-display level), mic-mute switch state, buttons as HA

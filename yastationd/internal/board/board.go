@@ -409,10 +409,10 @@ func (p *Profile) set(k, v string, cleared map[string]bool) error {
 		p.Matrix.Backlight = v
 	case k == "matrix.default_mode":
 		switch v {
-		case "clock", "clock_date", "off":
+		case "clock", "clock_date", "clock_analog", "off":
 			p.Matrix.DefaultMode = v
 		default:
-			err = fmt.Errorf("display mode %q: clock, clock_date or off", v)
+			err = fmt.Errorf("display mode %q: clock, clock_date, clock_analog or off", v)
 		}
 	case k == "input.device":
 		list(&p.Input.Devices)

@@ -3,6 +3,13 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Station 3**
+- Analog clock: a new Display mode, `clock_analog`. Bare hands and twelve hour marks on the
+  screen; the minute hand reaches almost to the marks, the hour hand moves with the minutes
+  ([docs/display-expressions.md](docs/display-expressions.md), "The analog clock").
+
 ## v0.30.0 — 2026-11-14
 
 **Web app**

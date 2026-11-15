@@ -168,8 +168,8 @@ func (a *App) cmdAmbilight(payload []byte) {
 func (a *App) cmdDisplayMode(payload []byte) {
 	mode := strings.TrimSpace(string(payload))
 	switch mode {
-	case "clock_date":
-		if a.front == nil || !a.front.HasClockDate() {
+	case "clock_date", "clock_analog":
+		if a.front == nil || (mode == "clock_date" && !a.front.HasClockDate()) || (mode == "clock_analog" && !a.front.HasClockAnalog()) {
 			a.log.Info("display mode not available on this display", "mode", mode)
 			a.publishDisplayMode() // puts HA's select back
 			return

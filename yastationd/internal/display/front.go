@@ -55,6 +55,10 @@ type Front interface {
 	// only then).
 	ClockDate(now time.Time, loc *time.Location, brightness int) FrontFrame
 	HasClockDate() bool
+	// ClockAnalog is the analog clock (the clock_analog display mode); offered only where
+	// HasClockAnalog, elsewhere it shows the clock.
+	ClockAnalog(now time.Time, loc *time.Location, brightness int) FrontFrame
+	HasClockAnalog() bool
 	// Unsynced is the clock before the first time sync: no digits, a blinking colon.
 	Unsynced(now time.Time, brightness int) FrontFrame
 	Text(s string, brightness int) FrontFrame
@@ -97,6 +101,14 @@ func (f Seg7Front) HasClockDate() bool { return false }
 
 // ClockDate: four digits have no room for the date as well.
 func (f Seg7Front) ClockDate(now time.Time, loc *time.Location, brightness int) FrontFrame {
+	return f.Clock(now, loc, brightness)
+}
+
+// HasClockAnalog: four digits cannot draw hands.
+func (f Seg7Front) HasClockAnalog() bool { return false }
+
+// ClockAnalog: four digits cannot draw hands; the clock instead.
+func (f Seg7Front) ClockAnalog(now time.Time, loc *time.Location, brightness int) FrontFrame {
 	return f.Clock(now, loc, brightness)
 }
 
