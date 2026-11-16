@@ -58,7 +58,7 @@ conditions:
       {% set e = trigger.event.data %}
       {{ e.entity_id is match('event\..*_alert_to_say$')
          and e.new_state is not none and e.old_state is not none
-         and e.old_state.state not in ['unavailable', 'unknown']
+         and e.old_state.state != 'unavailable'
          and e.new_state.attributes.event_type == 'say' }}
 actions:
   - variables:
@@ -75,8 +75,9 @@ actions:
       preannounce: false
 ```
 
-The voice is the satellite's pipeline's. The `old_state` check keeps a restart of Home Assistant
-(the event entity coming back) from saying the last alert again.
+The voice is the satellite's pipeline's. The `old_state` checks keep a restart of Home Assistant or of
+the speaker (the event entity coming back from nothing or from `unavailable`) from saying the last
+alert again; `unknown` is let through, it is the state before the entity's first event.
 
 ## 4. A schedule (optional)
 
