@@ -92,6 +92,7 @@ places other assistants beep.
 | `wifi_setup` (held), `wifi_setup_failed` | the yellow comet and the setup scene; `error` |
 | `alert_firing`, `alert_firing_warning`, `alert_firing_critical` | a Grafana alert fired ([alerts.md](alerts.md)): a white flash, an amber blink, a fast red blink, each with `notification_sound`; in the quiet mode without the sound |
 | `alert_active` (held) / `alert_resolved` | a red pulse while an alert is on (never a sound) / the green flash |
+| `notify_good`, `notify_info`, `notify_bad` | a one-off notification by its tone: a green, white, amber flash, each with `notification_sound`; in the quiet mode without the sound |
 
 Station 3's profile keeps its old silence: `moment.volume_change`, `moment.announce` empty and
 `moment.voice_unavailable = ring:unavailable` (orion.conf).

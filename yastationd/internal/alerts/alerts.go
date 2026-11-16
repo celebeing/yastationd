@@ -68,6 +68,28 @@ func (a Alert) Speech() string {
 	return a.Title()
 }
 
+// Notification: the rule is labelled kind=notification — an event, not a state (docs/alerts.md).
+func (a Alert) Notification() bool {
+	return strings.EqualFold(strings.TrimSpace(a.Labels["kind"]), "notification")
+}
+
+// Tone is a notification's tone label (good, info, bad; "" when none).
+func (a Alert) Tone() string { return strings.ToLower(strings.TrimSpace(a.Labels["tone"])) }
+
+// Quiet: the rule asks not to be said aloud (a label or an annotation speak=no).
+func (a Alert) Quiet() bool {
+	for _, v := range []string{a.Labels["speak"], a.Annotations["speak"]} {
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "no", "false", "0":
+			return true
+		}
+	}
+	return false
+}
+
+// ResolvedText is the rule's "resolved" annotation: the good news its resolve brings.
+func (a Alert) ResolvedText() string { return strings.TrimSpace(a.Annotations["resolved"]) }
+
 // Severity is the severity label, lower case ("" when the rule has none).
 func (a Alert) Severity() string { return strings.ToLower(strings.TrimSpace(a.Labels["severity"])) }
 

@@ -37,10 +37,11 @@ type alertOn struct {
 }
 
 type alertState struct {
-	mu     sync.Mutex
-	on     map[string]alertOn // by fingerprint
-	acked  bool               // alert_active ended by hand until a new alert fires
-	sayAt  time.Time          // when the speaker last asked HA to say an alert
+	mu      sync.Mutex
+	on      map[string]alertOn // by fingerprint
+	acked   bool               // alert_active ended by hand until a new alert fires
+	sayAt   time.Time          // when the speaker last asked HA to say something
+	notices map[string]bool    // Grafana's kind=notification alerts firing now: not again on a repeat
 }
 
 // alertsOn: the speaker takes alerts at all (a topic is set and there is a broker).
@@ -70,9 +71,6 @@ func (a *App) onAlerts(payload []byte) {
 		return
 	}
 	mode := a.alertsMode()
-	if mode == alertsOff {
-		return
-	}
 	cfg := a.cfg()
 	take, _ := alerts.ParseMatchers(cfg.AlertsMatch) // checked when the config was read
 	speak, _ := alerts.ParseMatchers(cfg.AlertsSpeak)
@@ -80,10 +78,19 @@ func (a *App) onAlerts(payload []byte) {
 		if !take.Match(al.Labels) {
 			continue
 		}
-		if al.Firing() {
-			a.alertFiring(al, mode, cfg.AlertsRepeat, speak)
-		} else {
-			a.alertResolved(al, mode)
+		if al.Notification() { // an event, not a state: the notifications' mode decides
+			a.alertNotice(al)
+			continue
+		}
+		if mode != alertsOff {
+			if al.Firing() {
+				a.alertFiring(al, mode, cfg.AlertsRepeat, speak)
+			} else {
+				a.alertResolved(al, mode)
+			}
+		}
+		if t := al.ResolvedText(); !al.Firing() && t != "" {
+			a.notify(notice{Text: t, Tone: "good"}) // the good news of the end ("the line is back")
 		}
 	}
 	a.publishAlerts()
@@ -111,8 +118,8 @@ func (a *App) alertFiring(al alerts.Alert, mode string, repeat bool, speak alert
 	}
 	a.fireAs(name, mode != alertsLoud)
 	a.fireAs("alert_active", true)
-	if mode == alertsLoud && speak.Match(al.Labels) {
-		a.alertSay(al.Speech())
+	if mode == alertsLoud && speak.Match(al.Labels) && !al.Quiet() {
+		a.sayAloud(al.Speech())
 	}
 }
 
@@ -133,9 +140,9 @@ func (a *App) alertResolved(al alerts.Alert, mode string) {
 	}
 }
 
-// alertSay asks HA to say text on this speaker: an event of the alert_say entity, which the HA
+// sayAloud asks HA to say text on this speaker: an event of the "Say aloud" entity, which the HA
 // automation of docs/guides/grafana-alerts.md turns into assist_satellite.announce.
-func (a *App) alertSay(text string) {
+func (a *App) sayAloud(text string) {
 	if text == "" {
 		return
 	}
@@ -143,7 +150,7 @@ func (a *App) alertSay(text string) {
 	a.alerts.sayAt = time.Now()
 	a.alerts.mu.Unlock()
 	b, _ := json.Marshal(map[string]string{"event_type": "say", "text": text})
-	a.publishEvent(a.topics.State("alert_say"), string(b))
+	a.publishEvent(a.topics.State("say"), string(b))
 }
 
 // alertSpeechSoon: an announcement now is the alert the speaker just asked HA to say (it plays

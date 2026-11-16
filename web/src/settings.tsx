@@ -20,6 +20,10 @@ const OPTIONS: Record<string, { group: string; doc: string }> = {
     group: 'alerts',
     doc: 'Off: this speaker ignores alerts. Quiet: the alert moments without their sounds (the ring tells what came). Loud: with their sounds, and the alerts picked below said aloud through Home Assistant.',
   },
+  notify_mode: {
+    group: 'notify',
+    doc: 'Off: this speaker ignores notifications. Quiet: their moments without sound, and the text on the display. Loud: with sound, and the text said aloud through Home Assistant (unless the notification asks not to be).',
+  },
   voice_ignore_guests: {
     group: 'voice_id',
     doc: "Requests from voices the household doesn't know are ignored before they reach Home Assistant: the speaker shows the voice_guest moment instead. Needs at least one voice marked as the household in the People tab.",
@@ -210,7 +214,7 @@ const INTRO: Record<ConfigPageID, string> = {
   home: 'Fitting the speaker into your home: its name, Home Assistant, the web app, time and logs. Usually set once.',
   music: 'The speaker as a Music Assistant player (Sendspin).',
   intercom: 'Calls between the speakers.',
-  alerts: "Grafana's alerts on the speakers: which ones this speaker takes, and which it says aloud. How loudly it reacts at all is the Alerts mode, which Home Assistant can also switch on a schedule.",
+  alerts: "Alerts are states that last (something is wrong until it is fixed), from Grafana; notifications are one-off events with a tone (the washing is done, the line is back), from Home Assistant or Grafana. Each has its own mode per speaker, which Home Assistant can also switch on a schedule.",
   wifi: '',
   bluetooth: '',
   calibration: '',

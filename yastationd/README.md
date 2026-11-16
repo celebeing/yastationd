@@ -127,8 +127,9 @@ intercom_target (the other speakers) · `button` intercom_call (also answers) ·
 intercom_hangup ([docs/intercom.md](../docs/intercom.md)) · with `voice_id = true`: `sensor` voice
 (a named person, guest or unknown; the verdict as attributes) · `sensor` voice_gender ·
 `binary_sensor` voice_known · `switch` voice_ignore_guests ([docs/voice-id.md](../docs/voice-id.md)) ·
-with `alerts_topic` set: `select` alerts_mode (off/quiet/loud) · `sensor` alerts_active (the alerts
-as an attribute) · `button` alerts_ack · `event` alert_say ([docs/alerts.md](../docs/alerts.md)).
+`select` notify_mode (off/quiet/loud) · `notify` notify (a notification to this speaker) · `event` say
+(what HA should say on it) · with `alerts_topic` set: `select` alerts_mode · `sensor` alerts_active
+(the alerts as an attribute) · `button` alerts_ack ([docs/alerts.md](../docs/alerts.md)).
 
 **Not on HA's device card** (2026-10-28): the speaker's own settings — `text_duration`,
 `animation_duration`, `follow_up` — are in the web app only (still entities of its API;

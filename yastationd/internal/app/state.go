@@ -48,6 +48,8 @@ type persistState struct {
 	VoiceIgnoreGuests bool `json:"voice_ignore_guests,omitempty"`
 	// AlertsMode: how this speaker takes Grafana alerts, off|quiet|loud ("" = quiet; alerts.go).
 	AlertsMode string `json:"alerts_mode,omitempty"`
+	// NotifyMode: how it takes notifications, the same three modes (notify.go).
+	NotifyMode string `json:"notify_mode,omitempty"`
 }
 
 func defaultState(ringBright, ambilightBright, clockBright int, clockAuto bool) persistState {

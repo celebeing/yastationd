@@ -62,6 +62,11 @@ func effect(name string) display.RenderFunc[display.RingFrame] {
 		return display.Blink(display.Amber, 350*time.Millisecond)
 	case "alert_critical":
 		return display.Blink(display.Red, 250*time.Millisecond)
+	// notifications (notify.go); good news is "success"
+	case "notice":
+		return display.Flash(display.White, 800*time.Millisecond)
+	case "notice_bad":
+		return display.Flash(display.Amber, 800*time.Millisecond)
 	default:
 		return nil
 	}
@@ -71,7 +76,7 @@ func effect(name string) display.RenderFunc[display.RingFrame] {
 // editor (not in HA's effect list).
 var statusEffects = []string{"mute", "booting", "boot_failed", "degraded", "unavailable", "calling",
 	"call_ringing", "in_call", "call_end", "alarm", "setup", "waiting", "busy", "success",
-	"alert", "alert_info", "alert_warning", "alert_critical"}
+	"alert", "alert_info", "alert_warning", "alert_critical", "notice", "notice_bad"}
 
 // colourEffects take a step's colour and period: the shapes of the presets, in any colour.
 var colourEffects = map[string]time.Duration{

@@ -39,7 +39,7 @@ func TestAlertsLifecycle(t *testing.T) {
 	if !a.ringStack.Has("alert") || !a.ringStack.Has("alert-fire") || a.alertsOnCount() != 1 {
 		t.Fatalf("firing: active %v, fire %v, on %d", a.ringStack.Has("alert"), a.ringStack.Has("alert-fire"), a.alertsOnCount())
 	}
-	if s := a.states.snapshot()["alert_say"].value; !strings.Contains(s, `"text":"Диск полон"`) {
+	if s := a.states.snapshot()["say"].value; !strings.Contains(s, `"text":"Диск полон"`) {
 		t.Errorf("a critical alert in the loud mode was not said: %q", s)
 	}
 	if !a.alertSpeechSoon() || a.alertSpeechSoon() {
@@ -59,9 +59,9 @@ func TestAlertsLifecycle(t *testing.T) {
 	}
 	a.cfg().AlertsRepeat = false
 	// a warning is not said (alerts_speak = severity=critical)
-	a.states.set("alert_say", "")
+	a.states.set("say", "")
 	a.onAlerts(note("firing", alert("firing", "f2", "CPU", "warning")))
-	if s := a.states.snapshot()["alert_say"].value; s != "" {
+	if s := a.states.snapshot()["say"].value; s != "" {
 		t.Errorf("a warning was said: %q", s)
 	}
 	// resolves: the active ring stays until the last one goes
@@ -89,7 +89,7 @@ func TestAlertsModesAndFilter(t *testing.T) {
 	}
 	// quiet: shown, never said
 	a.onAlerts(note("firing", alert("firing", "f1", "Диск полон", "critical")))
-	if !a.ringStack.Has("alert") || a.states.snapshot()["alert_say"].value != "" {
+	if !a.ringStack.Has("alert") || a.states.snapshot()["say"].value != "" {
 		t.Fatal("quiet: not shown, or said")
 	}
 	// off: forgets what is on and ignores the rest
@@ -131,5 +131,59 @@ func TestWithoutSound(t *testing.T) {
 	out := a.withoutSound(in)
 	if out[0].Sound != "" || out[0].Ms != 2000 || out[1].Phrase != "" || !out[1].Hold || in[0].Sound == "" {
 		t.Fatalf("%+v (in %+v)", out, in)
+	}
+}
+
+func TestNotifications(t *testing.T) {
+	a := newAlertsApp(t)
+	said := func() string { return a.states.snapshot()["say"].value }
+	// quiet (the default): shown, not said
+	a.cmdNotify([]byte(`{"text":"Стиралка достирала","tone":"good"}`))
+	if !a.ringStack.Has("notify") || said() != "" {
+		t.Fatalf("quiet: shown %v, said %q", a.ringStack.Has("notify"), said())
+	}
+	// loud: said; plain text is an info; speak:false stays silent
+	a.cmdNotifyMode([]byte("loud"))
+	a.cmdNotify([]byte("Курьер у двери"))
+	if !strings.Contains(said(), "Курьер у двери") {
+		t.Errorf("loud plain text not said: %q", said())
+	}
+	a.states.set("say", "")
+	a.cmdNotify([]byte(`{"text":"тихо","tone":"bad","speak":false}`))
+	if said() != "" {
+		t.Errorf("speak:false was said: %q", said())
+	}
+	// off: nothing
+	a.cmdNotifyMode([]byte("off"))
+	a.endShow("notify")
+	a.cmdNotify([]byte("ничего"))
+	if a.ringStack.Has("notify") {
+		t.Error("off showed a notification")
+	}
+	a.cmdNotifyMode([]byte("loud"))
+
+	// Grafana: kind=notification is an event — once, no active state, its resolve shows nothing
+	n := `{"status":"firing","fingerprint":"n1","labels":{"alertname":"Бэкап не прошёл","kind":"notification","tone":"bad"}}`
+	a.states.set("say", "")
+	a.onAlerts(note("firing", n))
+	if !strings.Contains(said(), "Бэкап не прошёл") || a.alertsOnCount() != 0 || a.ringStack.Has("alert") {
+		t.Fatalf("kind=notification: said %q, on %d, active %v", said(), a.alertsOnCount(), a.ringStack.Has("alert"))
+	}
+	a.states.set("say", "")
+	a.onAlerts(note("firing", n)) // Grafana's repeat
+	if said() != "" {
+		t.Error("a repeat of a notification was said again")
+	}
+	a.endShow("notify")
+	a.onAlerts(note("resolved", strings.Replace(n, `"status":"firing"`, `"status":"resolved"`, 1)))
+	if a.ringStack.Has("notify") {
+		t.Error("a notification's resolve showed something")
+	}
+	// an alert's resolve with a "resolved" annotation is good news, even with the alerts off
+	a.cmdAlertsMode([]byte("off"))
+	a.states.set("say", "")
+	a.onAlerts(note("resolved", `{"status":"resolved","fingerprint":"l1","labels":{"alertname":"Основной канал лёг"},"annotations":{"resolved":"Основной интернет снова жив"}}`))
+	if !strings.Contains(said(), "Основной интернет снова жив") {
+		t.Errorf("the resolved annotation was not said: %q", said())
 	}
 }

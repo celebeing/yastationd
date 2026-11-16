@@ -1,13 +1,27 @@
-# Grafana alerts on the speakers
+# Alerts and notifications on the speakers
+
+Two kinds of message, kept apart:
+
+- an **alert** is a state that lasts — something is wrong until it is fixed. It comes from Grafana,
+  fires, stays on (a red pulse on the ring) and resolves; it has a severity;
+- a **notification** is a one-off event with a tone — good (the washing is done, the line is back),
+  info, or bad (a backup failed) — and no state: nothing stays on, nothing resolves. It comes from
+  Home Assistant or from Grafana.
+
+Each has its own mode per speaker (off, quiet, loud), so a bedroom can ignore alerts and still get
+quiet notifications.
+
+## Alerts
 
 Grafana's alerts reach the speakers through the MQTT broker they already use: Grafana's MQTT contact
 point publishes each notification to one topic, every speaker with that topic subscribes, and each
 decides for itself what to do. Home Assistant only switches the speakers' modes and says an alert
 aloud for a speaker that asks it to. Setting it up: [guides/grafana-alerts.md](guides/grafana-alerts.md).
 
-Code: `internal/alerts` (the notification and the label matchers), `internal/app/alerts.go`.
+Code: `internal/alerts` (Grafana's notification and the label matchers), `internal/app/alerts.go`,
+`internal/app/notify.go`.
 
-## The notification
+### What Grafana sends
 
 The contact point's default JSON (Grafana's MQTT integration, "Message format: json"): the
 Alertmanager webhook shape, a group of alerts with `status` (`firing` / `resolved`), `labels`,
@@ -16,12 +30,14 @@ Alertmanager webhook shape, a group of alerts with `status` (`firing` / `resolve
 - the **title**: the `alertname` label (Grafana puts the rule's title there);
 - the **severity**: the `severity` label, lower case (`critical`, `warning`, anything else);
 - the **speech**: the `speech` annotation if the rule has one, else the title. Only this is said,
-  never the summary or the description.
+  never the summary or the description. A label or annotation `speak=no` keeps the rule silent;
+- `kind=notification`: the rule is a notification, not an alert (below);
+- the `resolved` annotation: the good news its resolve brings (below).
 
 An alert without a fingerprint gets one from its labels. A payload that is not such JSON is logged
 and dropped.
 
-## Which speaker takes what
+### Which speaker takes what
 
 Grafana's notification policies decide what reaches the topic at all. On the speaker:
 
@@ -38,7 +54,7 @@ Grafana's notification policies decide what reaches the topic at all. On the spe
 
 HA can switch the mode on a schedule with an automation; the speaker keeps no schedule of its own.
 
-## What it does
+### What it does
 
 Per alert that passes `alerts_match`, in a mode other than `off`:
 
@@ -61,25 +77,52 @@ nothing shows.
 fires; the alerts stay on, and their resolves still show. Useful when Grafana's contact point has
 "Disable resolved message" on, which otherwise leaves the pulse until the speaker restarts.
 
-## Saying an alert aloud
+## Notifications
+
+A notification has a `text`, a `tone` (`good`, `info`, `bad`; anything else is `info`) and may ask
+not to be said (`"speak": false`). The speaker fires `notify_good`, `notify_info` or `notify_bad`
+(silent in the quiet mode), scrolls the text on the front display (`notify_show_text`, on by
+default; for the message duration), and in the loud mode has HA say the text. Nothing stays: there
+is no state, no acknowledge, no resolve.
+
+Where they come from:
+
+- **Home Assistant, to one speaker:** its `notify.<name>_notification` entity
+  (`notify.send_message`). The message is the payload: plain text is an info; JSON is a notification
+  (`{"text": "Стиралка достирала", "tone": "good"}`; `message` is taken for `text`).
+- **To every speaker:** the same payload on `notify_topic` (shared; for example `yastation/notify`),
+  by `mqtt.publish` or anything else that speaks MQTT.
+- **Grafana, as an event:** a rule labelled `kind=notification` (with a `tone` label). Its firing is
+  the event, said once: Grafana's repeats are ignored, its resolve only forgets it. `alerts_match`
+  applies (it comes on the alerts' topic), `alerts_speak` does not. Grafana's engine is state-based,
+  so such an event comes one evaluation interval and the route's group wait after the condition,
+  once per time the condition holds — not once per log line.
+- **Grafana, the end of an alert:** a rule with a `resolved` annotation ("Основной интернет снова
+  жив") gives a good notification with that text when it resolves — on every speaker that takes
+  the rule, whatever its alerts mode (the alert itself still fires, stays on and resolves as above).
+
+The mode (`notify_mode`, HA select and the web app's option) is per speaker, `quiet` by default.
+
+## Saying aloud
 
 The speaker has no text-to-speech; HA has, with the pipeline's voice. The speaker fires an event of
-its entity `event.<name>_alert_to_say` (`event_type: say`, attribute `text`), and an HA automation
+its entity `event.<name>_say_aloud` (`event_type: say`, attribute `text`), and an HA automation
 ([the guide](guides/grafana-alerts.md)) calls `assist_satellite.announce` on the satellite in the
 same area as that speaker, with `preannounce: false`. The announcement comes back to the speaker as
 any other, but within 30 s of its request it plays without the announce chime: the alert's own
-moment came just before.
+moment came just before. Alerts and notifications share this way out.
 
 `alerts_speak` (shared) picks which alerts are said, with the same matchers; the default is
 `severity=critical`; empty says every one.
 
 ## HA entities
 
-With `alerts_topic` set: `select.<name>_alerts` (the mode, a config entity), `sensor.<name>_alerts_on`
-(the count of alerts on here; attributes: their titles, severities and since when, and whether they
-were acknowledged), `button.<name>_acknowledge_alerts`, `event.<name>_alert_to_say`.
+Every speaker: `select.<name>_notifications` (the notifications' mode), `notify.<name>_notification`,
+`event.<name>_say_aloud`. With `alerts_topic` set, also: `select.<name>_alerts` (the alerts' mode),
+`sensor.<name>_alerts_on` (the count of alerts on here; attributes: their titles, severities and since
+when, and whether they were acknowledged), `button.<name>_acknowledge_alerts`.
 
 ## Flash
 
-The mode is part of the state file (`<cfw>/yastationd.state`), written when it changes (as every option, [storage.md](storage.md)).
+The modes are part of the state file (`<cfw>/yastationd.state`), written when it changes (as every option, [storage.md](storage.md)).
 Nothing else about alerts is written.

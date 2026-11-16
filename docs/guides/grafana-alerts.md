@@ -1,8 +1,9 @@
-# Grafana alerts on the speakers (guide)
+# Alerts and notifications on the speakers (guide)
 
-What the speakers do with alerts, and why: [alerts.md](../alerts.md). Here: setting it up. You need
-Grafana with the MQTT contact point (Grafana 11+) that can reach the speakers' MQTT broker, and Home
-Assistant for the alerts said aloud.
+What the speakers do with alerts (states, from Grafana) and notifications (one-off events, from HA or
+Grafana), and why: [alerts.md](../alerts.md). Here: setting it up. You need Grafana with the MQTT
+contact point (Grafana 11+) that can reach the speakers' MQTT broker, and Home Assistant for
+anything said aloud.
 
 ## 1. The speakers
 
@@ -14,6 +15,8 @@ In any speaker's web app, **Configuration → Alerts**:
   every alert that reaches the topic.
 - **Alerts said aloud**: which ones a speaker in the loud mode says; `severity=critical` by default.
 - **Alerts** (the mode): `off`, `quiet` or `loud` per speaker. A bedroom speaker: `off` or `quiet`.
+- **Notifications**: their own mode, the same three; and **Topic for every speaker** (for example
+  `yastation/notify`) if something should reach all speakers at once.
 
 ## 2. Grafana
 
@@ -38,16 +41,22 @@ In the alert rules:
 - the **title** is what a speaker says, unless the rule has a **`speech`** annotation: then that is
   said instead. Keep it short and in the language of the voice («Диск на сервере почти полон»);
 - a **`severity`** label of `critical` or `warning` picks the stronger moments (and, by default,
-  only `critical` is said aloud).
+  only `critical` is said aloud);
+- `speak=no` (a label or an annotation) keeps a rule silent;
+- a **`resolved`** annotation is good news said when the alert resolves: «Основной интернет снова
+  жив, можно переключаться» on a "main line down" rule;
+- **`kind=notification`** with a **`tone`** label (`good`, `info`, `bad`) makes the rule an event, not
+  an alert: its firing is said once, nothing stays on (a "backup failed" rule over the logs). Give the
+  speakers' route a short group wait if the delay matters.
 
-## 3. Home Assistant: saying an alert
+## 3. Home Assistant: saying an alert or a notification
 
-A speaker in the loud mode asks Home Assistant to say an alert by an event of its `Alert to say`
+A speaker in the loud mode asks Home Assistant to say something by an event of its `Say aloud`
 entity. One automation serves every speaker: it speaks on the satellite in the same area as the
 speaker that asked, so each speaker needs its area (a speaker without one stays silent).
 
 ```yaml
-alias: Speakers say Grafana alerts
+alias: Speakers say alerts and notifications
 mode: queued
 triggers:
   - trigger: event
@@ -56,7 +65,7 @@ conditions:
   - condition: template
     value_template: >-
       {% set e = trigger.event.data %}
-      {{ e.entity_id is match('event\..*_alert_to_say$')
+      {{ e.entity_id is match('event\..*_say_aloud$')
          and e.new_state is not none and e.old_state is not none
          and e.old_state.state != 'unavailable'
          and e.new_state.attributes.event_type == 'say' }}
@@ -79,9 +88,31 @@ The voice is the satellite's pipeline's. The `old_state` checks keep a restart o
 the speaker (the event entity coming back from nothing or from `unavailable`) from saying the last
 alert again; `unknown` is let through, it is the state before the entity's first event.
 
-## 4. A schedule (optional)
+## 4. Notifications from Home Assistant
 
-The mode is `select.<speaker>_alerts`; an automation can set it by time, for example the bedroom
+To one speaker, its Notification entity:
+
+```yaml
+action: notify.send_message
+target:
+  entity_id: notify.<speaker>_notification
+data:
+  message: '{"text": "Стиралка достирала", "tone": "good"}'
+```
+
+Plain text works too (an info). To every speaker, publish the same payload to the notifications'
+topic:
+
+```yaml
+action: mqtt.publish
+data:
+  topic: yastation/notify
+  payload: '{"text": "Курьер у двери"}'
+```
+
+## 5. A schedule (optional)
+
+The modes are `select.<speaker>_alerts` and `select.<speaker>_notifications`; an automation can set them by time, for example the bedroom
 speaker to `off` at night and back to `quiet` in the morning.
 
 ## Trying it

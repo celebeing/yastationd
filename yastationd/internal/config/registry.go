@@ -69,6 +69,7 @@ var Groups = []struct{ ID, Title, Page string }{
 	{"bluetooth", "Bluetooth audio", "bluetooth"},
 	{"intercom", "Intercom", "intercom"},
 	{"alerts", "Grafana alerts", "alerts"},
+	{"notify", "Notifications", "alerts"},
 	{"wifi_setup", "Wi-Fi setup mode", "wifi"},
 	{"network", "When the connection is lost", "wifi"},
 	{"calibration", "Mic", "calibration"},
@@ -638,6 +639,18 @@ func init() {
 	reg(Key{Name: "alerts_repeat", Group: "alerts", Label: "React to repeats", Runtime: true, Sync: true, Advanced: true,
 		Doc: "Grafana sends an alert that stays on again every repeat interval. Off: only a new alert gets the moment (and the voice); on: every repeat does."},
 		boolV(func(c *Config) *bool { return &c.AlertsRepeat }))
+
+	reg(Key{Name: "notify_topic", Group: "notify", Label: "Topic for every speaker", Sync: true,
+		Doc: "Notifications published here reach every speaker (for example yastation/notify); each speaker also takes the ones sent to it alone, by its Notification entity in Home Assistant. Empty: only those. A notification is JSON {\"text\": …, \"tone\": \"good\" | \"info\" | \"bad\", \"speak\": false to keep it silent} or plain text (an info)."},
+		textV(func(c *Config) *string { return &c.NotifyTopic }, func(s string) error {
+			if strings.ContainsAny(s, "+#") {
+				return fmt.Errorf("a topic, not a filter: no + or #")
+			}
+			return nil
+		}))
+	reg(Key{Name: "notify_show_text", Group: "notify", Label: "Show the text", Runtime: true, Sync: true,
+		Doc: "A notification's text scrolls on the front display (in the quiet mode too), beside its moment."},
+		boolV(func(c *Config) *bool { return &c.NotifyShowText }))
 
 	// --- wi-fi setup mode ---
 	reg(Key{Name: "wifi_setup", Group: "wifi_setup", Label: "Wi-Fi setup mode",

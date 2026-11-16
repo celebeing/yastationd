@@ -109,6 +109,10 @@ volume_beep  = true
 # alerts_match  =                    (label matchers: the alerts taken here; empty = all)
 # alerts_speak  = severity=critical  (label matchers: said aloud in the loud mode; empty = all)
 # alerts_repeat = false              (react to repeated notifications of an alert already on)
+# Notifications (docs/alerts.md): one-off events, good / info / bad, from HA (each speaker's Notification
+# entity) or Grafana (rules labelled kind=notification). Their mode (off / quiet / loud) is per speaker.
+# notify_topic     =                 (every speaker takes notifications from here too; e.g. yastation/notify)
+# notify_show_text = true            (the text scrolls on the front display)
 
 # --- Wyoming satellite (HA: Settings → Integrations → Wyoming → host = this device, port below).
 # HA's announcements (assist_satellite.announce) and TTS replies, and the voice (wake word,

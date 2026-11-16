@@ -55,3 +55,14 @@ func TestMatchers(t *testing.T) {
 		}
 	}
 }
+
+func TestNotificationLabels(t *testing.T) {
+	a := Alert{Labels: map[string]string{"kind": "Notification", "tone": "Good", "speak": "no"},
+		Annotations: map[string]string{"resolved": " снова жив "}}
+	if !a.Notification() || a.Tone() != "good" || !a.Quiet() || a.ResolvedText() != "снова жив" {
+		t.Fatalf("%+v", a)
+	}
+	if (Alert{}).Notification() || (Alert{}).Quiet() {
+		t.Fatal("an alert without labels is a notification, or quiet")
+	}
+}

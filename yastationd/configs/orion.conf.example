@@ -179,6 +179,10 @@ log_level = debug
 # alerts_match  =                    (label matchers: the alerts taken here; empty = all)
 # alerts_speak  = severity=critical  (label matchers: said aloud in the loud mode; empty = all)
 # alerts_repeat = false              (react to repeated notifications of an alert already on)
+# Notifications (docs/alerts.md): one-off events, good / info / bad, from HA (each speaker's Notification
+# entity) or Grafana (rules labelled kind=notification). Their mode (off / quiet / loud) is per speaker.
+# notify_topic     =                 (every speaker takes notifications from here too; e.g. yastation/notify)
+# notify_show_text = true            (the text scrolls on the front display)
 # Wi-Fi setup mode (docs/wifi-setup.md): mute the mic, then hold the voice key for 5 s.
 # wifi_setup         = true
 # wifi_setup_ssid    = yastation-<device_id>

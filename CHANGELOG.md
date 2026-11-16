@@ -17,6 +17,12 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
   Configuration page, Alerts ([docs/alerts.md](docs/alerts.md),
   [docs/guides/grafana-alerts.md](docs/guides/grafana-alerts.md)).
 
+**Notifications**
+- One-off events with a tone, apart from alerts: `notify_good`, `notify_info`, `notify_bad`, the
+  text scrolling on the display, said aloud in the loud mode. From HA (each speaker's Notification
+  entity; `notify_topic` for every speaker) or Grafana (a rule labelled `kind=notification`; an
+  alert's `resolved` annotation is good news when it resolves). Their own mode per speaker.
+
 ## v0.31.0 — 2026-11-15
 
 **Station 3**

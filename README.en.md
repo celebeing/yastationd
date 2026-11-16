@@ -204,13 +204,16 @@ packs replace any animation and add sounds to any event.
   (an LLM tool script, or the target select and call button). Calls are signed and encrypted.
   Details: [docs/intercom.md](docs/intercom.md), HA setup: [docs/guides/ha-intercom-setup.md](docs/guides/ha-intercom-setup.md).
 
-**Grafana alerts** (off by default)
+**Grafana alerts and notifications** (alerts off by default)
 - The speakers take Grafana's alerts through the same MQTT broker (the MQTT contact point): a new
   alert flashes the ring by severity with a chime, a red pulse stays while it is on, a green flash
   when it resolves. All of them are moments a theme can redo.
 - Each speaker has its own mode: off, quiet (light only) or loud (with sound, and the alerts you
   pick said aloud through HA). The mode is an HA entity, so a schedule can switch it. Label
   matchers pick which alerts a speaker takes.
+- Notifications, apart from alerts: one-off events with a tone (good, info, bad) and nothing that stays
+  on. "The washing is done" from HA, "the main line is back" from Grafana. A coloured flash, the text
+  scrolling on the display, in the loud mode said aloud. Notifications have their own mode per speaker.
   Details: [docs/alerts.md](docs/alerts.md), setup: [docs/guides/grafana-alerts.md](docs/guides/grafana-alerts.md).
 
 ## How it is built

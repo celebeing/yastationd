@@ -77,6 +77,9 @@ var momentCatalog = []momentInfo{
 	{Name: "alert_firing_critical", When: "a Grafana alert of severity critical fired; in the quiet mode without its sounds", slot: "alert-fire"},
 	{Name: "alert_active", When: "while a Grafana alert taken here is on (held until they all resolve, or they are acknowledged)", slot: "alert", prio: display.PrioDegraded, indicator: true},
 	{Name: "alert_resolved", When: "a Grafana alert taken here resolved; in the quiet mode without its sounds", slot: "alert-fire"},
+	{Name: "notify_good", When: "a notification with good news (HA, or Grafana's kind=notification, or an alert's resolved annotation); in the quiet mode without its sounds", slot: "notify"},
+	{Name: "notify_info", When: "a neutral notification (also one with no tone); in the quiet mode without its sounds", slot: "notify"},
+	{Name: "notify_bad", When: "a notification of something gone wrong, once (no state, unlike an alert); in the quiet mode without its sounds", slot: "notify"},
 	{Name: "wifi_setup", When: "Wi-Fi setup mode is on (held until it ends)", slot: "wifisetup", prio: display.PrioSetup},
 	{Name: "wifi_setup_failed", When: "Wi-Fi setup mode could not start", slot: "voice", ttl: errorTTL},
 }
@@ -144,6 +147,10 @@ var defaultTheme = map[string][]show{
 	"alert_firing_critical": {step(scenarioStep{Ring: "alert_critical", Sound: "notification_sound", Ms: 2500})},
 	"alert_active":          {held(scenarioStep{Ring: "alert"})},
 	"alert_resolved":        {step(scenarioStep{Ring: "success", Ms: 1500})},
+	// notifications (notify.go): a flash in the tone's colour, the chime
+	"notify_good": {step(scenarioStep{Ring: "success", Sound: "notification_sound", Ms: 1500})},
+	"notify_info": {step(scenarioStep{Ring: "notice", Sound: "notification_sound", Ms: 1500})},
+	"notify_bad":  {step(scenarioStep{Ring: "notice_bad", Sound: "notification_sound", Ms: 1500})},
 	// The firmware's own patterns on Station 3's screen; its ring patterns are blue, so a blue flash.
 	"bluetooth_connected":    {step(scenarioStep{Anim: "bluetooth_connected", Ring: "flash", Color: []int{0, 96, 255}})},
 	"bluetooth_disconnected": {step(scenarioStep{Anim: "bluetooth_disconnected"})},

@@ -830,6 +830,7 @@ func (a *App) publishAllState() {
 		a.publish(a.topics.State("alerts_mode"), a.alertsMode())
 		a.publishAlerts()
 	}
+	a.publish(a.topics.State("notify_mode"), a.notifyMode())
 }
 
 // telemetryLoop publishes the uptime, and the light level when it moved enough (luxGate).

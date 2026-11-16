@@ -48,6 +48,8 @@ func (a *App) commands() map[string]func([]byte) {
 		c["alerts_mode"] = a.cmdAlertsMode
 		c["alerts_ack"] = func([]byte) { a.alertsAck() }
 	}
+	c["notify_mode"] = a.cmdNotifyMode
+	c["notify"] = a.cmdNotify
 	a.shareOptions(c)
 	return c
 }
@@ -76,6 +78,7 @@ func (a *App) subscribe() {
 	}
 	a.intercomSubscribe()
 	a.alertsSubscribe()
+	a.notifySubscribe()
 	a.mqtt.Subscribe(t.Arbitration(), a.onArbitrationClaim)
 	a.mqtt.SubscribeTopic(t.WebInfoAll(), a.onWebInfo)
 	a.mqtt.SubscribeTopic(t.TimerAll(), a.onSharedTimer) // timers that follow a person (sharedtimers.go)
