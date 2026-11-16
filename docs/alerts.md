@@ -61,12 +61,14 @@ Per alert that passes `alerts_match`, in a mode other than `off`:
 
 | Event | Reaction |
 |---|---|
-| firing, not on yet | fires `alert_firing_critical`, `alert_firing_warning` or `alert_firing` by severity (silent in `quiet`); holds `alert_active`; in `loud`, if `alerts_speak` matches, asks HA to say its speech |
+| firing, not on yet | fires `alert_firing_critical`, `alert_firing_warning` or `alert_firing` by severity (silent in `quiet`); holds `alert_active` (unless `alerts_hold` is off); in `loud`, if `alerts_speak` matches, asks HA to say its speech |
 | firing, already on (Grafana's repeat) | nothing, unless `alerts_repeat` is on: then as a new one |
 | resolved, on here | fires `alert_resolved` (silent in `quiet`); the last one ends `alert_active` |
 | resolved, never seen here | nothing (it fired before a restart, or before a filter let it in) |
 
 `alert_active` never plays a sound: it is the standing sign, a red pulse on the ring by default.
+`alerts_hold` (shared, on by default) off leaves it out: the speaker reacts when an alert fires and
+when it resolves, and shows nothing in between.
 The moments are the theme's like any other ([asset-packs.md](asset-packs.md)); their defaults are in
 its table.
 
@@ -74,9 +76,10 @@ What is on lives in memory only. After a restart the speaker learns of an alert 
 Grafana's next repeat notification, and takes it as new (so it does react to it then); until then
 nothing shows.
 
-**Acknowledge** (HA button `alerts_ack`): ends `alert_active` on this speaker until a new alert
-fires; the alerts stay on, and their resolves still show. Useful when Grafana's contact point has
-"Disable resolved message" on, which otherwise leaves the pulse until the speaker restarts.
+**Clear** (HA button `alerts_clear`, and the web app's Alerts page, which also lists what is on):
+forgets every alert on this speaker and ends `alert_active`; a later resolve of one of them is
+ignored, as one never seen. For an alert that will not resolve: Grafana's contact point with
+"Disable resolved message" on, a lost message. Switching the mode to `off` clears too.
 
 ## Notifications
 
@@ -84,7 +87,7 @@ A notification has a `text`, a `tone` (`good`, `info`, `bad`; anything else is `
 not to be said (`"speak": false`). The speaker fires `notify_good`, `notify_info` or `notify_bad`
 (silent in the quiet mode), scrolls the text on the front display (`notify_show_text`, on by
 default; for the message duration), and in the loud mode has HA say the text. Nothing stays: there
-is no state, no acknowledge, no resolve.
+is no state, nothing to clear, no resolve.
 
 Where they come from:
 
@@ -121,7 +124,7 @@ moment came just before. Alerts and notifications share this way out.
 Every speaker: `select.<name>_notifications` (the notifications' mode), `notify.<name>_notification`,
 `event.<name>_say_aloud`. With `alerts_topic` set, also: `select.<name>_alerts` (the alerts' mode),
 `sensor.<name>_alerts_on` (the count of alerts on here; attributes: their titles, severities and since
-when, and whether they were acknowledged), `button.<name>_acknowledge_alerts`.
+when), `button.<name>_clear_alerts`.
 
 ## Flash
 

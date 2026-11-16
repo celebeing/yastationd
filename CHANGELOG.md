@@ -13,8 +13,9 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
 - Each speaker has an Alerts mode (HA select and the web app): off, quiet (the moments without
   sound) or loud (with sound, and the alerts `alerts_speak` picks said aloud by HA, its title or
   the rule's `speech` annotation). Which alerts a speaker takes: label matchers (`alerts_match`).
-  Repeats of an alert already on get no new reaction unless `alerts_repeat` is on. A new
-  Configuration page, Alerts ([docs/alerts.md](docs/alerts.md),
+  Repeats of an alert already on get no new reaction unless `alerts_repeat` is on;
+  `alerts_hold` off leaves out the standing red pulse. **Clear alerts** (HA button, and the web
+  app's Alerts page with the alerts on) forgets them on the speaker. A new Configuration page, Alerts ([docs/alerts.md](docs/alerts.md),
   [docs/guides/grafana-alerts.md](docs/guides/grafana-alerts.md)).
 
 **Notifications**

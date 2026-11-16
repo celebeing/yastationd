@@ -46,7 +46,7 @@ func (a *App) commands() map[string]func([]byte) {
 	}
 	if a.alertsOn() {
 		c["alerts_mode"] = a.cmdAlertsMode
-		c["alerts_ack"] = func([]byte) { a.alertsAck() }
+		c["alerts_clear"] = func([]byte) { a.alertsClear() }
 	}
 	c["notify_mode"] = a.cmdNotifyMode
 	c["notify"] = a.cmdNotify

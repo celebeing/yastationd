@@ -39,7 +39,6 @@ type alertOn struct {
 type alertState struct {
 	mu      sync.Mutex
 	on      map[string]alertOn // by fingerprint
-	acked   bool               // alert_active ended by hand until a new alert fires
 	sayAt   time.Time          // when the speaker last asked HA to say something
 	notices map[string]bool    // Grafana's kind=notification alerts firing now: not again on a repeat
 }
@@ -104,12 +103,10 @@ func (a *App) alertFiring(al alerts.Alert, mode string, repeat bool, speak alert
 	}
 	_, known := st.on[al.Fingerprint]
 	st.on[al.Fingerprint] = alertOn{title: al.Title(), severity: al.Severity(), since: time.Now()}
+	st.mu.Unlock()
 	if known && !repeat {
-		st.mu.Unlock()
 		return // a repeat of an alert already on: no new reaction
 	}
-	st.acked = false
-	st.mu.Unlock()
 	a.log.Info("alert: firing", "title", al.Title(), "severity", al.Severity(), "repeat", known, "mode", mode)
 	name := "alert_firing"
 	switch al.Severity() {
@@ -117,7 +114,9 @@ func (a *App) alertFiring(al alerts.Alert, mode string, repeat bool, speak alert
 		name += "_" + al.Severity()
 	}
 	a.fireAs(name, mode != alertsLoud)
-	a.fireAs("alert_active", true)
+	if a.cfg().AlertsHold {
+		a.fireAs("alert_active", true)
+	}
 	if mode == alertsLoud && speak.Match(al.Labels) && !al.Quiet() {
 		a.sayAloud(al.Speech())
 	}
@@ -165,14 +164,15 @@ func (a *App) alertSpeechSoon() bool {
 	return false
 }
 
-// alertsAck ends alert_active here until a new alert fires (the alerts stay on: their resolves
-// still show).
-func (a *App) alertsAck() {
+// alertsClear forgets every alert on here and ends alert_active (the HA button, the web app's
+// Clear): for an alert that will not resolve — Grafana's resolve switched off, a lost message.
+// A resolve of a cleared alert is ignored, as one never seen.
+func (a *App) alertsClear() {
 	a.alerts.mu.Lock()
-	a.alerts.acked = true
 	n := len(a.alerts.on)
+	a.alerts.on = nil
 	a.alerts.mu.Unlock()
-	a.log.Info("alerts: acknowledged", "on", n)
+	a.log.Info("alerts: cleared", "were", n)
 	a.endHook("alert_active")
 	a.publishAlerts()
 }
@@ -186,15 +186,11 @@ func (a *App) cmdAlertsMode(payload []byte) {
 		return
 	}
 	a.store.update(func(s *persistState) { s.AlertsMode = m })
-	if m == alertsOff {
-		a.alerts.mu.Lock()
-		a.alerts.on = nil
-		a.alerts.mu.Unlock()
-		a.endHook("alert_active")
-		a.endShow("alert-fire")
-	}
 	a.publish(a.topics.State("alerts_mode"), m)
-	a.publishAlerts()
+	if m == alertsOff {
+		a.endShow("alert-fire")
+		a.alertsClear()
+	}
 }
 
 // publishAlerts: the count of alerts on here, their titles as an attribute.
@@ -212,10 +208,9 @@ func (a *App) publishAlerts() {
 	for _, o := range a.alerts.on {
 		list = append(list, item{o.title, o.severity, o.since.Format(time.RFC3339)})
 	}
-	acked := a.alerts.acked
 	a.alerts.mu.Unlock()
 	sort.Slice(list, func(i, j int) bool { return list[i].Since < list[j].Since })
-	b, _ := json.Marshal(map[string]any{"alerts": list, "acknowledged": acked})
+	b, _ := json.Marshal(map[string]any{"alerts": list})
 	a.publish(a.topics.State("alerts_active"), strconv.Itoa(len(list)))
 	a.publish(a.topics.State("alerts_attr"), string(b))
 }

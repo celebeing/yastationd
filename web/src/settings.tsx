@@ -390,6 +390,7 @@ export function ConfigPage(p: Ctx & { page: ConfigPageID; ents?: Entity[]; reloa
           {intro}
         </p>
       )}
+      {p.page === 'alerts' && <AlertsNow {...p} />}
       {s.trial && <p class="small"><span class="badge">on trial</span> The last settings are on trial: they stay if the speaker is as healthy as before.</p>}
       {s.skipped && s.skipped.length > 0 && (
         <p class="err small">
@@ -458,4 +459,38 @@ export async function waitBack(base: string) {
       await new Promise((r) => setTimeout(r, 1000))
     }
   }
+}
+
+/** AlertsNow: the alerts on here, and the button that clears them (docs/alerts.md). */
+function AlertsNow(p: Ctx & { ents?: Entity[]; reload?: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const e = (p.ents || []).find((x) => x.object === 'alerts_active')
+  if (!e) return null
+  const n = Number(e.value || 0)
+  const list: { title: string; severity?: string }[] = (e.attributes as any)?.alerts || []
+  async function clear() {
+    setBusy(true)
+    setErr('')
+    try {
+      await api.control(p.peer.id, p.base, 'alerts_clear', '')
+      p.reload?.()
+    } catch (x: any) {
+      setErr(x.message || String(x))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div class="row-block">
+      <p>
+        {n ? <>Alerts on here: <b>{n}</b> ({list.map((a) => a.title + (a.severity ? ` · ${a.severity}` : '')).join(', ')}).</> : 'No alerts on here.'}{' '}
+        <button type="button" class="ghost" disabled={busy || !n} onClick={clear}>
+          Clear alerts
+        </button>
+      </p>
+      <p class="muted small">Clearing forgets them on this speaker and ends the ring's sign; a later resolve of one of them is ignored.</p>
+      {err && <p class="err">{err}</p>}
+    </div>
+  )
 }

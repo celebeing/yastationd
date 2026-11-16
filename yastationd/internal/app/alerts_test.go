@@ -14,7 +14,7 @@ func newAlertsApp(t *testing.T) *App {
 	a.ring = &hw.Ring{} // the alert moments are rings
 	a.topics = mqtt.NewTopics("yastation", "homeassistant", "t1")
 	c := a.cfg()
-	c.MQTTHost, c.AlertsTopic, c.AlertsSpeak = "broker", "yastation/alerts", "severity=critical"
+	c.MQTTHost, c.AlertsTopic, c.AlertsSpeak, c.AlertsHold = "broker", "yastation/alerts", "severity=critical", true
 	return a
 }
 
@@ -109,13 +109,25 @@ func TestAlertsModesAndFilter(t *testing.T) {
 	if a.alertsOnCount() != 0 {
 		t.Fatal("alerts_match let a warning through")
 	}
-	// acknowledge: the ring goes, the alert stays on
+	// clear: the ring goes, and so do the alerts; their resolve is then ignored
 	a.onAlerts(note("firing", alert("firing", "f4", "Диск полон", "critical")))
-	a.alertsAck()
+	a.alertsClear()
 	time.Sleep(20 * time.Millisecond)
-	if a.ringStack.Has("alert") || a.alertsOnCount() != 1 {
-		t.Fatal("ack: the ring stayed, or the alert was dropped")
+	if a.ringStack.Has("alert") || a.alertsOnCount() != 0 {
+		t.Fatal("clear: the ring or the alert stayed")
 	}
+	a.endShow("alert-fire")
+	a.onAlerts(note("resolved", alert("resolved", "f4", "Диск полон", "critical")))
+	if a.ringStack.Has("alert-fire") {
+		t.Fatal("a cleared alert's resolve showed")
+	}
+	// alerts_hold off: the moment fires, nothing stays lit, the resolve still shows
+	a.cfg().AlertsHold = false
+	a.onAlerts(note("firing", alert("firing", "f5", "Диск полон", "critical")))
+	if a.ringStack.Has("alert") || !a.ringStack.Has("alert-fire") || a.alertsOnCount() != 1 {
+		t.Fatal("hold off: the active ring showed, or the firing did not")
+	}
+	a.cfg().AlertsHold = true
 	// an unknown mode is refused
 	a.cmdAlertsMode([]byte("shout"))
 	if a.alertsMode() != "loud" {

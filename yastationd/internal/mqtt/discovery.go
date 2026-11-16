@@ -49,8 +49,8 @@ type builder struct {
 	SoundSPL  bool
 	// VoiceID adds who is talking (docs/voice-id.md) and the ignore-guests switch.
 	VoiceID bool
-	// Alerts adds the Grafana alerts' mode select (AlertsModes), the count of alerts on and their
-	// acknowledge button (docs/alerts.md). Every speaker has the notifications' mode select, its
+	// Alerts adds the Grafana alerts' mode select (AlertsModes), the count of alerts on and the
+	// button that clears them (docs/alerts.md). Every speaker has the notifications' mode select, its
 	// Notification entity and the event HA says an alert or a notification from.
 	Alerts      bool
 	AlertsModes []string
@@ -351,10 +351,10 @@ func (b *builder) Entities() []Entity {
 				"state_class":           "measurement",
 				"icon":                  "mdi:bell-alert",
 			}},
-			Entity{"button", "alerts_ack", map[string]any{
-				"name":          "Acknowledge alerts",
-				"command_topic": t.Command("alerts_ack"),
-				"icon":          "mdi:bell-check",
+			Entity{"button", "alerts_clear", map[string]any{
+				"name":          "Clear alerts",
+				"command_topic": t.Command("alerts_clear"),
+				"icon":          "mdi:bell-remove",
 			}})
 	}
 	if len(b.AlertsModes) > 0 {

@@ -636,6 +636,9 @@ func init() {
 	reg(Key{Name: "alerts_speak", Group: "alerts", Label: "Alerts said aloud", Runtime: true, Sync: true,
 		Doc: "In the loud mode, which alerts the speaker also says aloud, by their labels as above; empty: every one. It says the rule's \"speech\" annotation, else the rule's title, through Home Assistant (docs/guides/grafana-alerts.md)."},
 		textV(func(c *Config) *string { return &c.AlertsSpeak }, matchers))
+	reg(Key{Name: "alerts_hold", Group: "alerts", Label: "Keep an alert lit", Runtime: true, Sync: true,
+		Doc: "While an alert is on, the ring keeps its sign (alert_active: a red pulse by default) until the alert resolves or the alerts are cleared. Off: the speaker only reacts when an alert fires, and when it resolves."},
+		boolV(func(c *Config) *bool { return &c.AlertsHold }))
 	reg(Key{Name: "alerts_repeat", Group: "alerts", Label: "React to repeats", Runtime: true, Sync: true, Advanced: true,
 		Doc: "Grafana sends an alert that stays on again every repeat interval. Off: only a new alert gets the moment (and the voice); on: every repeat does."},
 		boolV(func(c *Config) *bool { return &c.AlertsRepeat }))

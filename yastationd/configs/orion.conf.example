@@ -178,6 +178,7 @@ log_level = debug
 # alerts_topic  =                    (e.g. yastation/alerts)
 # alerts_match  =                    (label matchers: the alerts taken here; empty = all)
 # alerts_speak  = severity=critical  (label matchers: said aloud in the loud mode; empty = all)
+# alerts_hold   = true               (the ring stays lit while an alert is on)
 # alerts_repeat = false              (react to repeated notifications of an alert already on)
 # Notifications (docs/alerts.md): one-off events, good / info / bad, from HA (each speaker's Notification
 # entity) or Grafana (rules labelled kind=notification). Their mode (off / quiet / loud) is per speaker.

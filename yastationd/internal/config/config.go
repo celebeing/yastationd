@@ -256,10 +256,11 @@ type Config struct {
 	AlertsMatch  string // label matchers: the alerts this speaker takes ("" = all)
 	AlertsSpeak  string // label matchers: the alerts it says aloud in the loud mode
 	AlertsRepeat bool   // a repeated notification of an alert already on fires its moment again
+	AlertsHold   bool   // alert_active stays while an alert is on (off: only the moment when it fires)
 	// Notifications (docs/alerts.md): one-off events, from HA or Grafana.
-	NotifyTopic    string // a topic every speaker takes notifications from ("" = only its own)
-	NotifyShowText bool   // a notification's text scrolls on the front display
-	IntercomRecordDir  string  // testing: each call's raw uplink (before the guard) is saved here
+	NotifyTopic       string // a topic every speaker takes notifications from ("" = only its own)
+	NotifyShowText    bool   // a notification's text scrolls on the front display
+	IntercomRecordDir string // testing: each call's raw uplink (before the guard) is saved here
 
 	// Clock: SNTP sync when no chronyd/ntpd runs (internal/timesync). ntp_server entries are tried
 	// first, then the servers in chrony_conf, then the default gateway.
@@ -353,6 +354,7 @@ func Default() Config {
 		AnnounceChime:             true,
 		AlertsSpeak:               "severity=critical",
 		NotifyShowText:            true,
+		AlertsHold:                true,
 		ClipsDir:                  cfw + "/clips",
 		ScenariosDir:              cfw + "/scenarios",
 		VideoFrames:               cfw + "/media/video.led",
