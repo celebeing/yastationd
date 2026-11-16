@@ -3,7 +3,7 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## v0.32.0 — 2026-11-16
 
 **Grafana alerts**
 - The speakers can take Grafana's alerts: Grafana's MQTT contact point publishes to a topic on the
