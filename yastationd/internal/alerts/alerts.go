@@ -69,8 +69,10 @@ func (a Alert) Speech() string {
 }
 
 // Notification: the rule is labelled kind=notification — an event, not a state (docs/alerts.md).
+// So is the test a contact point sends from Grafana's UI: it fires and never resolves.
 func (a Alert) Notification() bool {
-	return strings.EqualFold(strings.TrimSpace(a.Labels["kind"]), "notification")
+	return strings.EqualFold(strings.TrimSpace(a.Labels["kind"]), "notification") ||
+		a.Labels["alertname"] == "TestAlert" && a.Labels["instance"] == "Grafana"
 }
 
 // Tone is a notification's tone label (good, info, bad; "" when none).

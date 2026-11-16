@@ -31,7 +31,8 @@ Alertmanager webhook shape, a group of alerts with `status` (`firing` / `resolve
 - the **severity**: the `severity` label, lower case (`critical`, `warning`, anything else);
 - the **speech**: the `speech` annotation if the rule has one, else the title. Only this is said,
   never the summary or the description. A label or annotation `speak=no` keeps the rule silent;
-- `kind=notification`: the rule is a notification, not an alert (below);
+- `kind=notification`: the rule is a notification, not an alert (below). So is the test a contact
+  point sends from Grafana's UI (`alertname=TestAlert`, `instance=Grafana`): it never resolves;
 - the `resolved` annotation: the good news its resolve brings (below).
 
 An alert without a fingerprint gets one from its labels. A payload that is not such JSON is logged

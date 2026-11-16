@@ -62,6 +62,9 @@ func TestNotificationLabels(t *testing.T) {
 	if !a.Notification() || a.Tone() != "good" || !a.Quiet() || a.ResolvedText() != "снова жив" {
 		t.Fatalf("%+v", a)
 	}
+	if !(Alert{Labels: map[string]string{"alertname": "TestAlert", "instance": "Grafana"}}).Notification() {
+		t.Fatal("Grafana's contact point test would stay on as an alert")
+	}
 	if (Alert{}).Notification() || (Alert{}).Quiet() {
 		t.Fatal("an alert without labels is a notification, or quiet")
 	}
