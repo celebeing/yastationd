@@ -53,6 +53,15 @@ func effect(name string) display.RenderFunc[display.RingFrame] {
 		return display.Blink(display.Amber, 400*time.Millisecond)
 	case "setup":
 		return display.Comet(display.Yellow, 1200*time.Millisecond)
+	// Grafana alerts (alerts.go): one on, and a new one by its severity
+	case "alert":
+		return display.Pulse(display.Red, 2500*time.Millisecond)
+	case "alert_info":
+		return display.Flash(display.White, 600*time.Millisecond)
+	case "alert_warning":
+		return display.Blink(display.Amber, 350*time.Millisecond)
+	case "alert_critical":
+		return display.Blink(display.Red, 250*time.Millisecond)
 	default:
 		return nil
 	}
@@ -61,7 +70,8 @@ func effect(name string) display.RenderFunc[display.RingFrame] {
 // statusEffects are the named rings of the status moments, beside ringEffects in the moments
 // editor (not in HA's effect list).
 var statusEffects = []string{"mute", "booting", "boot_failed", "degraded", "unavailable", "calling",
-	"call_ringing", "in_call", "call_end", "alarm", "setup", "waiting", "busy", "success"}
+	"call_ringing", "in_call", "call_end", "alarm", "setup", "waiting", "busy", "success",
+	"alert", "alert_info", "alert_warning", "alert_critical"}
 
 // colourEffects take a step's colour and period: the shapes of the presets, in any colour.
 var colourEffects = map[string]time.Duration{

@@ -267,13 +267,13 @@ function About({ list, latest }: { list: Peer[]; latest: api.Release | null }) {
 }
 
 // Two levels: a group, then its tabs (docs/web-ui.md).
-type Tab = 'overview' | 'log' | 'controls' | 'led' | 'packs' | 'sounds' | 'videos' | 'general' | 'voice' | 'voices' | 'moments' | 'home' | 'music' | 'intercom' | 'calibration' | 'wifi' | 'bluetooth' | 'account'
+type Tab = 'overview' | 'log' | 'controls' | 'led' | 'packs' | 'sounds' | 'videos' | 'general' | 'voice' | 'voices' | 'moments' | 'home' | 'music' | 'intercom' | 'alerts' | 'calibration' | 'wifi' | 'bluetooth' | 'account'
 
 const GROUPS: { id: string; name: string; tabs: Tab[] }[] = [
   { id: 'status', name: 'Status', tabs: ['overview', 'log'] },
   { id: 'controls', name: 'Controls', tabs: ['controls', 'led'] },
   { id: 'behaviour', name: 'Behaviour', tabs: ['moments', 'packs', 'sounds', 'videos'] },
-  { id: 'configuration', name: 'Configuration', tabs: ['general', 'voice', 'voices', 'home', 'music', 'intercom', 'calibration', 'wifi', 'bluetooth', 'account'] },
+  { id: 'configuration', name: 'Configuration', tabs: ['general', 'voice', 'voices', 'home', 'music', 'intercom', 'alerts', 'calibration', 'wifi', 'bluetooth', 'account'] },
 ]
 
 const TAB_NAMES: Record<Tab, string> = {
@@ -291,6 +291,7 @@ const TAB_NAMES: Record<Tab, string> = {
   home: 'Home integration',
   music: 'Music Assistant',
   intercom: 'Intercom',
+  alerts: 'Alerts',
   calibration: 'Calibration',
   wifi: 'Wi-Fi',
   bluetooth: 'Bluetooth audio',
@@ -380,7 +381,7 @@ function Speaker(props: { peer: Peer; base: string; status: Status; peers: Peer[
       {!ents && <p class="muted">…</p>}
       {ents && tab === 'overview' && <Overview ents={ents} />}
       {ents && tab === 'controls' && <Controls ents={ents} peer={peer} base={base} reload={load} />}
-      {(tab === 'general' || tab === 'voice') && <ConfigPage key={tab} page={tab} ents={ents || []} peer={peer} base={base} reload={load} />}
+      {(tab === 'general' || tab === 'voice' || tab === 'alerts') && <ConfigPage key={tab} page={tab} ents={ents || []} peer={peer} base={base} reload={load} />}
       {(['home', 'music', 'intercom'] as Tab[]).includes(tab) && <ConfigPage key={tab} page={tab as any} peer={peer} base={base} />}
       {tab === 'calibration' && <CalibrationTab peer={peer} base={base} />}
       {tab === 'calibration' && <ConfigPage page="calibration" peer={peer} base={base} />}

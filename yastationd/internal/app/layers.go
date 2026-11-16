@@ -147,6 +147,19 @@ func (a *App) soundOnly(s show) []scenarioStep {
 	return out
 }
 
+// withoutSound is steps with their sounds taken out, each lasting as long as before.
+func (a *App) withoutSound(steps []scenarioStep) []scenarioStep {
+	out := make([]scenarioStep, len(steps))
+	for i, st := range steps {
+		if st.Ms == 0 && !(st.Hold && i == len(steps)-1) {
+			st.Ms = int(a.stepLength(st) / time.Millisecond)
+		}
+		st.Sound, st.Phrase = "", ""
+		out[i] = st
+	}
+	return out
+}
+
 // soundSlot is the slot a moment's layered sound runs in, beside its own slot.
 func soundSlot(slot string) string { return slot + "#sound" }
 
@@ -163,7 +176,7 @@ func bareSteps(ref string, ttl time.Duration) []scenarioStep {
 // below give for the surfaces it leaves out. stepRing is its steps' ring priority, keptPrio the
 // priority of a ring kept under the whole show. Reports whether it showed anything and when its
 // last sound ends.
-func (a *App) showMoment(slot, name string, ttl time.Duration, prio, stepRing, keptPrio int) (bool, time.Duration) {
+func (a *App) showMoment(slot, name string, ttl time.Duration, prio, stepRing, keptPrio int, silent bool) (bool, time.Duration) {
 	// The top layer is the first that defines the moment: when nothing of it plays here (or it is
 	// an empty list, the moment turned off), nothing shows — the surfaces below come only under
 	// a show of it.
@@ -171,6 +184,12 @@ func (a *App) showMoment(slot, name string, ttl time.Duration, prio, stepRing, k
 	if s, ok := a.firstAvailable(layers[0]); ok {
 		ring, sound := a.layered(layers, 0, s)
 		steps, isSteps := a.showSteps(s)
+		if silent { // the picture and the ring only (alerts in the quiet mode)
+			sound = nil
+			if isSteps {
+				steps = a.withoutSound(steps)
+			}
+		}
 		if !isSteps {
 			ref := oneOf(s.Ref, a.refAvailable)
 			if ring == "" && sound == nil {

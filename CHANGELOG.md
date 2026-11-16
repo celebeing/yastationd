@@ -3,6 +3,20 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Grafana alerts**
+- The speakers can take Grafana's alerts: Grafana's MQTT contact point publishes to a topic on the
+  speakers' broker. A new alert fires a moment by its severity (`alert_firing`,
+  `alert_firing_warning`, `alert_firing_critical`), `alert_active` holds a red pulse on the ring while
+  one is on, `alert_resolved` shows the resolve.
+- Each speaker has an Alerts mode (HA select and the web app): off, quiet (the moments without
+  sound) or loud (with sound, and the alerts `alerts_speak` picks said aloud by HA, its title or
+  the rule's `speech` annotation). Which alerts a speaker takes: label matchers (`alerts_match`).
+  Repeats of an alert already on get no new reaction unless `alerts_repeat` is on. A new
+  Configuration page, Alerts ([docs/alerts.md](docs/alerts.md),
+  [docs/guides/grafana-alerts.md](docs/guides/grafana-alerts.md)).
+
 ## v0.31.0 — 2026-11-15
 
 **Station 3**

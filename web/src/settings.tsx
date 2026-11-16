@@ -16,6 +16,10 @@ const OPTIONS: Record<string, { group: string; doc: string }> = {
   animation_duration: { group: 'display', doc: 'How long an expression or ring animation started from Home Assistant plays.' },
   ambilight_fx_brightness: { group: 'ambilight', doc: "The ambilight's brightness under the music effects." },
   follow_up: { group: 'voice', doc: 'Whether the speaker listens again after it answers, for a reply without the wake word.' },
+  alerts_mode: {
+    group: 'alerts',
+    doc: 'Off: this speaker ignores alerts. Quiet: the alert moments without their sounds (the ring tells what came). Loud: with their sounds, and the alerts picked below said aloud through Home Assistant.',
+  },
   voice_ignore_guests: {
     group: 'voice_id',
     doc: "Requests from voices the household doesn't know are ignored before they reach Home Assistant: the speaker shows the voice_guest moment instead. Needs at least one voice marked as the household in the People tab.",
@@ -197,7 +201,7 @@ function groupsOf(s: Settings, pick: (k: SettingKey) => boolean) {
 // The configuration pages: which groups of keys each shows. Every page mixes keys that apply at
 // once (saved as they change) with keys that need a restart (marked; their changes wait in a
 // floating bar for one "Apply and restart").
-export type ConfigPageID = 'general' | 'voice' | 'home' | 'music' | 'intercom' | 'wifi' | 'bluetooth' | 'calibration'
+export type ConfigPageID = 'general' | 'voice' | 'home' | 'music' | 'intercom' | 'alerts' | 'wifi' | 'bluetooth' | 'calibration'
 
 // Which sections a page holds comes from the daemon (config.Groups); here only the words on top.
 const INTRO: Record<ConfigPageID, string> = {
@@ -206,6 +210,7 @@ const INTRO: Record<ConfigPageID, string> = {
   home: 'Fitting the speaker into your home: its name, Home Assistant, the web app, time and logs. Usually set once.',
   music: 'The speaker as a Music Assistant player (Sendspin).',
   intercom: 'Calls between the speakers.',
+  alerts: "Grafana's alerts on the speakers: which ones this speaker takes, and which it says aloud. How loudly it reacts at all is the Alerts mode, which Home Assistant can also switch on a schedule.",
   wifi: '',
   bluetooth: '',
   calibration: '',
@@ -392,7 +397,7 @@ export function ConfigPage(p: Ctx & { page: ConfigPageID; ents?: Entity[]; reloa
       {sync && !sync.connected && <p class="muted small">No MQTT broker: sharing with the other speakers is off.</p>}
       {groups.map((g) => (
         <section>
-          {groups.length > 1 || !['voice', 'music', 'intercom'].includes(p.page) ? <h3>{g.title}</h3> : null}
+          {groups.length > 1 || !['voice', 'music', 'intercom', 'alerts'].includes(p.page) ? <h3>{g.title}</h3> : null}
           {opts
             .filter((e) => (OPTIONS[e.object]?.group || 'display') === g.id)
             .map((e) => (

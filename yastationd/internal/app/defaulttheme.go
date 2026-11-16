@@ -72,6 +72,11 @@ var momentCatalog = []momentInfo{
 	{Name: "call_failed", When: "a call could not be placed (unknown room, a call already on)", slot: "voice", ttl: errorTTL},
 	{Name: "timer_started", When: "an HA timer started on this speaker"},
 	{Name: "timer_finished", When: "a timer rings (held until stopped or done); no sound here = the built-in beep", slot: "alarm", prio: display.PrioLocal, ringPrio: display.PrioError},
+	{Name: "alert_firing", When: "a Grafana alert taken here fired (no severity, or another than warning and critical); in the quiet mode without its sounds", slot: "alert-fire"},
+	{Name: "alert_firing_warning", When: "a Grafana alert of severity warning fired; in the quiet mode without its sounds", slot: "alert-fire"},
+	{Name: "alert_firing_critical", When: "a Grafana alert of severity critical fired; in the quiet mode without its sounds", slot: "alert-fire"},
+	{Name: "alert_active", When: "while a Grafana alert taken here is on (held until they all resolve, or they are acknowledged)", slot: "alert", prio: display.PrioDegraded, indicator: true},
+	{Name: "alert_resolved", When: "a Grafana alert taken here resolved; in the quiet mode without its sounds", slot: "alert-fire"},
 	{Name: "wifi_setup", When: "Wi-Fi setup mode is on (held until it ends)", slot: "wifisetup", prio: display.PrioSetup},
 	{Name: "wifi_setup_failed", When: "Wi-Fi setup mode could not start", slot: "voice", ttl: errorTTL},
 }
@@ -133,6 +138,12 @@ var defaultTheme = map[string][]show{
 	"ha_lost":           {held(scenarioStep{Ring: "degraded"})},
 	"ha_back":           {},
 	"power_problem":     {{Ref: "phrase:no_power"}},
+	// Grafana alerts (alerts.go): the ring tells the severity, the chime that something came
+	"alert_firing":          {step(scenarioStep{Ring: "alert_info", Sound: "notification_sound", Ms: 2000})},
+	"alert_firing_warning":  {step(scenarioStep{Ring: "alert_warning", Sound: "notification_sound", Ms: 2000})},
+	"alert_firing_critical": {step(scenarioStep{Ring: "alert_critical", Sound: "notification_sound", Ms: 2500})},
+	"alert_active":          {held(scenarioStep{Ring: "alert"})},
+	"alert_resolved":        {step(scenarioStep{Ring: "success", Ms: 1500})},
 	// The firmware's own patterns on Station 3's screen; its ring patterns are blue, so a blue flash.
 	"bluetooth_connected":    {step(scenarioStep{Anim: "bluetooth_connected", Ring: "flash", Color: []int{0, 96, 255}})},
 	"bluetooth_disconnected": {step(scenarioStep{Anim: "bluetooth_disconnected"})},

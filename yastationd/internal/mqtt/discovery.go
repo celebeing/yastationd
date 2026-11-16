@@ -49,6 +49,10 @@ type builder struct {
 	SoundSPL  bool
 	// VoiceID adds who is talking (docs/voice-id.md) and the ignore-guests switch.
 	VoiceID bool
+	// Alerts adds the Grafana alerts' mode select (AlertsModes), the count of alerts on, their
+	// acknowledge button and the event HA says an alert from (docs/alerts.md).
+	Alerts      bool
+	AlertsModes []string
 
 	mu            sync.Mutex
 	intercomPeers []string
@@ -327,6 +331,35 @@ func (b *builder) Entities() []Entity {
 				"payload_off":     "OFF",
 				"entity_category": "config",
 				"icon":            "mdi:account-cancel",
+			}})
+	}
+	if b.Alerts {
+		entities = append(entities,
+			Entity{"select", "alerts_mode", map[string]any{
+				"name":            "Alerts",
+				"state_topic":     t.State("alerts_mode"),
+				"command_topic":   t.Command("alerts_mode"),
+				"options":         b.AlertsModes,
+				"entity_category": "config",
+				"icon":            "mdi:bell-cog",
+			}},
+			Entity{"sensor", "alerts_active", map[string]any{
+				"name":                  "Alerts on",
+				"state_topic":           t.State("alerts_active"),
+				"json_attributes_topic": t.State("alerts_attr"),
+				"state_class":           "measurement",
+				"icon":                  "mdi:bell-alert",
+			}},
+			Entity{"button", "alerts_ack", map[string]any{
+				"name":          "Acknowledge alerts",
+				"command_topic": t.Command("alerts_ack"),
+				"icon":          "mdi:bell-check",
+			}},
+			Entity{"event", "alert_say", map[string]any{
+				"name":        "Alert to say",
+				"state_topic": t.State("alert_say"),
+				"event_types": []string{"say"},
+				"icon":        "mdi:bullhorn",
 			}})
 	}
 	if b.HasAmbilight {

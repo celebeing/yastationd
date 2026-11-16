@@ -86,6 +86,7 @@ type App struct {
 	cpu                  cpuMeter         // /proc/stat between two reads
 	combo                keyCombo
 	ic                   *icState         // intercom; nil when off
+	alerts               alertState       // Grafana alerts on here (alerts.go)
 	ship                 *logship.Shipper // logs to the LAN syslog server; nil when off
 	room                 *roomSound       // mic levels (room sensors, arbitration); nil when not needed
 	arb                  arbiter
@@ -494,6 +495,8 @@ func (a *App) Run(ctx context.Context) error {
 	b.RoomSound = a.roomSoundEnabled()
 	b.SoundSPL = a.splOffset() != 0
 	b.VoiceID = a.vid != nil
+	b.Alerts = a.alertsOn()
+	b.AlertsModes = alertsModes
 	a.builder = b
 
 	a.hmon = health.New(a.cfg().Path(a.cfg().HeartbeatFile), a.onHealthChange)
@@ -822,6 +825,10 @@ func (a *App) publishAllState() {
 	a.publishMicMute()
 	if a.vid != nil {
 		a.publish(a.topics.State("voice_ignore_guests"), onOff(s.VoiceIgnoreGuests))
+	}
+	if a.alertsOn() {
+		a.publish(a.topics.State("alerts_mode"), a.alertsMode())
+		a.publishAlerts()
 	}
 }
 

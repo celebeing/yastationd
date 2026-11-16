@@ -90,6 +90,8 @@ places other assistants beep.
 | `call_ended`, `call_cancelled`, `call_missed`, `call_busy`, `call_failed` | a white flash and `calls_ended`; the flash; nothing; `error` and `calls_busy`; `error` |
 | `timer_started` / `timer_finished` (held) | nothing / the amber blink, `ringing` (else a blinking 00:00) and the built-in beep, unless the show has a sound of its own |
 | `wifi_setup` (held), `wifi_setup_failed` | the yellow comet and the setup scene; `error` |
+| `alert_firing`, `alert_firing_warning`, `alert_firing_critical` | a Grafana alert fired ([alerts.md](alerts.md)): a white flash, an amber blink, a fast red blink, each with `notification_sound`; in the quiet mode without the sound |
+| `alert_active` (held) / `alert_resolved` | a red pulse while an alert is on (never a sound) / the green flash |
 
 Station 3's profile keeps its old silence: `moment.volume_change`, `moment.announce` empty and
 `moment.voice_unavailable = ring:unavailable` (orion.conf).

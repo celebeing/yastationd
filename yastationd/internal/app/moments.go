@@ -216,7 +216,7 @@ func (a *App) momentAt(slot, name string, ttl time.Duration, prio int) bool {
 		return true // the voice stage again (HA's next event of it): its show goes on
 	}
 	e := expressions[name] // a voice stage: the ring under it, as the built-in layer's
-	shown, _ := a.showMoment(slot, name, ttl, prio, display.PrioScenario, cmp.Or(e.ringPrio, display.PrioScenario))
+	shown, _ := a.showMoment(slot, name, ttl, prio, display.PrioScenario, cmp.Or(e.ringPrio, display.PrioScenario), false)
 	if shown {
 		a.markMoment(slot, name)
 	}
@@ -275,6 +275,11 @@ func (a *App) hook(name string) bool {
 // fire is hook that also reports when the show's last sound ends (0: it plays none), for a caller
 // whose own audio waits for it (the announce chime before the announcement).
 func (a *App) fire(name string) (shown bool, soundEnd time.Duration) {
+	return a.fireAs(name, false)
+}
+
+// fireAs is fire, silent: without its sounds (the picture and the ring only).
+func (a *App) fireAs(name string, silent bool) (shown bool, soundEnd time.Duration) {
 	m := momentByName[name]
 	slot := cmp.Or(m.slot, "moment:"+name)
 	prio := cmp.Or(m.prio, display.PrioExpression)
@@ -286,7 +291,7 @@ func (a *App) fire(name string) (shown bool, soundEnd time.Duration) {
 	} else {
 		a.setYield(slot, nil)
 	}
-	if shown, end := a.showMoment(slot, name, m.ttl, prio, ringPrio, ringPrio); shown {
+	if shown, end := a.showMoment(slot, name, m.ttl, prio, ringPrio, ringPrio, silent); shown {
 		return true, end
 	}
 	if m.slot != "" {

@@ -44,6 +44,10 @@ func (a *App) commands() map[string]func([]byte) {
 	if a.vid != nil {
 		c["voice_ignore_guests"] = a.cmdVoiceIgnoreGuests
 	}
+	if a.alertsOn() {
+		c["alerts_mode"] = a.cmdAlertsMode
+		c["alerts_ack"] = func([]byte) { a.alertsAck() }
+	}
 	a.shareOptions(c)
 	return c
 }
@@ -71,6 +75,7 @@ func (a *App) subscribe() {
 		a.mqtt.Subscribe(topic, fn)
 	}
 	a.intercomSubscribe()
+	a.alertsSubscribe()
 	a.mqtt.Subscribe(t.Arbitration(), a.onArbitrationClaim)
 	a.mqtt.SubscribeTopic(t.WebInfoAll(), a.onWebInfo)
 	a.mqtt.SubscribeTopic(t.TimerAll(), a.onSharedTimer) // timers that follow a person (sharedtimers.go)

@@ -46,6 +46,8 @@ type persistState struct {
 	MusicVolume int  `json:"music_volume"` // Music Assistant player volume 0..100 (volume "separate")
 	// VoiceIgnoreGuests: voice ID drops requests from voices the household doesn't know.
 	VoiceIgnoreGuests bool `json:"voice_ignore_guests,omitempty"`
+	// AlertsMode: how this speaker takes Grafana alerts, off|quiet|loud ("" = quiet; alerts.go).
+	AlertsMode string `json:"alerts_mode,omitempty"`
 }
 
 func defaultState(ringBright, ambilightBright, clockBright int, clockAuto bool) persistState {

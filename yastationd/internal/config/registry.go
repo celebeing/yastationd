@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/celebeing/yastationd/yastationd/internal/alerts"
 	"github.com/celebeing/yastationd/yastationd/internal/ledcolor"
 	"github.com/celebeing/yastationd/yastationd/internal/luxcal"
 	"github.com/celebeing/yastationd/yastationd/internal/web"
@@ -67,6 +68,7 @@ var Groups = []struct{ ID, Title, Page string }{
 	{"sources", "Music sources", "music"},
 	{"bluetooth", "Bluetooth audio", "bluetooth"},
 	{"intercom", "Intercom", "intercom"},
+	{"alerts", "Grafana alerts", "alerts"},
 	{"wifi_setup", "Wi-Fi setup mode", "wifi"},
 	{"network", "When the connection is lost", "wifi"},
 	{"calibration", "Mic", "calibration"},
@@ -616,6 +618,26 @@ func init() {
 	reg(Key{Name: "intercom_record_dir", Group: "intercom", Label: "Record calls to", Advanced: true,
 		Doc: "Testing: each call's raw uplink is saved in this directory."},
 		textV(func(c *Config) *string { return &c.IntercomRecordDir }, nil))
+
+	// --- alerts (docs/alerts.md) ---
+	matchers := func(s string) error { _, err := alerts.ParseMatchers(s); return err }
+	reg(Key{Name: "alerts_topic", Group: "alerts", Label: "Topic", Sync: true,
+		Doc: "The MQTT topic Grafana's MQTT contact point publishes alerts to (for example yastation/alerts). Empty: the speaker takes no alerts and Home Assistant shows none of their controls."},
+		textV(func(c *Config) *string { return &c.AlertsTopic }, func(s string) error {
+			if strings.ContainsAny(s, "+#") {
+				return fmt.Errorf("a topic, not a filter: no + or #")
+			}
+			return nil
+		}))
+	reg(Key{Name: "alerts_match", Group: "alerts", Label: "Alerts taken here", Runtime: true,
+		Doc: "Which alerts this speaker reacts to, by their labels: comma-separated label=value, label!=value, label=~regex or label!~regex, all of which must hold (severity=critical, team=~home|lab). Empty: every alert. Whether it reacts at all, and how loudly, is the Alerts mode in Home Assistant."},
+		textV(func(c *Config) *string { return &c.AlertsMatch }, matchers))
+	reg(Key{Name: "alerts_speak", Group: "alerts", Label: "Alerts said aloud", Runtime: true, Sync: true,
+		Doc: "In the loud mode, which alerts the speaker also says aloud, by their labels as above; empty: every one. It says the rule's \"speech\" annotation, else the rule's title, through Home Assistant (docs/guides/grafana-alerts.md)."},
+		textV(func(c *Config) *string { return &c.AlertsSpeak }, matchers))
+	reg(Key{Name: "alerts_repeat", Group: "alerts", Label: "React to repeats", Runtime: true, Sync: true, Advanced: true,
+		Doc: "Grafana sends an alert that stays on again every repeat interval. Off: only a new alert gets the moment (and the voice); on: every repeat does."},
+		boolV(func(c *Config) *bool { return &c.AlertsRepeat }))
 
 	// --- wi-fi setup mode ---
 	reg(Key{Name: "wifi_setup", Group: "wifi_setup", Label: "Wi-Fi setup mode",

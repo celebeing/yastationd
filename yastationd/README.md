@@ -24,6 +24,7 @@ internal/display      per-surface priority layer stack + clock/text/ring effects
 internal/mqtt         paho client (LWT, backoff), topics, HA MQTT-Discovery
 internal/health       liveness state machine (TCP probes + heartbeat)
 internal/wifisetup    Wi-Fi setup mode: hostapd handoff, DHCP/DNS, the setup page, wpa_supplicant.conf edits
+internal/alerts       Grafana's alert notifications and the label matchers that filter them
 internal/intercom     1-to-1 calls between speakers: signed signalling, AES-GCM RTP/L16 media, jitter buffer, voice phrases
 internal/sendspin     supervises sendspin-host (Music Assistant player) and relays its events
 internal/app          wiring: render loop, command handlers, evdev reflexes, the web server's API
@@ -125,7 +126,9 @@ power_problem · `switch` auto_brightness + `number` clock_brightness · `binary
 intercom_target (the other speakers) · `button` intercom_call (also answers) · `button`
 intercom_hangup ([docs/intercom.md](../docs/intercom.md)) · with `voice_id = true`: `sensor` voice
 (a named person, guest or unknown; the verdict as attributes) · `sensor` voice_gender ·
-`binary_sensor` voice_known · `switch` voice_ignore_guests ([docs/voice-id.md](../docs/voice-id.md)).
+`binary_sensor` voice_known · `switch` voice_ignore_guests ([docs/voice-id.md](../docs/voice-id.md)) ·
+with `alerts_topic` set: `select` alerts_mode (off/quiet/loud) · `sensor` alerts_active (the alerts
+as an attribute) · `button` alerts_ack · `event` alert_say ([docs/alerts.md](../docs/alerts.md)).
 
 **Not on HA's device card** (2026-10-28): the speaker's own settings — `text_duration`,
 `animation_duration`, `follow_up` — are in the web app only (still entities of its API;

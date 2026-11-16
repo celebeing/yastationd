@@ -250,6 +250,12 @@ type Config struct {
 	IntercomJitterMs   int
 	VQEModels          string  // the VQE's model dir ("" = <cfw>/vendor/vqe_models if there, else the firmware's)
 	IntercomGainDB     float64 // the uplink's fixed gain over the VQE stream (0 = the default, 30)
+
+	// Alerts (docs/alerts.md): Grafana's notifications through the broker. Off without a topic.
+	AlertsTopic  string // the topic Grafana's MQTT contact point publishes to
+	AlertsMatch  string // label matchers: the alerts this speaker takes ("" = all)
+	AlertsSpeak  string // label matchers: the alerts it says aloud in the loud mode
+	AlertsRepeat bool   // a repeated notification of an alert already on fires its moment again
 	IntercomRecordDir  string  // testing: each call's raw uplink (before the guard) is saved here
 
 	// Clock: SNTP sync when no chronyd/ntpd runs (internal/timesync). ntp_server entries are tried
@@ -342,6 +348,7 @@ func Default() Config {
 		VolumeMax:                 100,
 		VolumeBeep:                true,
 		AnnounceChime:             true,
+		AlertsSpeak:               "severity=critical",
 		ClipsDir:                  cfw + "/clips",
 		ScenariosDir:              cfw + "/scenarios",
 		VideoFrames:               cfw + "/media/video.led",

@@ -296,6 +296,9 @@ func (a *App) volumeBeep() {
 
 // announceChime fires the announce moment and returns how long its sounds last (0 = none).
 func (a *App) announceChime() time.Duration {
+	if a.alertSpeechSoon() {
+		return 0 // the alert it says had its own moment just before
+	}
 	if !a.cfg().AnnounceChime {
 		return 0
 	}

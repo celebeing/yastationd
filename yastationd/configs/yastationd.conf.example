@@ -103,6 +103,12 @@ volume_beep  = true
 # intercom_jitter_ms   = 40
 # intercom_gain_db     = 30      (the uplink's gain only without the VQE call mode)
 # vqe_models           =         (default <cfw>/vendor/vqe_models if there, else the firmware's)
+# Grafana alerts (docs/alerts.md): Grafana's MQTT contact point publishes to alerts_topic; empty = off.
+# The Alerts mode (off / quiet / loud) is per speaker, in Home Assistant and the web app.
+# alerts_topic  =                    (e.g. yastation/alerts)
+# alerts_match  =                    (label matchers: the alerts taken here; empty = all)
+# alerts_speak  = severity=critical  (label matchers: said aloud in the loud mode; empty = all)
+# alerts_repeat = false              (react to repeated notifications of an alert already on)
 
 # --- Wyoming satellite (HA: Settings → Integrations → Wyoming → host = this device, port below).
 # HA's announcements (assist_satellite.announce) and TTS replies, and the voice (wake word,

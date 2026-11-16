@@ -29,7 +29,7 @@ twice (the upload and the `.prev` copy, ~17 MB each).
 
 | File | When |
 |---|---|
-| `<cfw>/yastationd.state` (~500 B, written to a temp file and renamed) | an HA-set or user-set value changes: ring/ambilight colour, display mode, volume, brightness…; debounced 2 s, so turning the volume ring is one write |
+| `<cfw>/yastationd.state` (~500 B, written to a temp file and renamed) | an HA-set or user-set value changes: ring/ambilight colour, display mode, volume, brightness, the alerts mode…; debounced 2 s, so turning the volume ring is one write |
 | `<cfw>/sendspin/state.json` (sendspin-host) | a Music Assistant server pairs; the library also saves the last-played server and the output delay |
 | `yastationd.conf`, `.bak` | a setting saved or received from another speaker |
 | `wpa_supplicant.conf` | only from the Wi-Fi setup page |
