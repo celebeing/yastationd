@@ -99,6 +99,9 @@ type Config struct {
 	// WakeWordInStream: the audio for HA starts WakeWordLead before the WAKE point instead, with
 	// the wake word in it. WakeCapture saves the audio around each WAKE (docs/wake-word-boundary.md).
 	WakeWordInStream bool
+	// WakeLeadInMs: this much room audio from before the wake word starts goes ahead of the request
+	// (with the wake word cut off), so HA's voice activity detection hears the request begin.
+	WakeLeadInMs int
 	WakeCapture      bool
 
 	// A pending reply: how long we wait for HA's answer (HA has no timeout of its own) before

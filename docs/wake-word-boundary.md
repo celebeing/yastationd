@@ -21,6 +21,14 @@ real vendor spotter under qemu, a first estimate to be redone on real recordings
   `wake_word_in_stream = true`, which keeps «Алиса» in the stream. Before this, `preroll_ms` counted
   back from the moment the session subscribed, a few tens of ms after the WAKE and more when fd 3
   had dropped blocks. The voice key and follow-ups still take `preroll_ms` back from now.
+- **A lead-in of room sound** (`wake_lead_in_ms`, 0 = off): with the wake word cut off, a request
+  said in one breath after «Алиса» («Алисакакаяпогода») makes the stream start mid-speech, and HA's
+  voice activity detection (pymicro_vad: 0.3 s of speech before a command counts as started) was
+  seen to miss its start and wait for its 15 s timeout (2026-11-18: «какая погода» 4 of 5,
+  «сколько времени» 0 of 2 — that one has a natural gap). The daemon then sends, ahead of the
+  request, this much vqe_0 that ends 1.3 s (`wakeWordLead`) before the WAKE point: the room before
+  the word, no part of it (`Spotter.VQEBefore`; nothing when the ring no longer holds it). Not with
+  `wake_word_in_stream`, which sends the room before the word anyway.
 - **`wake_capture = true`** (a test option) saves, for every WAKE, 3.5 s of vqe_0 (2 s before the
   WAKE point, 1.5 s after) as `<cfw>/wakes/<time>.wav` and a JSON next to it: the board, the model,
   `stream_ms`, the WAKE's sample, the WAV's first sample, `wake_at_ms` (the WAKE point in the WAV),

@@ -113,3 +113,25 @@ func TestSubscribeVQEAt(t *testing.T) {
 	}
 	unsub()
 }
+
+func TestVQEBefore(t *testing.T) {
+	s := &Spotter{Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	s.setRunning(true)
+	feed(s, 0, 32000*5) // samples 0..80000; the ring holds 16000..80000
+	ev := Event{Kind: "WAKE", VQE: 16000 * 4, gen: s.gen}
+	// 400 ms ending 1.3 s before the WAKE: samples 64000-20800-6400 .. 64000-20800
+	b := s.VQEBefore(ev, 1300*time.Millisecond, 400*time.Millisecond)
+	if from := 64000 - 20800 - 6400; len(b) != 6400*2 || b[0] != byte(from) || b[len(b)-2] != byte(from+6399) {
+		t.Fatalf("%d bytes, first %d last %d", len(b), b[0], b[len(b)-2])
+	}
+	// out of the ring, an earlier child, nothing asked: nil
+	if s.VQEBefore(ev, 3500*time.Millisecond, 400*time.Millisecond) != nil ||
+		s.VQEBefore(Event{VQE: 16000 * 4, gen: s.gen - 1}, time.Second, time.Second) != nil ||
+		s.VQEBefore(ev, time.Second, 0) != nil {
+		t.Fatal("got audio the ring does not hold")
+	}
+	// ending after the ring's end (a WAKE reported before its audio): nil
+	if s.VQEBefore(Event{VQE: 16000*5 + 8000, gen: s.gen}, 0, 100*time.Millisecond) != nil {
+		t.Fatal("got audio past the ring's end")
+	}
+}

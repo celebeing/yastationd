@@ -391,6 +391,24 @@ func (s *Spotter) SubscribeVQEAt(ev Event, before time.Duration, fn func([]byte)
 	}), start / 2
 }
 
+// VQEBefore is a copy of the vqe_0 audio that ends `end` before the event's position and lasts
+// `length`, from the ring; nil when the ring no longer (or never did) hold all of it, or the event
+// is from an earlier child.
+func (s *Spotter) VQEBefore(ev Event, end, length time.Duration) []byte {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ev.VQE < 0 || ev.gen != s.gen || length <= 0 {
+		return nil
+	}
+	to := (ev.VQE - int64(end.Seconds()*VQERate)) * 2
+	from := to - int64(length.Seconds()*VQERate)*2
+	if from < 0 || from < s.ringEnd-int64(len(s.ring)) || to > s.ringEnd {
+		return nil
+	}
+	i := int64(len(s.ring)) - (s.ringEnd - from)
+	return append([]byte(nil), s.ring[i:i+(to-from)]...)
+}
+
 func (s *Spotter) subscribeVQE(fn func([]byte)) (unsubscribe func()) {
 	if s.vqeSubs == nil {
 		s.vqeSubs = map[int]func([]byte){}

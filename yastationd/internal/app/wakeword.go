@@ -232,6 +232,12 @@ func (a *App) wakeAudio(ev *wake.Event, fn func([]byte)) (unsubscribe func()) {
 		}
 		if c.WakeWordInStream {
 			lead = wakeWordLead
+		} else if c.WakeLeadInMs > 0 {
+			// the room before the wake word, glued ahead of the request: HA's VAD then hears the
+			// request start out of quiet instead of a stream cut mid-speech (docs/wake-word-boundary.md)
+			if b := a.spot.VQEBefore(*ev, wakeWordLead, time.Duration(c.WakeLeadInMs)*time.Millisecond); b != nil {
+				fn(b)
+			}
 		}
 		unsub, _ := a.spot.SubscribeVQEAt(*ev, lead, fn)
 		return unsub

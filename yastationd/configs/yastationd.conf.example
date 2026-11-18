@@ -177,6 +177,9 @@ wyoming_port = 10700
 # unset: the board's value (wake.preroll_ms, measured per model), else 300.
 # wake_word_in_stream = true starts it 1.3 s earlier, with the wake word in it
 # preroll_ms = 150
+# room sound from before «Алиса» put ahead of the request, so HA's speech detection hears it start
+# (the wake word stays cut off); 0 = none
+# wake_lead_in_ms = 0
 # wake_word_in_stream = false
 # wake_capture: a test option, saves the audio around every wake word under <cfw>/wakes
 # wake_capture = false

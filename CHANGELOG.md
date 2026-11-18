@@ -3,6 +3,14 @@
 Versions follow [SemVer](https://semver.org/); before 1.0 a minor version adds features and a
 patch version fixes things. How to cut a release: [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+**Voice**
+- `wake_lead_in_ms`: a little of the room's own sound from before «Алиса» goes ahead of the request
+  (the wake word stays cut off), so Home Assistant's speech detection hears a request said in one
+  breath after «Алиса» begin, instead of waiting for its 15 s timeout
+  ([docs/wake-word-boundary.md](docs/wake-word-boundary.md)). Off by default until measured.
+
 ## v0.32.0 — 2026-11-16
 
 **Grafana alerts**
