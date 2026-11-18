@@ -102,7 +102,7 @@ type Config struct {
 	// WakeLeadInMs: this much room audio from before the wake word starts goes ahead of the request
 	// (with the wake word cut off), so HA's voice activity detection hears the request begin.
 	WakeLeadInMs int
-	WakeCapture      bool
+	WakeCapture  bool
 
 	// A pending reply: how long we wait for HA's answer (HA has no timeout of its own) before
 	// cancelling it, and what a wake word does meanwhile: "interrupt" (drop the connection, start
@@ -358,6 +358,7 @@ func Default() Config {
 		AlertsSpeak:               "severity=critical",
 		NotifyShowText:            true,
 		AlertsHold:                true,
+		WakeLeadInMs:              400,
 		ClipsDir:                  cfw + "/clips",
 		ScenariosDir:              cfw + "/scenarios",
 		VideoFrames:               cfw + "/media/video.led",

@@ -28,7 +28,9 @@ real vendor spotter under qemu, a first estimate to be redone on real recordings
   «сколько времени» 0 of 2 — that one has a natural gap). The daemon then sends, ahead of the
   request, this much vqe_0 that ends 1.3 s (`wakeWordLead`) before the WAKE point: the room before
   the word, no part of it (`Spotter.VQEBefore`; nothing when the ring no longer holds it). Not with
-  `wake_word_in_stream`, which sends the room before the word anyway.
+  `wake_word_in_stream`, which sends the room before the word anyway. Default 400 ms since
+  2026-11-18: on Station 3А, ten requests in one breath right after «Алиса» (five «какая погода»)
+  all got HA's speech start at 0.05-0.07 s and its end at 0.6-1.3 s, the transcripts clean.
 - **`wake_capture = true`** (a test option) saves, for every WAKE, 3.5 s of vqe_0 (2 s before the
   WAKE point, 1.5 s after) as `<cfw>/wakes/<time>.wav` and a JSON next to it: the board, the model,
   `stream_ms`, the WAKE's sample, the WAV's first sample, `wake_at_ms` (the WAKE point in the WAV),

@@ -9,7 +9,8 @@ patch version fixes things. How to cut a release: [docs/releasing.md](docs/relea
 - `wake_lead_in_ms`: a little of the room's own sound from before «Алиса» goes ahead of the request
   (the wake word stays cut off), so Home Assistant's speech detection hears a request said in one
   breath after «Алиса» begin, instead of waiting for its 15 s timeout
-  ([docs/wake-word-boundary.md](docs/wake-word-boundary.md)). Off by default until measured.
+  ([docs/wake-word-boundary.md](docs/wake-word-boundary.md)). 400 ms by default: «Алиса, какая
+  погода» in one breath took ~14 s 4 times in 5 before, and answered at once 4 times in 4 after.
 
 ## v0.32.0 — 2026-11-16
 
