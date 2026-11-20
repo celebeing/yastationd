@@ -36,17 +36,19 @@ const (
 )
 
 type voiceSession struct {
-	conn      *wyoming.Conn
-	unsub     func()
-	once      sync.Once
-	done      chan struct{}
-	started   chan struct{} // closed when HA signals its STT started
-	sttOnce   sync.Once
-	speech    chan struct{} // closed when HA's VAD heard speech (voice-started)
-	speechOne sync.Once
-	lvl       hw.LevelMeter // what we sent, to judge mic gain
-	src       string        // what started it (srcKey, srcWake, srcFollow)
-	take      *voiceTake    // its voiceprint (voice ID; nil when off)
+	conn        *wyoming.Conn
+	unsub       func()
+	once        sync.Once
+	done        chan struct{}
+	started     chan struct{} // closed when HA signals its STT started
+	sttOnce     sync.Once
+	speech      chan struct{} // closed when HA's VAD heard speech (voice-started)
+	speechOne   sync.Once
+	speechBegun bool          // guarded by satellite.mu
+	expired     bool          // guarded by satellite.mu
+	lvl         hw.LevelMeter // what we sent, to judge mic gain
+	src         string        // what started it (srcKey, srcWake, srcFollow)
+	take        *voiceTake    // its voiceprint (voice ID; nil when off)
 }
 
 // heldWake is a wake word that interrupted a pending reply: its speech is buffered while the
@@ -99,11 +101,11 @@ const (
 
 // startListening begins a session. A key press during a session ends it instead; a wake or
 // follow-up during one is ignored.
-func (s *satellite) startListening(src string) { s.startListeningWith(src, nil) }
+func (s *satellite) startListening(src string) { s.startListeningWith(src, nil, src == srcFollow) }
 
 // startListeningWith starts a session; with held it streams held's buffered speech first and
 // then held's live audio (a wake that interrupted a pending reply).
-func (s *satellite) startListeningWith(src string, held *heldWake) {
+func (s *satellite) startListeningWith(src string, held *heldWake, dialogFollow bool) {
 	a := s.a
 	if a.stopVideo("voice") { // its sound would drown the request
 		a.publishDisplayMode()
@@ -171,6 +173,26 @@ func (s *satellite) startListeningWith(src string, held *heldWake) {
 	if v.take == nil {
 		v.take = a.voiceTakeAt(nil, src)
 	}
+	if timeout := a.cfg().FollowUpListenTimeout; dialogFollow && timeout > 0 {
+		time.AfterFunc(timeout, func() {
+			s.eventMu.Lock()
+			defer s.eventMu.Unlock()
+			s.mu.Lock()
+			expire := s.listen == v && !v.speechBegun
+			if expire {
+				v.expired = true
+				if s.main == v.conn {
+					s.main = nil
+				}
+				a.unexpress("voice")
+				v.conn.Discard() // cancel the HA pipeline before another can start
+			}
+			s.mu.Unlock()
+			if expire {
+				s.stopListening(v, "follow-up speech timeout")
+			}
+		})
+	}
 	go func() {
 		select {
 		case <-v.done:
@@ -204,13 +226,16 @@ func (s *satellite) startListeningWith(src string, held *heldWake) {
 }
 
 // speechStarted marks HA's VAD hearing speech in c's session (voice-started).
-func (s *satellite) speechStarted(c *wyoming.Conn) {
+func (s *satellite) speechStarted(c *wyoming.Conn) bool {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	v := s.listen
-	s.mu.Unlock()
-	if v != nil && v.conn == c {
+	if v != nil && v.conn == c && !v.expired {
+		v.speechBegun = true
 		v.speechOne.Do(func() { close(v.speech) })
+		return true
 	}
+	return false
 }
 
 // dropConn closes HA's satellite connection: HA cancels the run in flight and reconnects
@@ -301,7 +326,7 @@ func (s *satellite) resumeHeldWake() {
 	}
 	h.timer.Stop()
 	s.a.log.Info("voice: HA is back, starting the interrupting session")
-	s.startListeningWith(srcWake, h)
+	s.startListeningWith(srcWake, h, false)
 }
 
 // sttStarted marks c's session as acknowledged by HA (transcribe / voice-started).

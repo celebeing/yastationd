@@ -138,6 +138,7 @@ log_level = debug
 # (interrupt or ignore; docs/voice-slow-replies.md). First connection timeout at boot, in s
 # (docs/status-indication.md).
 # reply_timeout        = 90
+# follow_up_listen_timeout = 0  # seconds, 0..15; 0 keeps the usual wait
 # wake_while_waiting   = interrupt
 # boot_connect_timeout = 40
 # Asset packs in force, top first, one per line (docs/asset-packs.md; Assets → Packs sets it):

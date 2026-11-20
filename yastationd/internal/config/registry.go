@@ -349,6 +349,9 @@ func init() {
 		value{kind: "int", min: 0, max: 2000, unit: "ms",
 			get: func(c *Config) []string { return one(strconv.Itoa(c.PrerollMs)) },
 			set: func(c *Config, v string) (err error) { c.PrerollMs, err = atoiRange(v, 0, 2000); return }})
+	reg(Key{Name: "follow_up_listen_timeout", Group: "voice", Label: "Follow-up speech deadline", Runtime: true, Sync: true,
+		Doc: "How long to wait for speech to start after a spoken reply, in seconds. 0 keeps the usual wait. Home Assistant may stop listening earlier. Once speech starts, this deadline no longer applies."},
+		durV(0, 15, time.Second, func(c *Config) *time.Duration { return &c.FollowUpListenTimeout }))
 	reg(Key{Name: "reply_timeout", Group: "voice", Label: "Reply deadline", Runtime: true, Sync: true,
 		Doc: "How long to wait for Home Assistant's answer before giving up (HA has no timeout of its own)."},
 		durV(10, 600, time.Second, func(c *Config) *time.Duration { return &c.ReplyTimeout }))

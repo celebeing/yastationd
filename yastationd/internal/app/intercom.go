@@ -385,7 +385,7 @@ func (a *App) icListenIfRinging() {
 		return
 	}
 	if a.cfg().WyomingPort > 0 {
-		a.sat.startListening(srcFollow)
+		a.sat.startListeningWith(srcFollow, nil, false)
 	}
 }
 

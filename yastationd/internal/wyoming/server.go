@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+	"sync/atomic"
 )
 
 // Handler receives the events of every connection. Each connection's events are delivered in
@@ -20,8 +21,9 @@ type Handler interface {
 
 // Conn is one peer connection. Send is safe for concurrent use.
 type Conn struct {
-	nc net.Conn
-	mu sync.Mutex
+	nc        net.Conn
+	mu        sync.Mutex
+	discarded atomic.Bool
 }
 
 // Send writes one event to the peer.
@@ -36,6 +38,15 @@ func (c *Conn) RemoteAddr() string { return c.nc.RemoteAddr().String() }
 
 // Close drops the connection.
 func (c *Conn) Close() error { return c.nc.Close() }
+
+// Discard closes the connection and marks any delayed events as invalid.
+func (c *Conn) Discard() error {
+	c.discarded.Store(true)
+	return c.Close()
+}
+
+// Discarded reports whether delayed events from this connection should be ignored.
+func (c *Conn) Discarded() bool { return c.discarded.Load() }
 
 // Server accepts Wyoming peers. Connections are concurrent: besides its long-lived satellite
 // connection, HA opens a short describe-only connection every ~30 s, so kicking the old peer on
