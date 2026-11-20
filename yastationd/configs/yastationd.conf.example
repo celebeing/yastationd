@@ -168,6 +168,7 @@ wyoming_port = 10700
 # Waiting for HA's reply (HA has no timeout): our deadline in s, and what a wake word does meanwhile
 # (interrupt = start the new request once HA is back; ignore = blink "busy"). docs/voice-slow-replies.md
 # reply_timeout      = 90
+# follow_up_listen_timeout = 0  # seconds, 0..15; 0 keeps the usual wait
 # Boot: the first connection (broker + HA's satellite link) may take this long before the speaker
 # shows "first connection failed" (red pulse). docs/status-indication.md
 # boot_connect_timeout = 40

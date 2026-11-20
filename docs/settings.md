@@ -7,6 +7,9 @@ Status (2026-10-28): implemented; tested on the desk (Go tests, the simulator's 
 Every config key is described once, in `yastationd/internal/config/registry.go` (`config.Keys`):
 its parser and printer, a group, a label, an explaining paragraph, and flags:
 
+The Voice page places `follow_up_listen_timeout` beside the follow-up option. It limits the wait
+for speech after a reply; see [voice-slow-replies.md](voice-slow-replies.md).
+
 | Flag | Meaning |
 |---|---|
 | `Runtime` | a change applies while the daemon runs; otherwise saving it restarts the daemon on trial |

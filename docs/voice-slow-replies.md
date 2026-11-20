@@ -42,6 +42,11 @@ Assist sentence that replies after a set delay).
   - `ignore`: a short "busy" blink; the wait goes on.
 - **Wedge watchdog:** if the speaker heard speech in a session (loud level ≥ 12 dB over the floor)
   but HA sent no `voice-started` within 8 s, it drops the connection to clear a wedged satellite.
+- **Follow-up speech deadline:** `follow_up_listen_timeout` optionally limits the wait for speech
+  after a spoken reply. 0 keeps the usual wait; 1–15 seconds sets the limit. HA can end it sooner.
+  Once HA signals `voice-started`, this deadline no longer applies. It does not limit wake words,
+  the voice key or the intercom. A timeout closes the HA connection to cancel the pipeline cleanly;
+  HA normally reconnects in about 3 seconds.
 - **HA drops us** (ping timeout) with a reply pending: the wait ends with an error indication.
 
 Code: `yastationd/internal/app/voice.go` (pending reply, cancel, interrupt, watchdog),
@@ -51,6 +56,7 @@ Code: `yastationd/internal/app/voice.go` (pending reply, cancel, interrupt, watc
 
 ```
 reply_timeout      = 90         # s, 10..600: our deadline for HA's reply
+follow_up_listen_timeout = 0     # s, 0..15: wait for speech after a reply; 0 keeps the usual wait
 wake_while_waiting = interrupt  # or ignore
 ```
 

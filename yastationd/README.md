@@ -189,6 +189,11 @@ also opens a short describe-only connection every ~30 s; connections are concurr
 belongs to the connection that started it. Raw `yastation/<id>/speaker/set`
 (local path / `STOP`) still plays local files for `mqtt.publish` automations.
 
+`follow_up_listen_timeout` limits the wait for speech after a spoken reply to 1–15 seconds;
+0 keeps the usual wait. HA can end the wait earlier. After a timeout, the connection closes to
+cancel the pipeline and HA normally reconnects in about 3 seconds. See
+[voice-slow-replies.md](../docs/voice-slow-replies.md).
+
 One-shot overlays go to `yastation/<id>/display/cmd` as JSON
 `{surface:"matrix"|"ring", op, args, ttl_ms, priority}` — e.g. `{"surface":"ring","op":"effect","args":{"name":"success"},"ttl_ms":800}`
 or `{"surface":"matrix","op":"countdown","args":{"seconds":300}}`.

@@ -31,7 +31,7 @@ const OPTIONS: Record<string, { group: string; doc: string }> = {
 }
 
 // Config keys shown right after an option of the same section, not among the section's keys.
-const AFTER: Record<string, string> = { auto_brightness_min: 'clock_brightness', voice_guest_threshold: 'voice_ignore_guests' }
+const AFTER: Record<string, string> = { auto_brightness_min: 'clock_brightness', voice_guest_threshold: 'voice_ignore_guests', follow_up_listen_timeout: 'follow_up' }
 const optOrder = Object.keys(OPTIONS)
 
 type Ctx = { peer: Peer; base: string }

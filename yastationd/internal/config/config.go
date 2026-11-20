@@ -107,7 +107,8 @@ type Config struct {
 	// A pending reply: how long we wait for HA's answer (HA has no timeout of its own) before
 	// cancelling it, and what a wake word does meanwhile: "interrupt" (drop the connection, start
 	// a new session once HA is back, the speech buffered meanwhile) or "ignore" (blink "busy").
-	ReplyTimeout time.Duration
+	ReplyTimeout          time.Duration
+	FollowUpListenTimeout time.Duration
 	// Boot: how long the first connection (broker + HA's satellite link) may take before the
 	// speaker shows "first connection failed" (docs/status-indication.md).
 	BootConnectTimeout time.Duration

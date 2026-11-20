@@ -45,6 +45,8 @@ const (
 type satellite struct {
 	a *App
 
+	eventMu sync.Mutex // serializes HA events with follow-up cancellation
+
 	mu     sync.Mutex
 	cur    *sndStream
 	main   *wyoming.Conn // HA's satellite connection (sent run-satellite, not paused)
@@ -99,6 +101,11 @@ func (s *satellite) OnDisconnect(c *wyoming.Conn) {
 }
 
 func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
+	s.eventMu.Lock()
+	defer s.eventMu.Unlock()
+	if c != nil && c.Discarded() {
+		return
+	}
 	a := s.a
 	switch ev.Type {
 	case wyoming.TypeDescribe:
@@ -135,8 +142,8 @@ func (s *satellite) OnEvent(c *wyoming.Conn, ev wyoming.Event) {
 		if ev.Type != wyoming.TypeDetection {
 			s.sttStarted(c)
 		}
-		if ev.Type == wyoming.TypeVoiceStarted {
-			s.speechStarted(c)
+		if ev.Type == wyoming.TypeVoiceStarted && !s.speechStarted(c) {
+			break
 		}
 		s.voiceStage("listening")
 	case wyoming.TypeVoiceStopped, wyoming.TypeTranscript, wyoming.TypeSynthesize:

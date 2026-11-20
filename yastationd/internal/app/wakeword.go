@@ -137,7 +137,7 @@ func (a *App) startWake(ev wake.Event) {
 func (a *App) startWakeWith(held *heldWake) {
 	a.voiceGate(held, func() {
 		a.publishButton("wake_word")
-		a.sat.startListeningWith(srcWake, held)
+		a.sat.startListeningWith(srcWake, held, false)
 	})
 }
 

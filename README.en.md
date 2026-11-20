@@ -51,7 +51,7 @@ packs replace any animation and add sounds to any event.
 **Voice (Wyoming satellite in HA's Assist pipeline)**
 - Wake word «Алиса», using the device's own front-end and spotter models: 3-mic echo-cancelled,
   noise-reduced audio is streamed to HA's STT, and the answer is played back.
-- Push-to-talk on the voice key; dialog follow-up (keeps listening after a question).
+- Push-to-talk on the voice key; dialog follow-up after a question with a configurable speech-start deadline.
 - Several speakers in earshot agree which one answers: the nearest (the loudest «Алиса»); the
   others glance aside and stay silent ([docs/wake-arbitration.md](docs/wake-arbitration.md)).
 - «Стоп» ends a voice session at once, whether it listens, thinks or speaks.
